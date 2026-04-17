@@ -1,1 +1,1 @@
-FROM ghcr.io/musicalninjas/pyo3-devcontainer:latest@sha256:77d7def358fe9f828476d056a0af166b2f8bc9bf6e7a56237472bc6a5f16322d
+FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:72b7aec3f0dc037f4590286207652791961e5424bdda06866f3f20de03362403

@@ -4,14 +4,14 @@ on:
   push:
     paths: 
     - "**.rs"
-    - "Cargo.toml"
+    - "**/Cargo.toml"
+    - "rust-toolchain.toml"
     - ".github/workflows/rust.yml"
   pull_request:
   workflow_call:
 
 env:
     CARGO_TERM_COLOR: always
-    RUSTC_BOOTSTRAP: 1
 
 jobs:
 
@@ -21,7 +21,7 @@ jobs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
     steps:
       - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5.3.1
+        uses: fkirc/skip-duplicate-actions@v5.3.2
         with:
           concurrent_skipping: 'same_content_newer'
 
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7.0.1
     - name: Run tests
       run: cargo test
 
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7.0.1
     - name: clippy
       run: cargo clippy -- --deny warnings
 
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7.0.1
     - name: fmt
       run: cargo fmt --check
 
@@ -63,11 +63,22 @@ jobs:
     if: needs.skip_check.outputs.should_skip != 'true'
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        crate:
+          - "crates/upnp2"
+          - "crates/snoop"
+
+    env:
+      RUSTC_BOOTSTRAP: 1
+    defaults:
+      run:
+        working-directory: ${{ matrix.crate }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7.0.1
     - name: install cargo-msrv
-      uses: taiki-e/install-action@v2.75.5
+      uses: taiki-e/install-action@v2.85.0
       with:
         tool: cargo-msrv
     - name: check MSRV
