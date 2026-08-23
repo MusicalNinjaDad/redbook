@@ -16,14 +16,6 @@ version = "0.1.0"
 test_fixtures = []
 
 [dependencies]
-windows-sys = { version = "0.61.2", features = [
-    "Win32_Devices_Cdrom",
-    "Win32_Storage",
-    "Win32_Storage_FileSystem",
-    "Win32_Security",
-    "Win32_System",
-    "Win32_System_IO",
-] }
 bytes = "1.12.1"
 cdtoc = "0.13.2"
 clap = { version = "4.6.5", features = ["derive"] }
@@ -45,6 +37,14 @@ tabular = "0.2.0"
 try_v2 = "0.10.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Devices_Cdrom",
+    "Win32_Storage",
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+    "Win32_System",
+    "Win32_System_IO",
+] }
 zune-jpeg = "0.5.15"
 
 [dev-dependencies]
