@@ -54,7 +54,7 @@ jobs:
       - name: install rust
         run: rustup install && rustup update && rustup target add x86_64-pc-windows-msvc
       - name: install build-tools
-        uses: taiki-e/install-action@v2.86.6
+        uses: taiki-e/install-action@v2.85.13
         with:
           tool: cargo-xwin,cargo-about
       - name: build
