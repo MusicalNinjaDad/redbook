@@ -1,0 +1,34 @@
+# TODO for Redbook & Ripper
+
+- [x] Fix time manipulation
+  - [x] struct FrameDuration
+  - [x] Track stores only absolute starting_frame
+  - [x] impl FrameDuration: as_relative_position(), to_msf(), from_msf()
+  - [x] rename CdTime to Msf (min, sec, frame) with display mm::ss/ff (unless any std format ever used in ISO redbook)
+  - [x] impl From Duration for Msf & FrameDuration, From Msf & FrameDuration for Duration, FromStr for Msf
+- [x] clap app to rip one track
+- [ ] mod linux
+  - [ ] tidy API surface mod win
+  - [ ] ensure all symbols available for people coding on any platform (no `#![cfg(...)]` or `cfg` above `pub (use)`)
+  - [x] create trait crate::AudioCd, keep struct win::AudioCd
+  - [ ] add struct linux::AudioCd
+- [x] flac encoding
+  - [ ] open issue with https://github.com/yotarok/flacenc-rs/ due to https://users.rust-lang.org/t/error-cant-find-lanecount-and-supportedlanecount-in-portable-simd-rust-playground-nightly/138089 https://github.com/rust-lang/rust/pull/151775
+- [x] rip entire CD
+- [x] create TOC & query online directories
+  - [x] From Vec Tracks
+  - [x] use cdtoc = "0.13.2" where possible
+  - [x] name file
+  - [x] incl artwork
+  - [x] open bug with musicbrainz_rs re ring (commit b51ab9c31c45f11c2c86e884621d625e1bb786dc)
+- [ ] GUI with slint
+- [x] Consider replacing Vec u8 with crate bytes Bytes
+- [ ] Multi-Disc albums
+- [x] Store details in Track, simplify tagging
+- [x] Remove RipAll and loop in app
+- [ ] Tidy int types and as casts
+- [x] add logging
+  - [ ] check for let _
+- [ ] AI image recognition to generate coverart description
+- [x] Multi-thread
+- [ ] https://crates.io/crates/rstest_reuse

@@ -2,11 +2,21 @@
     "build": {
         "dockerfile": "Dockerfile"
     },
-    // required so that command line & analyzer can share builds
     "remoteEnv": {
+        // required so that command line & analyzer can share builds
         "RUSTC_BOOTSTRAP": "1",
-        "CARGO_INCREMENTAL": "1"
+        // required so that command line & analyzer can share builds
+        "CARGO_INCREMENTAL": "1",
+        // only skills, hooks & AGENTS.md are committed to git
+        "VIBE_HOME": "${containerWorkspaceFolder}/.vibe",
+        // Vibe extension likes to fuck this up
+        "LD_LIBRARY_PATH": ""
     },
+    "containerEnv": {
+        // Vibe extension likes to fuck this up
+        "LD_LIBRARY_PATH": ""
+    },
+    "onCreateCommand": "rustup target add x86_64-pc-windows-msvc && .devcontainer/graphify.sh",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -28,6 +38,8 @@
                     "RUSTC_BOOTSTRAP": "1",
                     "CARGO_INCREMENTAL": "1"
                 },
+                "rust-analyzer.cargo.features": "all",
+                "rust-analyzer.check.features": "all",
                 "rust-analyzer.runnables.extraEnv": {
                     "RUSTC_BOOTSTRAP": "1",
                     "CARGO_INCREMENTAL": "1"

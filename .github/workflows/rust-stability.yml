@@ -48,7 +48,7 @@ jobs:
     - name: update rust
       run: rustup update
     - name: Run tests
-      run: cargo "+${{ matrix.channel }}" test --no-fail-fast
+      run: cargo "+${{ matrix.channel }}" test --all-features --no-fail-fast
 
   lint:
     needs:
@@ -64,7 +64,7 @@ jobs:
     - name: update rust
       run: rustup update && rustup component add --toolchain ${{ matrix.channel }} clippy
     - name: clippy
-      run: cargo +${{ matrix.channel }} clippy -- --deny warnings
+      run: cargo +${{ matrix.channel }} clippy --all-features --all-targets -- --deny warnings
 
   report:
     permissions:
