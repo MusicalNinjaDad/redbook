@@ -59,6 +59,3 @@ clap_mangen = "0.3.0"
 
 [patch.crates-io]
 api_bindium = { git = "https://github.com/RustyNova016/api_bindium" }
-
-[lints.clippy]
-tests_outside_test_module = "deny"
