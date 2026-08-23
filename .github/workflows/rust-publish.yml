@@ -58,7 +58,7 @@ jobs:
         with:
           tool: cargo-xwin,cargo-about
       - name: build
-        run: cargo xwin build --target x86_64-pc-windows-msvc --release
+        run: cargo xwin cache windows-msvc-sysroot && cargo xwin cache xwin && cargo xwin build --target x86_64-pc-windows-msvc --release
       - name: generate licenses file
         run: cargo about generate --output-file third-party-licenses.html about.hbs
       - name: create archive
