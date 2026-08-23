@@ -52,7 +52,7 @@ jobs:
       - name: create folder for package
         run: mkdir rip
       - name: install rust
-        run: rustup install
+        run: rustup install && rustup update && rustup target add x86_64-pc-windows-msvc
       - name: install build-tools
         uses: taiki-e/install-action@v2.86.6
         with:
