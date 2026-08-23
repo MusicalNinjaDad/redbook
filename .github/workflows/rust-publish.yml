@@ -54,15 +54,6 @@ jobs:
         uses: taiki-e/install-action@v2.86.6
         with:
           tool: cargo-xwin,cargo-about
-      - name: latest msvc
-        id: msvc_key
-        run: |
-          HASH=$(gh api repos/trcrsired/windows-msvc-sysroot/releases/latest --jq '.assets[] | select(.name == "windows-msvc-sysroot.tar.xz") | .digest' | cut -d: -f2)
-          echo "key=$HASH" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v6.1.0
-        with:
-          path: /home/runner/.cache/cargo-xwin
-          key: ${{ steps.msvc_key.outputs.key }}
       - name: build
         run: cargo xwin cache windows-msvc-sysroot && cargo xwin cache xwin && cargo xwin build --target x86_64-pc-windows-msvc --release
       - name: generate licenses file
