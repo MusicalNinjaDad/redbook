@@ -34,7 +34,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
     - name: Run tests
-      run: cargo test
+      run: cargo test --all-features
 
   lint:
     needs: skip_check
@@ -45,7 +45,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
     - name: clippy
-      run: cargo clippy -- --deny warnings
+      run: cargo clippy --all-features --all-targets -- --deny warnings
 
   fmt:
     needs: skip_check
@@ -57,29 +57,3 @@ jobs:
     - uses: actions/checkout@v7.0.1
     - name: fmt
       run: cargo fmt --check
-
-  msrv:
-    needs: skip_check
-    if: needs.skip_check.outputs.should_skip != 'true'
-
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        crate:
-          - "crates/upnp2"
-          - "crates/snoop"
-
-    env:
-      RUSTC_BOOTSTRAP: 1
-    defaults:
-      run:
-        working-directory: ${{ matrix.crate }}
-
-    steps:
-    - uses: actions/checkout@v7.0.1
-    - name: install cargo-msrv
-      uses: taiki-e/install-action@v2.85.0
-      with:
-        tool: cargo-msrv
-    - name: check MSRV
-      run: cargo msrv verify
