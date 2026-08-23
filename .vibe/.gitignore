@@ -1,0 +1,12 @@
+# user specific stuff
+logs/**
+plans/**
+*.toml
+*.json
+vibehistory
+
+# API KEY!!!
+.env
+
+# project specific stuff
+!hooks.toml
