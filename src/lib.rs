@@ -192,7 +192,10 @@ impl RippedTrack {
         let config = flacenc::config::Encoder::default()
             .into_verified()
             .expect("Config data error.");
-        #[expect(clippy::chunks_exact_to_as_chunks, reason = "TODO error handling if not exact")]
+        #[expect(
+            clippy::chunks_exact_to_as_chunks,
+            reason = "TODO error handling if not exact"
+        )]
         let samples: Vec<_> = self
             .raw_data
             .chunks_exact(2)
