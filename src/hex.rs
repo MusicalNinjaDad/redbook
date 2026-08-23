@@ -110,6 +110,7 @@ pub fn hex_dump(bytes: &[u8]) -> String {
 /// https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
 #[instrument(level = "debug", skip(bytes), fields(entry_count = bytes.len() / 11))]
 pub fn parse_toc(bytes: Vec<u8>) -> String {
+    #[expect(clippy::chunks_exact_to_as_chunks, reason = "TODO error handling if not exact")]
     let mut entries: Vec<_> = bytes
         .chunks_exact(11)
         .map(TocEntry::from_raw_toc_bytes)
