@@ -1,17 +1,15 @@
 [package]
-authors.workspace = true
-categories.workspace = true
-description = "CDDA CD digital audio as per RedBook"
-edition.workspace = true
-homepage.workspace = true
-keywords.workspace = true
-license.workspace = true
 name = "redbook"
-publish = false
+description = "CDDA CD digital audio as per RedBook"
+categories = ["Command line utilities", "Multimedia", "Hardware support"]
+keywords = ["ccda", "windows", "flac"]
+authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
+homepage = "https://github.com/MusicalNinjaDad/redbook"
+repository = "https://github.com/MusicalNinjaDad/redbook"
 readme = "README.md"
-repository.workspace = true
-rust-version = "1.95.0"
-version = "0.0.1"
+license = "MIT"
+edition = "2024"
+version = "0.1.0"
 
 [features]
 # for integration testing - expected results correlating to tests/assets
@@ -26,34 +24,41 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_System",
     "Win32_System_IO",
 ] }
-bytes.workspace = true
-cdtoc.workspace = true
-clap.workspace = true
-exit_safely.workspace = true
-flacenc.workspace = true
-metaflac.workspace = true
+bytes = "1.12.1"
+cdtoc = "0.13.2"
+clap = { version = "4.6.5", features = ["derive"] }
+exit_safely = "0.3.1"
+flacenc = { version = "0.5.1" }
+metaflac = "0.2.8"
 musicbrainz_rs = { version = "0.13.0", git = "https://github.com/RustyNova016/musicbrainz_rs", features = [
     "sync",
     "native_tls",
 ] }
-reqwest = { workspace = true, features = ["blocking", "native-tls", "json"] }
-serde.workspace = true
-serde_json.workspace = true
-tabular.workspace = true
-try_v2.workspace = true
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "blocking",
+    "native-tls",
+    "json",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tabular = "0.2.0"
+try_v2 = "0.10.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-zune-jpeg.workspace = true
+zune-jpeg = "0.5.15"
 
 [dev-dependencies]
-rstest.workspace = true
+rstest = "0.26.1"
 
 [build-dependencies]
-build_safely.workspace = true
-clap = { workspace = true, features = ["derive"] }
-clap_builder.workspace = true
-clap_complete.workspace = true
-clap_mangen.workspace = true
+build_safely = "0.5.4"
+clap = { version = "4.6.5", features = ["derive"] }
+clap_builder = "4.6.5"
+clap_complete = "4.6.8"
+clap_mangen = "0.3.0"
 
 [patch.crates-io]
 api_bindium = { git = "https://github.com/RustyNova016/api_bindium" }
+
+[lints.clippy]
+tests_outside_test_module = "deny"
