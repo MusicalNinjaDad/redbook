@@ -16,7 +16,6 @@
         // Vibe extension likes to fuck this up
         "LD_LIBRARY_PATH": ""
     },
-    "onCreateCommand": "rustup target add x86_64-pc-windows-msvc && .devcontainer/graphify.sh",
     "customizations": {
         "vscode": {
             "extensions": [
