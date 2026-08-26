@@ -1,6 +1,10 @@
 # Base image source: https://raw.githubusercontent.com/MusicalNinjaDad/rust/refs/heads/main/Dockerfile
 FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:793f0e83422b268826b84772f3010891065542c517af08f0a2ee54ffbab5416b
 
+# See https://rust-lang.github.io/rustup/devel/environment-variables.html
+#   & https://docs.docker.com/engine/storage/drivers/overlayfs-driver/#renaming-directories
+ENV RUSTUP_PERMIT_COPY_RENAME="1"
+
 # TODO - add to base image
 RUN cargo binstall -y jaq
 
