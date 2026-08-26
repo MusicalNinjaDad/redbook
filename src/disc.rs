@@ -513,7 +513,7 @@ impl<'m> ExactSizeIterator for Tracks<'m> {
     }
 }
 
-#[cfg(all(test, feature = "test_fixtures"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_fixtures::albums::TestAlbum::{self, *};

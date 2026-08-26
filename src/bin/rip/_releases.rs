@@ -99,7 +99,7 @@ impl<'d> ReleaseMenu<'d> {
     }
 }
 
-#[cfg(all(test, feature = "test_fixtures"))]
+#[cfg(test)]
 mod tests {
     use redbook::{Track, test_fixtures::albums::TestAlbum};
 
