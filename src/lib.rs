@@ -53,7 +53,6 @@ pub mod musicbrainz;
 pub mod tagging;
 pub mod win;
 
-#[cfg(feature = "test_fixtures")]
 pub mod test_fixtures;
 
 use tracing::trace;

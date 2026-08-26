@@ -1,3 +1,4 @@
+#![allow(stable_features)]
 #![feature(never_type)]
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
