@@ -32,10 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
     - name: Update rust
       run: rustup install && rustup update
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: Swatinem/rust-cache@v2.9.2
     - name: Run tests
       run: cargo test --all-features
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
     - name: Update rust
       run: rustup install && rustup update
     - uses: Swatinem/rust-cache@v2.9.2
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7.0.1
+    - uses: actions/checkout@v7
     - name: Update rust
       run: rustup install && rustup update
     - name: fmt
