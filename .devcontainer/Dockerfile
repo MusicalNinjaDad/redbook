@@ -17,9 +17,12 @@ RUN cargo binstall -y cargo-xwin \
     && cargo xwin cache xwin \
     && rustup target add x86_64-pc-windows-msvc
 
+ENV UV_TOOL_BIN_DIR=/opt/uv/bin \
+    UV_TOOL_DIR=/opt/uv
+ENV PATH=$UV_TOOL_BIN_DIR:$PATH
+
 # From fork, for mistral support
 RUN cargo binstall -y uv \
-    && sudo mkdir /opt/graphify \
-    && sudo chown 1000:1000 /opt/graphify \
+    && sudo mkdir --mode 777 /opt/graphify ${UV_TOOL_DIR} ${UV_TOOL_BIN_DIR} \
     && git clone --branch=feat/vibe-install https://github.com/xavierpestel-ai/graphify /opt/graphify \
     && uv tool install /opt/graphify
