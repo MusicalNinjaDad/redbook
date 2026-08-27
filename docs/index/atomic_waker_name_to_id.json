@@ -1,0 +1,18 @@
+{
+  "new": "3",
+  "wake": "6",
+  "into": "28",
+  "from": "31",
+  "try_from": "40",
+  "borrow_mut": "24",
+  "default": "46",
+  "AtomicWaker": "2",
+  "fmt": "49",
+  "Error": "39",
+  "atomic_waker": "58",
+  "borrow": "20",
+  "type_id": "42",
+  "register": "4",
+  "take": "7",
+  "try_into": "35"
+}

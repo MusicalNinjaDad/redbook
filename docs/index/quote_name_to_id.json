@@ -1,0 +1,18 @@
+{
+  "Sealed": "0",
+  "quote": "238",
+  "to_tokens": "101",
+  "fmt": "39",
+  "append_all": "5",
+  "append": "2",
+  "TokenStreamExt": "10",
+  "span": "38",
+  "append_terminated": "14",
+  "quote_spanned": "235",
+  "append_separated": "13",
+  "ToTokens": "7",
+  "into_token_stream": "141",
+  "to_token_stream": "66",
+  "IdentFragment": "27",
+  "format_ident": "26"
+}
