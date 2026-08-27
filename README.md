@@ -22,13 +22,38 @@ There are 3 key entry points to the crate, one each for hardware, CD structure, 
 - `struct Disc` - the main entry point for working with the contents of a CD
 - `struct RippedTrack` - the main entry point for the actual music of a given track
 
-### The glue
+### Example
 
-This allows for example a ripper to be implemented by:
+```rust
+// Open a handle to the drive and read table of contents from the CD
+let mut cd: AudioCd = AudioCd::new(drive_path)?;
 
-- Opening an `AudioCd` for a drive, reading the TOC and storing details of the `Disc` by calling `AudioCd::new(drive)?`
-- Updating the `Disc` with titles, artists, track names from MusicBrainz and cover art from the CoverArtArchive by calling: `cd.disc_mut().update_musicbrainz()?` and `cd.disc_mut().update_coverart()?`
-- Ripping the tracks from the `AudioCd` with `cd.rip(tracknumber)?`, encoding them to flac (`rippedtrack.to_flac()`), generating the tags (`cd.disc().tag_for(tracknumber)?`) and the embeddable cover art (`cd.disc().cover_art()`).
+// Try to get data on this cd from musicbrainz. Continue on (network) errors.
+let _ = cd.disc_mut().update_musicbrainz();
+
+// There are often multiple releases with the same tracks - select the right one.
+cd.disc_mut().set_release(2);
+
+// Try to get the cover art from CoverArtArchive based on the musicbrainz info.
+let _ = cd.disc_mut().update_cover_art();
+
+// Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
+let cd = cd.lock();
+
+// rip the first track
+let track1 = cd.rip(1)?;
+
+// encode the first track to flac
+let track1_flac = track1.to_flac();
+
+// get the tags & embeddable cover art
+let tags: Option<VorbisComment> = disc.tag_for(1);
+let cover: Option<&Picture> = disc.cover_art();
+```
+
+### Tracing
+
+Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages. Specific details are in the documentation for the various modules.
 
 ### Core functionality alternatives
 
