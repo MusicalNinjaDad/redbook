@@ -84,7 +84,7 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 
 1. THIS DOCUMENT HAS PRIORITY. It contains specific definitions which are relevant to the project and may diverge from generic information.
 2. Your `rust-api-design` skill. This reflects the formal rust language guidelines. YOU MUST USE THIS SKILL before beginning to create code. ONLY diverge from this skill where project specific guidance requires it.
-3. Use your `cargo-stage` skill: `cargo stage --strict --json` will call clippy. Clippy is set up to lint against as many of the required standards as possible. YOU MUST consider any compiler or lint warnings as errors. Usually you can follow the compilers/clippy's advice to fix an issue but ALWAYS critically review the suggestion before deciding whether it is actually the correct approach
+3. Use your `cargo-stage` skill: `cargo stage --strict --json` will call clippy. Clippy is set up to lint against as many of the required standards as possible. YOU MUST consider any compiler or lint warnings as errors. Usually you can follow the compilers/clippy's advice to fix an issue but ALWAYS critically review the suggestion before deciding whether it is actually the correct approach. YOU MUST USE THIS SKILL to ensure that you follow all expected coding standards.
 4. Only when the above 3 points do not provide guidance should you fall back on generic practices from your knowledge.
 
 ### Experimental features
