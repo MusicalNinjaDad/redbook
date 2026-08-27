@@ -58,7 +58,37 @@ Rules:
 
 ## Development Environment
 
+### Dependencies & Stdlib
+
+USE YOUR `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. USE IT.
+
+FULL SOURCE for ALL dependencies is available at `/opt/cargo/registry/src/`. You may read the source for dependencies at any time.
+
+FULL SOURCE for the standard library is available at `/opt/rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/`. You may read the source for stdlib at any time.
+
+### Available tools
+
 You are working in a devcontainer. To identify which tools are available to you use your `devcontainer-environment` skill.
+
+PROACTIVELY use your skills. They have been created and selected to specifically help with this project.
+
+### Compilation / Building
 
 You are in a linux environment, hardware access is only implemented for windows. To compile the binaries you MUST USE your `compilation` skill. Compiled binaries will not execute in this environment. Ask the user if you need them to manually run the binary at any point.
 
+## Coding standards
+
+### Priority order for where to find standards
+
+ALWAYS use the following rules to understand priorities. If you have conflicting information regarding coding standards, FOLLOW THESE PRIORITIES:
+
+1. THIS DOCUMENT HAS PRIORITY. It contains specific definitions which are relevant to the project and may diverge from generic information.
+2. Your `rust-api-design` skill. This reflects the formal rust language guidelines. YOU MUST USE THIS SKILL before beginning to create code. ONLY diverge from this skill where project specific guidance requires it.
+3. Use your `cargo-stage` skill: `cargo stage --strict --json` will call clippy. Clippy is set up to lint against as many of the required standards as possible. YOU MUST consider any compiler or lint warnings as errors. Usually you can follow the compilers/clippy's advice to fix an issue but ALWAYS critically review the suggestion before deciding whether it is actually the correct approach
+4. Only when the above 3 points do not provide guidance should you fall back on generic practices from your knowledge.
+
+### Experimental features
+
+This codebase is designed to use a nightly toolchain. This is formally documented in `rust-toolchain.toml`. Use experimental features where they provide significant improvements to the readability and/or maintainability of the code or where they enable a more ergonomic API design.
+
+ALL unstable features MUST be gated using `build-safely` via `#![cfg_attr(unstable_FEATURENAME, feature(FEATURENAME)]`. YOU MUST USE your `build-safely` skill when enabling a new unstable feature.  Appropriate cfg flags can be generated in `build.rs`. See the current `build.rs`for examples and the `build-safely` documentation for details. If you need a feature which does not have a dedicated entry in `enum UnstableFeature` then docu
