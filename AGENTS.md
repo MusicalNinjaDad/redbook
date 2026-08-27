@@ -92,3 +92,12 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 This codebase is designed to use a nightly toolchain. This is formally documented in `rust-toolchain.toml`. Use experimental features where they provide significant improvements to the readability and/or maintainability of the code or where they enable a more ergonomic API design.
 
 ALL unstable features MUST be gated using `build-safely` via `#![cfg_attr(unstable_FEATURENAME, feature(FEATURENAME)]`. YOU MUST USE your `build-safely` skill when enabling a new unstable feature.
+
+## Checklist
+
+- [ ] Used mandatory skills (cargo-stage for all verification, graphify & read-the-docs to understand the codebase and dependencies, rust-api-design for coding standards)
+- [ ] Worked in an iterative manner, leveraging cargo-stage to identify next steps
+- [ ] All errors from cargo-stage are resolved
+- [ ] Meaningful reasons are given for all uses of `#[expect()]` and `#[coverage(off)]`
+- [ ] Created meaningful tests
+- [ ] Documentation targets correct audience, includes tested examples for all significant API elements
