@@ -1,12 +1,5 @@
 # Base image source: https://raw.githubusercontent.com/MusicalNinjaDad/rust/refs/heads/main/Dockerfile
-FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:793f0e83422b268826b84772f3010891065542c517af08f0a2ee54ffbab5416b
-
-# See https://rust-lang.github.io/rustup/devel/environment-variables.html
-#   & https://docs.docker.com/engine/storage/drivers/overlayfs-driver/#renaming-directories
-ENV RUSTUP_PERMIT_COPY_RENAME="1"
-
-# TODO - add to base image
-RUN cargo binstall -y jaq
+FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:260547c9613d73b898b04e22b480baa842591dbaa06161b6ab5febe4c2274b45
 
 # for nativetls
 RUN sudo dnf install openssl-devel pkgconf-pkg-config
@@ -16,13 +9,3 @@ RUN cargo binstall -y cargo-xwin \
     && cargo xwin cache windows-msvc-sysroot \
     && cargo xwin cache xwin \
     && rustup target add x86_64-pc-windows-msvc
-
-ENV UV_TOOL_BIN_DIR=/opt/uv/bin \
-    UV_TOOL_DIR=/opt/uv
-ENV PATH=$UV_TOOL_BIN_DIR:$PATH
-
-# From fork, for mistral support
-RUN cargo binstall -y uv \
-    && sudo mkdir --mode 777 /opt/graphify ${UV_TOOL_DIR} ${UV_TOOL_BIN_DIR} \
-    && git clone --branch=feat/vibe-install https://github.com/xavierpestel-ai/graphify /opt/graphify \
-    && uv tool install /opt/graphify
