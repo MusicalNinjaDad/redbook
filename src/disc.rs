@@ -27,10 +27,7 @@ use tracing::info;
 
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
-use musicbrainz_rs::{
-    Fetch, MusicBrainzClient,
-    api_bindium::{ApiClient, ureq},
-};
+use musicbrainz_rs::Fetch;
 
 use crate::{
     Frame, Msf, Track,
@@ -286,32 +283,10 @@ impl Disc {
         let _span = tracing::info_span!("update_musicbrainz", discid = %discid);
         let _enter = _span.enter();
 
-        let native_tls = ureq::tls::TlsConfig::builder();
-        let native_tls = native_tls
-            .provider(ureq::tls::TlsProvider::NativeTls)
-            .build();
-
-        let agent = ureq::Agent::config_builder();
-        let agent = agent
-            .tls_config(native_tls)
-            .user_agent("splurt_musicbrainz_rs/0.1.0")
-            .build()
-            .new_agent();
-
-        let api_client = ApiClient::builder();
-        let api_client = api_client.agent(agent).build();
-
-        let mb_client = MusicBrainzClient::builder();
-        let mb_client = mb_client.api_client(api_client).build();
-
         let mut mb_stuff = Discid::fetch();
         mb_stuff.id(&discid).with_artists().with_recordings();
 
-        let _api_call = mb_stuff.as_api_request(&mb_client).unwrap();
-
-        let discid = mb_stuff
-            .execute_with_client(&mb_client)
-            .map_err(io::Error::other)?;
+        let discid = mb_stuff.execute().map_err(io::Error::other)?;
 
         self.set_musicbrainz(discid);
 
