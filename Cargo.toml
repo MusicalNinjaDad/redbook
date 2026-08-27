@@ -17,10 +17,7 @@ clap = { version = "4.6.5", features = ["derive"] }
 exit_safely = "0.3.1"
 flacenc = { version = "0.5.1" }
 metaflac = "0.2.8"
-musicbrainz_rs = { version = "0.13.0", git = "https://github.com/RustyNova016/musicbrainz_rs", features = [
-    "sync",
-    "native_tls",
-] }
+musicbrainz_rs = { version = "0.14.0", features = ["sync", "native_tls"] }
 reqwest = { version = "0.13.4", default-features = false, features = [
     "blocking",
     "native-tls",
@@ -50,9 +47,6 @@ clap = { version = "4.6.5", features = ["derive"] }
 clap_builder = "4.6.5"
 clap_complete = "4.6.8"
 clap_mangen = "0.3.0"
-
-[patch.crates-io]
-api_bindium = { git = "https://github.com/RustyNova016/api_bindium" }
 
 [workspace.metadata.ninja-xtask]
 env = { "LD_LIBRARY_PATH" = false }
