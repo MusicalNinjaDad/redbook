@@ -439,18 +439,19 @@ impl AudioCd {
 
         Ok(Self { drive, disc })
     }
-
-    pub fn lock(self) -> ReadOnlyAudioCd {
-        ReadOnlyAudioCd {
-            drive: self.drive,
-            disc: self.disc,
-        }
-    }
 }
 
 impl AudioCdExtMut for AudioCd {
     fn disc_mut(&mut self) -> &mut Disc {
         Arc::make_mut(&mut self.disc)
+    }
+
+    #[expect(refining_impl_trait)]
+    fn lock(self) -> ReadOnlyAudioCd {
+        ReadOnlyAudioCd {
+            drive: self.drive,
+            disc: self.disc,
+        }
     }
 }
 

@@ -37,7 +37,7 @@
 //! # use std::{io, path::PathBuf};
 //! # use metaflac::block::{Picture, VorbisComment};
 //! # let drive_path = PathBuf::new();
-//! 
+//!
 //! // Open a handle to the drive and read table of contents from the CD
 //! let mut cd: AudioCd = AudioCd::new(drive_path)?;
 //!
@@ -69,14 +69,14 @@
 //!
 //! Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages.
 //! Specific details are in the documentation for the various modules.
-//! 
+//!
 //! # Safety
-//! 
+//!
 //! Unsafe code is limited to specific hardware access modules. All unsafe code includes full safety
 //! comments.
-//! 
+//!
 //! # Thread Safety
-//! 
+//!
 //! [AudioCdExt] and [AudioCdExtMut] are separate traits, to allow for initially updating and mutating
 //! metadata, before obtaining calling [lock] so you can use separate threads for reading data and
 //! encoding.
@@ -210,6 +210,9 @@ pub trait AudioCdExtMut {
     /// is backed by an Arc this will clone the internal data if other references
     /// currently exist. See [Arc::make_mut] for details on the underlying mechanism.
     fn disc_mut(&mut self) -> &mut crate::disc::Disc;
+
+    /// Return an immutable version of Self to allow for thread-safe copies to be made.
+    fn lock(self) -> impl AudioCdExt + Send;
 }
 
 /// A small wrapper with the raw data for a track and the track_number
