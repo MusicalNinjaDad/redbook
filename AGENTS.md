@@ -91,11 +91,13 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 
 #### Documentation
 
-- EVERY item must be documented with a doccomment (`///`). EVERY module must be documented with a doccomment (`//!`).
-- Public `pub` items must be documented with a **target audience: library users**. Documentation should be clear & concise. Follow the rules in `rust-api-design` and USE YOUR `documentation` skill.
-  - `# Examples` section (MANDATORY for all significant modules, types, traits, methods and functions). The code provided MUST compile and serve as a viable doctest. Your `documentation` skill includes information on how to doctests (examples).
-- Private, `pub(crate)` and `pub(super)` items must be documented with a **target audience: library maintainers**. You MUST include proper doccomments for these items, as they are provided as invaluable IDE-popups to maintainers. You do not need to include examples for private items. 
-- Additionally you may add the following sections if relevant:
+YOU MUST FOLLOW THE RULES IN `rust-api-design` and USE YOUR `documentation` SKILL.
+
+Additionally, for this crate:
+
+- Public `pub` items must be documented with a **target audience: library users**. Documentation should be clear & concise.
+- Private, `pub(crate)` and `pub(super)` items must be documented with a **target audience: library maintainers**. You MUST include proper doccomments for these items, as they are provided as invaluable IDE-popups to maintainers. You do not need to include examples for private items.
+- You should add the following sections when relevant:
   - `# Notes` section containing a bulleted list of valuable information
   - `# Notes for implementors` section (for traits) with important details for people implementing this trait on a type
   - `# TODOs` section for cases where items have open todos (both public and private items) - this ensures transparency regarding maturity, limitations and makes it easy to find open tasks
