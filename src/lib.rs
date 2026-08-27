@@ -109,9 +109,9 @@ use musicbrainz::Discid;
 /// One cdda audio frame in bytes
 const FRAME_SIZE: usize = 2352;
 
-// If chunks are too large DeviceIoControl(.., IOCTL_CDROM_RAW_READ,..) fails.
-// Calc frames first, then reverse calc bytes as we need an exact number of frames.
-// TODO: research max chunk size. Guessing 64k for now based on something I saw in cd_da_reader but with no references given
+/// If chunks are too large DeviceIoControl(.., IOCTL_CDROM_RAW_READ,..) fails.
+/// Calc frames first, then reverse calc bytes as we need an exact number of frames.
+/// TODO: research max chunk size. Guessing 64k for now based on something I saw in cd_da_reader but with no references given
 const MAX_CHUNK_FRAMES: usize = 64 * 1024 / FRAME_SIZE;
 const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES * FRAME_SIZE;
 
