@@ -69,6 +69,17 @@
 //!
 //! Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages.
 //! Specific details are in the documentation for the various modules.
+//! 
+//! # Safety
+//! 
+//! Unsafe code is limited to specific hardware access modules. All unsafe code includes full safety
+//! comments.
+//! 
+//! # Thread Safety
+//! 
+//! [AudioCdExt] and [AudioCdExtMut] are separate traits, to allow for initially updating and mutating
+//! metadata, before obtaining calling [lock] so you can use separate threads for reading data and
+//! encoding.
 
 pub mod disc;
 pub mod hex;
