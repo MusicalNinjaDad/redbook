@@ -26,9 +26,9 @@
 //!
 //! There are 3 key entry points to the crate, one each for hardware, CD structure, and music data.
 //!
-//! - `struct AudioCd` & `trait AudioCdExt` - the main entry point for interfacing with hardware
-//! - `struct Disc` - the main entry point for working with the contents of a CD
-//! - `struct RippedTrack` - the main entry point for the actual music of a given track
+//! - [AudioCd] & [AudioCdExt]  - for interfacing with hardware
+//! - [Disc]                    - for working with the contents of a CD
+//! - [RippedTrack]             - for the actual music of a given track
 //!
 //! # Example
 //!
@@ -37,6 +37,7 @@
 //! # use std::{io, path::PathBuf};
 //! # use metaflac::block::{Picture, VorbisComment};
 //! # let drive_path = PathBuf::new();
+//! 
 //! // Open a handle to the drive and read table of contents from the CD
 //! let mut cd: AudioCd = AudioCd::new(drive_path)?;
 //!
@@ -52,7 +53,7 @@
 //! // Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
 //! let cd = cd.lock();
 //!
-//! // rip the first track
+//! // rip the first track, not using threads in this example
 //! let track1 = cd.rip(1)?;
 //!
 //! // encode the first track to flac
