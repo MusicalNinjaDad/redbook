@@ -53,176 +53,11 @@ Maps item names to their containing file and crate. Structure:
 ```json
 {
   "<item_name>": [
-    {"name": "<item_name>", "crate": "<crate_name>", "file": "<filename.json>"},
+    {"crate": "<crate_name>", "file": "<filename.json>"},
     ...
   ]
 }
 ```
-
-**Usage:**
-```bash
-# Find which file contains "MyStruct"
-rg '"MyStruct"' ./docs/index/name_to_file.json
-
-# Get the file path for an item using jaq
-jaq '.[] | select(.name == "MyStruct") | .file' ./docs/index/name_to_file.json
-```
-
-### 2. Name-to-ID Index (Per Crate): `./docs/index/*_name_to_id.json`
-
-Each crate has its own index mapping item names to their internal IDs. Filenames follow the pattern `<crate>_name_to_id.json`.
-
-Structure:
-```json
-{
-  "<item_name>": "<item_id>"
-}
-```
-
-**Usage:**
-```bash
-# Find the ID for "Parser" in the syn crate
-jaq '."Parser"' ./docs/index/syn_name_to_id.json
-
-# Find the ID for "MyType" in redbook
-jaq '."MyType"' ./docs/index/redbook_name_to_id.json
-```
-
-### 3. Combined Index: `./docs/index/combined.json`
-
-Comprehensive index containing all items across all crates with full metadata. Structure:
-```json
-[
-  {
-    "name": "<item_name>",
-    "type": "struct"|"enum"|"trait"|"function"|"module"|"proc_macro",
-    "crate": "<crate_name>",
-    "file": "<filename.json>",
-    "id": "<item_id>",
-    "docs": "<documentation_string>" | null
-  },
-  ...
-]
-```
-
-**Usage:**
-```bash
-# Find all items named "Builder"
-rg -j '"name": "Builder"' ./docs/index/combined.json
-
-# Get all structs using jaq
-jaq '.[] | select(.type == "struct") | {name: .name, crate: .crate}' ./docs/index/combined.json
-
-# Find items by type and name pattern
-jaq '.[] | select(.type == "function" and (.name | test("^parse"; "i"))) | {name: .name, crate: .crate, docs: .docs}' ./docs/index/combined.json
-
-# Get documentation for a specific item
-jaq '.[] | select(.name == "MyStruct" and .crate == "redbook") | .docs' ./docs/index/combined.json
-```
-
-## Accessing Documentation
-
-### Using the Indexes (Preferred)
-
-**ALWAYS load the `jaq` skill first** when working with JSON documentation.
-
-**Find an item and get its full documentation:**
-```bash
-# Step 1: Find the item in the combined index
-ITEM=$(jaq -r '.[] | select(.name == "MyStruct" and .crate == "redbook") | .file + ":" + .id' ./docs/index/combined.json)
-
-# Step 2: Extract file and ID
-FILE=$(echo "$ITEM" | cut -d: -f1)
-ID=$(echo "$ITEM" | cut -d: -f2)
-
-# Step 3: Get full details
-jaq ".index[\"$ID\"]" "$FILE"
-```
-
-**Get all public functions from a specific crate:**
-```bash
-# Using combined index
-jaq '.[] | select(.crate == "redbook" and .type == "function") | {name: .name, docs: .docs}' ./docs/index/combined.json
-```
-
-**Search by name pattern across all crates:**
-```bash
-# Find all items matching a pattern
-rg -j '"name": "[Ss]erialize' ./docs/index/combined.json
-
-# Then use jaq to get full details for specific matches
-```
-
-### Direct JSON Queries
-
-When indexes don't cover your use case, query the JSON files directly.
-
-**List all items in a crate's documentation:**
-```bash
-jaq '.index | keys[]' ./docs/x86_64-pc-windows-msvc/doc/redbook.json
-```
-
-**Get details for a specific item by ID:**
-```bash
-jaq '.index["123"]' ./docs/x86_64-pc-windows-msvc/doc/redbook.json
-```
-
-**Find an item by name in a specific file:**
-```bash
-jaq '.index | to_entries[] | select(.value.name == "MyStruct")' ./docs/x86_64-pc-windows-msvc/doc/redbook.json
-```
-
-**Search for items matching a name pattern:**
-```bash
-jaq '.index | to_entries[] | select(.value.name | test("^My")) | {id: .key, name: .value.name, kind: .value.inner | keys[0]}' ./docs/x86_64-pc-windows-msvc/doc/redbook.json
-```
-
-### Searching Across All Dependencies
-
-**Find all items named "Parser" across all dependencies:**
-```bash
-rg -j '"name": "Parser"' ./docs/x86_64-pc-windows-msvc/doc/*.json ./docs/x86_64-unknown-linux-gnu/doc/*.json
-```
-
-**Get all public functions from all crates:**
-```bash
-rg -j '.visibility.*"public".*"function"' ./docs/x86_64-pc-windows-msvc/doc/*.json ./docs/x86_64-unknown-linux-gnu/doc/*.json | jaq '.index[].value | {name: .name, file}'
-```
-
-### Accessing Standard Library HTML Docs
-
-**Search HTML docs with ripgrep:**
-```bash
-# Find HTML files mentioning "Iterator"
-rg -i "Iterator" /opt/rustup/toolchains/nightly-x86_64-unknown-linux-gnu/share/doc/rust/html/std/ --type html | head -20
-
-# Find the file for std::collections::HashMap
-find /opt/rustup/toolchains/nightly-x86_64-unknown-linux-gnu/share/doc/rust/html/std -name "*HashMap*" -type f
-```
-
-## Updating Documentation
-
-To regenerate all documentation and indexes, run:
-
-```bash
-# Generate docs for both targets
-cargo doc --document-private-items --output-format json --all-features \
-  --target x86_64-pc-windows-msvc \
-  --target-dir docs \
-  -Z unstable-options
-
-cargo doc --document-private-items --output-format json --all-features \
-  --target x86_64-unknown-linux-gnu \
-  --target-dir docs \
-  -Z unstable-options
-
-# Update indexes
-./docs/update-indexes.sh
-```
-
-The `update-indexes.sh` script (see below) creates all three index types.
-
-### Index Generation Script: `./docs/update-indexes.sh`
 
 ```bash
 #!/bin/bash
@@ -233,6 +68,30 @@ DOC_DIRS=("./docs/doc" "./docs/x86_64-pc-windows-msvc/doc" "./docs/x86_64-unknow
 
 mkdir -p "$INDEX_DIR"
 
+# Function to extract crate name from filename
+get_crate_name() {
+  local file="$1"
+  local basename
+  basename=$(basename "$file" .json)
+  
+  # For redbook, use the basename directly
+  if [ "$basename" = "redbook" ]; then
+    echo "redbook"
+    return
+  fi
+  
+  # Try to get crate name from the first entry in the index
+  local crate_name
+  crate_name=$(jaq -r '.index | to_entries[0] | .value.span.filename | split("/") | .[6] | split("-")[0]' "$file" 2>/dev/null || echo "")
+  
+  # Fallback to basename if extraction fails
+  if [ -z "$crate_name" ]; then
+    echo "$basename"
+  else
+    echo "$crate_name"
+  fi
+}
+
 # =============================================================================
 # 1. Name-to-File Index
 # =============================================================================
@@ -242,15 +101,8 @@ rm -f "$INDEX_DIR/name_to_file.tmp"
 for doc_dir in "${DOC_DIRS[@]}"; do
   for file in "$doc_dir"/*.json; do
     [ -f "$file" ] || continue
-    basename=$(basename "$file" .json)
     
-    # Extract crate name from filename or path
-    if [ "$basename" = "redbook" ]; then
-      crate_name="redbook"
-    else
-      crate_name=$(jaq -r '.index | to_entries[] | select(.value.name != null) | .value.span.filename | capture("registry/src/index.crates.io-1949cf8c6b5b557f/([^/]+)/") | .[] | select(. != null) | "\1"' "$file" | head -1)
-      crate_name=${crate_name:-$basename}
-    fi
+    crate_name=$(get_crate_name "$file")
     
     jaq -c '.index | to_entries[] | select(.value.name != null) | {name: .value.name, crate: $CRATE, file: $FILE} | select(.name != null)' \
       --arg CRATE "$crate_name" \
@@ -259,7 +111,7 @@ for doc_dir in "${DOC_DIRS[@]}"; do
   done
 done
 
-jaq -s '[.[] | group_by(.name) | .[] | {name: .[0].name, entries: map({crate: .crate, file: .file})}] | map({(.name): .entries}) | reduce .[] as $item ({}; . + $item)' "$INDEX_DIR/name_to_file.tmp" > "$INDEX_DIR/name_to_file.json"
+jaq -s 'reduce .[] as $item ({}; .[$item.name] += [{crate: $item.crate, file: $item.file}])' "$INDEX_DIR/name_to_file.tmp" > "$INDEX_DIR/name_to_file.json"
 rm -f "$INDEX_DIR/name_to_file.tmp"
 echo "Name-to-file index generated."
 
@@ -275,7 +127,7 @@ for doc_dir in "${DOC_DIRS[@]}"; do
     basename=$(basename "$file" .json)
     
     jaq '{
-      name_to_id: (.index | to_entries[] | {(.value.name // ""): .key} | reduce .[] as $item ({}; . + $item) | with_entries(select(.key != ""))),
+      name_to_id: (.index | to_entries | map({(.value.name // ""): .key}) | reduce .[] as $item ({}; . + $item) | with_entries(select(.key != ""))),
       crate: $CRATE
     } | .name_to_id' \
       --arg CRATE "$basename" \
@@ -295,14 +147,8 @@ rm -f "$INDEX_DIR/combined.tmp"
 for doc_dir in "${DOC_DIRS[@]}"; do
   for file in "$doc_dir"/*.json; do
     [ -f "$file" ] || continue
-    basename=$(basename "$file" .json)
     
-    if [ "$basename" = "redbook" ]; then
-      crate_name="redbook"
-    else
-      crate_name=$(jaq -r '.index | to_entries[] | select(.value.name != null) | .value.span.filename | capture("registry/src/index.crates.io-1949cf8c6b5b557f/([^/]+)/") | .[] | select(. != null) | "\1"' "$file" | head -1)
-      crate_name=${crate_name:-$basename}
-    fi
+    crate_name=$(get_crate_name "$file")
     
     jaq --arg CRATE "$crate_name" --arg FILE "$file" '
       .index | to_entries[] | 
@@ -389,6 +235,12 @@ The `inner` field contains type-specific data:
 4. **Always use jaq**: Load the `jaq` skill and use it for all JSON parsing tasks.
 
 5. **Document your queries**: Keep a log of useful jaq queries in `docs/useful-queries` for reuse.
+
+6. **jaq Compatibility**: The indexes and scripts are designed for jaq 3.x. Key differences from jq:
+   - Use `to_entries | map(...)` instead of `to_entries[] | map(...)` for proper iteration
+   - Use `reduce .[] as $item ({}; . + $item)` instead of `group_by()` for aggregation
+   - Use `split()` instead of `capture()` for regex extraction
+   - Arrays are indexed with `[n]`, not `.[] | .[n]`
 
 ## When to Use This Skill
 
