@@ -87,6 +87,23 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 3. Use your `cargo-stage` skill: `cargo stage --strict --json` will call clippy. Clippy is set up to lint against as many of the required standards as possible. YOU MUST consider any compiler or lint warnings as errors. Usually you can follow the compilers/clippy's advice to fix an issue but ALWAYS critically review the suggestion before deciding whether it is actually the correct approach. YOU MUST USE THIS SKILL to ensure that you follow all expected coding standards.
 4. Only when the above 3 points do not provide guidance should you fall back on generic practices from your knowledge.
 
+### Documentation and comments
+
+#### Documentation
+
+- EVERY item must be documented with a doccomment (`///`). EVERY module must be documented with a doccomment (`//!`).
+- Public `pub` items must be documented with a **target audience: library users**. Documentation should be clear & concise. Follow the rules in `rust-api-design` and USE YOUR `documentation` skill.
+  - `# Examples` section (MANDATORY for all significant modules, types, traits, methods and functions). The code provided MUST compile and serve as a viable doctest. Your `documentation` skill includes information on how to doctests (examples).
+- Private, `pub(crate)` and `pub(super)` items must be documented with a **target audience: library maintainers**. You MUST include proper doccomments for these items, as they are provided as invaluable IDE-popups to maintainers. You do not need to include examples for private items. 
+- Additionally you may add the following sections if relevant:
+  - `# Notes` section containing a bulleted list of valuable information
+  - `# Notes for implementors` section (for traits) with important details for people implementing this trait on a type
+  - `# TODOs` section for cases where items have open todos (both public and private items) - this ensures transparency regarding maturity, limitations and makes it easy to find open tasks
+
+#### Comments
+
+- Good code rarely needs comments. The documentation and API design should be sufficient for both "how" and "why" to be obvious.
+
 ### Experimental features
 
 This codebase is designed to use a nightly toolchain. This is formally documented in `rust-toolchain.toml`. Use experimental features where they provide significant improvements to the readability and/or maintainability of the code or where they enable a more ergonomic API design.
