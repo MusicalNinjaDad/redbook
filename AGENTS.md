@@ -105,6 +105,28 @@ Additionally, for this crate:
 #### Comments
 
 - Good code rarely needs comments. The documentation and API design should be sufficient for both "how" and "why" to be obvious.
+- Good code rarely needs comments. Functions should read like a natural language paragraph. Well chosen variable names and well chosen statement ordering and abstractions make this possible.
+- Sometimes it is important to use a comment to maintain a record of decisions: why a specific architectural choice was made, why a specific statement ordering was used or helpful warning about a caveat / gotcha which forced a specific approach. Such comments should be placed directly above the line that they refer to or appended to the line if short enough.
+
+##### Avoid
+
+```rust
+// ignore problems retrieving and parsing data
+let _ = disc.update_musicbrainz();
+```
+
+##### Better
+
+```rust
+let _ignore_failure = disc.update_musicbrainz();
+```
+
+##### Best
+
+```rust
+#[expect(unused_must_use, reason = "ignore network & parsing errors, data is not critical")]
+disc.update_musicbrainz();
+```
 
 ### Experimental features
 
