@@ -53,3 +53,6 @@ clap_mangen = "0.3.0"
 
 [patch.crates-io]
 api_bindium = { git = "https://github.com/RustyNova016/api_bindium" }
+
+[workspace.metadata.ninja-xtask]
+env = { "LD_LIBRARY_PATH" = false }
