@@ -6,12 +6,12 @@
 //! trait implementations for extending Vorbis comments with MusicBrainz metadata.
 
 use metaflac::block::VorbisComment;
-use musicbrainz_rs::entity::release::{ReleaseScript, ReleaseStatus};
 pub use musicbrainz_rs::entity::{
     artist_credit::ArtistCredit,
     discid::Discid,
     release::{Media, Release, Track},
 };
+use musicbrainz_rs::entity::{release::ReleaseStatus, release_scripts::ReleaseScript};
 
 pub trait VorbisTagExt {
     const KEY: &'static str;
