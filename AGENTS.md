@@ -91,4 +91,4 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 
 This codebase is designed to use a nightly toolchain. This is formally documented in `rust-toolchain.toml`. Use experimental features where they provide significant improvements to the readability and/or maintainability of the code or where they enable a more ergonomic API design.
 
-ALL unstable features MUST be gated using `build-safely` via `#![cfg_attr(unstable_FEATURENAME, feature(FEATURENAME)]`. YOU MUST USE your `build-safely` skill when enabling a new unstable feature.  Appropriate cfg flags can be generated in `build.rs`. See the current `build.rs`for examples and the `build-safely` documentation for details. If you need a feature which does not have a dedicated entry in `enum UnstableFeature` then docu
+ALL unstable features MUST be gated using `build-safely` via `#![cfg_attr(unstable_FEATURENAME, feature(FEATURENAME)]`. YOU MUST USE your `build-safely` skill when enabling a new unstable feature.
