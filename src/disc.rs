@@ -45,6 +45,19 @@ use crate::{
 /// This is the main starting point for all data and actions you take on the CD itself.
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// // Create a Disc by opening a CD drive
+/// let mut cd = AudioCd::new(drive_path)?;
+/// let disc = cd.disc();
+/// # Ok::<(), io::Error>(())
+/// ```
 pub struct Disc {
     /// The table of contents for the CD.
     toc: Toc,
@@ -76,6 +89,18 @@ pub struct Disc {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Errors that can occur when creating a [`Disc`].
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::disc::{Disc, DiscError};
+/// # use std::io;
+///
+/// // Errors can occur when creating a Disc with mismatched data
+/// // For example, if the leadout frame doesn't match the TOC
+/// let result: Result<Disc, DiscError> = Err(DiscError::IncorrectLeadout);
+/// assert!(matches!(result, Err(DiscError::IncorrectLeadout)));
+/// ```
 pub enum DiscError {
     /// The leadout frame does not match the TOC's leadout value.
     IncorrectLeadout,
@@ -113,6 +138,19 @@ impl Disc {
     ///
     /// Returns [`DiscError::IncorrectLeadout`] if the leadout doesn't match the TOC.
     /// Returns [`DiscError::TocMismatch`] if any track doesn't match its TOC entry.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// // Create a Disc by opening a CD drive
+    /// let cd = AudioCd::new(drive_path)?;
+    /// let disc = cd.lock().disc();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
@@ -158,6 +196,22 @@ impl Disc {
     /// Get the selected release.
     ///
     /// Returns `None` if no release has been selected via [`set_release()`] or [`set_musicbrainz()`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// // Get the first release
+    /// cd.disc_mut().set_release(Some(0));
+    /// let release = cd.disc().release();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn release(&self) -> Option<&Release> {
         self.musicbrainz
             .as_ref()?
@@ -169,6 +223,22 @@ impl Disc {
     /// Get the full MusicBrainz data.
     ///
     /// Returns the [`Discid`] containing all MusicBrainz metadata for this disc.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// if let Some(discid) = cd.disc().musicbrainz() {
+    ///     println!("Disc ID: {}", discid.id);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn musicbrainz(&self) -> Option<&Discid> {
         self.musicbrainz.as_ref()
     }
@@ -176,6 +246,22 @@ impl Disc {
     /// Get the title of the CD.
     ///
     /// Returns the album title from the selected release, if available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// if let Some(title) = cd.disc().title() {
+    ///     println!("Album title: {}", title);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn title(&self) -> Option<String> {
         self.release().map(|release| release.title.clone())
     }
@@ -183,6 +269,22 @@ impl Disc {
     /// Get the main artist name for the CD.
     ///
     /// Returns the primary artist from the selected release's artist credit, if available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// if let Some(artist) = cd.disc().main_artist() {
+    ///     println!("Main artist: {}", artist);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn main_artist(&self) -> Option<String> {
         self.release()
             .and_then(|release| release.artist_credit.main_artist())
@@ -192,6 +294,22 @@ impl Disc {
     ///
     /// Returns the disc number from the selected release's media, if available.
     /// This is the human-readable disc number (e.g., "1", "2").
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// if let Some(disc_num) = cd.disc().disc_number() {
+    ///     println!("Disc number: {}", disc_num);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn disc_number(&self) -> Option<String> {
         self.release()
             .and_then(|release| release.media.as_ref())
@@ -210,6 +328,22 @@ impl Disc {
     /// - Holding on to the returned track will block any mutation to `self`, in order
     ///   to maintain validity of the metadata.
     /// - Modifying the returned track will NOT modify the copy stored in `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    ///
+    /// // Get the first track
+    /// if let Some(track) = cd.disc().track(1) {
+    ///     println!("Track 1 number: {}", track.track_number());
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
         let _span = tracing::debug_span!("Disc::track", track_number = track_number);
         let _enter = _span.enter();
@@ -230,6 +364,22 @@ impl Disc {
     /// Returns an iterator over all tracks.
     ///
     /// The iterator yields [`Track`] instances with metadata populated from the selected release.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    ///
+    /// // Iterate through all tracks
+    /// for track in cd.disc().tracks() {
+    ///     println!("Track: {}", track.track_number());
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn tracks(&self) -> Tracks<'_> {
         let _span = tracing::debug_span!("Disc::tracks", track_count = self.tracks.len());
         let _enter = _span.enter();
@@ -247,6 +397,24 @@ impl Disc {
     /// # Returns
     ///
     /// Returns a reference to `self` to allow for method chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// // Select the second release (if available)
+    /// cd.disc_mut().set_release(Some(1));
+    ///
+    /// // Or reset the selection
+    /// cd.disc_mut().set_release(None);
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn set_release(&mut self, index: Option<usize>) -> &mut Self {
         let _span = tracing::debug_span!("Disc::set_release", index = ?index);
         let _enter = _span.enter();
@@ -275,6 +443,21 @@ impl Disc {
     /// # Returns
     ///
     /// Returns the new disc index.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// // Reset disc index after changing release
+    /// let disc_index = cd.disc_mut().reset_disc_index();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn reset_disc_index(&mut self) -> Option<usize> {
         let release = self.release()?;
         let media = release.media.as_ref()?;
@@ -333,6 +516,22 @@ impl Disc {
     /// # Returns
     ///
     /// Returns a reference to `self` to allow for method chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// use musicbrainz_rs::entity::discid::Discid;
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    ///
+    /// // Assuming you have a Discid from MusicBrainz
+    /// // let discid: Discid = ...;
+    /// // cd.disc_mut().set_musicbrainz(discid);
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn set_musicbrainz(&mut self, discid: Discid) -> &mut Self {
         self.musicbrainz = Some(discid);
         self.release_index = match self
@@ -355,6 +554,20 @@ impl Disc {
     /// # Errors
     ///
     /// Returns an `io::Error` if the network request or parsing fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    ///
+    /// // Fetch metadata from MusicBrainz
+    /// let _ = cd.disc_mut().update_musicbrainz();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn update_musicbrainz(&mut self) -> io::Result<()> {
         let discid = self.toc.musicbrainz_id().to_string();
         let _span = tracing::info_span!("update_musicbrainz", discid = %discid);
@@ -381,6 +594,21 @@ impl Disc {
     /// # Errors
     ///
     /// Returns an `io::Error` if no release is selected or if the download fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// // Fetch cover art for the selected release
+    /// let _ = cd.disc_mut().update_cover_art();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn update_cover_art(&mut self) -> io::Result<()> {
         let release_mbid = self
             .release()
@@ -415,6 +643,24 @@ impl Disc {
     /// Get the cached cover art.
     ///
     /// Returns a reference to the cached [`Picture`] if available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// use metaflac::block::Picture;
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    /// cd.disc_mut().update_cover_art()?;
+    ///
+    /// if let Some(cover) = cd.disc().cover_art() {
+    ///     println!("Found cover art: {:?}", cover.picture_type);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn cover_art(&self) -> Option<&Picture> {
         self.coverart.as_ref()
     }
@@ -422,6 +668,22 @@ impl Disc {
     /// Get the 0-indexed disc number for multi-disc releases.
     ///
     /// Returns the disc index within a multi-disc release.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// if let Some(index) = cd.disc().disc_index() {
+    ///     println!("Disc index: {}", index);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn disc_index(&self) -> Option<usize> {
         self.disc_index
     }
@@ -438,6 +700,24 @@ impl Disc {
     ///
     /// Returns `None` if no cover art is available.
     /// Otherwise returns `Some(Ok(path))` with the absolute path, or `Some(Err(error))` if saving failed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    /// cd.disc_mut().update_cover_art()?;
+    ///
+    /// // Save cover art to current directory
+    /// if let Some(Ok(path)) = cd.disc().save_cover_art(".") {
+    ///     println!("Cover art saved to: {:?}", path);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     #[must_use = "may be `Some(Err(_))`"]
     pub fn save_cover_art<P: AsRef<Path>>(&self, directory: P) -> Option<io::Result<PathBuf>> {
         let data = &self.cover_art()?.data;
@@ -466,6 +746,25 @@ impl Disc {
     ///
     /// Returns `None` if the track number is invalid.
     /// Otherwise returns a [`VorbisComment`] populated with track and album metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// use metaflac::block::VorbisComment;
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// cd.disc_mut().update_musicbrainz()?;
+    ///
+    /// // Generate tags for the first track
+    /// if let Some(tags) = cd.disc().tag_for(1) {
+    ///     // Use tags for encoding
+    ///     let title = tags.title();
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
         let _span = tracing::debug_span!("Disc::tag_for", track_number = track_number);
         let _enter = _span.enter();
@@ -572,6 +871,22 @@ impl Disc {
 /// An iterator over the tracks of a [`Disc`].
 ///
 /// Created by [`Disc::tracks()`].
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// let cd = AudioCd::new(drive_path)?.lock();
+///
+/// // Iterate through all tracks
+/// for track in cd.disc().tracks() {
+///     println!("Track: {}", track.track_number());
+/// }
+/// # Ok::<(), io::Error>(())
+/// ```
 pub struct Tracks<'meta> {
     /// Reference to the disc being iterated.
     disc: &'meta Disc,
