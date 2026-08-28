@@ -22,6 +22,7 @@
 //! - `coverart_failed` (WARN): On cover art retrieval failure with `url`, `status`, and `reason` fields
 
 use std::{
+    fmt::Display,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -49,13 +50,15 @@ use crate::{
 /// # Example
 ///
 /// ```no_run
-/// use redbook::Disc;
+/// use cdtoc::Toc;
+/// use redbook::{Disc, Frame, Track};
+///
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
-///     Track::new(1, 0x96, 0x2d2b - 0x96, None),
-///     Track::new(2, 0x2d2b, 0x6256 - 0x2d2b, None),
-///     Track::new(3, 0x6256, 0xb327 - 0x6256, None),
-///     Track::new(4, 0xb327, 0xd84a - 0xb327, None),
+///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+///     Track::new(2, Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b), None),
+///     Track::new(3, Frame::new(0x6256), Frame::new(0xb327 - 0x6256), None),
+///     Track::new(4, Frame::new(0xb327), Frame::new(0xd84a - 0xb327), None),
 /// ];
 /// let leadout = Frame::new(0xd84a);
 ///
@@ -71,9 +74,10 @@ use crate::{
 /// // Attempt to get the cover art from CoverArtArchive
 /// disc.update_cover_art()?;
 ///
-/// assert_eq!(disc.title(), "Iron-Oxide");
-/// assert_eq!(disc.main_artist(), "Ferris");
+/// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
+/// assert_eq!(disc.main_artist().unwrap(), "Ferris");
 /// let track1_details = disc.tag_for(1).unwrap();
+/// # std::io::Result::Ok(())
 /// ```
 pub struct Disc {
     /// The table of contents for the CD.
@@ -124,12 +128,13 @@ pub enum DiscError {
     IncorrectLeadout,
     /// A track's MSF or duration does not match the corresponding TOC entry.
     TocMismatch,
-    /// An error occurred while obtaining the MusicBrainz metadata. The underlying
-    /// [io::Error] is available via [.source()][std::error::Error::source]
+    /// An error occurred while obtaining the MusicBrainz metadata.
     MusicBrainz(io::Error),
 }
 
-impl std::fmt::Display for DiscError {
+impl std::error::Error for DiscError {}
+
+impl Display for DiscError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DiscError::IncorrectLeadout => write!(f, "incorrect leadout"),
@@ -141,18 +146,12 @@ impl std::fmt::Display for DiscError {
     }
 }
 
-impl std::error::Error for DiscError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DiscError::MusicBrainz(io_error) => Some(io_error),
-            _ => None,
-        }
-    }
-}
-
-impl From<DiscError> for std::io::Error {
+impl From<DiscError> for io::Error {
     fn from(error: DiscError) -> Self {
-        std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+        match error {
+            DiscError::MusicBrainz(error) => error,
+            _ => io::Error::new(io::ErrorKind::InvalidData, error),
+        }
     }
 }
 
