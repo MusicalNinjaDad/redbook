@@ -250,7 +250,9 @@ This fails because the generated `main` function doesn't return `Result`.
 # fn f() {}
 ```
 
-**Important**: The `Ok::<(), io::Error>(())` must be written as a single token (no whitespace between `Ok` and `<`) for rustdoc to recognize it as an implicit return.
+**Important**: The `Ok::<(), io::Error>(())` must be written as a single token (no whitespace between `Ok` and `<`) for rustdoc to recognize it as an implicit return. 
+
+**Hint**: When using `?` in doctests which implicitly return `Result`, you need to add a hidden `Result::<_, E>::Ok(())` or `Ok::<(), E>(())` at the end to satisfy the return type. See also `Type::Ok(())` for a more concise form when the type is available in scope.
 
 ## Code Block Attributes
 
@@ -665,6 +667,8 @@ Or:
 /// # Ok::<(), ErrorType>(())
 /// ```
 ```
+
+**Hint**: For doctests using `?`, add a hidden `Result::<_, E>::Ok(())`, `Ok::<(), E>(())`, or `Type::Ok(())` (when the type is in scope) at the end to provide the implicit return value.
 
 ### Problem: Example needs a trait import
 
