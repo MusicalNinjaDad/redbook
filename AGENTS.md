@@ -77,6 +77,14 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 3. Use your `cargo-stage` skill: `cargo stage --strict --json` will call clippy. Clippy is set up to lint against as many of the required standards as possible. YOU MUST consider any compiler or lint warnings as errors. Usually you can follow the compilers/clippy's advice to fix an issue but ALWAYS critically review the suggestion before deciding whether it is actually the correct approach. YOU MUST USE THIS SKILL to ensure that you follow all expected coding standards.
 4. Only when the above 3 points do not provide guidance should you fall back on generic practices from your knowledge.
 
+### Standards Maturity
+
+- **Documentation**: Fully defined below. Follow these standards now.
+- **Error Handling**: Standards under development. For now, prefer custom error types (or `io::Result` / directly propogated error types, where appropriate) for library code (not `anyhow`) and use `?` for propagation. Avoid `unwrap`/`expect` in library code.
+- **Testing**: Standards under development. For now, follow standard Rust conventions (`#[test]`, `cargo test`, `assert_eq!`). Focus tests on behavior, not implementation.
+
+*Detailed project-specific standards for error handling and testing will be added in future iterations.*
+
 ### Documentation and comments
 
 #### Documentation
@@ -85,8 +93,8 @@ YOU MUST FOLLOW THE RULES IN `rust-api-design` and USE YOUR `documentation` SKIL
 
 Additionally, for this crate:
 
-- Public `pub` items must be documented with a **target audience: library users**. Documentation should be clear & concise.
-- Private, `pub(crate)` and `pub(super)` items must be documented with a **target audience: library maintainers**. You MUST include proper doccomments for these items, as they are provided as invaluable IDE-popups to maintainers. You do not need to include examples for private items.
+- **Public `pub` items** must be documented with a *target audience: library users*. Documentation should be clear & concise.
+- **Private, `pub(crate)` and `pub(super)` items** must be documented with a *target audience: library maintainers*. You MUST include proper doccomments for these items, as they are provided as invaluable IDE-popups to maintainers. You do not need to include examples for private items.
 - You should add the following sections when relevant:
   - `# Notes` section containing a bulleted list of valuable information
   - `# Notes for implementors` section (for traits) with important details for people implementing this trait on a type
@@ -126,11 +134,11 @@ disc.update_musicbrainz();
 
 #### Code ordering
 
-- Group impl blocks for traits in the module where they are *most relevant to readers* - this may be:
+- Group **impl blocks for traits** in the module where they are *most relevant to readers* - this may be:
   - directly below the type definition when the impl is primarily of interest when understanding the type;
   - directly below the trait definition when the impl is primarily of interest when researching the trait or when the type is foreign to the crate;
   - or in exceptional cases, in a third module when the impl is of particular relevance to that module, usually due to cfg gates
-- The ordering is in a module designed to make the code easy to navigate: readers working top to bottom should have a logical flow, the outline should work as a well-ordered table of contents. Where semantic ordering is not unique use alphabetical sorting within groups
+- The **ordering is in a module** designed to make the code *easy to navigate*: readers working top to bottom should have a logical flow, the outline should work as a well-ordered table of contents. Where semantic ordering is not unique use alphabetical sorting within groups
   1. `const`s & `type` aliases
   2. the most "entry-level" / "fundamental" type
   3. `impl Default` if applicable
@@ -143,7 +151,7 @@ disc.update_musicbrainz();
   6. output & conversion traits: custom traits first then `impl Display`, `impl IntoIterator`, `impl From`, `impl FromStr`, etc.
   7. contained data types
   8. the next fundamental type (it is rare to have more than 2 such types in a single module)
-- The ordering within a function is designed to make the function read like a natural-language explanation.
+- The **ordering within a function** is designed to make the function *read like a natural-language explanation*.
   - variable definition occurs at the most relevant point before usage, readers should not need to keep multiple variables in their head while reading the function
   - related spawned threads & async blocks should be defined in logical order, define all related threads/blocks first. And then joined in the same order as defined.
 
@@ -151,8 +159,8 @@ disc.update_musicbrainz();
 
 Function length is driven entirely by readability.
 
-- Orchestrator functions (e.g. `fn main`, `new`) may be long as they should clearly show all orchestration steps. They should **NOT** contain any significant algorithmic logic. They can be longer as each step is simple. They may contain longer, well bounded blocks - the function of such blocks should be immediately identifiable (e.g. by assigning the output to a named variable or matching on a clearly named variable)
-- Algorithmic functions should be shorter, focussed on the specific task at hand, and do ONLY ONE THING.
+- **Orchestrator functions** (e.g. `fn main`, `new`) may be long as they should *clearly show all orchestration steps*. They should **NOT** contain any significant algorithmic logic. They can be longer as each step is simple. They may contain longer, well bounded blocks - the function of such blocks should be immediately identifiable (e.g. by assigning the output to a named variable or matching on a clearly named variable)
+- **Algorithmic functions** should be *shorter, focussed* on the specific task at hand, and do ONLY ONE THING.
 - It is equally confusing to need to make 5 jumps to read the full implementation of a single task (do not emulate Java, C++, Uncle-Bob idioms) as it is to search through a long function that does many things to find the relevant section (no god-functions).
 - Adding an abstraction should always make the code simpler to read and reason about.
 - An example of a good orchestrator function can be found at `src/bin/rip/main.rs::main`
