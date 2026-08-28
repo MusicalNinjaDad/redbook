@@ -467,13 +467,14 @@ pub trait AudioCdExtMut {
     ///
     /// // Lock for thread-safe access
     /// let cd = cd.lock();
+    /// let disc = cd.disc().clone();
     ///
-    /// // Now safe to use in multiple threads
-    /// let handle1 = std::thread::spawn(|| {
+    /// // Now safe to use cd & disc in multiple threads
+    /// let ripper_thread = std::thread::spawn(move || {
     ///     cd.rip(1)
     /// });
-    /// let handle2 = std::thread::spawn(|| {
-    ///     cd.rip(2)
+    /// let metadata_thread = std::thread::spawn(move || {
+    ///     let _ = disc.musicbrainz();
     /// });
     /// # Ok::<(), io::Error>(())
     /// ```
@@ -955,23 +956,6 @@ impl From<&TRACK_DATA> for TocEntry {
 }
 
 impl From<Msf> for Frame {
-    /// Converts an [`Msf`] (min:sec:frame) value to a [`Frame`].
-    ///
-    /// # Arguments
-    ///
-    /// * `msf` - The MSF value to convert
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::{Frame, Msf};
-    ///
-    /// let msf = Msf::new(1, 30, 0); // 1 minute 30 seconds
-    /// let frame = Frame::from(msf);
-    ///
-    /// // 1 minute 30 seconds = (60 + 30) * 75 = 6750 frames
-    /// assert_eq!(frame.as_usize(), 6750);
-    /// ```
     fn from(msf: Msf) -> Self {
         trace!(
             target: "frame_conversion",
@@ -985,24 +969,6 @@ impl From<Msf> for Frame {
 }
 
 impl From<Duration> for Frame {
-    /// Converts a [`Duration`] to a [`Frame`].
-    ///
-    /// # Arguments
-    ///
-    /// * `duration` - The duration to convert
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    /// use std::time::Duration;
-    ///
-    /// let duration = Duration::from_secs(2);
-    /// let frame = Frame::from(duration);
-    ///
-    /// // 2 seconds = 2 * 75 = 150 frames
-    /// assert_eq!(frame.as_usize(), 150);
-    /// ```
     fn from(duration: Duration) -> Self {
         trace!(
             target: "frame_conversion",
@@ -1014,23 +980,6 @@ impl From<Duration> for Frame {
 }
 
 impl From<Frame> for Duration {
-    /// Converts a [`Frame`] to a [`Duration`].
-    ///
-    /// # Arguments
-    ///
-    /// * `frames` - The frame to convert
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    /// use std::time::Duration;
-    ///
-    /// let frame = Frame::new(150); // 2 seconds
-    /// let duration = Duration::from(frame);
-    ///
-    /// assert_eq!(duration, Duration::from_secs(2));
-    /// ```
     fn from(frames: Frame) -> Self {
         trace!(
             target: "frame_conversion",
@@ -1047,18 +996,6 @@ where
 {
     type Output = Self;
 
-    /// Adds a value to this frame.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    ///
-    /// let frame = Frame::new(100);
-    /// let result = frame + 50;
-    ///
-    /// assert_eq!(result.as_usize(), 150);
-    /// ```
     fn add(self, rhs: N) -> Self::Output {
         Self(self.0 + rhs)
     }
@@ -1067,19 +1004,6 @@ where
 impl Add<Frame> for Frame {
     type Output = Self;
 
-    /// Adds two frames together.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    ///
-    /// let frame1 = Frame::new(100);
-    /// let frame2 = Frame::new(50);
-    /// let result = frame1 + frame2;
-    ///
-    /// assert_eq!(result.as_usize(), 150);
-    /// ```
     fn add(self, rhs: Frame) -> Self::Output {
         Self(self.0 + rhs.0)
     }
@@ -1088,19 +1012,6 @@ impl Add<Frame> for Frame {
 impl Sub<Frame> for Frame {
     type Output = Self;
 
-    /// Subtracts one frame from another.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    ///
-    /// let frame1 = Frame::new(100);
-    /// let frame2 = Frame::new(50);
-    /// let result = frame1 - frame2;
-    ///
-    /// assert_eq!(result.as_usize(), 50);
-    /// ```
     fn sub(self, rhs: Frame) -> Self::Output {
         Self(self.0 - rhs.0)
     }
@@ -1112,18 +1023,6 @@ where
 {
     type Output = Self;
 
-    /// Subtracts a value from this frame.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    ///
-    /// let frame = Frame::new(100);
-    /// let result = frame - 50;
-    ///
-    /// assert_eq!(result.as_usize(), 50);
-    /// ```
     fn sub(self, rhs: N) -> Self::Output {
         Self(self.0 - rhs)
     }
@@ -1135,36 +1034,12 @@ where
 {
     type Output = Self;
 
-    /// Returns the remainder of dividing this frame by a value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Frame;
-    ///
-    /// let frame = Frame::new(100);
-    /// let result = frame % 30;
-    ///
-    /// assert_eq!(result.as_usize(), 10);
-    /// ```
     fn rem(self, rhs: N) -> Self::Output {
         Self(self.0 % rhs)
     }
 }
 
 impl PartialEq<Msf> for Frame {
-    /// Compares this frame for equality with an [`Msf`] value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::{Frame, Msf};
-    ///
-    /// let frame = Frame::new(150);
-    /// let msf = Msf::new(0, 2, 0); // 2 seconds = 150 frames
-    ///
-    /// assert_eq!(frame, msf);
-    /// ```
     fn eq(&self, msf: &Msf) -> bool {
         *self == Self::from(*msf)
     }
@@ -1194,11 +1069,11 @@ impl PartialEq<Msf> for Frame {
 ///
 /// // Convert to a duration
 /// let duration = Duration::from(msf);
-/// assert!(duration.as_secs() > 90);
+/// assert_eq!(duration.as_millis(), 90_600);
 ///
 /// // Convert to frames
 /// let frames = Frame::from(msf);
-/// assert!(frames.as_usize() > 6750);
+/// assert_eq!(frames.as_usize(), 6795);
 /// ```
 pub struct Msf {
     /// Minutes component (0-59).
@@ -1241,16 +1116,14 @@ impl Msf {
     /// # Examples
     ///
     /// ```rust
-    /// use redbook::{Msf, LEADIN};
+    /// use redbook::{Frame, Msf, LEADIN};
     ///
     /// // An MSF at position 0:02:33 (2 seconds + 33 frames = 183 frames)
     /// let msf = Msf::new(0, 2, 33);
     ///
     /// // Relative to lead-in: 0:00:33 (33 frames)
     /// let relative = msf.relative_to_leadin();
-    /// assert_eq!(relative.frame, 33);
-    /// assert_eq!(relative.sec, 0);
-    /// assert_eq!(relative.min, 0);
+    /// assert_eq!(Frame::from(relative), Frame::new(33));
     /// ```
     pub fn relative_to_leadin(self) -> Self {
         self - LEADIN
@@ -1260,21 +1133,6 @@ impl Msf {
 impl Sub<Frame> for Msf {
     type Output = Self;
 
-    /// Subtracts a frame from this MSF value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::{Msf, Frame};
-    ///
-    /// let msf = Msf::new(1, 0, 0); // 1 minute
-    /// let result = msf - Frame::new(30); // Subtract 30 frames
-    ///
-    /// // 1 minute = 4500 frames, 4500 - 30 = 4470 frames = 59 seconds 45 frames
-    /// assert_eq!(result.min, 0);
-    /// assert_eq!(result.sec, 59);
-    /// assert_eq!(result.frame, 45);
-    /// ```
     fn sub(self, rhs: Frame) -> Self::Output {
         (Frame::from(self) - rhs).into()
     }
@@ -1283,21 +1141,6 @@ impl Sub<Frame> for Msf {
 impl Sub<Duration> for Msf {
     type Output = Self;
 
-    /// Subtracts a duration from this MSF value.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Msf;
-    /// use std::time::Duration;
-    ///
-    /// let msf = Msf::new(1, 0, 0); // 1 minute
-    /// let result = msf - Duration::from_secs(30); // Subtract 30 seconds
-    ///
-    /// assert_eq!(result.min, 0);
-    /// assert_eq!(result.sec, 30);
-    /// assert_eq!(result.frame, 0);
-    /// ```
     fn sub(self, rhs: Duration) -> Self::Output {
         let as_frames = Frame::from(self) - Frame::from(rhs);
         as_frames.into()
@@ -1307,27 +1150,20 @@ impl Sub<Duration> for Msf {
 impl From<Duration> for Msf {
     /// Converts a [`Duration`] to an [`Msf`].
     ///
-    /// # Arguments
-    ///
-    /// * `duration` - The duration to convert
-    ///
     /// # Notes
     ///
     /// - Milliseconds are converted to frames (1000ms = 75 frames)
-    /// - The conversion truncates fractional frames
+    /// - The conversion **truncates** fractional frames for safety
     ///
-    /// # Examples
+    /// # Example
     ///
-    /// ```rust
-    /// use redbook::Msf;
-    /// use std::time::Duration;
-    ///
-    /// let duration = Duration::from_secs(90); // 1 minute 30 seconds
-    /// let msf = Msf::from(duration);
-    ///
-    /// assert_eq!(msf.min, 1);
-    /// assert_eq!(msf.sec, 30);
-    /// assert_eq!(msf.frame, 0);
+    /// ```
+    /// # use redbook::Msf;
+    /// # use std::time::Duration;
+    /// let track1 = Duration::from_millis(180_123); // (3 mins, 9.225 frames)
+    /// assert_eq!(Msf::from(track1), Msf::new(3, 0, 9));
+    /// let track2 = Duration::from_millis(180_128); // (3mins, 9.6 frames)
+    /// assert_eq!(Msf::from(track2), Msf::new(3, 0, 9));
     /// ```
     fn from(duration: Duration) -> Self {
         trace!(
@@ -1351,26 +1187,10 @@ impl From<Duration> for Msf {
 impl From<Msf> for Duration {
     /// Converts an [`Msf`] to a [`Duration`].
     ///
-    /// # Arguments
-    ///
-    /// * `msf` - The MSF value to convert
-    ///
     /// # Notes
     ///
     /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13333333 nanoseconds)
     /// - The conversion uses integer arithmetic for precision
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::Msf;
-    /// use std::time::Duration;
-    ///
-    /// let msf = Msf::new(1, 30, 0); // 1 minute 30 seconds
-    /// let duration = Duration::from(msf);
-    ///
-    /// assert_eq!(duration, Duration::from_secs(90));
-    /// ```
     fn from(msf: Msf) -> Self {
         let secs = (msf.min * 60) + msf.sec;
         let nanos = msf.frame as u32 * 75 / 1_000_000_000;
@@ -1379,24 +1199,6 @@ impl From<Msf> for Duration {
 }
 
 impl From<Frame> for Msf {
-    /// Converts a [`Frame`] to an [`Msf`].
-    ///
-    /// # Arguments
-    ///
-    /// * `frames` - The frame to convert
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::{Frame, Msf};
-    ///
-    /// let frames = Frame::new(6750); // 6750 frames = 90 seconds = 1 minute 30 seconds
-    /// let msf = Msf::from(frames);
-    ///
-    /// assert_eq!(msf.min, 1);
-    /// assert_eq!(msf.sec, 30);
-    /// assert_eq!(msf.frame, 0);
-    /// ```
     fn from(frames: Frame) -> Self {
         trace!(
             target: "frame_conversion",
@@ -1417,18 +1219,6 @@ impl From<Frame> for Msf {
 }
 
 impl PartialEq<Frame> for Msf {
-    /// Compares this MSF value for equality with a [`Frame`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use redbook::{Frame, Msf};
-    ///
-    /// let msf = Msf::new(0, 2, 0); // 2 seconds = 150 frames
-    /// let frames = Frame::new(150);
-    ///
-    /// assert_eq!(msf, frames);
-    /// ```
     fn eq(&self, frame: &Frame) -> bool {
         Frame::from(*self) == *frame
     }
