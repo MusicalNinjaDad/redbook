@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 //! MusicBrainz entity extensions for tagging
 //!
 //! # Tracing

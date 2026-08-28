@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 //! Test fixtures for album data
 
 use std::fmt::Display;

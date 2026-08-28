@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 //! Tagging utilities for FLAC metadata
 //!
 //! # Tracing

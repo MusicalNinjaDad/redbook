@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 pub mod albums;
 
 use std::path::PathBuf;

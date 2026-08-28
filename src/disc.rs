@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 //! Disc metadata and MusicBrainz integration
 //!
 //! # Tracing
