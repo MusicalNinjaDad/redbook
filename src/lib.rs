@@ -1189,12 +1189,20 @@ impl From<Msf> for Duration {
     ///
     /// # Notes
     ///
-    /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13333333 nanoseconds)
+    /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13_333_333 nanoseconds)
     /// - The conversion uses integer arithmetic for precision
+    /// 
+    /// # Example
+    /// ```
+    /// # use redbook::Msf;
+    /// # use std::time::Duration;
+    /// let msf = Msf::new(1,30,30);
+    /// assert_eq!(Duration::from(msf), Duration::new(90, 400_000_000))
+    /// ```
     fn from(msf: Msf) -> Self {
         let secs = (msf.min * 60) + msf.sec;
-        let nanos = msf.frame as u32 * 75 / 1_000_000_000;
-        Self::new(secs as u64, nanos)
+        let nanos = msf.frame as u64 * 1_000_000_000 / 75;
+        Self::new(secs as u64, nanos as u32)
     }
 }
 
