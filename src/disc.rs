@@ -46,18 +46,27 @@ use crate::{
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
 ///
-/// # Examples
+/// # Creating a Disc
+///
+/// There are two ways to obtain a `Disc`:
+///
+/// 1. **From an AudioCd drive** (recommended for most users):
 ///
 /// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
 ///
-/// // Create a Disc by opening a CD drive
-/// let mut cd = AudioCd::new(drive_path)?;
-/// let disc = cd.disc();
+/// let cd = AudioCd::new(drive_path)?;
+/// let disc = cd.lock().disc();
 /// # Ok::<(), io::Error>(())
 /// ```
+///
+/// 2. **Direct creation** (for custom CD implementations):
+///
+/// For users implementing their own CD drive interface, you can create a `Disc` directly
+/// from a TOC, tracks, and leadout frame using [`Disc::new()`]. Note that creating
+/// [`Track`] instances requires handling the private `meta` field appropriately.
 pub struct Disc {
     /// The table of contents for the CD.
     toc: Toc,
@@ -92,14 +101,15 @@ pub struct Disc {
 ///
 /// # Examples
 ///
-/// ```rust, no_run
-/// use redbook::disc::{Disc, DiscError};
-/// # use std::io;
+/// ```rust
+/// use redbook::disc::DiscError;
 ///
 /// // Errors can occur when creating a Disc with mismatched data
-/// // For example, if the leadout frame doesn't match the TOC
-/// let result: Result<Disc, DiscError> = Err(DiscError::IncorrectLeadout);
+/// let result: Result<(), DiscError> = Err(DiscError::IncorrectLeadout);
 /// assert!(matches!(result, Err(DiscError::IncorrectLeadout)));
+///
+/// let result: Result<(), DiscError> = Err(DiscError::TocMismatch);
+/// assert!(matches!(result, Err(DiscError::TocMismatch)));
 /// ```
 pub enum DiscError {
     /// The leadout frame does not match the TOC's leadout value.
@@ -141,16 +151,38 @@ impl Disc {
     ///
     /// # Examples
     ///
+    /// ## Direct creation
+    ///
+    /// For custom CD implementations, create a `Disc` from TOC data:
+    ///
+    /// ```no_run
+    /// use redbook::{Disc, Track, Frame};
+    /// use cdtoc::Toc;
+    ///
+    /// // Obtain TOC, tracks, and leadout from your CD reading code
+    /// // let toc: Toc = ...;
+    /// // let tracks: Vec<Track> = ...;
+    /// // let leadout: Frame = ...;
+    ///
+    /// // let disc = Disc::new(toc, tracks, leadout)?;
+    /// ```
+    ///
+    /// ## Using AudioCd
+    ///
+    /// For reading from an actual CD drive:
+    ///
     /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
     ///
-    /// // Create a Disc by opening a CD drive
     /// let cd = AudioCd::new(drive_path)?;
     /// let disc = cd.lock().disc();
     /// # Ok::<(), io::Error>(())
     /// ```
+    ///
+    /// Note: Creating `Track` instances directly requires handling the private `meta` field.
+    /// See the [`Track`] struct or [`AudioCdExt`] trait for reference implementations.
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
@@ -197,6 +229,15 @@ impl Disc {
     ///
     /// Returns `None` if no release has been selected via [`set_release()`] or [`set_musicbrainz()`].
     ///
+    /// # Release selection semantics
+    ///
+    /// The release is automatically selected when you call [`update_musicbrainz()`] or [`set_musicbrainz()`]:
+    /// - If there are no releases: `release_index` is set to `Some(0)`
+    /// - If there is one release: `release_index` is set to `Some(0)` (the only release)
+    /// - If there are multiple releases: `release_index` is set to `None` (you must select manually)
+    ///
+    /// Use [`set_release()`] to manually select a specific release.
+    ///
     /// # Examples
     ///
     /// ```rust, no_run
@@ -207,11 +248,17 @@ impl Disc {
     /// let mut cd = AudioCd::new(drive_path)?;
     /// cd.disc_mut().update_musicbrainz()?;
     ///
-    /// // Get the first release
-    /// cd.disc_mut().set_release(Some(0));
+    /// // For most discs with a single release, release is already selected
+    /// // For discs with multiple releases, you need to select one
+    /// if cd.disc().release().is_none() {
+    ///     cd.disc_mut().set_release(Some(0));
+    /// }
+    ///
     /// let release = cd.disc().release();
     /// # Ok::<(), io::Error>(())
     /// ```
+    ///
+    /// See also: [`update_musicbrainz()`], [`set_release()`]
     pub fn release(&self) -> Option<&Release> {
         self.musicbrainz
             .as_ref()?
