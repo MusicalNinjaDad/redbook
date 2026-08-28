@@ -240,7 +240,7 @@ pub trait AudioCdExt {
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
         let track = self.disc().track(track_number).unwrap();
         tracing::info!(track_number = track.track_number(), "read_track");
-        let track_size = track.duration_frames.as_usize().strict_mul(FRAME_SIZE);
+        let track_size = track.duration.as_usize().strict_mul(FRAME_SIZE);
         debug_assert!(track_size > 0);
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
@@ -281,10 +281,7 @@ pub trait AudioCdExt {
             bytes_read_so_far,
             "about to read last chunk. We have read {frame_offset} frames, but only {bytes_read_so_far} bytes so far"
         );
-        let frames_to_read = track
-            .duration_frames
-            .as_usize()
-            .strict_rem(MAX_CHUNK_FRAMES);
+        let frames_to_read = track.duration.as_usize().strict_rem(MAX_CHUNK_FRAMES);
 
         let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
         bytes_read_so_far += i64::from(bytes_read);
@@ -675,11 +672,32 @@ pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
     pub toc_entry: TocEntry,
     /// Duration of this track in frames.
-    pub duration_frames: Frame,
+    pub duration: Frame,
     /// Windows-specific track identifier (from CDROM_TOC).
     pub windows_identifier: Option<u32>,
     /// Optional reference to MusicBrainz track metadata.
     meta: Option<&'meta musicbrainz::Track>,
+}
+
+impl Track<'static> {
+    /// Create a new `Track` with no MusicBrainz metadata
+    pub fn new(
+        track_number: u8,
+        start: Frame,
+        duration: Frame,
+        windows_identifier: Option<u32>,
+    ) -> Self {
+        let toc_entry = TocEntry {
+            track: track_number,
+            start,
+        };
+        Self {
+            toc_entry,
+            duration,
+            windows_identifier,
+            meta: None,
+        }
+    }
 }
 
 impl<'meta> Track<'meta> {

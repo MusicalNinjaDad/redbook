@@ -46,27 +46,35 @@ use crate::{
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
 ///
-/// # Creating a Disc
+/// # Example
 ///
-/// There are two ways to obtain a `Disc`:
+/// ```no_run
+/// use redbook::Disc;
+/// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
+/// let tracks = [
+///     Track::new(1, 0x96, 0x2d2b - 0x96, None),
+///     Track::new(2, 0x2d2b, 0x6256 - 0x2d2b, None),
+///     Track::new(3, 0x6256, 0xb327 - 0x6256, None),
+///     Track::new(4, 0xb327, 0xd84a - 0xb327, None),
+/// ];
+/// let leadout = Frame::new(0xd84a);
 ///
-/// 1. **From an AudioCd drive** (recommended for most users):
+/// // validates TOC, Tracks & leadout match
+/// let mut disc = Disc::new(toc, tracks, leadout)?;
 ///
-/// ```rust, no_run
-/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-/// # use std::{io, path::PathBuf};
-/// # let drive_path = PathBuf::new();
+/// // Attempt to retrieve metadata from MusicBrainz
+/// disc.update_musicbrainz()?;
 ///
-/// let cd = AudioCd::new(drive_path)?;
-/// let disc = cd.lock().disc();
-/// # Ok::<(), io::Error>(())
+/// // Select a specific release
+/// disc.set_release(Some(2));
+///
+/// // Attempt to get the cover art from CoverArtArchive
+/// disc.update_cover_art()?;
+///
+/// assert_eq!(disc.title(), "Iron-Oxide");
+/// assert_eq!(disc.main_artist(), "Ferris");
+/// let track1_details = disc.tag_for(1).unwrap();
 /// ```
-///
-/// 2. **Direct creation** (for custom CD implementations):
-///
-/// For users implementing their own CD drive interface, you can create a `Disc` directly
-/// from a TOC, tracks, and leadout frame using [`Disc::new()`]. Note that creating
-/// [`Track`] instances requires handling the private `meta` field appropriately.
 pub struct Disc {
     /// The table of contents for the CD.
     toc: Toc,
@@ -96,7 +104,7 @@ pub struct Disc {
     coverart: Option<Picture>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 /// Errors that can occur when creating a [`Disc`].
 ///
 /// # Examples
@@ -116,6 +124,9 @@ pub enum DiscError {
     IncorrectLeadout,
     /// A track's MSF or duration does not match the corresponding TOC entry.
     TocMismatch,
+    /// An error occurred while obtaining the MusicBrainz metadata. The underlying
+    /// [io::Error] is available via [.source()][std::error::Error::source]
+    MusicBrainz(io::Error),
 }
 
 impl std::fmt::Display for DiscError {
@@ -123,15 +134,31 @@ impl std::fmt::Display for DiscError {
         match self {
             DiscError::IncorrectLeadout => write!(f, "incorrect leadout"),
             DiscError::TocMismatch => write!(f, "TOC mismatch"),
+            DiscError::MusicBrainz(io_error) => {
+                write!(f, "error fetching MusicBrainz data: {io_error}")
+            }
         }
     }
 }
 
-impl std::error::Error for DiscError {}
+impl std::error::Error for DiscError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DiscError::MusicBrainz(io_error) => Some(io_error),
+            _ => None,
+        }
+    }
+}
 
 impl From<DiscError> for std::io::Error {
     fn from(error: DiscError) -> Self {
         std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+    }
+}
+
+impl From<io::Error> for DiscError {
+    fn from(error: io::Error) -> Self {
+        Self::MusicBrainz(error)
     }
 }
 
@@ -209,7 +236,7 @@ impl Disc {
 
             let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
             let min = (((d * 24) + h as u64) * 60) + min as u64;
-            if Msf::new(min as u8, sec, frame) != Msf::from(track.duration_frames) {
+            if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
                 return Err(DiscError::TocMismatch);
             }
         }

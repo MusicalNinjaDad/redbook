@@ -617,7 +617,7 @@ impl TryFrom<CdaFile> for Track<'static> {
         Ok(Track {
             toc_entry,
             windows_identifier,
-            duration_frames,
+            duration: duration_frames,
             ..Default::default()
         })
     }
