@@ -63,7 +63,7 @@
 //! // get the tags & embeddable cover art
 //! let tags: Option<VorbisComment> = cd.disc().tag_for(1);
 //! let cover: Option<&Picture> = cd.disc().cover_art();
-//! # io::Result::Ok(())
+//! # Ok::<(), io::Error>(())
 //! ```
 //!
 //! # Tracing
@@ -162,7 +162,7 @@ pub const LEADIN: Frame = Frame(150);
 /// // Now you can use AudioCdExt methods
 /// let disc = cd.disc();
 /// let track_data = cd.read_track(1)?;
-/// # io::Result::Ok(())
+/// # Ok::<(), io::Error>(())
 /// ```
 pub trait AudioCdExt {
     /// Reads raw audio data from a specific track and frame offset.
@@ -209,6 +209,7 @@ pub trait AudioCdExt {
     ///
     /// // Access track information
     /// let num_tracks = disc.tracks().len();
+    /// # Ok::<(), io::Error>(())
     /// ```
     fn disc(&self) -> &Arc<crate::Disc>;
 
@@ -316,8 +317,9 @@ pub trait AudioCdExt {
     ///
     /// let cd = AudioCd::new(drive_path)?.lock();
     /// if let Some(discid) = cd.musicbrainz() {
-    ///     println!("Disc ID: {}", discid.id());
+    ///     println!("Disc ID: {}", discid.id);
     /// }
+    /// # Ok::<(), io::Error>(())
     /// ```
     fn musicbrainz(&self) -> Option<&Discid> {
         self.disc().musicbrainz()
@@ -351,6 +353,7 @@ pub trait AudioCdExt {
     /// let track = cd.rip(1)?;
     ///
     /// println!("Ripped track {} ({} bytes)", track.track_number, track.raw_data.len());
+    /// # Ok::<(), io::Error>(())
     /// ```
     fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
         let raw_data = self.read_track(track_number)?;
@@ -398,6 +401,7 @@ pub trait AudioCdExt {
 ///
 /// // Now use AudioCdExt methods
 /// let track = cd.rip(1)?;
+/// # Ok::<(), io::Error>(())
 /// ```
 pub trait AudioCdExtMut {
     /// Returns a mutable reference to the cached [`Disc`] data.
@@ -430,6 +434,7 @@ pub trait AudioCdExtMut {
     /// // Access the mutable disc to make changes
     /// let disc = cd.disc_mut();
     /// // ... modify disc as needed
+    /// # Ok::<(), io::Error>(())
     /// ```
     fn disc_mut(&mut self) -> &mut crate::disc::Disc;
 
@@ -470,6 +475,7 @@ pub trait AudioCdExtMut {
     /// let handle2 = std::thread::spawn(|| {
     ///     cd.rip(2)
     /// });
+    /// # Ok::<(), io::Error>(())
     /// ```
     fn lock(self) -> impl AudioCdExt + Send;
 }
@@ -499,6 +505,7 @@ pub trait AudioCdExtMut {
 ///
 /// // Or encode to WAV
 /// let wav_data = track.to_wav();
+/// # Ok::<(), io::Error>(())
 /// ```
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
@@ -534,6 +541,7 @@ impl RippedTrack {
     ///
     /// // Get the FLAC data as bytes
     /// let flac_bytes = flac_sink.into_inner();
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn to_flac(&self) -> MemSink<u8> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
@@ -594,6 +602,7 @@ impl RippedTrack {
     /// file.write_all(&wav_data)?;
     /// # io::Result::Ok(())
     /// # };
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn to_wav(&self) -> Vec<u8> {
         let pcm = &self.raw_data;
@@ -659,6 +668,7 @@ impl RippedTrack {
 ///     println!("Track {}: {}", track.track_number(), track.title().unwrap_or("Unknown".into()));
 ///     println!("Filename: {}", track.filename());
 /// }
+/// # Ok::<(), io::Error>(())
 /// ```
 pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
@@ -687,6 +697,7 @@ impl<'meta> Track<'meta> {
     /// if let Some(track) = disc.track(1) {
     ///     assert_eq!(track.track_number(), 1);
     /// }
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn track_number(&self) -> u8 {
         self.toc_entry.track
@@ -716,6 +727,7 @@ impl<'meta> Track<'meta> {
     ///         println!("Track 1: {}", title);
     ///     }
     /// }
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn title(&self) -> Option<String> {
         self.meta.map(|track| track.title.clone())
@@ -748,6 +760,7 @@ impl<'meta> Track<'meta> {
     ///     // Will be "05 " followed by the title
     ///     println!("Filename: {}", track.filename());
     /// }
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn filename(&self) -> String {
         let track_num = self
@@ -793,6 +806,7 @@ impl<'meta> Track<'meta> {
     ///         println!("Artist: {:?}", meta.artist_credit);
     ///     }
     /// }
+    /// # Ok::<(), io::Error>(())
     /// ```
     pub fn meta(&self) -> Option<&'meta musicbrainz::Track> {
         self.meta
