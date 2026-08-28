@@ -6,9 +6,11 @@ This is a rust project related for working with CDDA CD digital audio as per Red
 
 - This crate contains unsafe code. NEVER, EVER MODIFY OR CREATE UNSAFE CODE. If a change to unsafe code is needed STOP, INFORM THE USER of what needs to be done, WAIT FOR THE USER to implement that change. If new unsafe code is needed STOP, INFORM THE USER of what needs to be done, WAIT FOR THE USER to implement that change. If you are asked to REVIEW unsafe code NEVER CHANGE THE CODE, you MAY NOT EDIT any files while reviewing unsafe code. YOU ARE NOT AUTHORISED TO WRITE OR CHANGE UNSAFE CODE - ONLY THE USER MAY MAKE CHANGES TO UNSAFE CODE.
 
-- ALWAYS USE `cargo stage --strict --json` to check your work. This codebase will not compile with `cargo check/clippy/test` as it requires specific libraries. See the `cargo-stage` skill for more details.
-- ALWAYS your `graphify` skill to help understand the codebase. Do not use `grep`, `find` or raw file reads until you have first used graphify. `rg` is available as a faster alternative to grep.
+- ALWAYS USE your `cargo-stage` skill (invokes `cargo stage --strict --json`) to check your work. This codebase will not compile with `cargo check/clippy/test` as it requires specific libraries. See the `cargo-stage` skill for more details.
+- ALWAYS USE your `graphify` skill to help understand the codebase. Use it for codebase questions *before* using `rg`, `find`, or raw file reads. `rg` is available as a faster alternative to `grep` for use *after* first using `graphify`.
 - ALWAYS USE your `jaq` skill to parse json, toml or yaml. Other tools such as `jq` or `python`are not available.
+- ALWAYS USE your `read-the-docs` skill to search crate/dependency/stdlib docs.
+- ALWAYS USE your `compilation` skill to compile binaries (hardware access is Windows-only; binaries won’t execute in this Linux environment).
 
 ## Library overview
 
@@ -44,25 +46,11 @@ Is a technical debug tool to extract the raw windows-API-specific CDROM_TOC from
 
 Is a debug tool to list the tags embedded in a flac file.
 
-## Codebase knowledge graph - graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
-
-Rules:
-
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-
 ## Development Environment
 
 ### Dependencies & Stdlib
 
-USE YOUR `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. USE IT.
+ALWYAYS USE `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. USE IT.
 
 FULL SOURCE for ALL dependencies is available at `/opt/cargo/registry/src/`. You may read the source for dependencies at any time.
 
