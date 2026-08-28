@@ -1,5 +1,8 @@
-#![expect(missing_docs, reason = "needs update")]
 //! Disc metadata and MusicBrainz integration
+//!
+//! This module provides the [`Disc`] struct for representing a physical CD,
+//! including its table of contents, tracks, and metadata retrieved from
+//! MusicBrainz and CoverArtArchive.
 //!
 //! # Tracing
 //!
@@ -37,37 +40,46 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-/// Logically: a physical CD.
+/// Represents a physical CD with its table of contents, tracks, and metadata.
 ///
 /// This is the main starting point for all data and actions you take on the CD itself.
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
 pub struct Disc {
+    /// The table of contents for the CD.
     toc: Toc,
+    /// The list of tracks on the CD.
     tracks: Vec<Track<'static>>,
+    /// The leadout frame position.
     leadout: Frame,
+    /// MusicBrainz metadata for this disc, if available.
     musicbrainz: Option<Discid>,
-    /// Selected release index from musicbrainz.releases. Use [`select_release()`]
-    /// or [set_release()] to set and [`release()`] to get.
+    /// Selected release index from musicbrainz.releases.
     ///
-    /// - None if no selection made yet
-    /// - Some(0) if no data present
-    /// - Some(0) if first release selected
-    /// - Some(n) if specific release selected
+    /// Use [`set_release()`] to set and [`release()`] to get.
+    ///
+    /// - `None` if no selection made yet
+    /// - `Some(0)` if no data present
+    /// - `Some(0)` if first release selected
+    /// - `Some(n)` if specific release selected
     release_index: Option<usize>,
     /// The 0-indexed disc number. Needed for multi-disc releases.
-    /// Automatically set to Some(0) for single-disc releases.
     ///
-    /// - None if no release is selected
-    /// - Some(n) if release is selected
+    /// Automatically set to `Some(0)` for single-disc releases.
+    ///
+    /// - `None` if no release is selected
+    /// - `Some(n)` if release is selected
     disc_index: Option<usize>,
-    /// Cached coverart: if available
+    /// Cached cover art if available
     coverart: Option<Picture>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Errors that can occur when creating a [`Disc`].
 pub enum DiscError {
+    /// The leadout frame does not match the TOC's leadout value.
     IncorrectLeadout,
+    /// A track's MSF or duration does not match the corresponding TOC entry.
     TocMismatch,
 }
 
@@ -89,6 +101,18 @@ impl From<DiscError> for std::io::Error {
 }
 
 impl Disc {
+    /// Creates a new [`Disc`] from a table of contents, tracks, and leadout frame.
+    ///
+    /// # Arguments
+    ///
+    /// * `toc` - The table of contents for the CD
+    /// * `tracks` - The list of tracks on the CD
+    /// * `leadout` - The leadout frame
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DiscError::IncorrectLeadout`] if the leadout doesn't match the TOC.
+    /// Returns [`DiscError::TocMismatch`] if any track doesn't match its TOC entry.
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
@@ -131,7 +155,9 @@ impl Disc {
         })
     }
 
-    /// Get the selected release
+    /// Get the selected release.
+    ///
+    /// Returns `None` if no release has been selected via [`set_release()`] or [`set_musicbrainz()`].
     pub fn release(&self) -> Option<&Release> {
         self.musicbrainz
             .as_ref()?
@@ -140,22 +166,32 @@ impl Disc {
             .get(self.release_index?)
     }
 
-    /// Get the full MusicBrainz data
+    /// Get the full MusicBrainz data.
+    ///
+    /// Returns the [`Discid`] containing all MusicBrainz metadata for this disc.
     pub fn musicbrainz(&self) -> Option<&Discid> {
         self.musicbrainz.as_ref()
     }
 
-    /// Get the title of the CD
+    /// Get the title of the CD.
+    ///
+    /// Returns the album title from the selected release, if available.
     pub fn title(&self) -> Option<String> {
         self.release().map(|release| release.title.clone())
     }
 
+    /// Get the main artist name for the CD.
+    ///
+    /// Returns the primary artist from the selected release's artist credit, if available.
     pub fn main_artist(&self) -> Option<String> {
         self.release()
             .and_then(|release| release.artist_credit.main_artist())
     }
 
-    /// The Number of the disc
+    /// Get the disc number as a string.
+    ///
+    /// Returns the disc number from the selected release's media, if available.
+    /// This is the human-readable disc number (e.g., "1", "2").
     pub fn disc_number(&self) -> Option<String> {
         self.release()
             .and_then(|release| release.media.as_ref())
@@ -163,11 +199,17 @@ impl Disc {
             .and_then(|media| media.position.as_ref().map(ToString::to_string))
     }
 
-    /// Returns an *owned* Option<Track> with metadata valid for 'self
+    /// Returns a track with metadata populated from the selected release.
     ///
-    /// - Holding on to the returned track will block any mutation to Self, in order
+    /// # Arguments
+    ///
+    /// * `track_number` - 1-indexed track number
+    ///
+    /// # Notes
+    ///
+    /// - Holding on to the returned track will block any mutation to `self`, in order
     ///   to maintain validity of the metadata.
-    /// - Modifying the returned track will NOT modify the copy stored in Self
+    /// - Modifying the returned track will NOT modify the copy stored in `self`.
     pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
         let _span = tracing::debug_span!("Disc::track", track_number = track_number);
         let _enter = _span.enter();
@@ -185,16 +227,26 @@ impl Disc {
         Some(track)
     }
 
+    /// Returns an iterator over all tracks.
+    ///
+    /// The iterator yields [`Track`] instances with metadata populated from the selected release.
     pub fn tracks(&self) -> Tracks<'_> {
         let _span = tracing::debug_span!("Disc::tracks", track_count = self.tracks.len());
         let _enter = _span.enter();
         Tracks { disc: self, i: 0 }
     }
 
-    /// Use the release at the given index, or reset selection to None.
+    /// Use the release at the given index, or reset selection to `None`.
+    ///
     /// Providing an invalid index will make no change.
     ///
-    /// Returns a reference to the release set, to allow for validation.
+    /// # Arguments
+    ///
+    /// * `index` - The 0-indexed release index, or `None` to reset the selection
+    ///
+    /// # Returns
+    ///
+    /// Returns a reference to `self` to allow for method chaining.
     pub fn set_release(&mut self, index: Option<usize>) -> &mut Self {
         let _span = tracing::debug_span!("Disc::set_release", index = ?index);
         let _enter = _span.enter();
@@ -215,7 +267,14 @@ impl Disc {
         self
     }
 
-    /// Reset the disc index to None (multi-disc / unknown release) / Some(0) (single-disc)
+    /// Reset the disc index to `None` (multi-disc / unknown release) or `Some(0)` (single-disc).
+    ///
+    /// This method automatically determines the appropriate disc index based on the
+    /// selected release's media count.
+    ///
+    /// # Returns
+    ///
+    /// Returns the new disc index.
     pub fn reset_disc_index(&mut self) -> Option<usize> {
         let release = self.release()?;
         let media = release.media.as_ref()?;
@@ -227,14 +286,15 @@ impl Disc {
         self.disc_index
     }
 
-    /// Find which media entry in the release matches this disc's TOC
+    /// Find which media entry in the release matches this disc's TOC.
     ///
     /// For multi-disc releases, each media entry represents one disc.
     /// We match by comparing track offsets from the Discid with calculated offsets from media.
     ///
-    /// Returns:
-    /// - Some(index) if exactly one media entry matches based on track offsets
-    /// - None if no matches or multiple matches (ambiguous)
+    /// # Returns
+    ///
+    /// - `Some(index)` if exactly one media entry matches based on track offsets
+    /// - `None` if no matches or multiple matches (ambiguous)
     fn find_disc_index_from_media(&self) -> Option<usize> {
         let release = self.release()?;
         let offsets = self.toc.audio_sectors();
@@ -262,7 +322,17 @@ impl Disc {
         }
     }
 
-    /// Set the MusicBrainz data directly
+    /// Set the MusicBrainz data directly.
+    ///
+    /// This replaces any existing MusicBrainz data with the provided [`Discid`].
+    ///
+    /// # Arguments
+    ///
+    /// * `discid` - The MusicBrainz disc ID data to set
+    ///
+    /// # Returns
+    ///
+    /// Returns a reference to `self` to allow for method chaining.
     pub fn set_musicbrainz(&mut self, discid: Discid) -> &mut Self {
         self.musicbrainz = Some(discid);
         self.release_index = match self
@@ -278,7 +348,13 @@ impl Disc {
         self
     }
 
-    /// Attempt to update the data from musicbrainz
+    /// Attempt to update the data from MusicBrainz.
+    ///
+    /// Fetches the disc metadata from MusicBrainz using the disc's TOC to generate a DiscID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `io::Error` if the network request or parsing fails.
     pub fn update_musicbrainz(&mut self) -> io::Result<()> {
         let discid = self.toc.musicbrainz_id().to_string();
         let _span = tracing::info_span!("update_musicbrainz", discid = %discid);
@@ -299,6 +375,12 @@ impl Disc {
     }
 
     /// Attempt to get the front cover art from the CoverArtArchive.
+    ///
+    /// Downloads the front cover image for the selected release from CoverArtArchive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `io::Error` if no release is selected or if the download fails.
     pub fn update_cover_art(&mut self) -> io::Result<()> {
         let release_mbid = self
             .release()
@@ -330,19 +412,32 @@ impl Disc {
         Ok(())
     }
 
-    /// Get the cached cover art
+    /// Get the cached cover art.
+    ///
+    /// Returns a reference to the cached [`Picture`] if available.
     pub fn cover_art(&self) -> Option<&Picture> {
         self.coverart.as_ref()
     }
 
-    /// Get the 0-indexed disc number for multi-disc releases
+    /// Get the 0-indexed disc number for multi-disc releases.
+    ///
+    /// Returns the disc index within a multi-disc release.
     pub fn disc_index(&self) -> Option<usize> {
         self.disc_index
     }
 
-    /// Save the cover art as "front.jpeg"
+    /// Save the cover art as "front.jpeg".
     ///
-    /// Returns None if no cover art is available, else the absolute location of the saved file.
+    /// Saves the cached cover art to the specified directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `directory` - The directory to save the file in
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if no cover art is available.
+    /// Otherwise returns `Some(Ok(path))` with the absolute path, or `Some(Err(error))` if saving failed.
     #[must_use = "may be `Some(Err(_))`"]
     pub fn save_cover_art<P: AsRef<Path>>(&self, directory: P) -> Option<io::Result<PathBuf>> {
         let data = &self.cover_art()?.data;
@@ -359,8 +454,18 @@ impl Disc {
         Some(written_to_path)
     }
 
-    /// Will only be None if given an invalid track number.
-    /// Otherwise at least "TRACKNUMBER" will be set.
+    /// Generate Vorbis comments for a track.
+    ///
+    /// Creates a [`VorbisComment`] with metadata for the specified track.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_number` - 1-indexed track number
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if the track number is invalid.
+    /// Otherwise returns a [`VorbisComment`] populated with track and album metadata.
     pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
         let _span = tracing::debug_span!("Disc::tag_for", track_number = track_number);
         let _enter = _span.enter();
@@ -464,8 +569,13 @@ impl Disc {
 }
 
 #[derive(Debug)]
+/// An iterator over the tracks of a [`Disc`].
+///
+/// Created by [`Disc::tracks()`].
 pub struct Tracks<'meta> {
+    /// Reference to the disc being iterated.
     disc: &'meta Disc,
+    /// Current iteration index.
     i: usize,
 }
 
