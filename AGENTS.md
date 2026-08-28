@@ -1,6 +1,6 @@
 # redbook
 
-This is a rust project related for working with CDDA CD digital audio as per RedBook (IEC 60908:1999). It consists of a library in `src` and a series of binaries in `src/bin`
+This is a rust project for working with CDDA CD digital audio as per RedBook (IEC 60908:1999). It consists of a library in `src` and a series of binaries in `src/bin`
 
 ## MUST USE - MANDATORY INFORMATION & SKILLS
 
@@ -8,7 +8,7 @@ This is a rust project related for working with CDDA CD digital audio as per Red
 
 - ALWAYS USE your `cargo-stage` skill (invokes `cargo stage --strict --json`) to check your work. This codebase will not compile with `cargo check/clippy/test` as it requires specific libraries. See the `cargo-stage` skill for more details.
 - ALWAYS USE your `graphify` skill to help understand the codebase. Use it for codebase questions *before* using `rg`, `find`, or raw file reads. `rg` is available as a faster alternative to `grep` for use *after* first using `graphify`.
-- ALWAYS USE your `jaq` skill to parse json, toml or yaml. Other tools such as `jq` or `python`are not available.
+- ALWAYS USE your `jaq` skill to parse json, toml or yaml. Other tools such as `jq` or `python` are not available.
 - ALWAYS USE your `read-the-docs` skill to search crate/dependency/stdlib docs.
 - ALWAYS USE your `compilation` skill to compile binaries (hardware access is Windows-only; binaries won’t execute in this Linux environment).
 
@@ -50,7 +50,7 @@ Is a debug tool to list the tags embedded in a flac file.
 
 ### Dependencies & Stdlib
 
-ALWYAYS USE `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. USE IT.
+ALWAYS USE `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. Use it.
 
 FULL SOURCE for ALL dependencies is available at `/opt/cargo/registry/src/`. You may read the source for dependencies at any time.
 
@@ -130,7 +130,7 @@ disc.update_musicbrainz();
   - directly below the type definition when the impl is primarily of interest when understanding the type;
   - directly below the trait definition when the impl is primarily of interest when researching the trait or when the type is foreign to the crate;
   - or in exceptional cases, in a third module when the impl is of particular relevance to that module, usually due to cfg gates
-- The ordering is in a module designed to make the code easy to navigate: readers working top to bottom shuold have a logical flow, the outline should work as a well-ordered table of contents. Where semantic ordering is not unique use alphabetical sorting within groups
+- The ordering is in a module designed to make the code easy to navigate: readers working top to bottom should have a logical flow, the outline should work as a well-ordered table of contents. Where semantic ordering is not unique use alphabetical sorting within groups
   1. `const`s & `type` aliases
   2. the most "entry-level" / "fundamental" type
   3. `impl Default` if applicable
@@ -155,10 +155,10 @@ Function length is driven entirely by readability.
 - Algorithmic functions should be shorter, focussed on the specific task at hand, and do ONLY ONE THING.
 - It is equally confusing to need to make 5 jumps to read the full implementation of a single task (do not emulate Java, C++, Uncle-Bob idioms) as it is to search through a long function that does many things to find the relevant section (no god-functions).
 - Adding an abstraction should always make the code simpler to read and reason about.
-- An example of a good orchestrator function can be found at `bin/rip/main.rs::main`
+- An example of a good orchestrator function can be found at `src/bin/rip/main.rs::main`
   - `Rip::try_parse()?` & `init_tracing()?` are separate functions
   - `match (cd.disc().release(), ripper.non_interactive)` & `let selected_track = match (ripper.all, ripper.track_number)` are larger orchestration blocks representing the core raison-d'être for the function and their purpose is clearly identifiable from the opening line, making it easy to skip or dive into the related block
-- An example of well-separated algorithmic functions can be found at `disc.rs::impl Disc`
+- An example of well-separated algorithmic functions can be found at `src/disc.rs::impl Disc`
   - `update_musicbrainz` only handles the logic of fetching data from the network leveraging
   - `set_musicbrainz` to store the data and maintain invariants (which can then also be a useful pub fn)
   - `Toc::musicbrainz_id` to generate the id (which can then also be a useful pub fn)
@@ -172,8 +172,8 @@ As a rule of thumb, nested code should be longer than it is wide: more lines ins
 
 Use the following tips to help avoid nesting:
 
-- use `?` to propogate residuals. `impl From<SomeError> for <OtherError>` where needed.
-- use `.unwrap_or_default()`, `map_err()`, `.or_else()` to avoid banal `match`es on `Try`-types. Leverage `crate try_v2::Extract` to provide these methods on custom Try-types.
+- use `?` to propagate residuals. `impl From<SomeError> for <OtherError>` where needed.
+- use `.unwrap_or_default()`, `map_err()`, `.or_else()` to avoid banal `match`es on `Try`-types. Leverage `try_v2::Extract` to provide these methods on custom Try-types.
 - NEVER USE `if ... else if ... else` CHAINS. ALWAYS USE `match`, this removes a whole class of bugs by enabling the compiler to validate that all cases are considered.
 - Leverage a functional style with `.map()`, `.and_then()` chaining. Use the newly stable `ok()`, `then()`, ... functions to avoid `if bool`. Use the unstable `bool.toggle()` to improve readability: `flag.toggle().then_some(1)` is better (more explicit) than `!flag.then_some(1)`
 - Use match guards, including `if let` guards to avoid nesting `match ... { if { ... } }`
