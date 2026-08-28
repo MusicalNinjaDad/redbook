@@ -9,7 +9,7 @@ This is a rust project for working with CDDA CD digital audio as per RedBook (IE
 - ALWAYS USE your `cargo-stage` skill (invokes `cargo stage --strict --json`) to check your work. This codebase will not compile with `cargo check/clippy/test` as it requires specific libraries. See the `cargo-stage` skill for more details.
 - ALWAYS USE your `graphify` skill to help understand the codebase. Use it for codebase questions *before* using `rg`, `find`, or raw file reads. `rg` is available as a faster alternative to `grep` for use *after* first using `graphify`.
 - ALWAYS USE your `jaq` skill to parse json, toml or yaml. Other tools such as `jq` or `python` are not available.
-- ALWAYS USE your `read-the-docs` skill to search crate/dependency/stdlib docs.
+- ALWAYS USE your `read-the-docs` skill **FIRST** to search crate/dependency/stdlib docs — only read source if docs fail.
 - ALWAYS USE your `compilation` skill to compile binaries (hardware access is Windows-only; binaries won’t execute in this Linux environment).
 
 ## Library overview
@@ -52,9 +52,36 @@ Is a debug tool to list the tags embedded in a flac file.
 
 ALWAYS USE `read-the-docs` skill to search and read the documentation for this crate, all dependencies and the standard library. Full documentation is available locally. Use it.
 
-FULL SOURCE for ALL dependencies is available at `/opt/cargo/registry/src/`. You may read the source for dependencies at any time.
+ALWAYS USE `graphify` skill to understand inter-relationships and semantics within the crate.
 
-FULL SOURCE for the standard library is available at `/opt/rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/`. You may read the source for stdlib at any time.
+#### Workflow (MANDATORY)
+
+##### For ANY investigation of types, methods, or API surfaces
+
+1. **First**: Load `read-the-docs` skill
+2. **Query**: Use the indexes and jaq to extract what you need
+3. **Fallback only**: If docs are missing/insufficient, THEN read source
+
+##### Never do this
+
+```bash
+# BAD - manual source diving
+grep -r "Discid" /opt/cargo/registry/src/musicbrainz*
+find /opt/cargo/registry/src -name "discid.rs" | xargs cat
+```
+
+##### Do this instead
+
+```bash
+# GOOD - structured docs query
+# (load read-the-docs skill for exact commands)
+```
+
+**Remember:** Dependency source at `/opt/cargo/registry/src/` is available as a LAST RESORT, not a first stop.
+
+FULL SOURCE for ALL dependencies is available at `/opt/cargo/registry/src/`. You may read the source for dependencies at any time *after* checking the documentation.
+
+FULL SOURCE for the standard library is available at `/opt/rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/`. You may read the source for stdlib *after* checking the documentation.
 
 ### Available tools
 

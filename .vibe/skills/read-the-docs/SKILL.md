@@ -1,9 +1,54 @@
 ---
 name: read-the-docs
 description: Load this skill when you need to access Rust crate documentation (JSON format) or standard library documentation (HTML format) for this project.
+user-invocable: true
 ---
 
 # Read the Docs
+
+**Decide first: Docs or Source?**
+- ✅ **Use docs FIRST** for: API surfaces, public fields, methods, trait impls, doc comments, cross-references
+- 🔍 **Use source second** only if: docs are missing, unclear, or you need private implementation details
+
+## Quick Start: Common Tasks
+
+| What you need | Docs approach | Manual approach (don't do this) |
+|---------------|---------------|---------------------------------|
+| Methods on a type | Query docs JSON with jaq | `grep -r "impl Discid"` in cargo registry |
+| Fields of a struct | Check `inner.fields` in docs | `cat /opt/cargo/registry/src/*/discid.rs` |
+| Implemented traits | Check `inner.impls` in docs | Manual source reading |
+| Doc comments | `index[].docs` field | Reading source comments |
+
+## Copy-Paste Queries
+
+**Find a type and its basic info:**
+```bash
+CRATE="musicbrainz_rs"
+TYPE="Discid"
+jaq --arg TYPE "$TYPE" '\n  .index | to_entries[] | select(.value.name == $TYPE) | {\n    name: .value.name,\n    kind: (.value.inner | keys[0]),\n    visibility: .value.visibility,\n    docs: .value.docs,\n    file: .value.span.filename\n  }\n' "./docs/x86_64-unknown-linux-gnu/doc/${CRATE}.json"
+```
+
+**List all public fields and methods for a struct:**
+```bash
+CRATE="musicbrainz_rs"
+TYPE="Discid"
+jaq --arg TYPE "$TYPE" '\n  .index | to_entries[] | select(.value.name == $TYPE) | {\n    name: .value.name,\n    kind: (.value.inner | keys[0]),\n    fields: (.value.inner.struct?.fields // {} | to_entries | map({name: .key, type: .value.type})),\n    methods: (.value.inner.struct?.impls[]? | [.items[]? | select(.visibility == "public") | {name: .name, signature: (.signature // .decl | tostring)}] // [])\n  }\n' "./docs/x86_64-unknown-linux-gnu/doc/${CRATE}.json"
+```
+
+**Check if a type has a specific method:**
+```bash
+CRATE="musicbrainz_rs"
+TYPE="Discid"
+METHOD="id"
+jaq --arg TYPE "$TYPE" --arg METHOD "$METHOD" '\n  .index | to_entries[] | select(.value.name == $TYPE) |\n  .value.inner.struct?.impls[]? |\n  .items[]? |\n  select(.name == $METHOD and .visibility == "public")\n' "./docs/x86_64-unknown-linux-gnu/doc/${CRATE}.json"
+```
+
+**Find all trait implementations for a type:**
+```bash
+CRATE="musicbrainz_rs"
+TYPE="Discid"
+jaq --arg TYPE "$TYPE" '\n  .index | to_entries[] | select(.value.name == $TYPE) |\n  [.value.inner.struct?.impls[]? | select(.trait != null) | .trait.name] // []\n' "./docs/x86_64-unknown-linux-gnu/doc/${CRATE}.json"
+```
 
 This skill provides access to comprehensive Rust documentation for the redbook crate and all its dependencies, as well as the nightly Rust standard library.
 
@@ -243,6 +288,26 @@ The `inner` field contains type-specific data:
    - Arrays are indexed with `[n]`, not `.[] | .[n]`
 
 ## When to Use This Skill
+
+**Load this skill IMMEDIATELY when you need to:**
+
+- ✅ Investigate a type from a dependency (struct, enum, trait, function)
+- ✅ Check what methods/fields are available on a type
+- ✅ Find which traits are implemented for a type
+- ✅ Read documentation comments for an item
+- ✅ Navigate cross-references between items
+- ✅ Understand the public API of any crate
+
+**BEFORE you:**
+- [ ] Search dependency source with `grep`/`find`
+- [ ] Read raw source files from `/opt/cargo/registry/src/`
+- [ ] Manually trace type definitions
+
+**Rule of thumb:** If it's about *what* the API provides (not *how* it's implemented), use docs first.
+
+---
+
+### Original Use Cases
 
 Load this skill when you need to:
 - Look up API documentation for this crate or its dependencies
