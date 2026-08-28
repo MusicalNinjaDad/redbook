@@ -78,8 +78,8 @@
 //! # Thread Safety
 //!
 //! [AudioCdExt] and [AudioCdExtMut] are separate traits, to allow for initially updating and mutating
-//! metadata, before obtaining calling [lock] so you can use separate threads for reading data and
-//! encoding.
+//! metadata, before obtaining calling [lock][AudioCdExtMut::lock] so you can use separate threads
+//! for reading data and encoding.
 
 pub mod disc;
 pub mod hex;
