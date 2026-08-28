@@ -1191,7 +1191,7 @@ impl From<Msf> for Duration {
     ///
     /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13_333_333 nanoseconds)
     /// - The conversion uses integer arithmetic for precision
-    /// 
+    ///
     /// # Example
     /// ```
     /// # use redbook::Msf;
