@@ -128,8 +128,6 @@ pub enum DiscError {
     IncorrectLeadout,
     /// A track's MSF or duration does not match the corresponding TOC entry.
     TocMismatch,
-    /// An error occurred while obtaining the MusicBrainz metadata.
-    MusicBrainz(io::Error),
 }
 
 impl std::error::Error for DiscError {}
@@ -139,25 +137,13 @@ impl Display for DiscError {
         match self {
             DiscError::IncorrectLeadout => write!(f, "incorrect leadout"),
             DiscError::TocMismatch => write!(f, "TOC mismatch"),
-            DiscError::MusicBrainz(io_error) => {
-                write!(f, "error fetching MusicBrainz data: {io_error}")
-            }
         }
     }
 }
 
 impl From<DiscError> for io::Error {
     fn from(error: DiscError) -> Self {
-        match error {
-            DiscError::MusicBrainz(error) => error,
-            _ => io::Error::new(io::ErrorKind::InvalidData, error),
-        }
-    }
-}
-
-impl From<io::Error> for DiscError {
-    fn from(error: io::Error) -> Self {
-        Self::MusicBrainz(error)
+        io::Error::new(io::ErrorKind::InvalidData, error)
     }
 }
 
