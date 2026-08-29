@@ -1,10 +1,11 @@
-# Graph Report - .  (2026-08-29)
+# Graph Report - redbook  (2026-08-29)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 421 files · ~3,077,590 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 843 nodes · 1098 edges · 56 communities (47 shown, 9 thin omitted)
+- 843 nodes · 1098 edges · 57 communities (47 shown, 10 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 12 edges (avg confidence: 0.88)
 - Token cost: 0 input · 0 output
 
@@ -64,6 +65,7 @@
 - rust-api-design/SKILL.md
 - Special Considerations for Documentation Comments
 - Code-Specific Formatting
+- Debuggability
 - Necessities
 - update-indexes.sh
 - devcontainer-environment/SKILL.md
@@ -96,7 +98,7 @@
 - 1-file cycle: `src/lib.rs -> src/lib.rs`
 - 2-file cycle: `src/test_fixtures/albums.rs -> src/win.rs -> src/test_fixtures/albums.rs`
 
-## Communities (56 total, 9 thin omitted)
+## Communities (57 total, 10 thin omitted)
 
 ### Community 0 - "CdDrive"
 Cohesion: 0.06
@@ -247,7 +249,7 @@ Cohesion: 0.25
 Nodes (8): Arguments convey meaning through types, not `bool` or `Option` (C-CUSTOM-TYPE), Builders enable construction of complex values (C-BUILDER), Consuming builders, Newtypes provide static distinctions (C-NEWTYPE), Non-consuming builders (preferred), The benefit, Type safety, Types for a set of flags are `bitflags`, not enums (C-BITFLAG)
 
 ### Community 46 - "Macros"
-Cohesion: 0.33
+Cohesion: 0.29
 Nodes (6): Input syntax is evocative of the output (C-EVOCATIVE), Item macros compose well with attributes (C-MACRO-ATTR), Item macros support visibility specifiers (C-MACRO-VIS), Item macros work anywhere that items are allowed (C-ANYWHERE), Macros, Type fragments are flexible (C-MACRO-TY)
 
 ### Community 47 - "Common Issues and Solutions"
@@ -258,10 +260,6 @@ Nodes (6): Common Issues and Solutions, Problem: Code block not syntax highlight
 Cohesion: 0.33
 Nodes (6): Footnotes, Rustdoc-Specific Markdown Extensions, Smart Punctuation, Strikethrough, Tables, Task Lists
 
-### Community 49 - "rust-api-design/SKILL.md"
-Cohesion: 0.24
-Nodes (4): All public types implement `Debug` (C-DEBUG), `Debug` representation is never empty (C-DEBUG-NONEMPTY), Debuggability, Rust API Design
-
 ### Community 50 - "Special Considerations for Documentation Comments"
 Cohesion: 0.40
 Nodes (5): Blank Lines, Comment Syntax, Indentation, Nesting, Special Considerations for Documentation Comments
@@ -270,14 +268,18 @@ Nodes (5): Blank Lines, Comment Syntax, Indentation, Nesting, Special Considerat
 Cohesion: 0.50
 Nodes (4): Code Highlighting, Code-Specific Formatting, Escaping Backticks in Code, Preserving Whitespace
 
+### Community 52 - "Debuggability"
+Cohesion: 0.50
+Nodes (3): All public types implement `Debug` (C-DEBUG), `Debug` representation is never empty (C-DEBUG-NONEMPTY), Debuggability
+
 ### Community 53 - "Necessities"
 Cohesion: 0.50
 Nodes (3): Crate and its dependencies have a permissive license (C-PERMISSIVE), Necessities, Public dependencies of a stable crate are stable (C-STABLE)
 
 ## Knowledge Gaps
-- **347 isolated node(s):** `1. Summary Line (Required)`, `2. Detailed Explanation (As Needed)`, `3. Code Example (Required)`, `4. Advanced Sections (As Needed)`, `Advanced Patterns` (+342 more)
+- **347 isolated node(s):** `redbook`, `update-indexes.sh script`, `ReleaseMenu<'d>`, `Rip`, `SelectedTrack` (+342 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **9 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -288,7 +290,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.037) - this node is a cross-community bridge._
 - **Why does `Markdown Support in Rustdoc` connect `Markdown Support in Rustdoc` to `Tips and Best Practices`, `Standard Markdown Features`, `Common Issues and Solutions`, `Rustdoc-Specific Markdown Extensions`, `Special Considerations for Documentation Comments`, `Code-Specific Formatting`?**
   _High betweenness centrality (0.031) - this node is a cross-community bridge._
-- **What connects `1. Summary Line (Required)`, `2. Detailed Explanation (As Needed)`, `3. Code Example (Required)` to the rest of the system?**
+- **What connects `redbook`, `update-indexes.sh script`, `ReleaseMenu<'d>` to the rest of the system?**
   _347 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `CdDrive` be split into smaller, more focused modules?**
   _Cohesion score 0.056051587301587304 - nodes in this community are weakly interconnected._
