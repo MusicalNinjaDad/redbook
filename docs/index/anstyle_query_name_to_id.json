@@ -1,13 +1,12 @@
 {
-  "truecolor": "11",
-  "no_color": "7",
-  "enable_virtual_terminal_processing": "3",
-  "term_supports_ansi_color": "10",
-  "term_supports_color": "6",
-  "anstyle_query": "13",
-  "clicolor_force": "9",
-  "windows": "5",
+  "anstyle_query": "11",
+  "clicolor_force": "7",
+  "windows": "3",
+  "is_ci": "10",
+  "clicolor": "6",
+  "truecolor": "9",
+  "no_color": "5",
   "enable_ansi_colors": "1",
-  "is_ci": "12",
-  "clicolor": "8"
+  "term_supports_ansi_color": "8",
+  "term_supports_color": "4"
 }

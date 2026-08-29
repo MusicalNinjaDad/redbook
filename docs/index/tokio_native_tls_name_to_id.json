@@ -1,7 +1,7 @@
 {
   "fmt": "45",
   "from": "30",
-  "as_raw_socket": "100",
+  "as_raw_fd": "100",
   "borrow_mut": "23",
   "poll_shutdown": "98",
   "flush": "60",

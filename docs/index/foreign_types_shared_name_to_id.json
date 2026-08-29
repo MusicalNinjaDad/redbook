@@ -1,0 +1,19 @@
+{
+  "ForeignTypeRef": "44",
+  "as_ptr": "51",
+  "from_ptr_mut": "50",
+  "try_into": "31",
+  "Ref": "43",
+  "into": "24",
+  "from_ptr": "49",
+  "from": "27",
+  "foreign_types_shared": "52",
+  "try_from": "36",
+  "borrow_mut": "20",
+  "CType": "48",
+  "Opaque": "1",
+  "ForeignType": "45",
+  "Error": "35",
+  "borrow": "16",
+  "type_id": "38"
+}

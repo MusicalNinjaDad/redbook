@@ -1,0 +1,20 @@
+{
+  "probe": "0",
+  "candidate_cert_dirs": "3",
+  "has_ssl_cert_env_vars": "6",
+  "ENV_CERT_DIR": "53",
+  "into": "34",
+  "from": "37",
+  "try_from": "46",
+  "ProbeResult": "2",
+  "borrow_mut": "30",
+  "ENV_CERT_FILE": "52",
+  "Error": "45",
+  "try_init_openssl_env_vars": "1",
+  "borrow": "26",
+  "type_id": "48",
+  "cert_file": "7",
+  "cert_dir": "10",
+  "openssl_probe": "54",
+  "try_into": "41"
+}
