@@ -1,5 +1,5 @@
 # Base image source: https://raw.githubusercontent.com/MusicalNinjaDad/rust/refs/heads/main/Dockerfile
-FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:54224be3e0c25303a486a9fe60c5e2aec4794f6ce3f2ca7f0be437ae4984ec0e
+FROM ghcr.io/musicalninjadad/rust-devcontainer:latest@sha256:8513a1e7cfaa847d1fd4dcba2f86fcb07740428ea3f1fc136c098ec87df5e81a
 
 # for nativetls
 RUN sudo dnf install openssl-devel pkgconf-pkg-config
