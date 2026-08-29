@@ -7,17 +7,16 @@
 //! # Tracing
 //!
 //! This module emits the following spans:
-//! - `Disc::new` (INFO): Disc creation with `track_count` and `album_name` fields
+//! - `Disc::new` (INFO): Disc creation with `track_count` field
 //! - `Disc::track` (DEBUG): Track lookup with `track_number` field
 //! - `Disc::tracks` (DEBUG): Track iteration
 //! - `Disc::set_release` (DEBUG): Release selection with `index` field
 //! - `Disc::tag_for` (DEBUG): Tag generation with `track_number` and `title` fields
-//! - `Disc::update_musicbrainz` (INFO): MusicBrainz update with `discid` field
-//! - `Disc::update_cover_art` (INFO): Cover art retrieval
+//! - `update_musicbrainz` (INFO): MusicBrainz update with `discid` field
+//! - `update_cover_art` (INFO): Cover art retrieval
 //!
 //! Events:
 //! - `musicbrainz_retrieved` (INFO): On successful MusicBrainz lookup with `releases` count
-//! - `musicbrainz_failed` (ERROR): On MusicBrainz lookup failure with `error` field
 //! - `coverart_retrieved` (INFO): On successful cover art retrieval with `size_bytes` field
 //! - `coverart_failed` (WARN): On cover art retrieval failure with `url`, `status`, and `reason` fields
 
@@ -161,22 +160,31 @@ impl Disc {
     /// Returns [`DiscError::IncorrectLeadout`] if the leadout doesn't match the TOC.
     /// Returns [`DiscError::TocMismatch`] if any track doesn't match its TOC entry.
     ///
+    /// # Notes
+    ///
+    /// This constructor validates that all provided data is consistent:
+    /// - The leadout frame must match the TOC's leadout value
+    /// - Each track's start position (MSF) must match its corresponding TOC entry
+    /// - Each track's duration must match the duration calculated from its TOC entry
+    ///
     /// # Examples
     ///
     /// ## Direct creation
     ///
     /// For custom CD implementations, create a `Disc` from TOC data:
     ///
-    /// ```no_run
+    /// ```
     /// use redbook::{Disc, Track, Frame};
     /// use cdtoc::Toc;
     ///
-    /// // Obtain TOC, tracks, and leadout from your CD reading code
-    /// // let toc: Toc = ...;
-    /// // let tracks: Vec<Track> = ...;
-    /// // let leadout: Frame = ...;
+    /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
+    /// let tracks = [
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    /// ];
+    /// let leadout = Frame::new(0x2d2b);
     ///
-    /// // let disc = Disc::new(toc, tracks, leadout)?;
+    /// let disc = Disc::new(toc, tracks, leadout).unwrap();
+    /// assert_eq!(disc.tracks().count(), 1);
     /// ```
     ///
     /// ## Using AudioCd
@@ -193,8 +201,7 @@ impl Disc {
     /// # Ok::<(), io::Error>(())
     /// ```
     ///
-    /// Note: Creating `Track` instances directly requires handling the private `meta` field.
-    /// See the [`Track`] struct or [`AudioCdExt`] trait for reference implementations.
+    /// For a more complete example with metadata retrieval, see the [`Disc`] struct documentation.
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
