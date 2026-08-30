@@ -211,7 +211,7 @@ fn main() -> Exit<()> {
 
                 const SPAN_TARGET: &str = "rip track";
                 let _warn = tracing::warn_span!(SPAN_TARGET, track_number).entered();
-                let _info = tracing::warn_span!(SPAN_TARGET, track_name).entered();
+                let _info = tracing::info_span!(SPAN_TARGET, track_name).entered();
                 
                 tracing::info!(target: SPAN_TARGET, "rip_track_start");
 
