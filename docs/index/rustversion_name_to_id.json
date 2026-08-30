@@ -1,0 +1,13 @@
+{
+  "rustversion": "22",
+  "any": "18",
+  "nightly": "14",
+  "cfg": "21",
+  "not": "17",
+  "beta": "13",
+  "attr": "20",
+  "before": "16",
+  "stable": "12",
+  "all": "19",
+  "since": "15"
+}

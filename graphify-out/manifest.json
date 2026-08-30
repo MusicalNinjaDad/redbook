@@ -1,13 +1,13 @@
 {
   ".devcontainer/devcontainer.json": {
     "mtime": 1787551816.5374494,
-    "ast_hash": "17c4471e0dd927848c6b24e1d2fb63db",
-    "semantic_hash": "17c4471e0dd927848c6b24e1d2fb63db"
+    "ast_hash": "",
+    "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1787549409.2977765,
-    "ast_hash": "7a373d39309aab36ee227e6ce50765c8",
-    "semantic_hash": "7a373d39309aab36ee227e6ce50765c8"
+    "mtime": 1787929159.213247,
+    "ast_hash": "5bb5d82c25d3c43ae26581333f4bd72e",
+    "semantic_hash": ""
   },
   ".vibe/hooks/auto-approve-graphify.py": {
     "mtime": 1787500177.5735507,
@@ -15,14 +15,14 @@
     "semantic_hash": "8345484a3966806d2b1a93ba963b4a56"
   },
   "build.rs": {
-    "mtime": 1787500177.5825102,
-    "ast_hash": "4f85124cc0a89372ec29f9a2be38ebb2",
-    "semantic_hash": "4f85124cc0a89372ec29f9a2be38ebb2"
+    "mtime": 1787849590.3477628,
+    "ast_hash": "48fc3e2ff846b76b25c51a696f8b5c00",
+    "semantic_hash": ""
   },
   "src/bin/rip/_releases.rs": {
-    "mtime": 1787500177.5888662,
-    "ast_hash": "9987c3758ad4684a4a6adee6ee8f450e",
-    "semantic_hash": "9987c3758ad4684a4a6adee6ee8f450e"
+    "mtime": 1787742533.8636348,
+    "ast_hash": "1dbf923b13f38614f954b40ec16a680b",
+    "semantic_hash": ""
   },
   "src/bin/rip/_tracing.rs": {
     "mtime": 1787500177.5890272,
@@ -35,9 +35,9 @@
     "semantic_hash": "c063a72f61f8fee0e1e6e423984f3ee4"
   },
   "src/bin/rip/main.rs": {
-    "mtime": 1787500177.5890272,
-    "ast_hash": "9067168507cded7867f7a7ad5add338e",
-    "semantic_hash": "9067168507cded7867f7a7ad5add338e"
+    "mtime": 1787862001.0128107,
+    "ast_hash": "7641d32aa2360579792aadbfb95804eb",
+    "semantic_hash": ""
   },
   "src/bin/tag/cli.rs": {
     "mtime": 1787500177.5890272,
@@ -45,9 +45,9 @@
     "semantic_hash": "664591048b7e909ffa061b10edd66ff9"
   },
   "src/bin/tag/main.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "a481e84817ec769f30702f549667790c",
-    "semantic_hash": "a481e84817ec769f30702f549667790c"
+    "mtime": 1787742533.8636348,
+    "ast_hash": "d3c9a93b9c7a4cdc6b8491952e3517ea",
+    "semantic_hash": ""
   },
   "src/bin/toc/main.rs": {
     "mtime": 1787500177.5892725,
@@ -55,62 +55,62 @@
     "semantic_hash": "17941bbead39a1a8bc2199391c23b909"
   },
   "src/disc.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "17e6691192b6b03996490385b91c3ed3",
-    "semantic_hash": "17e6691192b6b03996490385b91c3ed3"
+    "mtime": 1787992690.4931989,
+    "ast_hash": "472997ceb0c12c7caff6a4dd856a4246",
+    "semantic_hash": ""
   },
   "src/hex.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "9c6e6710f10bfd320bf15ed0b63343ad",
-    "semantic_hash": "9c6e6710f10bfd320bf15ed0b63343ad"
+    "mtime": 1787912670.635274,
+    "ast_hash": "135321f2648ae310153a981f1a496b20",
+    "semantic_hash": ""
   },
   "src/lib.rs": {
-    "mtime": 1787549409.2977765,
-    "ast_hash": "36b62262037ec810839539314eee7752",
-    "semantic_hash": "36b62262037ec810839539314eee7752"
+    "mtime": 1787937219.371373,
+    "ast_hash": "2abfe304eea89697cff1ac961c379da0",
+    "semantic_hash": ""
   },
   "src/musicbrainz.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "204294aa46e4980bf9e2d08f3657f623",
-    "semantic_hash": "204294aa46e4980bf9e2d08f3657f623"
+    "mtime": 1787912676.106599,
+    "ast_hash": "d240c6644cd50ebcb6b0f8ab0b575734",
+    "semantic_hash": ""
   },
   "src/tagging.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "7b17be4824dc3b283df15ed0cfb6cf39",
-    "semantic_hash": "7b17be4824dc3b283df15ed0cfb6cf39"
+    "mtime": 1787912680.1179433,
+    "ast_hash": "4bb5cb956e901081c2aabcd7f6f3fece",
+    "semantic_hash": ""
   },
   "src/test_fixtures/albums.rs": {
-    "mtime": 1787500177.5892725,
-    "ast_hash": "a5cc615b7604afd692381f7c9f698804",
-    "semantic_hash": "a5cc615b7604afd692381f7c9f698804"
+    "mtime": 1787937166.223278,
+    "ast_hash": "fdb0dc65660a8c2844ca610bc053c390",
+    "semantic_hash": ""
   },
   "src/test_fixtures/mod.rs": {
-    "mtime": 1787500177.5899298,
-    "ast_hash": "36a14bbb2f4ee0c06f218f2ab6b87d4b",
-    "semantic_hash": "36a14bbb2f4ee0c06f218f2ab6b87d4b"
+    "mtime": 1787912660.5062768,
+    "ast_hash": "64dd6f620e942687d124634c5e0acdaa",
+    "semantic_hash": ""
   },
   "src/win.rs": {
-    "mtime": 1787500177.5899298,
-    "ast_hash": "2767ba56c825af9eb02748cf4f84c182",
-    "semantic_hash": "2767ba56c825af9eb02748cf4f84c182"
+    "mtime": 1787937166.223278,
+    "ast_hash": "52b50c431bad99deca10083f6ed91974",
+    "semantic_hash": ""
   },
   "tests/assets/definitely_maybe/musicbrainz.json": {
     "mtime": 1787500177.590493,
-    "ast_hash": "2d093fd1c079099d0b37b62487b56f55",
-    "semantic_hash": "2d093fd1c079099d0b37b62487b56f55"
+    "ast_hash": "",
+    "semantic_hash": ""
   },
   "tests/assets/the_wall/disc1/musicbrainz.json": {
     "mtime": 1787500177.5911105,
-    "ast_hash": "2759c6c795b385d274664995dac63d6d",
-    "semantic_hash": "2759c6c795b385d274664995dac63d6d"
+    "ast_hash": "",
+    "semantic_hash": ""
   },
   "tests/assets/the_wall/disc2/musicbrainz.json": {
     "mtime": 1787500177.5927598,
-    "ast_hash": "df29306f9e63e2735ddce3304e027e4f",
-    "semantic_hash": "df29306f9e63e2735ddce3304e027e4f"
+    "ast_hash": "",
+    "semantic_hash": ""
   },
   "tests/parse_toc.rs": {
-    "mtime": 1787549409.2982628,
+    "mtime": 1787727728.036421,
     "ast_hash": "b5081b7ffab4f1643bbf9a8db9793ce8",
     "semantic_hash": "b5081b7ffab4f1643bbf9a8db9793ce8"
   },
@@ -135,72 +135,67 @@
     "semantic_hash": "3929107d81e5e394a541571be14f4f73"
   },
   ".github/workflows/rust.yml": {
-    "mtime": 1787504598.6817777,
-    "ast_hash": "f0990cb82c7a68b9f76447ebc459b610",
-    "semantic_hash": "f0990cb82c7a68b9f76447ebc459b610"
-  },
-  ".vibe/AGENTS.md": {
-    "mtime": 1787500177.5735507,
-    "ast_hash": "251083e703e5d6a552d7e595c7b13458",
-    "semantic_hash": "251083e703e5d6a552d7e595c7b13458"
+    "mtime": 1787810405.5953436,
+    "ast_hash": "cdbda748612bb7a65e7f421f77b4a68d",
+    "semantic_hash": ""
   },
   ".vibe/skills/graphify/SKILL.md": {
-    "mtime": 1787500177.5821579,
+    "mtime": 1787744179.3636744,
     "ast_hash": "139c789dcf39a4f5dafeb3834b454375",
     "semantic_hash": "139c789dcf39a4f5dafeb3834b454375"
   },
   ".vibe/skills/graphify/references/add-watch.md": {
-    "mtime": 1787500177.5821579,
+    "mtime": 1787744122.5145686,
     "ast_hash": "d59d027fe449f06aa03905a01184e779",
     "semantic_hash": "d59d027fe449f06aa03905a01184e779"
   },
   ".vibe/skills/graphify/references/exports.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "9da2a2152e60a22f07f05fed5158f287",
     "semantic_hash": "9da2a2152e60a22f07f05fed5158f287"
   },
   ".vibe/skills/graphify/references/extraction-spec.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "42fef56a01698118f7fd722acdadea34",
     "semantic_hash": "42fef56a01698118f7fd722acdadea34"
   },
   ".vibe/skills/graphify/references/github-and-merge.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "cde13df085e4c492aeb7ba298a996d0d",
     "semantic_hash": "cde13df085e4c492aeb7ba298a996d0d"
   },
   ".vibe/skills/graphify/references/hooks.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "aea24fe86e18fe8aeb304403032cfce7",
     "semantic_hash": "aea24fe86e18fe8aeb304403032cfce7"
   },
   ".vibe/skills/graphify/references/query.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.5229056,
     "ast_hash": "3c46f8ad006874260614ed8657d02307",
     "semantic_hash": "3c46f8ad006874260614ed8657d02307"
   },
   ".vibe/skills/graphify/references/transcribe.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "67b6a5fa6c0974e18f60db9f8932fbd8",
     "semantic_hash": "67b6a5fa6c0974e18f60db9f8932fbd8"
   },
   ".vibe/skills/graphify/references/update.md": {
-    "mtime": 1787500177.5825102,
+    "mtime": 1787744122.518737,
     "ast_hash": "9378bd03d56baaf78bd738ab3848f142",
     "semantic_hash": "9378bd03d56baaf78bd738ab3848f142"
   },
   ".vibe/skills/jaq/SKILL.md": {
-    "mtime": 1787500177.5825102,
-    "ast_hash": "23ddd5748172784884e215473deabc80",
-    "semantic_hash": "23ddd5748172784884e215473deabc80"
+    "mtime": 1787910535.6692336,
+    "ast_hash": "796fbc264af6d962ca47284721534179",
+    "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787500177.5825102,
-    "ast_hash": "e3fae861a4d0224f7ec54971bd00ff02",
-    "semantic_hash": "e3fae861a4d0224f7ec54971bd00ff02"
+    "mtime": 1787844679.2820303,
+    "ast_hash": "36a8e17aa027a81a97702a330ec9aacb",
+    "semantic_hash": ""
   },
   "tests/assets/the_wall/disc2/release_selection.txt": {
-    "mtime": 1787500177.5927598,
+    "mtime": 1787727728.036421,
     "ast_hash": "2da5de363508436fa680b2a584927438",
     "semantic_hash": "2da5de363508436fa680b2a584927438"
   },
@@ -208,5 +203,145 @@
     "mtime": 1787500177.5927598,
     "ast_hash": "8ed070aa0cea2a2601e6e7c55e08705c",
     "semantic_hash": "8ed070aa0cea2a2601e6e7c55e08705c"
+  },
+  "docs/update-indexes.sh": {
+    "mtime": 1787854447.1982014,
+    "ast_hash": "9687b090a37b4ee7ba09ae0da4d44445",
+    "semantic_hash": ""
+  },
+  ".vibe/.tmp/didnt_use_docs.md": {
+    "mtime": 1787925233.3268285,
+    "ast_hash": "e16c518c22799dfa77a45df3e451b08e",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/build-safely/SKILL.md": {
+    "mtime": 1787856628.7230911,
+    "ast_hash": "8f9d92a3319d0e654ad81b43fbfad2ae",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/cargo-stage/SKILL.md": {
+    "mtime": 1787907705.4671125,
+    "ast_hash": "e558dc6ad525afea794df936afecdb08",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/compilation/SKILL.md": {
+    "mtime": 1787847607.4953754,
+    "ast_hash": "705726e5b2a0dee570481d02b90ed5e8",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/devcontainer-environment/SKILL.md": {
+    "mtime": 1787847235.3944118,
+    "ast_hash": "bc1786f13c724cb2f6b70bc6fbc87858",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/CHECKLIST.md": {
+    "mtime": 1787860584.7391505,
+    "ast_hash": "0f8434bb7d5b4c8a657b006591b06e85",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/SKILL.md": {
+    "mtime": 1787860568.398884,
+    "ast_hash": "2218fac6d7dade1cb6cc9b64d0bf7ca0",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/basics.md": {
+    "mtime": 1787860603.3435464,
+    "ast_hash": "4fec93321385b12b876e81a8fea1be48",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/content-guidelines.md": {
+    "mtime": 1787923382.8121884,
+    "ast_hash": "2b883889c370b13cfa15fc83be80224a",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/doctests.md": {
+    "mtime": 1787913205.7910264,
+    "ast_hash": "516f4712b696f7eb86b269e39d8e0261",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/linking.md": {
+    "mtime": 1787860657.0816314,
+    "ast_hash": "fdd8762e4b7ab2d322a6471dfc1226c0",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/documentation/markdown.md": {
+    "mtime": 1787860733.1813166,
+    "ast_hash": "6a3173128ba55ba7f08beb3ee491fa9c",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/read-the-docs/CHEAT_SHEET.md": {
+    "mtime": 1787925618.0594847,
+    "ast_hash": "7728386c4a944d8d9dfe41b6ef3ba717",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/read-the-docs/SKILL.md": {
+    "mtime": 1787925574.1416953,
+    "ast_hash": "a003cbeea1832b80f8b01879193e3536",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/SKILL.md": {
+    "mtime": 1787844679.2721608,
+    "ast_hash": "cab94bd7035d6af2936a04f461bbd91e",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/debuggability.md": {
+    "mtime": 1787844679.2778344,
+    "ast_hash": "ca186bc093c0af7abab990a71a7c153c",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/dependability.md": {
+    "mtime": 1787844679.2784445,
+    "ast_hash": "d9f52eb6613733cecdcdd66bfa890736",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/documentation.md": {
+    "mtime": 1787844679.2788048,
+    "ast_hash": "8bef8e7ab3523d2cbbf2527a8e2332ae",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/flexibility.md": {
+    "mtime": 1787844679.2792048,
+    "ast_hash": "ec544141446eae1a1cef841a7a5fe562",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/future-proofing.md": {
+    "mtime": 1787844679.2795572,
+    "ast_hash": "b5ff9299ab0d670ede2e52b51ab8f483",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/interoperability.md": {
+    "mtime": 1787844679.279871,
+    "ast_hash": "139ebce12c8c2a5687f880a7a26ce47d",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/macros.md": {
+    "mtime": 1787844679.280135,
+    "ast_hash": "c1fcfa1f20740957e469d6aa0c8bda41",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/naming.md": {
+    "mtime": 1787844679.2803795,
+    "ast_hash": "d501ef2ecc3bc3b99f86e9e7c24290f3",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/necessities.md": {
+    "mtime": 1787844679.2805874,
+    "ast_hash": "3fa0f76ee0b2fcbbbdf34d5ef5c5dc7a",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/predictability.md": {
+    "mtime": 1787844679.2808006,
+    "ast_hash": "2c54e26f26c78c6025cd8222245bac18",
+    "semantic_hash": ""
+  },
+  ".vibe/skills/rust-api-design/type-safety.md": {
+    "mtime": 1787844679.281006,
+    "ast_hash": "2cbafbaa3bf8ffd6d94e4de52446796d",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1787927242.4737706,
+    "ast_hash": "03597fc37b309d9730ffe8c72defc900",
+    "semantic_hash": ""
   }
 }

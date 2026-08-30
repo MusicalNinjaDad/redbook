@@ -1,0 +1,11 @@
+{
+  "write_colored": "38",
+  "stderr_initial_colors": "47",
+  "ansi": "6",
+  "windows": "50",
+  "WinconStream": "9",
+  "get_colors": "43",
+  "anstyle_wincon": "52",
+  "stdout_initial_colors": "45",
+  "set_colors": "48"
+}

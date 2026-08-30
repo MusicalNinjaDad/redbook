@@ -1,6 +1,7 @@
 ---
 name: jaq
-description: For ALL JSON parsing, querying, or transformation: prefer jaq over python or jq. Load this first.
+description: "For ALL JSON parsing, querying, or transformation: prefer jaq over python or jq. Load this first."
+user-invocable: true
 ---
 
 # Parse JSON with jaq

@@ -1,0 +1,17 @@
+{
+  "poll_read_vectored": "19",
+  "poll_write": "45",
+  "poll_read": "32",
+  "poll_write_vectored": "51",
+  "poll_flush": "57",
+  "poll_seek": "64",
+  "poll_close": "38",
+  "futures_io": "87",
+  "consume": "70",
+  "AsyncRead": "17",
+  "poll_fill_buf": "82",
+  "if_std": "85",
+  "AsyncBufRead": "72",
+  "AsyncWrite": "39",
+  "AsyncSeek": "63"
+}

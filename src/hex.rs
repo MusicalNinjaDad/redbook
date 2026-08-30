@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 //! Hex parsing utilities for CD TOC data
 //!
 //! # Tracing

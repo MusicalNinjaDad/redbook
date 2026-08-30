@@ -1,0 +1,12 @@
+{
+  "anstyle_query": "11",
+  "clicolor_force": "7",
+  "windows": "3",
+  "is_ci": "10",
+  "clicolor": "6",
+  "truecolor": "9",
+  "no_color": "5",
+  "enable_ansi_colors": "1",
+  "term_supports_ansi_color": "8",
+  "term_supports_color": "4"
+}

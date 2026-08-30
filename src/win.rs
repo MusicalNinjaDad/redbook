@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "needs update")]
 #![allow(rust_analyzer::inactive_code)]
 #![allow(unused_imports, reason = "until split into platform & supporting")]
 
@@ -439,18 +440,19 @@ impl AudioCd {
 
         Ok(Self { drive, disc })
     }
-
-    pub fn lock(self) -> ReadOnlyAudioCd {
-        ReadOnlyAudioCd {
-            drive: self.drive,
-            disc: self.disc,
-        }
-    }
 }
 
 impl AudioCdExtMut for AudioCd {
     fn disc_mut(&mut self) -> &mut Disc {
         Arc::make_mut(&mut self.disc)
+    }
+
+    #[expect(refining_impl_trait)]
+    fn lock(self) -> ReadOnlyAudioCd {
+        ReadOnlyAudioCd {
+            drive: self.drive,
+            disc: self.disc,
+        }
     }
 }
 
@@ -615,7 +617,7 @@ impl TryFrom<CdaFile> for Track<'static> {
         Ok(Track {
             toc_entry,
             windows_identifier,
-            duration_frames,
+            duration: duration_frames,
             ..Default::default()
         })
     }

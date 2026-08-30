@@ -19,5 +19,31 @@ fn main() -> Result<()> {
         }
     }
 
+    let ac = AutoCfg::new()?;
+
+    // check to see any  downstream crate has defined
+    // `unstable.allow-features` in `.cargo/config.toml`.
+    let allowed_features = cargo_allowed_features()?;
+
+    ac.emit_unstable_feature(OtherFeature("exact_div".to_string()), &allowed_features);
+    ac.emit_unstable_feature(
+        OtherFeature("exact_size_is_empty".to_string()),
+        &allowed_features,
+    );
+    ac.emit_unstable_feature(
+        OtherFeature("iter_array_chunks".to_string()),
+        &allowed_features,
+    );
+    ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
+    ac.emit_unstable_feature(
+        OtherFeature("negative_impls".to_string()),
+        &allowed_features,
+    );
+    ac.emit_unstable_feature(
+        OtherFeature("path_absolute_method".to_string()),
+        &allowed_features,
+    );
+    ac.emit_unstable_feature(OtherFeature("try_blocks".to_string()), &allowed_features);
+
     Ok(())
 }

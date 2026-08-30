@@ -1,0 +1,23 @@
+{
+  "hash": "277",
+  "try_into": "201",
+  "Error": "205",
+  "from": "197",
+  "into": "194",
+  "Adler32Hash": "218",
+  "adler32": "217",
+  "reset": "166",
+  "finish": "165",
+  "write": "164",
+  "clone_to_uninit": "189",
+  "default": "214",
+  "from_checksum": "163",
+  "new": "162",
+  "clone": "212",
+  "Adler32": "161",
+  "borrow_mut": "186",
+  "type_id": "208",
+  "borrow": "182",
+  "try_from": "206",
+  "simd_adler32": "328"
+}

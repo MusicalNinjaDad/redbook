@@ -1,51 +1,86 @@
-#![cfg_attr(target_family = "windows", feature(exact_div))]
-#![feature(exact_size_is_empty)]
-#![feature(iter_array_chunks)]
-#![feature(iterator_try_collect)]
-#![feature(negative_impls)]
-#![feature(path_absolute_method)]
-#![feature(try_blocks)]
+#![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
+#![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
+#![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
+#![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
+#![cfg_attr(unstable_negative_impls, feature(negative_impls))]
+#![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
+#![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 // Unsafe restricted to dedicated wrapper modules
 #![deny(unsafe_code)]
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![forbid(unsafe_attr_outside_unsafe)]
+#![warn(missing_docs)]
 
-//! CDDA CD digital audio as per RedBook (IEC 60908:1999)
+//! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
-//! Frame IDs are always *absolute* and *include* the lead-in (150 frames)
+//! Most of what this library provides is "glue", bringing together crates which cover different
+//! parts of the CD audio landscape into a single, coherent whole.
+//!
+//! # End-to-end functionality
+//!
+//! 1. **Hardware access** Read audio data from a CD
+//! 2. **Parse & lookup** information on the album *including coverart*, generate tags
+//!    & embeddable coverart
+//! 3. **Encode music** to wav or flac
+//!
+//! # Structure
+//!
+//! There are 3 key entry points to the crate, one each for hardware, CD structure, and music data.
+//!
+//! - [AudioCd] & [AudioCdExt]  - for interfacing with hardware
+//! - [Disc]                    - for working with the contents of a CD
+//! - [RippedTrack]             - for the actual music of a given track
+//!
+//! # Example
+//!
+//! ```rust, no_run
+//! use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+//! # use std::{io, path::PathBuf};
+//! # use metaflac::block::{Picture, VorbisComment};
+//! # let drive_path = PathBuf::new();
+//!
+//! // Open a handle to the drive and read table of contents from the CD
+//! let mut cd: AudioCd = AudioCd::new(drive_path)?;
+//!
+//! // Try to get data on this cd from musicbrainz. Continue on (network) errors.
+//! let _ = cd.disc_mut().update_musicbrainz();
+//!
+//! // There are often multiple releases with the same tracks - select the right one.
+//! cd.disc_mut().set_release(Some(2));
+//!
+//! // Try to get the cover art from CoverArtArchive based on the musicbrainz info.
+//! let _ = cd.disc_mut().update_cover_art();
+//!
+//! // Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
+//! let cd = cd.lock();
+//!
+//! // rip the first track, not using threads in this example
+//! let track1 = cd.rip(1)?;
+//!
+//! // encode the first track to flac
+//! let track1_flac = track1.to_flac();
+//!
+//! // get the tags & embeddable cover art
+//! let tags: Option<VorbisComment> = cd.disc().tag_for(1);
+//! let cover: Option<&Picture> = cd.disc().cover_art();
+//! # Ok::<(), io::Error>(())
+//! ```
 //!
 //! # Tracing
 //!
-//! This library uses the `tracing` crate for observability. It emits spans and events at various levels:
+//! Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages.
+//! Specific details are in the documentation for the various modules.
 //!
-//! - **TRACE**: Low-level operations like hex parsing, frame conversions
-//! - **DEBUG**: Mid-level operations like disc creation, track lookups
-//! - **INFO**: High-level operations like MusicBrainz updates, album ripping
-//! - **WARN**: Error conditions like failed cover art retrieval
+//! # Safety
 //!
-//! To use tracing in your application, initialize a subscriber before using the library:
+//! Unsafe code is limited to specific hardware access modules. All unsafe code includes full safety
+//! comments.
 //!
-//! ```ignore
-//! use tracing_subscriber::fmt;
+//! # Thread Safety
 //!
-//! // Initialize for stdout
-//! fmt::init();
-//!
-//! // Or with a custom filter
-//! tracing_subscriber::fmt()
-//!     .with_env_filter("redbook=debug")
-//!     .init();
-//! ```
-//!
-//! The CLI (`rip` binary) supports verbosity flags:
-//!
-//! - `-v`: DEBUG level to stdout
-//! - `-vv`: TRACE level to stdout
-//! - `-q`: Suppress INFO level
-//! - `-qq`: Suppress INFO and WARN levels
-//! - `--debug FILE`: DEBUG level to file
-//! - `--trace FILE`: TRACE level to file
-//! - `--json`: JSON output format
+//! [AudioCdExt] and [AudioCdExtMut] are separate traits, to allow for initially updating and mutating
+//! metadata, before obtaining calling [lock][AudioCdExtMut::lock] so you can use separate threads
+//! for reading data and encoding.
 
 pub mod disc;
 pub mod hex;
@@ -72,22 +107,83 @@ use std::{
 
 use musicbrainz::Discid;
 
-/// One cdda audio frame in bytes
+/// Size of a single CDDA audio frame in bytes.
+///
+/// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
+/// of raw audio data.
 const FRAME_SIZE: usize = 2352;
 
-// If chunks are too large DeviceIoControl(.., IOCTL_CDROM_RAW_READ,..) fails.
-// Calc frames first, then reverse calc bytes as we need an exact number of frames.
-// TODO: research max chunk size. Guessing 64k for now based on something I saw in cd_da_reader but with no references given
+/// Maximum number of frames that can be read in a single chunk.
+///
+/// # Notes
+/// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
+/// - This value is calculated to stay under a safe buffer size (currently 64KB)
+///
+/// # TODOs
+/// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
+/// - Replace the guessed value (64KB) with a documented reference
 const MAX_CHUNK_FRAMES: usize = 64 * 1024 / FRAME_SIZE;
+
+/// Maximum number of bytes that can be read in a single chunk.
+///
+/// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
 const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES * FRAME_SIZE;
 
+/// Standard CD lead-in duration in frames.
+///
+/// According to the RedBook standard, CD audio has a 2-second lead-in area
+/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
+///
+/// This is used as an offset when calculating absolute frame positions on the disc.
 pub const LEADIN: Frame = Frame(150);
 
-/// Functions common to redbook audio CDs.
+/// Trait providing read-only access to audio CD functionality.
+///
+/// This trait is implemented by types that provide read access to CD audio data,
+/// such as [`AudioCd`]. It allows reading raw audio data from tracks and accessing
+/// metadata about the disc.
+///
+/// # Notes
+/// - This trait is designed to be used after calling [`lock`](trait@AudioCdExtMut::lock) on
+///   a mutable handle, ensuring thread-safe access to the CD.
+/// - All methods are safe and do not require unsafe code.
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// // First obtain a mutable handle and lock it for thread-safe reading
+/// let mut cd = AudioCd::new(drive_path)?;
+/// let cd = cd.lock();
+///
+/// // Now you can use AudioCdExt methods
+/// let disc = cd.disc();
+/// let track_data = cd.read_track(1)?;
+/// # Ok::<(), io::Error>(())
+/// ```
 pub trait AudioCdExt {
-    /// Reads `frames_to_read` worth of data starting at `track` + `frame_offset` into `buf`
+    /// Reads raw audio data from a specific track and frame offset.
     ///
-    /// Returns the number of bytes read
+    /// # Arguments
+    ///
+    /// * `track` - The track to read from
+    /// * `frame_offset` - Offset in frames from the start of the track
+    /// * `frames_to_read` - Number of frames to read
+    /// * `buf` - Buffer to read data into
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes read into the buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the read operation fails, typically due to:
+    /// - Hardware communication errors
+    /// - Invalid track or frame offset
+    /// - Buffer too small for the requested data
     fn read_chunk(
         &self,
         track: &Track,
@@ -96,14 +192,55 @@ pub trait AudioCdExt {
         buf: &mut [u8],
     ) -> io::Result<u32>;
 
-    /// Return a reference to the cached Disc data
+    /// Returns a reference to the cached [`Disc`] data.
+    ///
+    /// The disc data includes track listings, durations, and any metadata
+    /// that has been loaded (such as MusicBrainz information).
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// let disc = cd.disc();
+    ///
+    /// // Access track information
+    /// let num_tracks = disc.tracks().len();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     fn disc(&self) -> &Arc<crate::Disc>;
 
-    /// Read a full track, returning the raw data as a `Vec` of bytes.
+    /// Reads all frames from a track and returns the raw audio data.
+    ///
+    /// This is a convenience method that handles the chunking logic for reading
+    /// an entire track, which may be larger than [`MAX_CHUNK_BYTES`].
+    ///
+    /// # Arguments
+    ///
+    /// * `track_number` - The 1-indexed track number to read
+    ///
+    /// # Returns
+    ///
+    /// A vector containing the raw CD audio data (2352 bytes per frame).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The track number is invalid
+    /// - Any read operation fails
+    ///
+    /// # Notes
+    ///
+    /// - The returned data is in raw CDDA format (2352 bytes per frame)
+    /// - For a typical 4-minute song, this will be approximately 40-50 MB
+    /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
         let track = self.disc().track(track_number).unwrap();
         tracing::info!(track_number = track.track_number(), "read_track");
-        let track_size = track.duration_frames.as_usize().strict_mul(FRAME_SIZE);
+        let track_size = track.duration.as_usize().strict_mul(FRAME_SIZE);
         debug_assert!(track_size > 0);
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
@@ -144,10 +281,7 @@ pub trait AudioCdExt {
             bytes_read_so_far,
             "about to read last chunk. We have read {frame_offset} frames, but only {bytes_read_so_far} bytes so far"
         );
-        let frames_to_read = track
-            .duration_frames
-            .as_usize()
-            .strict_rem(MAX_CHUNK_FRAMES);
+        let frames_to_read = track.duration.as_usize().strict_rem(MAX_CHUNK_FRAMES);
 
         let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
         bytes_read_so_far += i64::from(bytes_read);
@@ -156,12 +290,68 @@ pub trait AudioCdExt {
         Ok(data)
     }
 
-    /// Get cached MusicBrainz data, if available
+    /// Returns cached MusicBrainz data for this disc, if available.
+    ///
+    /// MusicBrainz data includes album information, track listings, and metadata
+    /// that can be used for tagging ripped tracks.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&Discid)` if MusicBrainz data has been successfully loaded,
+    /// `None` otherwise.
+    ///
+    /// # Notes
+    ///
+    /// - Use [`disc_mut().update_musicbrainz()`](trait@AudioCdExtMut::disc_mut) to fetch MusicBrainz data
+    /// - The data is cached in the [`Disc`] struct
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// if let Some(discid) = cd.musicbrainz() {
+    ///     println!("Disc ID: {}", discid.id);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     fn musicbrainz(&self) -> Option<&Discid> {
         self.disc().musicbrainz()
     }
 
-    /// Rip a single track, returning track info and raw data.
+    /// Rips a single track, returning track metadata and raw audio data.
+    ///
+    /// This is a convenience method that combines [`read_track`](trait@AudioCdExt::read_track)
+    /// with track number information, returning a [`RippedTrack`] struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_number` - The 1-indexed track number to rip
+    ///
+    /// # Returns
+    ///
+    /// A [`RippedTrack`] containing the track number and raw audio data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the track cannot be read (see [`read_track`](trait@AudioCdExt::read_track)).
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// let track = cd.rip(1)?;
+    ///
+    /// println!("Ripped track {} ({} bytes)", track.track_number, track.raw_data.len());
+    /// # Ok::<(), io::Error>(())
+    /// ```
     fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
         let raw_data = self.read_track(track_number)?;
         Ok(RippedTrack {
@@ -171,21 +361,186 @@ pub trait AudioCdExt {
     }
 }
 
+/// Trait providing mutable access to audio CD functionality.
+///
+/// This trait is implemented by types that provide mutable access to CD audio data
+/// and metadata, such as [`AudioCd`]. It allows updating metadata and then
+/// locking the handle for thread-safe read operations.
+///
+/// # Notes
+///
+/// - Use this trait for initial setup: loading MusicBrainz data, selecting releases,
+///   and fetching cover art.
+/// - After setup, call [`lock`](trait@AudioCdExtMut::lock) to obtain a thread-safe
+///   immutable handle implementing [`AudioCdExt`].
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// // Obtain a mutable handle for setup
+/// let mut cd = AudioCd::new(drive_path)?;
+///
+/// // Update metadata from MusicBrainz
+/// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
+///
+/// // Select a specific release
+/// cd.disc_mut().set_release(Some(2));
+///
+/// // Fetch cover art
+/// let _ignore_network_errors = cd.disc_mut().update_cover_art();
+///
+/// // Lock for thread-safe reading
+/// let cd = cd.lock();
+///
+/// // Now use AudioCdExt methods
+/// let track = cd.rip(1)?;
+/// # Ok::<(), io::Error>(())
+/// ```
 pub trait AudioCdExtMut {
-    /// Return a mutable reference to the cached Disc data. Warning - as disc
-    /// is backed by an Arc this will clone the internal data if other references
-    /// currently exist. See [Arc::make_mut] for details on the underlying mechanism.
+    /// Returns a mutable reference to the cached [`Disc`] data.
+    ///
+    /// This allows modification of disc metadata, such as loading MusicBrainz
+    /// information or selecting a specific release.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the disc data.
+    ///
+    /// # Notes
+    ///
+    /// - The disc is backed by an [`Arc`], so this method uses `Arc::make_mut` internally
+    /// - If other references to the disc exist, this will clone the internal data
+    /// - This is a cheap operation for the metadata, but be aware of the semantics
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    ///
+    /// // Update MusicBrainz data
+    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
+    ///
+    /// // Access the mutable disc to make changes
+    /// let disc = cd.disc_mut();
+    /// // ... modify disc as needed
+    /// # Ok::<(), io::Error>(())
+    /// ```
     fn disc_mut(&mut self) -> &mut crate::disc::Disc;
+
+    /// Consumes self and returns an immutable, thread-safe handle.
+    ///
+    /// This method transforms the mutable handle into an immutable one that
+    /// implements [`AudioCdExt`] and [`Send`], allowing it to be safely shared
+    /// across threads.
+    ///
+    /// # Returns
+    ///
+    /// An immutable handle that can be safely shared across threads.
+    ///
+    /// # Notes
+    ///
+    /// - After calling this method, you can no longer mutate the disc metadata
+    /// - The returned handle is suitable for spawning threads to rip and encode tracks in parallel
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    ///
+    /// // Perform setup
+    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
+    ///
+    /// // Lock for thread-safe access
+    /// let cd = cd.lock();
+    /// let disc = cd.disc().clone();
+    ///
+    /// // Now safe to use cd & disc in multiple threads
+    /// let ripper_thread = std::thread::spawn(move || {
+    ///     cd.rip(1)
+    /// });
+    /// let metadata_thread = std::thread::spawn(move || {
+    ///     let _ = disc.musicbrainz();
+    /// });
+    /// # Ok::<(), io::Error>(())
+    /// ```
+    fn lock(self) -> impl AudioCdExt + Send;
 }
 
-/// A small wrapper with the raw data for a track and the track_number
+/// A ripped audio track containing raw CD data and metadata.
+///
+/// This struct wraps the raw audio data from a CD track along with its track number.
+/// It provides methods for encoding the raw data to various formats.
+///
+/// # Notes
+///
+/// - The raw data is in CDDA format (2352 bytes per frame)
+/// - Use [`to_flac`](method@Self::to_flac) or [`to_wav`](method@Self::to_wav) to encode to compressed or uncompressed formats
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// let cd = AudioCd::new(drive_path)?.lock();
+/// let track = cd.rip(1)?;
+///
+/// // Encode to FLAC
+/// let flac_data = track.to_flac();
+///
+/// // Or encode to WAV
+/// let wav_data = track.to_wav();
+/// # Ok::<(), io::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
+    /// The 1-indexed track number on the original CD.
     pub track_number: usize,
+    /// Raw CD audio data (2352 bytes per frame).
     pub raw_data: Vec<u8>,
 }
 
 impl RippedTrack {
+    /// Encodes the raw CD audio data to FLAC format.
+    ///
+    /// # Returns
+    ///
+    /// A [`MemSink<u8>`] containing the FLAC-encoded audio data.
+    ///
+    /// # Notes
+    ///
+    /// - The audio is encoded as 16-bit stereo at 44.1 kHz
+    /// - FLAC is a lossless compression format, typically reducing CD audio to ~60% of original size
+    /// - The returned type can be converted to a byte vector using `.into_inner()`
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// let track = cd.rip(1)?;
+    /// let flac_sink = track.to_flac();
+    ///
+    /// // Get the FLAC data as bytes
+    /// let flac_bytes = flac_sink.into_inner();
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn to_flac(&self) -> MemSink<u8> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
@@ -213,6 +568,40 @@ impl RippedTrack {
         sink
     }
 
+    /// Encodes the raw CD audio data to WAV format.
+    ///
+    /// # Returns
+    ///
+    /// A byte vector containing the WAV-encoded audio data.
+    ///
+    /// # Notes
+    ///
+    /// - The audio is encoded as 16-bit stereo at 44.1 kHz (standard CD audio)
+    /// - WAV is an uncompressed format, so the output will be the same size as the input
+    /// - The WAV header is written with the correct RIFF format specifications
+    /// - Inspired by implementations from the rust-cd-da-reader project
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// use std::fs::File;
+    /// use std::io::Write;
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// let track = cd.rip(1)?;
+    /// let wav_data = track.to_wav();
+    ///
+    /// // Write to a file
+    /// # let _ignore_io_errors = {
+    /// let mut file = File::create("track1.wav")?;
+    /// file.write_all(&wav_data)?;
+    /// # io::Result::Ok(())
+    /// # };
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn to_wav(&self) -> Vec<u8> {
         let pcm = &self.raw_data;
 
@@ -246,33 +635,152 @@ impl RippedTrack {
     }
 }
 #[derive(Debug, Clone, PartialEq, Default)]
-/// Cheap to clone - all fields are `Copy` except ripped data which uses cheap-to-clone [`Bytes`]
-/// Borrow checker ensures validity of metadata for lifetime `<'meta>`
-/// Usually constructed as `<'static>` then `clone`d when referencing metadata
+/// A track on a CD with associated metadata.
+///
+/// This struct represents a single track on an audio CD, combining low-level
+/// TOC (Table of Contents) information with optional metadata from MusicBrainz.
+///
+/// # Type Parameters
+///
+/// * `'meta` - Lifetime of the referenced MusicBrainz metadata
+///
+/// # Notes
+///
+/// - This type is cheap to clone: all fields are `Copy` except the metadata reference
+/// - The borrow checker ensures metadata validity for lifetime `'meta'`
+/// - Typically constructed as `<'static>` and then cloned when referencing metadata
+/// - The `meta` field is private; use [`meta()`](method@Self::meta) to access it
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+/// # use std::{io, path::PathBuf};
+/// # let drive_path = PathBuf::new();
+///
+/// let cd = AudioCd::new(drive_path)?.lock();
+/// let disc = cd.disc();
+///
+/// // Access track information
+/// if let Some(track) = disc.track(1) {
+///     println!("Track {}: {}", track.track_number(), track.title().unwrap_or("Unknown".into()));
+///     println!("Filename: {}", track.filename());
+/// }
+/// # Ok::<(), io::Error>(())
+/// ```
 pub struct Track<'meta> {
+    /// TOC entry for this track, containing track number and start position.
     pub toc_entry: TocEntry,
-    pub duration_frames: Frame,
+    /// Duration of this track in frames.
+    pub duration: Frame,
+    /// Windows-specific track identifier (from CDROM_TOC).
     pub windows_identifier: Option<u32>,
+    /// Optional reference to MusicBrainz track metadata.
     meta: Option<&'meta musicbrainz::Track>,
 }
 
+impl Track<'static> {
+    /// Create a new `Track` with no MusicBrainz metadata
+    pub fn new(
+        track_number: u8,
+        start: Frame,
+        duration: Frame,
+        windows_identifier: Option<u32>,
+    ) -> Self {
+        let toc_entry = TocEntry {
+            track: track_number,
+            start,
+        };
+        Self {
+            toc_entry,
+            duration,
+            windows_identifier,
+            meta: None,
+        }
+    }
+}
+
 impl<'meta> Track<'meta> {
+    /// Returns the 1-indexed track number.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    /// let disc = cd.disc();
+    ///
+    /// if let Some(track) = disc.track(1) {
+    ///     assert_eq!(track.track_number(), 1);
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn track_number(&self) -> u8 {
         self.toc_entry.track
     }
 
+    /// Returns the track title from MusicBrainz metadata, if available.
+    ///
+    /// # Returns
+    ///
+    /// `Some(String)` if MusicBrainz metadata is loaded and contains a title,
+    /// `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// // Load MusicBrainz data first
+    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
+    /// let cd = cd.lock();
+    ///
+    /// if let Some(track) = cd.disc().track(1) {
+    ///     if let Some(title) = track.title() {
+    ///         println!("Track 1: {}", title);
+    ///     }
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn title(&self) -> Option<String> {
         self.meta.map(|track| track.title.clone())
     }
 
-    /// Returns the most likely representation on the track listing, as we expect it was
-    /// written on the back of the CD. The only adjusments we makeare to ensure that numerical
+    /// Returns the most likely representation of the track listing, as we expect it was
+    /// written on the back of the CD. The only adjustments we make are to ensure that numerical
     /// track numbers are always 2 digits long, in order to allow alphabetical sorting to work.
     ///
-    /// E.g. "05 Columbia", "A1 Speak to Me"
+    /// # Returns
     ///
-    /// This will use the text representation for track_number from musicbrainz if available,
-    /// falling back to the two digit track number.
+    /// A string suitable for use as a filename, e.g., "05 Columbia", "A1 Speak to Me"
+    ///
+    /// # Notes
+    ///
+    /// - Uses the text representation for track number from MusicBrainz if available
+    /// - Falls back to the two-digit track number if MusicBrainz data is not available
+    /// - Numerical track numbers are always formatted as 2 digits (e.g., "05" instead of "5")
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let cd = AudioCd::new(drive_path)?.lock();
+    ///
+    /// if let Some(track) = cd.disc().track(5) {
+    ///     // Will be "05 " followed by the title
+    ///     println!("Filename: {}", track.filename());
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn filename(&self) -> String {
         let track_num = self
             .meta()
@@ -287,39 +795,176 @@ impl<'meta> Track<'meta> {
         [track_num, self.title().unwrap_or_default()].join(" ")
     }
 
+    /// Returns a reference to the MusicBrainz track metadata, if available.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&musicbrainz::Track)` if MusicBrainz metadata is loaded for this track,
+    /// `None` otherwise.
+    ///
+    /// # Notes
+    ///
+    /// - This provides access to the full MusicBrainz track data, including artist, album, etc.
+    /// - The lifetime of the returned reference is tied to the `'meta` lifetime parameter
+    ///
+    /// # Examples
+    ///
+    /// ```rust, no_run
+    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
+    /// # use std::{io, path::PathBuf};
+    /// # let drive_path = PathBuf::new();
+    ///
+    /// let mut cd = AudioCd::new(drive_path)?;
+    /// // Load MusicBrainz data first
+    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
+    /// let cd = cd.lock();
+    ///
+    /// if let Some(track) = cd.disc().track(1) {
+    ///     if let Some(meta) = track.meta() {
+    ///         // Access full MusicBrainz metadata
+    ///         println!("Artist: {:?}", meta.artist_credit);
+    ///     }
+    /// }
+    /// # Ok::<(), io::Error>(())
+    /// ```
     pub fn meta(&self) -> Option<&'meta musicbrainz::Track> {
         self.meta
     }
 }
 
-/// Entry in a CD TOC (Table of Contents)
+/// Entry in a CD TOC (Table of Contents).
+///
+/// Represents a single entry from the CD's Table of Contents, containing the
+/// track number and its absolute start position on the disc.
+///
+/// # Notes
+///
+/// - The start position includes the lead-in area (150 frames)
+/// - Used for low-level disc navigation and track positioning
+///
+/// # Examples
+///
+/// ```rust, no_run
+/// use redbook::TocEntry;
+/// use redbook::Frame;
+///
+/// // Create a TOC entry for track 1 starting at frame 150 (beginning of lead-in)
+/// let entry = TocEntry {
+///     track: 1,
+///     start: Frame::new(150),
+/// };
+///
+/// assert_eq!(entry.track, 1);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TocEntry {
+    /// The 1-indexed track number.
     pub track: u8,
-    /// Absolute value, including lead-in (150 frames)
+    /// Absolute start position of this track on the disc, including lead-in (150 frames).
     pub start: Frame,
 }
 
-/// CD audio frame (1/75 sec). Basic unit of time for CD audio
+/// CD audio frame (1/75 sec). Basic unit of time for CD audio.
+///
+/// A frame represents a single unit of CD audio data, which is 1/75th of a second.
+/// This is the fundamental unit of time measurement for CD audio.
+///
+/// # Notes
+///
+/// - 75 frames = 1 second of audio
+/// - Each frame contains 2352 bytes of raw audio data
+/// - Used extensively for track positioning and duration calculations
+///
+/// # Examples
+///
+/// ```rust
+/// use redbook::Frame;
+///
+/// // Create a frame representing 1 second of audio
+/// let one_second = Frame::new(75);
+///
+/// // Create a frame from a duration
+/// use std::time::Duration;
+/// let frames = Frame::from(Duration::from_secs(1));
+/// assert_eq!(frames.as_usize(), 75);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
 impl Frame {
+    /// Creates a new `Frame` from a frame count.
+    ///
+    /// # Arguments
+    ///
+    /// * `frames` - The number of CD audio frames
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use redbook::Frame;
+    ///
+    /// let five_seconds = Frame::new(75 * 5);
+    /// assert_eq!(five_seconds.as_usize(), 375);
+    /// ```
     pub fn new(frames: usize) -> Self {
         Self(frames)
     }
 
+    /// Returns the frame count as a `usize`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use redbook::Frame;
+    ///
+    /// let frame = Frame::new(100);
+    /// assert_eq!(frame.as_usize(), 100);
+    /// ```
     pub fn as_usize(self) -> usize {
         self.0
     }
 
+    /// Returns a frame relative to the lead-in position.
+    ///
+    /// This subtracts the standard 150-frame lead-in from the frame position,
+    /// giving the position relative to the start of the actual audio data.
+    ///
+    /// # Returns
+    ///
+    /// A new `Frame` with the lead-in offset removed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use redbook::{Frame, LEADIN};
+    ///
+    /// // A frame at position 183 (2 seconds + 33 frames)
+    /// let frame = Frame::new(183);
+    ///
+    /// // Relative to lead-in: 33 frames
+    /// let relative = frame.relative_to_leadin();
+    /// assert_eq!(relative.as_usize(), 33);
+    /// ```
     pub fn relative_to_leadin(self) -> Self {
         self - LEADIN
     }
 }
 
 impl From<&TRACK_DATA> for TocEntry {
-    // TODO make fallible TryFrom
+    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_data` - Raw track data from the Windows CDROM_TOC
+    ///
+    /// # Notes
+    ///
+    /// - The address is read as big-endian and converted to a frame position
+    /// - The lead-in offset is added to get the absolute frame position
+    ///
+    /// # TODOs
+    ///
+    /// - Consider making this fallible with `TryFrom` for better error handling
     fn from(track_data: &TRACK_DATA) -> Self {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::new(relative as usize) + LEADIN;
@@ -419,18 +1064,85 @@ impl PartialEq<Msf> for Frame {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// CD audio duration in min:sec/frames (75 frames/sec)
+/// CD audio duration in min:sec:frame format (75 frames/sec).
+///
+/// MSF (Minute-Second-Frame) is a common format for representing CD audio positions.
+/// Each component is stored as a byte, allowing representation of up to 59 minutes,
+/// 59 seconds, and 74 frames (which is slightly less than 60 minutes total).
+///
+/// # Notes
+///
+/// - 1 minute = 60 seconds
+/// - 1 second = 75 frames
+/// - Maximum representable duration: ~59:59.986 (just under 60 minutes)
+///
+/// # Examples
+///
+/// ```rust
+/// use redbook::{Msf, Frame};
+/// use std::time::Duration;
+///
+/// // Create an MSF value
+/// let msf = Msf::new(1, 30, 45); // 1 minute, 30 seconds, 45 frames
+///
+/// // Convert to a duration
+/// let duration = Duration::from(msf);
+/// assert_eq!(duration.as_millis(), 90_600);
+///
+/// // Convert to frames
+/// let frames = Frame::from(msf);
+/// assert_eq!(frames.as_usize(), 6795);
+/// ```
 pub struct Msf {
+    /// Minutes component (0-59).
     min: u8,
+    /// Seconds component (0-59).
     sec: u8,
+    /// Frames component (0-74).
     frame: u8,
 }
 
 impl Msf {
+    /// Creates a new `Msf` from minute, second, and frame components.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - Minutes (0-59)
+    /// * `sec` - Seconds (0-59)
+    /// * `frame` - Frames (0-74)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use redbook::Msf;
+    ///
+    /// let msf = Msf::new(2, 30, 0); // 2 minutes, 30 seconds
+    /// ```
     pub fn new(min: u8, sec: u8, frame: u8) -> Self {
         Self { min, sec, frame }
     }
 
+    /// Returns an MSF value relative to the lead-in position.
+    ///
+    /// This subtracts the standard 150-frame (2-second) lead-in from the MSF value,
+    /// giving the position relative to the start of the actual audio data.
+    ///
+    /// # Returns
+    ///
+    /// A new `Msf` with the lead-in offset removed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use redbook::{Frame, Msf, LEADIN};
+    ///
+    /// // An MSF at position 0:02:33 (2 seconds + 33 frames = 183 frames)
+    /// let msf = Msf::new(0, 2, 33);
+    ///
+    /// // Relative to lead-in: 0:00:33 (33 frames)
+    /// let relative = msf.relative_to_leadin();
+    /// assert_eq!(Frame::from(relative), Frame::new(33));
+    /// ```
     pub fn relative_to_leadin(self) -> Self {
         self - LEADIN
     }
@@ -454,6 +1166,23 @@ impl Sub<Duration> for Msf {
 }
 
 impl From<Duration> for Msf {
+    /// Converts a [`Duration`] to an [`Msf`].
+    ///
+    /// # Notes
+    ///
+    /// - Milliseconds are converted to frames (1000ms = 75 frames)
+    /// - The conversion **truncates** fractional frames for safety
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use redbook::Msf;
+    /// # use std::time::Duration;
+    /// let track1 = Duration::from_millis(180_123); // (3 mins, 9.225 frames)
+    /// assert_eq!(Msf::from(track1), Msf::new(3, 0, 9));
+    /// let track2 = Duration::from_millis(180_128); // (3mins, 9.6 frames)
+    /// assert_eq!(Msf::from(track2), Msf::new(3, 0, 9));
+    /// ```
     fn from(duration: Duration) -> Self {
         trace!(
             target: "frame_conversion",
@@ -474,10 +1203,24 @@ impl From<Duration> for Msf {
 }
 
 impl From<Msf> for Duration {
+    /// Converts an [`Msf`] to a [`Duration`].
+    ///
+    /// # Notes
+    ///
+    /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13_333_333 nanoseconds)
+    /// - The conversion uses integer arithmetic for precision
+    ///
+    /// # Example
+    /// ```
+    /// # use redbook::Msf;
+    /// # use std::time::Duration;
+    /// let msf = Msf::new(1,30,30);
+    /// assert_eq!(Duration::from(msf), Duration::new(90, 400_000_000))
+    /// ```
     fn from(msf: Msf) -> Self {
         let secs = (msf.min * 60) + msf.sec;
-        let nanos = msf.frame as u32 * 75 / 1_000_000_000;
-        Self::new(secs as u64, nanos)
+        let nanos = msf.frame as u64 * 1_000_000_000 / 75;
+        Self::new(secs as u64, nanos as u32)
     }
 }
 

@@ -1,0 +1,23 @@
+{
+  "Auto": "0",
+  "borrow": "22",
+  "Never": "3",
+  "write_global": "6",
+  "into": "34",
+  "fmt": "56",
+  "from": "37",
+  "Always": "2",
+  "try_from": "46",
+  "default": "68",
+  "global": "5",
+  "colorchoice": "71",
+  "Error": "45",
+  "AlwaysAnsi": "1",
+  "ColorChoice": "4",
+  "borrow_mut": "26",
+  "type_id": "48",
+  "clone_to_uninit": "29",
+  "clone": "54",
+  "try_into": "41",
+  "eq": "63"
+}

@@ -1,0 +1,23 @@
+{
+  "write": "66",
+  "Adler32": "3",
+  "try_from": "47",
+  "adler32_slice": "69",
+  "checksum": "6",
+  "fmt": "53",
+  "Error": "46",
+  "default": "62",
+  "finish": "65",
+  "from_checksum": "5",
+  "borrow_mut": "27",
+  "type_id": "49",
+  "clone_to_uninit": "30",
+  "try_into": "42",
+  "borrow": "23",
+  "new": "4",
+  "adler2": "70",
+  "write_slice": "7",
+  "into": "35",
+  "from": "38",
+  "clone": "60"
+}

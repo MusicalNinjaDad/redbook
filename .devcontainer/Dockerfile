@@ -9,3 +9,5 @@ RUN cargo binstall -y cargo-xwin \
     && cargo xwin cache windows-msvc-sysroot \
     && cargo xwin cache xwin \
     && rustup target add x86_64-pc-windows-msvc
+
+RUN cargo binstall -y ripgrep

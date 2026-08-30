@@ -1,0 +1,19 @@
+{
+  "MAX_STR_LEN": "63",
+  "Integer": "6",
+  "from": "37",
+  "format": "5",
+  "itoa": "86",
+  "new": "4",
+  "type_id": "48",
+  "clone_to_uninit": "29",
+  "try_into": "41",
+  "borrow": "22",
+  "Buffer": "3",
+  "into": "34",
+  "try_from": "46",
+  "default": "52",
+  "Error": "45",
+  "borrow_mut": "26",
+  "clone": "57"
+}

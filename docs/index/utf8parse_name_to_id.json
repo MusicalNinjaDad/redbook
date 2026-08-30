@@ -1,0 +1,22 @@
+{
+  "fmt": "66",
+  "Receiver": "3",
+  "Error": "41",
+  "borrow_mut": "28",
+  "type_id": "50",
+  "clone_to_uninit": "31",
+  "Parser": "6",
+  "default": "56",
+  "try_into": "43",
+  "invalid_sequence": "2",
+  "borrow": "24",
+  "utf8parse": "71",
+  "advance": "8",
+  "into": "36",
+  "from": "39",
+  "eq": "61",
+  "codepoint": "1",
+  "try_from": "48",
+  "new": "7",
+  "clone": "54"
+}
