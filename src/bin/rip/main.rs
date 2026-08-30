@@ -34,6 +34,7 @@ enum SelectedTrack {
 mod _releases;
 mod _tracing;
 mod cli;
+mod sanitize;
 pub(crate) use cli::Rip;
 
 use clap::Error as ClapError;
