@@ -6,7 +6,7 @@
 //! # Sanitization Rules
 //!
 //! - Removes all non-ASCII characters (only ASCII code points are allowed)
-//! - Removes control characters (code points 0-31)
+//! - Removes ASCII control characters (code points 0-31 and 127)
 //! - Removes Windows reserved filename characters: `< > : " / \ | ? *`
 //!
 //! # Notes
@@ -21,7 +21,7 @@ pub trait FilenameChar {
     ///
     /// A character is considered valid if:
     /// - It is an ASCII character (`char::is_ascii()` returns `true`)
-    /// - Its Unicode code point is greater than 31 (excludes control characters)
+    /// - Its Unicode code point is between 32 and 126 inclusive
     /// - It is not one of the reserved filename characters: `< > : " / \ | ? *`
     ///
     /// # Examples
@@ -37,7 +37,7 @@ pub trait FilenameChar {
 
 impl FilenameChar for char {
     fn is_valid_filename_char(&self) -> bool {
-        self.is_ascii() && (*self as u32) > 31 && !matches!(
+        self.is_ascii() && *self >= ' ' && *self <= '~' && !matches!(
             self,
             '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
         )
@@ -50,7 +50,7 @@ pub trait FilenameSanitize {
     ///
     /// The sanitization process:
     /// 1. Removes all non-ASCII characters
-    /// 2. Removes all control characters (code point ≤ 31)
+    /// 2. Removes all ASCII control characters (code points 0-31 and 127)
     /// 3. Removes all Windows reserved characters: `< > : " / \ | ? *`
     ///
     /// # Examples
@@ -103,7 +103,7 @@ mod tests {
     fn test_control_characters_removed() {
         assert_eq!("\x00\x01\x1f".sanitize_filename(), "");
         assert_eq!("a\x07b".sanitize_filename(), "ab");
-        assert_eq!("test\x7f.txt".sanitize_filename(), "test\x7f.txt");
+        assert_eq!("test\x7f.txt".sanitize_filename(), "test.txt");
     }
 
     #[test]
