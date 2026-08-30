@@ -43,6 +43,9 @@ use crate::_releases::release_menu;
 
 #[cfg(target_family = "windows")]
 fn main() -> Exit<()> {
+    use crate::sanitize::FilenameSanitize;
+    dbg!("foo");
+
     let ripper = Rip::try_parse()?;
 
     ripper.init_tracing()?;
@@ -189,7 +192,8 @@ fn main() -> Exit<()> {
         .unwrap_or_else(|| "Unknown".to_string());
 
     // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-    let output_dir = PathBuf::from(artist).join(disc_title);
+    let output_dir = PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
+    dbg!(&output_dir);
     fs::create_dir_all(&output_dir)?;
 
     let _ = cd.disc_mut().update_cover_art();
