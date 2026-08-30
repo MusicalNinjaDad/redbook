@@ -8,6 +8,7 @@ RUN sudo dnf install openssl-devel pkgconf-pkg-config
 RUN cargo binstall -y cargo-xwin \
     && cargo xwin cache windows-msvc-sysroot \
     && cargo xwin cache xwin \
-    && rustup target add x86_64-pc-windows-msvc
+    && rustup target add x86_64-pc-windows-msvc \
+    && rustup install --target x86_64-pc-windows-msvc nightly
 
 RUN cargo binstall -y ripgrep

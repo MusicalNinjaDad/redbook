@@ -16,7 +16,7 @@
         // Vibe extension likes to fuck this up
         "LD_LIBRARY_PATH": ""
     },
-    "onCreateCommand": "rustup update",
+    "onCreateCommand": "rustup update && cargo clean",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -44,11 +44,11 @@
                         "features": "all"
                     },
                     "check": {
+                        "extraEnv": {
+                            "RUSTC_BOOTSTRAP": "1",
+                            "CARGO_INCREMENTAL": "1"
+                        },
                         "allTargets": true,
-                        "targets": [
-                            "x86_64-pc-windows-msvc",
-                            "x86_64-unknown-linux-gnu"
-                        ],
                         "features": "all"
                     },
                     "interpret.tests": true,
