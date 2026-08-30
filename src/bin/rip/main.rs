@@ -3,7 +3,6 @@
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
 #![feature(try_trait_v2_residual)]
-#![allow(unused_imports)]
 
 use std::{
     convert::Infallible,
@@ -23,7 +22,6 @@ use metaflac::{
     block::{Picture, PictureType},
 };
 use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureExt};
-use tracing::{debug, info, info_span};
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
@@ -125,7 +123,7 @@ fn main() -> Exit<()> {
         ));
     }
 
-    let _album_span = info_span!("rip_album", album = %disc_title).entered();
+    let _album_span = tracing::info_span!("rip_album", album = %disc_title).entered();
 
     let selected_track = match (ripper.all, ripper.track_number) {
         (true, Some(_)) => {
@@ -188,6 +186,8 @@ fn main() -> Exit<()> {
         .disc()
         .main_artist()
         .unwrap_or_else(|| "Unknown".to_string());
+
+    // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist).join(disc_title);
     fs::create_dir_all(&output_dir)?;
 
@@ -204,24 +204,23 @@ fn main() -> Exit<()> {
     let ripper = thread::spawn(move || {
         for track_number in track_numbers.clone() {
             try {
+                use humanize_duration::{Truncate, prelude::DurationExt};
+
                 let track = cd.disc().track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
-                info!(
-                    target: "rip",
-                    track = track_number,
-                    name = %track_name,
-                    "rip_track_start"
-                );
+
+                const SPAN_TARGET: &str = "rip track";
+                let _warn = tracing::warn_span!(SPAN_TARGET, track_number).entered();
+                let _info = tracing::info_span!(SPAN_TARGET, track_name).entered();
+
+                tracing::info!(target: SPAN_TARGET, "rip_track_start");
+
                 let start = std::time::Instant::now();
                 let ripped = cd.rip(track_number).ok()?;
-                let duration = start.elapsed();
-                info!(
-                    target: "rip",
-                    track = track_number,
-                    name = %track_name,
-                    duration_secs = ?duration.as_secs_f64(),
-                    "rip_track_done"
-                );
+                let duration = start.elapsed().human(Truncate::Millis).to_string();
+
+                tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
+
                 ripped_tracks_tx.send(ripped).ok()?;
             };
         }
@@ -234,7 +233,7 @@ fn main() -> Exit<()> {
                 let track = disc.track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
 
-                debug!(
+                tracing::debug!(
                     target: "encode",
                     track = track_number,
                     name = %track_name,
@@ -272,7 +271,7 @@ fn main() -> Exit<()> {
                 tag.write_to_path(&flac_path).unwrap();
 
                 let duration = start.elapsed();
-                debug!(
+                tracing::debug!(
                     target: "encode",
                     track = track_number,
                     bytes = bytes_written,

@@ -27,8 +27,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use tracing::info;
-
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::Fetch;
@@ -677,7 +675,7 @@ impl Disc {
 
         if let Some(ref mb) = self.musicbrainz {
             let release_count = mb.releases.as_ref().map(|r| r.len()).unwrap_or(0);
-            info!(releases = release_count, "musicbrainz_retrieved");
+            tracing::info!(releases = release_count, "musicbrainz_retrieved");
         }
         Ok(())
     }
@@ -732,7 +730,7 @@ impl Disc {
             let image = response.bytes().map_err(io::Error::other)?;
             let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image.clone());
             self.coverart = Some(cover);
-            info!(size_bytes = image.len(), "coverart_retrieved");
+            tracing::info!(size_bytes = image.len(), "coverart_retrieved");
         } else {
             let status = response.status();
             let reason = response.text().ok();

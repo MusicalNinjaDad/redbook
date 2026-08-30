@@ -90,8 +90,6 @@ pub mod win;
 
 pub mod test_fixtures;
 
-use tracing::trace;
-
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 pub use win::AudioCd;
@@ -975,7 +973,7 @@ impl From<&TRACK_DATA> for TocEntry {
 
 impl From<Msf> for Frame {
     fn from(msf: Msf) -> Self {
-        trace!(
+        tracing::trace!(
             target: "frame_conversion",
             min = msf.min,
             sec = msf.sec,
@@ -988,7 +986,7 @@ impl From<Msf> for Frame {
 
 impl From<Duration> for Frame {
     fn from(duration: Duration) -> Self {
-        trace!(
+        tracing::trace!(
             target: "frame_conversion",
             secs = duration.as_secs(),
             "Frame::from(Duration)"
@@ -999,7 +997,7 @@ impl From<Duration> for Frame {
 
 impl From<Frame> for Duration {
     fn from(frames: Frame) -> Self {
-        trace!(
+        tracing::trace!(
             target: "frame_conversion",
             frames = frames.as_usize(),
             "Duration::from(Frame)"
@@ -1184,7 +1182,7 @@ impl From<Duration> for Msf {
     /// assert_eq!(Msf::from(track2), Msf::new(3, 0, 9));
     /// ```
     fn from(duration: Duration) -> Self {
-        trace!(
+        tracing::trace!(
             target: "frame_conversion",
             secs = duration.as_secs(),
             "Msf::from(Duration)"
@@ -1226,7 +1224,7 @@ impl From<Msf> for Duration {
 
 impl From<Frame> for Msf {
     fn from(frames: Frame) -> Self {
-        trace!(
+        tracing::trace!(
             target: "frame_conversion",
             frames = frames.as_usize(),
             "Msf::from(Frame)"

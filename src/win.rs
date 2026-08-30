@@ -1,5 +1,4 @@
 #![expect(missing_docs, reason = "needs update")]
-#![allow(unused_imports, reason = "until split into platform & supporting")]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
 //!
@@ -30,7 +29,6 @@ use std::{
 };
 
 use cdtoc::{Toc, TocError};
-use tracing::{info_span, trace, trace_span, warn};
 use windows_sys::{
     Win32::{
         Devices::Cdrom::{
@@ -274,14 +272,30 @@ impl CdDrive {
                 null_mut(),
             )
         };
+        let _warn = tracing::warn_span!(
+            "Read chunk",
+            track = track.track_number(),
+            frame_offset,
+            offset,
+            frames_to_read,
+            bytes_to_read,
+            bytes_read
+        )
+        .entered();
         if read_chunk == 0 {
-            tracing::warn!(bytes_read = bytes_read);
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::warn!(error = error.to_string());
+            return Err(error);
         }
-        debug_assert_eq!(
-            bytes_read, bytes_to_read,
-            "intended to read {bytes_to_read} bytes from offset {offset} but only got {bytes_read}"
-        );
+        if bytes_read != bytes_to_read {
+            tracing::warn!("incorrect number of bytes read");
+            return Err(io::Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "intended to read {bytes_to_read} bytes from offset {offset} but only got {bytes_read}"
+                ),
+            ));
+        }
         Ok(bytes_read)
     }
 }
