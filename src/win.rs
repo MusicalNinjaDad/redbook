@@ -1,5 +1,4 @@
 #![expect(missing_docs, reason = "needs update")]
-#![allow(unused_imports, reason = "until split into platform & supporting")]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
 //!
@@ -30,7 +29,6 @@ use std::{
 };
 
 use cdtoc::{Toc, TocError};
-use tracing::{info_span, trace, trace_span, warn};
 use windows_sys::{
     Win32::{
         Devices::Cdrom::{
