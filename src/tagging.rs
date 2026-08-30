@@ -24,7 +24,9 @@ impl PictureExt for Picture {
         data: B,
     ) -> Self {
         let mut jpg_info = JpegDecoder::new(ZCursor::from(&data));
-        let _ = jpg_info.decode_headers();
+        let decoded_headers = jpg_info.decode_headers();
+        dbg!(&decoded_headers);
+        tracing::debug!(jpg_headers = format!("{decoded_headers:?}"));
         let width = jpg_info.info().unwrap().width as u32;
         let height = jpg_info.info().unwrap().height as u32;
         Picture {

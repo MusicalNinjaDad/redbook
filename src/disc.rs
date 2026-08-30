@@ -727,6 +727,12 @@ impl Disc {
         let _enter = _span.enter();
 
         if response.status().is_success() {
+            let headers: String = response
+                .headers()
+                .iter()
+                .map(|(key, value)| format!("{key}: {value:?}\n"))
+                .collect();
+            tracing::debug!(headers, "coverart");
             let image = response.bytes().map_err(io::Error::other)?;
             let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image.clone());
             self.coverart = Some(cover);
