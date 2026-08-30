@@ -16,6 +16,7 @@
         // Vibe extension likes to fuck this up
         "LD_LIBRARY_PATH": ""
     },
+    "onCreateCommand": "rustup update",
     "customizations": {
         "vscode": {
             "extensions": [
