@@ -37,10 +37,10 @@ pub trait FilenameChar {
 
 impl FilenameChar for char {
     fn is_valid_filename_char(&self) -> bool {
-        self.is_ascii() && *self >= ' ' && *self <= '~' && !matches!(
-            self,
-            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
-        )
+        self.is_ascii()
+            && *self >= ' '
+            && *self <= '~'
+            && !matches!(self, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
     }
 }
 
@@ -113,7 +113,10 @@ mod tests {
 
     #[test]
     fn test_all_valid() {
-        assert_eq!("valid_filename.txt".sanitize_filename(), "valid_filename.txt");
+        assert_eq!(
+            "valid_filename.txt".sanitize_filename(),
+            "valid_filename.txt"
+        );
     }
 
     #[test]
