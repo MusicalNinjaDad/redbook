@@ -30,18 +30,34 @@
             ],
             "settings": {
                 // rust
-                "rust-analyzer.interpret.tests": true,
-                "rust-analyzer.testExplorer": true,
-                // force BOOTSTRAP (always used for test builds - see https://github.com/rust-lang/rust-analyzer/issues/17149)
-                "rust-analyzer.cargo.extraEnv": {
-                    "RUSTC_BOOTSTRAP": "1",
-                    "CARGO_INCREMENTAL": "1"
-                },
-                "rust-analyzer.cargo.features": "all",
-                "rust-analyzer.check.features": "all",
-                "rust-analyzer.runnables.extraEnv": {
-                    "RUSTC_BOOTSTRAP": "1",
-                    "CARGO_INCREMENTAL": "1"
+                "rust-analyzer": {
+                    "cargo": {
+                        // force BOOTSTRAP (always used for test builds - see https://github.com/rust-lang/rust-analyzer/issues/17149)
+                        "extraEnv": {
+                            "RUSTC_BOOTSTRAP": "1",
+                            "CARGO_INCREMENTAL": "1"
+                        },
+                        // Prefer support for windows code right now - see https://users.rust-lang.org/t/how-to-have-completion-in-inactive-target-blocks-when-using-rust-analyzer/127208
+                        "allTargets": true,
+                        "target": "x86_64-pc-windows-msvc",
+                        "features": "all"
+                    },
+                    "check": {
+                        "allTargets": true,
+                        "targets": [
+                            "x86_64-pc-windows-msvc",
+                            "x86_64-unknown-linux-gnu"
+                        ],
+                        "features": "all"
+                    },
+                    "interpret.tests": true,
+                    "testExplorer": true,
+                    "runnables": {
+                        "extraEnv": {
+                            "RUSTC_BOOTSTRAP": "1",
+                            "CARGO_INCREMENTAL": "1"
+                        }
+                    }
                 },
                 "[rust]": {
                     "editor.rulers": [
