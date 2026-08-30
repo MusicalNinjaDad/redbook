@@ -1,5 +1,4 @@
 #![expect(missing_docs, reason = "needs update")]
-#![allow(rust_analyzer::inactive_code)]
 #![allow(unused_imports, reason = "until split into platform & supporting")]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access

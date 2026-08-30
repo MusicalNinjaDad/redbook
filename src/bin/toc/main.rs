@@ -1,5 +1,3 @@
-#![allow(rust_analyzer::inactive_code)]
-
 #[cfg(target_family = "windows")]
 use redbook::hex::hex_dump;
 #[cfg(target_family = "windows")]
