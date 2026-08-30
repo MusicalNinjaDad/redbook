@@ -186,6 +186,8 @@ fn main() -> Exit<()> {
         .disc()
         .main_artist()
         .unwrap_or_else(|| "Unknown".to_string());
+
+    // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist).join(disc_title);
     fs::create_dir_all(&output_dir)?;
 
@@ -218,7 +220,7 @@ fn main() -> Exit<()> {
                 let duration = start.elapsed().human(Truncate::Millis).to_string();
                 
                 tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
-                
+
                 ripped_tracks_tx.send(ripped).ok()?;
             };
         }
