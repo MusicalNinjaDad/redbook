@@ -212,13 +212,13 @@ fn main() -> Exit<()> {
                 const SPAN_TARGET: &str = "rip track";
                 let _warn = tracing::warn_span!(SPAN_TARGET, track_number).entered();
                 let _info = tracing::info_span!(SPAN_TARGET, track_name).entered();
-                
+
                 tracing::info!(target: SPAN_TARGET, "rip_track_start");
 
                 let start = std::time::Instant::now();
                 let ripped = cd.rip(track_number).ok()?;
                 let duration = start.elapsed().human(Truncate::Millis).to_string();
-                
+
                 tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
 
                 ripped_tracks_tx.send(ripped).ok()?;
