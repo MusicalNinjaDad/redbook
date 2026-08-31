@@ -37,15 +37,11 @@ mod cli;
 mod sanitize;
 pub(crate) use cli::Rip;
 
-use clap::Error as ClapError;
-
 use crate::_releases::release_menu;
+use crate::sanitize::FilenameSanitize;
 
 #[cfg(target_family = "windows")]
 fn main() -> Exit<()> {
-    use crate::sanitize::FilenameSanitize;
-    dbg!("foo");
-
     let ripper = Rip::try_parse()?;
 
     ripper.init_tracing()?;
@@ -316,8 +312,8 @@ pub enum Exit<T: _T> {
     Logging(String) = 4,
 }
 
-impl<T: _T> From<ClapError> for Exit<T> {
-    fn from(e: ClapError) -> Self {
+impl<T: _T> From<clap::Error> for Exit<T> {
+    fn from(e: clap::Error) -> Self {
         Self::InvocationError(e.to_string())
     }
 }
