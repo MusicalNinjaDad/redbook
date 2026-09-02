@@ -30,6 +30,7 @@ use std::{
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::Fetch;
+use tracing_result::Trace;
 
 use crate::{
     Frame, Msf, Track,
@@ -663,20 +664,24 @@ impl Disc {
     /// ```
     pub fn update_musicbrainz(&mut self) -> io::Result<()> {
         let discid = self.toc.musicbrainz_id().to_string();
-        let _span = tracing::info_span!("update_musicbrainz", discid = %discid);
-        let _enter = _span.enter();
+
+        let _span = tracing::info_span!("update musicbrainz", discid = %discid).entered();
 
         let mut mb_stuff = Discid::fetch();
         mb_stuff.id(&discid).with_artists().with_recordings();
 
-        let discid = mb_stuff.execute().map_err(io::Error::other)?;
+        let discid = {
+            let _debug_with_query =
+                tracing::debug_span!("fetching from MusicBrainz", query = ?mb_stuff).entered();
+            tracing::trace!("starting to fetch");
 
+            mb_stuff.execute().map_err(io::Error::other).or_warn("fetching from MusicBrainz")?
+        };
+
+        let _debug_with_id = tracing::debug_span!("MusicBrainz retrieved", discid = discid.id).entered();
+        tracing::info!(releases = discid.releases.as_ref().map(|r| r.len()).unwrap_or(0));
+        
         self.set_musicbrainz(discid);
-
-        if let Some(ref mb) = self.musicbrainz {
-            let release_count = mb.releases.as_ref().map(|r| r.len()).unwrap_or(0);
-            tracing::info!(releases = release_count, "musicbrainz_retrieved");
-        }
         Ok(())
     }
 
