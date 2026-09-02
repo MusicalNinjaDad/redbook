@@ -403,16 +403,16 @@ impl AudioCd {
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
         let mut tracks: Vec<_> = read_dir(&path)
-            .and_error("open drive as dir")?
+            .or_error("open drive as dir")?
             .map(|track| {
                 Track::try_from(CdaFile {
-                    raw: fs::read(track.and_error("read dir entry for cda")?.path())
-                        .and_error("read cda")?,
+                    raw: fs::read(track.or_error("read dir entry for cda")?.path())
+                        .or_error("read cda")?,
                 })
                 .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
             })
             .try_collect()
-            .and_error("parse cda")?;
+            .or_error("parse cda")?;
         tracks.sort_by_key(|track| track.toc_entry.start);
 
         let drive = CdDrive::open(path)?;
