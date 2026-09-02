@@ -389,19 +389,26 @@ impl AudioCd {
     /// Opens drive, reads CD
     #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        use tracing_result::Trace;
+
         let path_str = path.as_ref().display().to_string();
-        let _span = tracing::info_span!("AudioCd::new", path = %path_str);
-        let _enter = _span.enter();
+
+        const _TARGET: &str = "AudioCd::new";
+        let _err_span = tracing::error_span!(_TARGET, path = %path_str).entered();
+
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        let mut tracks: Vec<_> = read_dir(&path)?
+        let mut tracks: Vec<_> = read_dir(&path)
+            .and_error("open drive as dir")?
             .map(|track| {
                 Track::try_from(CdaFile {
-                    raw: fs::read(track?.path())?,
+                    raw: fs::read(track.and_error("read dir entry for cda")?.path())
+                        .and_error("read cda")?,
                 })
                 .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
             })
-            .try_collect()?;
+            .try_collect()
+            .and_error("parse cda")?;
         tracks.sort_by_key(|track| track.toc_entry.start);
 
         let drive = CdDrive::open(path)?;
