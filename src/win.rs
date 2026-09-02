@@ -104,8 +104,9 @@ impl CdDrive {
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
         let path_str = path.display().to_string();
-        let _span = tracing::info_span!("CdDrive::open", path = %path_str);
-        let _enter = _span.enter();
+
+        let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
+
         let windrive = format!(r"\\.\{}", path.display());
         let lpfilename = WinString::from(windrive.as_str());
         let dwdesiredaccess = GENERIC_READ;
@@ -126,7 +127,9 @@ impl CdDrive {
         // If the function fails, the return value is INVALID_HANDLE_VALUE.
         // To get extended error information, call GetLastError.
         if handle == INVALID_HANDLE_VALUE {
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name: "getting handle for drive", %error);
+            return Err(error);
         };
 
         let toc_command = CDROM_READ_TOC_EX {
@@ -160,8 +163,9 @@ impl CdDrive {
             )
         };
         if read_toc == 0 {
-            tracing::warn!(bytes_read = bytes_read);
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name:"reading TOC", bytes_read, %error);
+            return Err(error);
         };
         assert!(bytes_read <= TOC_SIZE as u32);
         Ok(Self { path, handle, toc })
