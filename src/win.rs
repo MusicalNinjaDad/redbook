@@ -421,42 +421,53 @@ impl AudioCd {
         (wintoc.FirstTrack
             == tracks
                 .first()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying first track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different first track number",
-            ))?;
+            ))
+            .or_warn("identifying first track")?;
         (wintoc.LastTrack
             == tracks
                 .last()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying last track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different last track number",
-            ))?;
+            ))
+            .or_warn("identifying last track")?;
 
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
+
+            let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+
             let data = wintoc
                 .TrackData
                 .get(track_number - 1)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
                     format!("track {track_number} missing in TOC"),
-                ))?;
-            (TocEntry::from(data) == track.toc_entry).ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                format!("Mismatch between TOC and cda files for track {track_number}"),
-            ))?;
+                ))
+                .or_warn("")?;
+            (TocEntry::from(data) == track.toc_entry)
+                .ok_or(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Mismatch between TOC and cda files for track {track_number}"),
+                ))
+                .or_warn("")?;
         }
 
         let toc = wintoc
             .to_toc()
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))?;
+            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .or_error("")?;
 
         let leadout = toc.leadout();
 
