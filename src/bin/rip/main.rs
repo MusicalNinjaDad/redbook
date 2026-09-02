@@ -44,9 +44,11 @@ use crate::sanitize::FilenameSanitize;
 fn main() -> Exit<()> {
     let ripper = Rip::try_parse()?;
 
-    ripper.init_tracing()?;
-
     let drive = PathBuf::from_str(&ripper.drive)?;
+
+    ripper.init_tracing()?;
+    let _info = tracing::info_span!("Rip", drive = %drive.display()).entered();
+
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
     let _ = cd.disc_mut().update_musicbrainz();
