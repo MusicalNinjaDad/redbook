@@ -680,12 +680,11 @@ impl TryFrom<CdaFile> for Track<'static> {
 
 /// Manipulation of [`CDROM_TOC`]
 pub trait CdromTocExt {
-    /// Parse raw bytes as a CDROM_TOC structure
+    /// Parse raw bytes as a [`CDROM_TOC`] structure
     ///
-    /// # Safety
-    /// The caller must ensure `bytes` is exactly the size of CDROM_TOC and properly aligned.
-    #[expect(unsafe_code, reason = "construction from raw bytes")]
-    unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
+    /// # Panics
+    /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
+    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
 
     fn to_toc(&self) -> Result<Toc, TocError>;
 
@@ -696,12 +695,13 @@ pub trait CdromTocExt {
 }
 
 impl CdromTocExt for CDROM_TOC {
-    #[expect(unsafe_code, reason = "construction from raw bytes")]
-    unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
         #[expect(unsafe_code, reason = "construction from raw bytes")]
-        // SAFETY:
-        // Restrictions documented in trait doc-comment
         unsafe {
+            // SAFETY: correct size & alignment
+            assert_eq!(size_of::<CDROM_TOC>(), bytes.len());
+            assert_eq!(0, bytes.as_ptr().align_offset(align_of::<CDROM_TOC>()));
+
             *(bytes.as_ptr() as *const _)
         }
     }
