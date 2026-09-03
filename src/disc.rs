@@ -675,12 +675,16 @@ impl Disc {
                 tracing::debug_span!("fetching from MusicBrainz", query = ?mb_stuff).entered();
             tracing::trace!("starting to fetch");
 
-            mb_stuff.execute().map_err(io::Error::other).or_warn("fetching from MusicBrainz")?
+            mb_stuff
+                .execute()
+                .map_err(io::Error::other)
+                .or_warn("fetching from MusicBrainz")?
         };
 
-        let _debug_with_id = tracing::debug_span!("MusicBrainz retrieved", discid = discid.id).entered();
+        let _debug_with_id =
+            tracing::debug_span!("MusicBrainz retrieved", discid = discid.id).entered();
         tracing::info!(releases = discid.releases.as_ref().map(|r| r.len()).unwrap_or(0));
-        
+
         self.set_musicbrainz(discid);
         Ok(())
     }

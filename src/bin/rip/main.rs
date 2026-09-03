@@ -29,10 +29,7 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureE
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(
-    not(target_family = "windows"),
-    expect(dead_code, reason = "stubs")
-)]
+#[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
 enum SelectedTrack {
     All,
     One(usize),

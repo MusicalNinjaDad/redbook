@@ -16,7 +16,10 @@
 //! should add additional validation.
 
 /// Trait for checking if a character is valid for use in a filename.
-#[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
+#[cfg_attr(
+    not(any(target_family = "windows", test)),
+    expect(dead_code, reason = "stubs")
+)]
 pub trait FilenameChar {
     /// Returns `true` if the character is valid for a filename on Windows.
     ///
@@ -46,7 +49,10 @@ impl FilenameChar for char {
 }
 
 /// Trait for sanitizing strings to be used as filenames.
-#[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
+#[cfg_attr(
+    not(any(target_family = "windows", test)),
+    expect(dead_code, reason = "stubs")
+)]
 pub trait FilenameSanitize {
     /// Returns a sanitized version of the string suitable for use as a filename.
     ///
