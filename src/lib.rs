@@ -1,4 +1,4 @@
-// Unsafe restricted to dedicated wrapper modules, so cannot forbid
+// Unsafe restricted to dedicated wrapper modules
 #![deny(unsafe_code)]
 #![forbid(clippy::missing_safety_doc)]
 #![deny(clippy::multiple_unsafe_ops_per_block)] // sometimes valuable to inline calls
