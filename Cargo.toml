@@ -55,7 +55,7 @@ env = { "LD_LIBRARY_PATH" = false }
 
 [lints]
 # Explicitness
-clippy.allow_attributes = "forbid" # use expect instead
+clippy.allow_attributes = "deny" # use expect instead
 clippy.let_underscore_must_use = "deny" # use expect(unused, reason = "") instead
 clippy.unused_result_ok = "deny"
 
