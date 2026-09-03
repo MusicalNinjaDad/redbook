@@ -78,7 +78,7 @@ fn main() -> Exit<()> {
             cd.disc_mut().set_release(latest_release);
             tracing::info!(
                 name: "selected latest release",
-                title = %cd.disc().release().unwrap().title,
+                title = %cd.disc().title().unwrap_or_default(),
                 country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
                 date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
             );
