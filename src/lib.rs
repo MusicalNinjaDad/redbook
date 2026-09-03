@@ -1,7 +1,7 @@
 // Unsafe restricted to dedicated wrapper modules, so cannot forbid
 #![deny(unsafe_code)]
 #![forbid(clippy::missing_safety_doc)]
-#![deny(clippy::multiple_unsafe_ops_per_block)]
+#![deny(clippy::multiple_unsafe_ops_per_block)] // sometimes valuable to inline calls
 #![forbid(clippy::transmute_ptr_to_ptr)]
 #![forbid(clippy::undocumented_unsafe_blocks)]
 #![forbid(unsafe_op_in_unsafe_fn)]
