@@ -3,6 +3,10 @@
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
 #![feature(try_trait_v2_residual)]
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(unused_imports, reason = "stubs")
+)]
 
 use std::{
     convert::Infallible,
@@ -25,7 +29,10 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureE
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
+#[cfg_attr(
+    not(target_family = "windows"),
+    expect(dead_code, reason = "stubs")
+)]
 enum SelectedTrack {
     All,
     One(usize),
