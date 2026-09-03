@@ -1,4 +1,8 @@
 #![expect(missing_docs, reason = "needs update")]
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(unused_imports, reason = "stubs")
+)]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
 //!
@@ -29,21 +33,18 @@ use std::{
 };
 
 use cdtoc::{Toc, TocError};
+use tracing_result::Trace;
 use windows_sys::{
     Win32::{
         Devices::Cdrom::{
             CDROM_READ_TOC_EX, CDROM_TOC, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
             RAW_READ_INFO, TRACK_MODE_TYPE,
         },
-        Foundation::{GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
-        Storage::FileSystem::{FILE_SHARE_READ, OPEN_EXISTING},
+        Foundation::{CloseHandle, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
+        Storage::FileSystem::{CreateFile2, FILE_SHARE_READ, OPEN_EXISTING},
+        System::IO::DeviceIoControl,
     },
     core::PCWSTR,
-};
-
-#[cfg(target_family = "windows")]
-use windows_sys::Win32::{
-    Foundation::CloseHandle, Storage::FileSystem::CreateFile2, System::IO::DeviceIoControl,
 };
 
 use crate::{AudioCdExt, FRAME_SIZE, Frame, LEADIN, Msf, Track};
@@ -66,9 +67,15 @@ pub struct CdDrive {
 }
 
 /// # SAFETY
-/// - See safety restrictions on [Self::handle]
+/// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to [`handle`][Self::handle]
+///   which includes specific safety restrictions allowing `CdDrive` to be [Send]
+/// - All other fields are already `Send`
 /// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
-#[allow(unsafe_code)]
+#[expect(
+    unsafe_code,
+    reason = "Want to be able to rip in one thread and encode in another"
+)]
+// SAFETY: See documentation comment
 unsafe impl Send for CdDrive {}
 
 impl Debug for CdDrive {
@@ -104,17 +111,26 @@ impl CdDrive {
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
         let path_str = path.display().to_string();
-        let _span = tracing::info_span!("CdDrive::open", path = %path_str);
-        let _enter = _span.enter();
+
+        let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
+
         let windrive = format!(r"\\.\{}", path.display());
-        let lpfilename = WinString::from(windrive.as_str());
-        let dwdesiredaccess = GENERIC_READ;
-        let dwsharemode = FILE_SHARE_READ;
-        let dwcreationdisposition = OPEN_EXISTING;
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "embedded call to ensure raw pointer dropped immediately"
+        )]
         let handle: HANDLE = unsafe {
-            // SAFETY: `lpfilename` is a local variable that remains
-            // valid for the duration of this synchronous FFI call.
+            // SAFETY:
+            // - All parameter values constructed with provided consts, no magic numbers used
+            // - lpfilename (passed as raw pointer) is valid for duration of this block
+            // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
+
+            let lpfilename = WinString::from(windrive.as_str());
+            let dwdesiredaccess = GENERIC_READ;
+            let dwsharemode = FILE_SHARE_READ;
+            let dwcreationdisposition = OPEN_EXISTING;
+
             CreateFile2(
                 lpfilename.as_pcwstr(),
                 dwdesiredaccess,
@@ -126,7 +142,9 @@ impl CdDrive {
         // If the function fails, the return value is INVALID_HANDLE_VALUE.
         // To get extended error information, call GetLastError.
         if handle == INVALID_HANDLE_VALUE {
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name: "getting handle for drive", %error);
+            return Err(error);
         };
 
         let toc_command = CDROM_READ_TOC_EX {
@@ -137,7 +155,7 @@ impl CdDrive {
         let mut toc = CDROM_TOC::default();
         let mut bytes_read: u32 = 0;
 
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         let read_toc = unsafe {
             // SAFETY: inline based on
             // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
@@ -160,8 +178,9 @@ impl CdDrive {
             )
         };
         if read_toc == 0 {
-            tracing::warn!(bytes_read = bytes_read);
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name:"reading TOC", bytes_read, %error);
+            return Err(error);
         };
         assert!(bytes_read <= TOC_SIZE as u32);
         Ok(Self { path, handle, toc })
@@ -179,16 +198,19 @@ impl CdDrive {
     ///   used to enable concurrent access to the drive ("processes and threads that share
     ///   the same file must synchronize their access").
     ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
-    #[allow(unsafe_code)]
+    #[expect(
+        unsafe_code,
+        reason = "required to be unsafe, to allow CdDrive to be Send"
+    )]
     pub unsafe fn handle(&self) -> &HANDLE {
         &self.handle
     }
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
-            // SAFETY - check stored value is the expected size
+            // SAFETY: check stored value is the expected size
             assert_eq!(size_of_val(&self.toc), TOC_SIZE);
             std::slice::from_raw_parts(&self.toc as *const _ as *const _, TOC_SIZE)
         }
@@ -231,8 +253,12 @@ impl CdDrive {
         let mut bytes_read: u32 = 0;
         tracing::trace!(offset = offset);
 
-        #[allow(unsafe_code)]
-        // SAFETY - inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
+        #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "embedded call to ensure raw pointer dropped immediately"
+        )]
+        // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
             // SAFETY check: Buffer is expected size.
             // Runtime check as `buf` is provided by caller
@@ -303,7 +329,7 @@ impl CdDrive {
 #[cfg(target_family = "windows")]
 impl Drop for CdDrive {
     fn drop(&mut self) {
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         unsafe {
             // SAFETY: handle
             // - was opened and validated in `open()`
@@ -346,7 +372,7 @@ impl !Send for AudioCd {}
 /// [`Sync`] references to the metadata can be obtained via [`disc().clone()`][AudioCdExt::disc]
 /// and safely passed to other threads.
 pub struct ReadOnlyAudioCd {
-    #[allow(dead_code, reason = "until split into platform & supporting")]
+    #[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
     drive: CdDrive,
     disc: Arc<Disc>,
 }
@@ -390,18 +416,23 @@ impl AudioCd {
     #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path_str = path.as_ref().display().to_string();
-        let _span = tracing::info_span!("AudioCd::new", path = %path_str);
-        let _enter = _span.enter();
+
+        const _TARGET: &str = "AudioCd::new";
+        let _err_span = tracing::error_span!(_TARGET, path = %path_str).entered();
+
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        let mut tracks: Vec<_> = read_dir(&path)?
+        let mut tracks: Vec<_> = read_dir(&path)
+            .or_error("open drive as dir")?
             .map(|track| {
                 Track::try_from(CdaFile {
-                    raw: fs::read(track?.path())?,
+                    raw: fs::read(track.or_error("read dir entry for cda")?.path())
+                        .or_error("read cda")?,
                 })
                 .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
             })
-            .try_collect()?;
+            .try_collect()
+            .or_error("parse cda")?;
         tracks.sort_by_key(|track| track.toc_entry.start);
 
         let drive = CdDrive::open(path)?;
@@ -410,42 +441,53 @@ impl AudioCd {
         (wintoc.FirstTrack
             == tracks
                 .first()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying first track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different first track number",
-            ))?;
+            ))
+            .or_warn("identifying first track")?;
         (wintoc.LastTrack
             == tracks
                 .last()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying last track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different last track number",
-            ))?;
+            ))
+            .or_warn("identifying last track")?;
 
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
+
+            let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+
             let data = wintoc
                 .TrackData
                 .get(track_number - 1)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
                     format!("track {track_number} missing in TOC"),
-                ))?;
-            (TocEntry::from(data) == track.toc_entry).ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                format!("Mismatch between TOC and cda files for track {track_number}"),
-            ))?;
+                ))
+                .or_warn("")?;
+            (TocEntry::from(data) == track.toc_entry)
+                .ok_or(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Mismatch between TOC and cda files for track {track_number}"),
+                ))
+                .or_warn("")?;
         }
 
         let toc = wintoc
             .to_toc()
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))?;
+            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .or_error("")?;
 
         let leadout = toc.leadout();
 
@@ -638,12 +680,11 @@ impl TryFrom<CdaFile> for Track<'static> {
 
 /// Manipulation of [`CDROM_TOC`]
 pub trait CdromTocExt {
-    /// Parse raw bytes as a CDROM_TOC structure
+    /// Parse raw bytes as a [`CDROM_TOC`] structure
     ///
-    /// # Safety
-    /// The caller must ensure `bytes` is exactly the size of CDROM_TOC and properly aligned.
-    #[allow(unsafe_code)]
-    unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
+    /// # Panics
+    /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
+    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
 
     fn to_toc(&self) -> Result<Toc, TocError>;
 
@@ -654,10 +695,13 @@ pub trait CdromTocExt {
 }
 
 impl CdromTocExt for CDROM_TOC {
-    #[allow(unsafe_code)]
-    unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
-        #[allow(unsafe_code)]
+    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+        #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
+            // SAFETY: correct size & alignment
+            assert_eq!(size_of::<CDROM_TOC>(), bytes.len());
+            assert_eq!(0, bytes.as_ptr().align_offset(align_of::<CDROM_TOC>()));
+
             *(bytes.as_ptr() as *const _)
         }
     }
@@ -735,7 +779,7 @@ impl WinString {
     /// You must ensure that the returned `PCWSTR` is not used after self is dropped.
     /// It is recommended to call this directly in the call to a WinAPI unsafe function,
     /// see [AudioCd::new()] for an example
-    #[allow(unsafe_code)]
+    #[expect(unsafe_code, reason = "returns raw pointer")]
     pub unsafe fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }

@@ -28,6 +28,7 @@ serde_json = "1.0"
 tabular = "0.2.0"
 try_v2 = "0.10.1"
 tracing = "0.1"
+tracing-result = { git = "https://github.com/MusicalNinjaDad/tracing_result/" }
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 windows-sys = { version = "0.61.2", features = [
     "Win32_Devices_Cdrom",
@@ -51,3 +52,14 @@ clap_mangen = "0.3.0"
 
 [workspace.metadata.ninja-xtask]
 env = { "LD_LIBRARY_PATH" = false }
+
+[lints]
+# Explicitness
+clippy.allow_attributes = "deny" # use expect instead
+clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
+clippy.unused_result_ok = "deny"
+
+# Completeness
+rustc.missing_docs = "warn"
+
+# Unsafe lints are documented at top of lib.rs for ease of auditing

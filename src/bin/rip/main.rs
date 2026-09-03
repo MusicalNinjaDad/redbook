@@ -3,6 +3,10 @@
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
 #![feature(try_trait_v2_residual)]
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(unused_imports, reason = "stubs")
+)]
 
 use std::{
     convert::Infallible,
@@ -25,7 +29,7 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureE
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
+#[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
 enum SelectedTrack {
     All,
     One(usize),
@@ -37,23 +41,24 @@ mod cli;
 mod sanitize;
 pub(crate) use cli::Rip;
 
-use clap::Error as ClapError;
-
 use crate::_releases::release_menu;
+use crate::sanitize::FilenameSanitize;
 
 #[cfg(target_family = "windows")]
 fn main() -> Exit<()> {
-    use crate::sanitize::FilenameSanitize;
-    dbg!("foo");
+    use tracing::field::Empty;
 
     let ripper = Rip::try_parse()?;
 
-    ripper.init_tracing()?;
-
     let drive = PathBuf::from_str(&ripper.drive)?;
+
+    ripper.init_tracing()?;
+    let mut _info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
+
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
-    let _ = cd.disc_mut().update_musicbrainz();
+    #[expect(unused_must_use, reason = "do not abort if musicbrainz not available")]
+    cd.disc_mut().update_musicbrainz();
     match (cd.disc().release(), ripper.non_interactive) {
         (Some(_), _) => (),
         (None, true) => {
@@ -78,6 +83,12 @@ fn main() -> Exit<()> {
                         })
                 });
             cd.disc_mut().set_release(latest_release);
+            tracing::info!(
+                name: "selected latest release",
+                title = %cd.disc().title().unwrap_or_default(),
+                country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
+                date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
+            );
         }
         (None, false) => {
             try {
@@ -112,6 +123,9 @@ fn main() -> Exit<()> {
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
+
+    _info.record("title", &disc_title);
+
     if cd
         .disc()
         .release()
@@ -126,8 +140,6 @@ fn main() -> Exit<()> {
                 .unwrap_or_else(|| "Unknown".to_string())
         ));
     }
-
-    let _album_span = tracing::info_span!("rip_album", album = %disc_title).entered();
 
     let selected_track = match (ripper.all, ripper.track_number) {
         (true, Some(_)) => {
@@ -196,7 +208,11 @@ fn main() -> Exit<()> {
     dbg!(&output_dir);
     fs::create_dir_all(&output_dir)?;
 
-    let _ = cd.disc_mut().update_cover_art();
+    #[expect(
+        unused_must_use,
+        reason = "do not abort if CoverArtArchive not available"
+    )]
+    cd.disc_mut().update_cover_art();
     if let Some(Err(error_saving_coverart)) = cd.disc().save_cover_art(&output_dir) {
         dbg!(error_saving_coverart);
     };
@@ -316,8 +332,8 @@ pub enum Exit<T: _T> {
     Logging(String) = 4,
 }
 
-impl<T: _T> From<ClapError> for Exit<T> {
-    fn from(e: ClapError) -> Self {
+impl<T: _T> From<clap::Error> for Exit<T> {
+    fn from(e: clap::Error) -> Self {
         Self::InvocationError(e.to_string())
     }
 }
