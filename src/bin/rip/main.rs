@@ -42,12 +42,14 @@ use crate::sanitize::FilenameSanitize;
 
 #[cfg(target_family = "windows")]
 fn main() -> Exit<()> {
+    use tracing::field::Empty;
+
     let ripper = Rip::try_parse()?;
 
     let drive = PathBuf::from_str(&ripper.drive)?;
 
     ripper.init_tracing()?;
-    let _info = tracing::info_span!("Rip", drive = %drive.display()).entered();
+    let mut _info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
 
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
@@ -116,6 +118,9 @@ fn main() -> Exit<()> {
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
+
+    _info.record("title", &disc_title);
+
     if cd
         .disc()
         .release()
@@ -130,8 +135,6 @@ fn main() -> Exit<()> {
                 .unwrap_or_else(|| "Unknown".to_string())
         ));
     }
-
-    let _album_span = tracing::info_span!("rip_album", album = %disc_title).entered();
 
     let selected_track = match (ripper.all, ripper.track_number) {
         (true, Some(_)) => {
