@@ -1,4 +1,8 @@
 #![expect(missing_docs, reason = "needs update")]
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(unused_imports, reason = "stubs")
+)]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
 //!
@@ -36,15 +40,11 @@ use windows_sys::{
             CDROM_READ_TOC_EX, CDROM_TOC, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
             RAW_READ_INFO, TRACK_MODE_TYPE,
         },
-        Foundation::{GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
-        Storage::FileSystem::{FILE_SHARE_READ, OPEN_EXISTING},
+        Foundation::{CloseHandle, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
+        Storage::FileSystem::{CreateFile2, FILE_SHARE_READ, OPEN_EXISTING},
+        System::IO::DeviceIoControl,
     },
     core::PCWSTR,
-};
-
-#[cfg(target_family = "windows")]
-use windows_sys::Win32::{
-    Foundation::CloseHandle, Storage::FileSystem::CreateFile2, System::IO::DeviceIoControl,
 };
 
 use crate::{AudioCdExt, FRAME_SIZE, Frame, LEADIN, Msf, Track};
@@ -67,9 +67,14 @@ pub struct CdDrive {
 }
 
 /// # SAFETY
-/// - See safety restrictions on [Self::handle]
+/// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to [`handle`][Self::handle]
+///   which includes specific safety restrictions allowing `CdDrive` to be [Send]
+/// - All other fields are already `Send`
 /// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
-#[allow(unsafe_code)]
+#[expect(
+    unsafe_code,
+    reason = "Want to be able to rip in one thread and encode in another"
+)]
 unsafe impl Send for CdDrive {}
 
 impl Debug for CdDrive {
@@ -113,7 +118,7 @@ impl CdDrive {
         let dwdesiredaccess = GENERIC_READ;
         let dwsharemode = FILE_SHARE_READ;
         let dwcreationdisposition = OPEN_EXISTING;
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         let handle: HANDLE = unsafe {
             // SAFETY: `lpfilename` is a local variable that remains
             // valid for the duration of this synchronous FFI call.
@@ -141,7 +146,7 @@ impl CdDrive {
         let mut toc = CDROM_TOC::default();
         let mut bytes_read: u32 = 0;
 
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         let read_toc = unsafe {
             // SAFETY: inline based on
             // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
@@ -184,14 +189,17 @@ impl CdDrive {
     ///   used to enable concurrent access to the drive ("processes and threads that share
     ///   the same file must synchronize their access").
     ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
-    #[allow(unsafe_code)]
+    #[expect(
+        unsafe_code,
+        reason = "required to be unsafe, to allow CdDrive to be Send"
+    )]
     pub unsafe fn handle(&self) -> &HANDLE {
         &self.handle
     }
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
             // SAFETY - check stored value is the expected size
             assert_eq!(size_of_val(&self.toc), TOC_SIZE);
@@ -236,7 +244,7 @@ impl CdDrive {
         let mut bytes_read: u32 = 0;
         tracing::trace!(offset = offset);
 
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY - inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
             // SAFETY check: Buffer is expected size.
@@ -308,7 +316,7 @@ impl CdDrive {
 #[cfg(target_family = "windows")]
 impl Drop for CdDrive {
     fn drop(&mut self) {
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "ffi call")]
         unsafe {
             // SAFETY: handle
             // - was opened and validated in `open()`
@@ -351,7 +359,7 @@ impl !Send for AudioCd {}
 /// [`Sync`] references to the metadata can be obtained via [`disc().clone()`][AudioCdExt::disc]
 /// and safely passed to other threads.
 pub struct ReadOnlyAudioCd {
-    #[allow(dead_code, reason = "until split into platform & supporting")]
+    #[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
     drive: CdDrive,
     disc: Arc<Disc>,
 }
@@ -663,7 +671,7 @@ pub trait CdromTocExt {
     ///
     /// # Safety
     /// The caller must ensure `bytes` is exactly the size of CDROM_TOC and properly aligned.
-    #[allow(unsafe_code)]
+    #[expect(unsafe_code, reason = "construction from raw bytes")]
     unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
 
     fn to_toc(&self) -> Result<Toc, TocError>;
@@ -675,9 +683,11 @@ pub trait CdromTocExt {
 }
 
 impl CdromTocExt for CDROM_TOC {
-    #[allow(unsafe_code)]
+    #[expect(unsafe_code, reason = "construction from raw bytes")]
     unsafe fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "construction from raw bytes")]
+        // SAFETY:
+        // Restrictions documented in trait doc-comment
         unsafe {
             *(bytes.as_ptr() as *const _)
         }
@@ -756,7 +766,7 @@ impl WinString {
     /// You must ensure that the returned `PCWSTR` is not used after self is dropped.
     /// It is recommended to call this directly in the call to a WinAPI unsafe function,
     /// see [AudioCd::new()] for an example
-    #[allow(unsafe_code)]
+    #[expect(unsafe_code, reason = "returns raw pointer")]
     pub unsafe fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }

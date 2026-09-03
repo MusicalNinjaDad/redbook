@@ -67,7 +67,7 @@ impl TestAlbum {
     pub fn load_cdrom_toc(&self) -> CDROM_TOC {
         let path = self.cdrom_toc_path();
         let toc_dump = super::load_hex_file(&path);
-        #[allow(unsafe_code)]
+        #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
             CDROM_TOC::from_raw_bytes(toc_dump)
         }
