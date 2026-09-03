@@ -24,9 +24,13 @@ impl PictureExt for Picture {
         data: B,
     ) -> Self {
         let mut jpg_info = JpegDecoder::new(ZCursor::from(&data));
-        let _ = jpg_info.decode_headers();
+
+        #[expect(unused_must_use, reason = "TODO: change to try_from_jpeg")]
+        jpg_info.decode_headers();
+
         let width = jpg_info.info().unwrap().width as u32;
         let height = jpg_info.info().unwrap().height as u32;
+
         Picture {
             picture_type,
             mime_type: "image/jpeg".to_string(),

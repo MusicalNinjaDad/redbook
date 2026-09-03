@@ -57,7 +57,8 @@ fn main() -> Exit<()> {
 
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
-    let _ = cd.disc_mut().update_musicbrainz();
+    #[expect(unused_must_use, reason = "do not abort if musicbrainz not available")]
+    cd.disc_mut().update_musicbrainz();
     match (cd.disc().release(), ripper.non_interactive) {
         (Some(_), _) => (),
         (None, true) => {
@@ -207,7 +208,11 @@ fn main() -> Exit<()> {
     dbg!(&output_dir);
     fs::create_dir_all(&output_dir)?;
 
-    let _ = cd.disc_mut().update_cover_art();
+    #[expect(
+        unused_must_use,
+        reason = "do not abort if CoverArtArchive not available"
+    )]
+    cd.disc_mut().update_cover_art();
     if let Some(Err(error_saving_coverart)) = cd.disc().save_cover_art(&output_dir) {
         dbg!(error_saving_coverart);
     };
