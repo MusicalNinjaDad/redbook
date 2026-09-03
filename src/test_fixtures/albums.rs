@@ -67,8 +67,12 @@ impl TestAlbum {
     pub fn load_cdrom_toc(&self) -> CDROM_TOC {
         let path = self.cdrom_toc_path();
         let toc_dump = super::load_hex_file(&path);
+        
         #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
+            // SAFETY: correct length & alignment
+            assert_eq!(size_of::<CDROM_TOC>(), toc_dump.len());
+            assert_eq!(0, toc_dump.as_ptr().align_offset(align_of::<CDROM_TOC>()));
             CDROM_TOC::from_raw_bytes(toc_dump)
         }
     }

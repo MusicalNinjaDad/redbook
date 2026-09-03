@@ -1,3 +1,13 @@
+// Unsafe restricted to dedicated wrapper modules, so cannot forbid
+#![deny(unsafe_code)]
+#![forbid(clippy::missing_safety_doc)]
+#![deny(clippy::multiple_unsafe_ops_per_block)]
+#![forbid(clippy::transmute_ptr_to_ptr)]
+#![forbid(clippy::undocumented_unsafe_blocks)]
+#![forbid(unsafe_op_in_unsafe_fn)]
+#![forbid(unsafe_attr_outside_unsafe)]
+#![forbid(unused_unsafe)]
+// All experimental features are only enabled when on a toolchain where they are still unstable
 #![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
@@ -5,10 +15,7 @@
 #![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
-// Unsafe restricted to dedicated wrapper modules
-#![deny(unsafe_code)]
-#![forbid(unsafe_op_in_unsafe_fn)]
-#![forbid(unsafe_attr_outside_unsafe)]
+// No docs = not done
 #![warn(missing_docs)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)

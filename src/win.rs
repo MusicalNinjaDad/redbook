@@ -75,6 +75,7 @@ pub struct CdDrive {
     unsafe_code,
     reason = "Want to be able to rip in one thread and encode in another"
 )]
+// SAFETY: See documentation comment
 unsafe impl Send for CdDrive {}
 
 impl Debug for CdDrive {
@@ -114,14 +115,22 @@ impl CdDrive {
         let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
 
         let windrive = format!(r"\\.\{}", path.display());
-        let lpfilename = WinString::from(windrive.as_str());
-        let dwdesiredaccess = GENERIC_READ;
-        let dwsharemode = FILE_SHARE_READ;
-        let dwcreationdisposition = OPEN_EXISTING;
         #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "embedded call to ensure raw pointer dropped immediately"
+        )]
         let handle: HANDLE = unsafe {
-            // SAFETY: `lpfilename` is a local variable that remains
-            // valid for the duration of this synchronous FFI call.
+            // SAFETY:
+            // - All parameter values constructed with provided consts, no magic numbers used
+            // - lpfilename (passed as raw pointer) is valid for duration of this block
+            // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
+
+            let lpfilename = WinString::from(windrive.as_str());
+            let dwdesiredaccess = GENERIC_READ;
+            let dwsharemode = FILE_SHARE_READ;
+            let dwcreationdisposition = OPEN_EXISTING;
+
             CreateFile2(
                 lpfilename.as_pcwstr(),
                 dwdesiredaccess,
@@ -201,7 +210,7 @@ impl CdDrive {
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
-            // SAFETY - check stored value is the expected size
+            // SAFETY: check stored value is the expected size
             assert_eq!(size_of_val(&self.toc), TOC_SIZE);
             std::slice::from_raw_parts(&self.toc as *const _ as *const _, TOC_SIZE)
         }
@@ -245,7 +254,11 @@ impl CdDrive {
         tracing::trace!(offset = offset);
 
         #[expect(unsafe_code, reason = "ffi call")]
-        // SAFETY - inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "embedded call to ensure raw pointer dropped immediately"
+        )]
+        // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
             // SAFETY check: Buffer is expected size.
             // Runtime check as `buf` is provided by caller
