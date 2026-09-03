@@ -15,8 +15,6 @@
 #![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
-// No docs = not done
-#![warn(missing_docs)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!

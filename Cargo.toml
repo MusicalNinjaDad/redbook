@@ -53,5 +53,6 @@ clap_mangen = "0.3.0"
 [workspace.metadata.ninja-xtask]
 env = { "LD_LIBRARY_PATH" = false }
 
-[lints.clippy]
-allow_attributes = "deny"
+[lints]
+clippy.allow_attributes = "deny"
+rustc.missing_docs = "warn"
