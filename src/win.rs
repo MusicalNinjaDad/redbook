@@ -29,6 +29,7 @@ use std::{
 };
 
 use cdtoc::{Toc, TocError};
+use tracing_result::Trace;
 use windows_sys::{
     Win32::{
         Devices::Cdrom::{
@@ -104,8 +105,9 @@ impl CdDrive {
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
         let path_str = path.display().to_string();
-        let _span = tracing::info_span!("CdDrive::open", path = %path_str);
-        let _enter = _span.enter();
+
+        let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
+
         let windrive = format!(r"\\.\{}", path.display());
         let lpfilename = WinString::from(windrive.as_str());
         let dwdesiredaccess = GENERIC_READ;
@@ -126,7 +128,9 @@ impl CdDrive {
         // If the function fails, the return value is INVALID_HANDLE_VALUE.
         // To get extended error information, call GetLastError.
         if handle == INVALID_HANDLE_VALUE {
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name: "getting handle for drive", %error);
+            return Err(error);
         };
 
         let toc_command = CDROM_READ_TOC_EX {
@@ -160,8 +164,9 @@ impl CdDrive {
             )
         };
         if read_toc == 0 {
-            tracing::warn!(bytes_read = bytes_read);
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            tracing::error!(name:"reading TOC", bytes_read, %error);
+            return Err(error);
         };
         assert!(bytes_read <= TOC_SIZE as u32);
         Ok(Self { path, handle, toc })
@@ -390,18 +395,23 @@ impl AudioCd {
     #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path_str = path.as_ref().display().to_string();
-        let _span = tracing::info_span!("AudioCd::new", path = %path_str);
-        let _enter = _span.enter();
+
+        const _TARGET: &str = "AudioCd::new";
+        let _err_span = tracing::error_span!(_TARGET, path = %path_str).entered();
+
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        let mut tracks: Vec<_> = read_dir(&path)?
+        let mut tracks: Vec<_> = read_dir(&path)
+            .or_error("open drive as dir")?
             .map(|track| {
                 Track::try_from(CdaFile {
-                    raw: fs::read(track?.path())?,
+                    raw: fs::read(track.or_error("read dir entry for cda")?.path())
+                        .or_error("read cda")?,
                 })
                 .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
             })
-            .try_collect()?;
+            .try_collect()
+            .or_error("parse cda")?;
         tracks.sort_by_key(|track| track.toc_entry.start);
 
         let drive = CdDrive::open(path)?;
@@ -410,42 +420,53 @@ impl AudioCd {
         (wintoc.FirstTrack
             == tracks
                 .first()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying first track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different first track number",
-            ))?;
+            ))
+            .or_warn("identifying first track")?;
         (wintoc.LastTrack
             == tracks
                 .last()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))?
+                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                .or_warn("identifying last track")?
                 .toc_entry
                 .track as u8)
             .ok_or(io::Error::new(
                 ErrorKind::InvalidData,
                 "Mismatch between TOC and cda files: different last track number",
-            ))?;
+            ))
+            .or_warn("identifying last track")?;
 
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
+
+            let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+
             let data = wintoc
                 .TrackData
                 .get(track_number - 1)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
                     format!("track {track_number} missing in TOC"),
-                ))?;
-            (TocEntry::from(data) == track.toc_entry).ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                format!("Mismatch between TOC and cda files for track {track_number}"),
-            ))?;
+                ))
+                .or_warn("")?;
+            (TocEntry::from(data) == track.toc_entry)
+                .ok_or(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("Mismatch between TOC and cda files for track {track_number}"),
+                ))
+                .or_warn("")?;
         }
 
         let toc = wintoc
             .to_toc()
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))?;
+            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .or_error("")?;
 
         let leadout = toc.leadout();
 

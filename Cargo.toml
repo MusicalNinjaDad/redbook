@@ -28,6 +28,7 @@ serde_json = "1.0"
 tabular = "0.2.0"
 try_v2 = "0.10.1"
 tracing = "0.1"
+tracing-result = {git = "https://github.com/MusicalNinjaDad/tracing_result/"}
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 windows-sys = { version = "0.61.2", features = [
     "Win32_Devices_Cdrom",
