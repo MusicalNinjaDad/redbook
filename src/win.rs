@@ -29,6 +29,7 @@ use std::{
 };
 
 use cdtoc::{Toc, TocError};
+use tracing_result::Trace;
 use windows_sys::{
     Win32::{
         Devices::Cdrom::{
@@ -393,8 +394,6 @@ impl AudioCd {
     /// Opens drive, reads CD
     #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        use tracing_result::Trace;
-
         let path_str = path.as_ref().display().to_string();
 
         const _TARGET: &str = "AudioCd::new";
