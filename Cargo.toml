@@ -54,5 +54,12 @@ clap_mangen = "0.3.0"
 env = { "LD_LIBRARY_PATH" = false }
 
 [lints]
-clippy.allow_attributes = "deny"
+# Explicitness
+clippy.allow_attributes = "forbid" # use expect instead
+clippy.let_underscore_must_use = "deny" # use expect(unused, reason = "") instead
+clippy.unused_result_ok = "deny"
+
+# Completeness
 rustc.missing_docs = "warn"
+
+# Unsafe lints are documented at top of lib.rs for ease of auditing
