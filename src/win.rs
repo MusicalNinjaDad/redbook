@@ -180,6 +180,13 @@ impl CdDrive {
         if read_toc == 0 {
             let error = io::Error::last_os_error();
             tracing::error!(name:"reading TOC", bytes_read, %error);
+
+            #[expect(unsafe_code, reason = "ffi call")]
+            unsafe {
+                // SAFETY: handle has not been closed or mutated since it was opened above
+                CloseHandle(handle as *mut _)
+            };
+
             return Err(error);
         };
         assert!(bytes_read <= TOC_SIZE as u32);
