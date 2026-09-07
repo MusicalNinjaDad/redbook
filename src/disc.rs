@@ -30,6 +30,7 @@ use std::{
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::Fetch;
+use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
@@ -716,31 +717,41 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn update_cover_art(&mut self) -> io::Result<()> {
+        let debug = tracing::debug_span!("", url = Empty, size = Empty, status = Empty).entered();
+        tracing::trace!("");
         let release_mbid = self
             .release()
-            .ok_or_else(|| io::Error::other("No releases found"))?
+            .ok_or_else(|| io::Error::other("No releases found"))
+            .or_warn("")?
             .id
             .clone();
 
         let client = reqwest::blocking::Client::new();
         let url = format!("https://coverartarchive.org/release/{release_mbid}/front");
+        debug.record("url", &url);
+        tracing::trace!("");
+
         let response = client
             .get(&url)
             .header("User-Agent", "splurt/0.1.0")
             .send()
-            .map_err(io::Error::other)?;
+            .map_err(io::Error::other)
+            .or_debug("requesting cover art")?;
 
-        let _info = tracing::info_span!("update_cover_art", url = %url).entered();
+        let status = response.status();
+        debug.record("status", status.to_string());
 
-        if response.status().is_success() {
-            let image = response.bytes().map_err(io::Error::other)?;
+        if status.is_success() {
+            let image = response.bytes().map_err(io::Error::other).or_debug("unpacking response")?;
+
+            debug.record("size", image.len());
+            tracing::info!("coverart_retrieved");
+
             let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image.clone());
             self.coverart = Some(cover);
-            tracing::info!(size_bytes = image.len(), "coverart_retrieved");
         } else {
-            let status = response.status();
             let reason = response.text().ok();
-            tracing::warn!(url = %url, status = %status, reason = ?reason, "coverart_failed");
+            tracing::warn!(name: "coverart failed", reason = ?reason);
         }
         Ok(())
     }
