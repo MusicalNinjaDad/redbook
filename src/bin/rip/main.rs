@@ -211,7 +211,7 @@ fn main() -> Exit<()> {
 
     // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
-    dbg!(&output_dir);
+    tracing::debug!(output_dir = %output_dir.display());
     fs::create_dir_all(&output_dir)?;
 
     #[expect(
