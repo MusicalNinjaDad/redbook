@@ -129,7 +129,6 @@ fn main() -> Exit<()> {
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
-
     info.record("title", &disc_title);
 
     if cd
