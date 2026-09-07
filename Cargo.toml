@@ -58,6 +58,7 @@ env = { "LD_LIBRARY_PATH" = false }
 clippy.allow_attributes = "deny" # use expect instead
 clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
 clippy.unused_result_ok = "deny"
+clippy.used_underscore_binding = "deny"
 
 # Completeness
 rustc.missing_docs = "warn"

@@ -190,8 +190,7 @@ impl Disc {
         leadout: Frame,
     ) -> Result<Self, DiscError> {
         let tracks: Vec<_> = tracks.into_iter().collect();
-        let _span = tracing::info_span!("Disc::new", track_count = tracks.len());
-        let _enter = _span.enter();
+        let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
         if toc.leadout() != leadout.as_usize() as u32 {
             return Err(DiscError::IncorrectLeadout);
@@ -422,8 +421,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
-        let _span = tracing::debug_span!("Disc::track", track_number = track_number);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::track", track_number = track_number).entered();
         let mut track = self.tracks.get(track_number - 1).cloned()?;
         track.meta = self
             .release()
@@ -460,8 +458,8 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn tracks(&self) -> Tracks<'_> {
-        let _span = tracing::debug_span!("Disc::tracks", track_count = self.tracks.len());
-        let _enter = _span.enter();
+        let _debug =
+            tracing::debug_span!("Disc::tracks", track_count = self.tracks.len()).entered();
         Tracks { disc: self, i: 0 }
     }
 
@@ -491,8 +489,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn set_release(&mut self, index: Option<usize>) -> &mut Self {
-        let _span = tracing::debug_span!("Disc::set_release", index = ?index);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::set_release", index = ?index).entered();
         self.release_index = match index {
             Some(index)
                 if self
@@ -733,8 +730,7 @@ impl Disc {
             .send()
             .map_err(io::Error::other)?;
 
-        let _span = tracing::info_span!("update_cover_art", url = %url);
-        let _enter = _span.enter();
+        let _info = tracing::info_span!("update_cover_art", url = %url).entered();
 
         if response.status().is_success() {
             let image = response.bytes().map_err(io::Error::other)?;
@@ -885,8 +881,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
-        let _span = tracing::debug_span!("Disc::tag_for", track_number = track_number);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::tag_for", track_number = track_number).entered();
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 

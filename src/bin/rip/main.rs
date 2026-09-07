@@ -53,7 +53,7 @@ fn main() -> Exit<()> {
     let drive = PathBuf::from_str(&ripper.drive)?;
 
     ripper.init_tracing()?;
-    let mut _info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
+    let info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
 
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
@@ -119,18 +119,18 @@ fn main() -> Exit<()> {
                 };
                 cd.disc_mut().set_release(Some(selected));
                 tracing::debug!(
-                name: "manually selected release",
-                title = %cd.disc().title().unwrap_or_default(),
-                country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
-                date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
-            );
+                    name: "manually selected release",
+                    title = %cd.disc().title().unwrap_or_default(),
+                    country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
+                    date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
+                );
             };
         }
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
 
-    _info.record("title", &disc_title);
+    info.record("title", &disc_title);
 
     if cd
         .disc()
