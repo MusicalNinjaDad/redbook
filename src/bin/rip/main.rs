@@ -170,7 +170,7 @@ fn main() -> Exit<()> {
                     let mut input = String::new();
                     println!("\nEnter the track number to rip (a for all):");
 
-                    let _ = io::stdin().read_line(&mut input).map_err(|error| {
+                    let _: usize = io::stdin().read_line(&mut input).map_err(|error| {
                         println!(
                             "oops ... problem understanding you ... it's me, not you. {error}"
                         );

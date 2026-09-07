@@ -503,7 +503,7 @@ impl Disc {
             }
             _ => None,
         };
-        let _ = self.reset_disc_index();
+        self.reset_disc_index();
         self
     }
 
