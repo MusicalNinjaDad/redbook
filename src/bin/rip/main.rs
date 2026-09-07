@@ -53,7 +53,8 @@ fn main() -> Exit<()> {
     let drive = PathBuf::from_str(&ripper.drive)?;
 
     ripper.init_tracing()?;
-    let info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
+    let info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty, artist = Empty)
+        .entered();
 
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
@@ -129,8 +130,6 @@ fn main() -> Exit<()> {
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
-    info.record("title", &disc_title);
-
     if cd
         .disc()
         .release()
@@ -145,6 +144,7 @@ fn main() -> Exit<()> {
                 .unwrap_or_else(|| "Unknown".to_string())
         ));
     }
+    info.record("title", &disc_title);
 
     let selected_track = match (ripper.all, ripper.track_number) {
         (true, Some(_)) => {
@@ -207,6 +207,7 @@ fn main() -> Exit<()> {
         .disc()
         .main_artist()
         .unwrap_or_else(|| "Unknown".to_string());
+    info.record("artist", &artist);
 
     // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
