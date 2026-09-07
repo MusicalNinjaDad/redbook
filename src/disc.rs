@@ -616,6 +616,7 @@ impl Disc {
             Some(releases) if releases.len() == 1 => Some(1),
             _ => None,
         };
+        tracing::debug!(release_index = self.release_index);
         self
     }
 

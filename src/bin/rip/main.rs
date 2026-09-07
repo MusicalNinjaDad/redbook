@@ -118,6 +118,12 @@ fn main() -> Exit<()> {
                     };
                 };
                 cd.disc_mut().set_release(Some(selected));
+                tracing::debug!(
+                name: "manually selected release",
+                title = %cd.disc().title().unwrap_or_default(),
+                country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
+                date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
+            );
             };
         }
     };
