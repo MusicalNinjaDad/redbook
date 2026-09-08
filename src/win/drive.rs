@@ -1,4 +1,3 @@
-#![expect(missing_docs, reason = "to do")]
 //! Handles direct hardware access via Windows APIs
 
 use std::{
@@ -9,17 +8,14 @@ use std::{
 };
 
 use super::bindings::{
-    CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
+    CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
     GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-    OPEN_EXISTING, PCWSTR, RAW_READ_INFO, TRACK_MODE_TYPE,
+    OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
 };
 
 use super::toc::TOC_SIZE;
 use crate::hex::hex_dump;
 use crate::{FRAME_SIZE, Frame, Track};
-
-//(?) https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ne-ntddcdrm-_track_mode_type
-pub const TRACK_MODE_CDDA: TRACK_MODE_TYPE = 2;
 
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
@@ -218,7 +214,7 @@ impl CdDrive {
         let read_command = RAW_READ_INFO {
             DiskOffset: offset,
             SectorCount: frames_to_read,
-            TrackMode: TRACK_MODE_CDDA,
+            TrackMode: CDDA,
         };
 
         let bytes_to_read = frames_to_read * FRAME_SIZE as u32;

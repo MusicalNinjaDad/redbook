@@ -23,6 +23,7 @@ fn gen_bindings() {
         "IOCTL_CDROM_READ_TOC_EX",
         "RAW_READ_INFO",
         "TRACK_MODE_TYPE",
+        "CDDA",
         "CloseHandle",
         "GENERIC_READ",
         "HANDLE",
