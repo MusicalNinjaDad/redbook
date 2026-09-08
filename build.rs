@@ -34,6 +34,10 @@ fn main() -> Result<()> {
         OtherFeature("iter_array_chunks".to_string()),
         &allowed_features,
     );
+    ac.emit_unstable_feature(
+        OtherFeature("iter_next_chunk".to_string()),
+        &allowed_features,
+    );
     ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
     ac.emit_unstable_feature(
         OtherFeature("negative_impls".to_string()),
