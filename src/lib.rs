@@ -265,8 +265,25 @@ pub trait AudioCdExt {
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "invalid track number"))
             .or_warn("")?;
 
-        let track_size = track.duration.as_usize().strict_mul(FRAME_SIZE);
-        debug_assert!(track_size > 0);
+        let track_size = track
+            .duration
+            .as_usize()
+            .checked_mul(FRAME_SIZE)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::FileTooLarge,
+                    format!(
+                        "track too long. {size} bytes but can only handle {max}",
+                        size = (track.duration.as_usize() as u128) * (FRAME_SIZE as u128),
+                        max = usize::MAX
+                    ),
+                )
+            })
+            .or_error("")?;
+
+        (track_size > 0)
+            .ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "zero length track"))
+            .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size];
