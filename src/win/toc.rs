@@ -10,8 +10,8 @@ use std::{fs, io, path::Path};
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
-use super::bindings::TRACK_DATA;
 pub(crate) use super::bindings::CDROM_TOC;
+use super::bindings::TRACK_DATA;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
 /// size of ffi struct [`CDROM_TOC`]
@@ -325,5 +325,16 @@ mod tests {
             // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
         }
+    }
+
+    #[rstest]
+    #[case(TestAlbum::DefinitelyMaybe)]
+    #[case(TestAlbum::TheWallDisc1)]
+    #[case(TestAlbum::TheWallDisc2)]
+    fn compare_toc(#[case] album: TestAlbum) {
+        let cdrom_toc = album.load_cdrom_toc();
+        let toc = album.expected_toc();
+
+        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
     }
 }
