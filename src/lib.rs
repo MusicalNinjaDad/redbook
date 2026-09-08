@@ -317,7 +317,8 @@ pub trait AudioCdExt {
             bytes_read_so_far += i64::from(bytes_read);
         }
 
-        let frame_offset = bufs.len().strict_mul(MAX_CHUNK_FRAMES);
+        // Frames are multiple bytes, therefore must fit in usize, if track_size does
+        let frame_offset = bufs.len() * MAX_CHUNK_FRAMES;
         debug_assert_eq!(
             i64::try_from(frame_offset)
                 .unwrap()
@@ -325,7 +326,9 @@ pub trait AudioCdExt {
             bytes_read_so_far,
             "about to read last chunk. We have read {frame_offset} frames, but only {bytes_read_so_far} bytes so far"
         );
-        let frames_to_read = track.duration.as_usize().strict_rem(MAX_CHUNK_FRAMES);
+
+        let frames_to_read = track.duration.as_usize().rem(MAX_CHUNK_FRAMES);
+        debug_assert_eq!(frames_to_read * FRAME_SIZE, last_buf.len());
 
         if !last_buf.is_empty() {
             let bytes_read =
