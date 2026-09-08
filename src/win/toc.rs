@@ -236,136 +236,17 @@ impl CdaFile {
     }
 }
 
-impl TryFrom<CdaFile> for Track<'static> {
-    type Error = io::Error;
-
-    fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        todo!();
-        // let data = cda.raw;
-        // const MIN_LEN: usize = 44;
-        // if data.len() < MIN_LEN {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         format!(
-        //             "CDA file too short: expected at least {} bytes, got {}",
-        //             MIN_LEN,
-        //             data.len()
-        //         ),
-        //     ));
-        // }
-
-        // // Validate RIFF header
-        // if &data[0..4] != b"RIFF" {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         "Missing or invalid RIFF header",
-        //     ));
-        // }
-
-        // // Validate chunk size (always 36)
-        // let chunk_size = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
-        // if chunk_size != 36 {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         format!("Invalid chunk size: expected 36, got {}", chunk_size),
-        //     ));
-        // }
-
-        // // Validate CDDA identifier
-        // if &data[8..12] != b"CDDA" {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         "Missing or invalid CDDA identifier",
-        //     ));
-        // }
-
-        // // Validate fmt chunk identifier
-        // if &data[12..16] != b"fmt " {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         "Missing or invalid fmt chunk identifier",
-        //     ));
-        // }
-
-        // // Validate fmt chunk size (always 24)
-        // let fmt_chunk_size = u32::from_le_bytes([data[16], data[17], data[18], data[19]]);
-        // if fmt_chunk_size != 24 {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         format!(
-        //             "Invalid fmt chunk size: expected 24, got {}",
-        //             fmt_chunk_size
-        //         ),
-        //     ));
-        // }
-
-        // // Parse version (always 1)
-        // let version = u16::from_le_bytes([data[0x14], data[0x15]]);
-        // if version != 1 {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         format!("Invalid version: expected 1, got {}", version),
-        //     ));
-        // }
-
-        // let track_number = u16::from_le_bytes([data[0x16], data[0x17]]);
-        // let windows_identifier = Some(u32::from_le_bytes([
-        //     data[0x18], data[0x19], data[0x1A], data[0x1B],
-        // ]));
-        // let range_offset_frames =
-        //     u32::from_le_bytes([data[0x1C], data[0x1D], data[0x1E], data[0x1F]]);
-        // // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
-        // let starting_frame = Frame(range_offset_frames as usize) + LEADIN;
-        // let duration_frames = u32::from_le_bytes([data[0x20], data[0x21], data[0x22], data[0x23]]);
-        // let duration_frames = Frame(duration_frames as usize);
-
-        // let starting_time = Msf {
-        //     frame: data[0x24],
-        //     sec: data[0x25],
-        //     min: data[0x26],
-        // };
-        // // For inexplicable, probably historical, reasons Windows stores the absolute time in cda
-        // let starting_time = starting_time - Duration::from_secs(2);
-
-        // // Validate null byte after range position
-        // if data[0x27] != 0 {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         "Expected null byte after range position",
-        //     ));
-        // }
-
-        // // Parse duration time
-        // let duration = Msf {
-        //     frame: data[0x28],
-        //     sec: data[0x29],
-        //     min: data[0x2A],
-        // };
-
-        // // Validate null byte after duration
-        // if data[0x2B] != 0 {
-        //     return Err(io::Error::new(
-        //         io::ErrorKind::InvalidData,
-        //         "Expected null byte after duration",
-        //     ));
-        // }
-
-        // // For inexplicable, probably historical, reasons Windows stores the
-        // // *relative* frame and *absolute* time in cda
-        // debug_assert_eq!(starting_frame.relative_to_leadin(), starting_time);
-        // debug_assert_eq!(duration_frames, duration);
-
-        // let toc_entry = TocEntry {
-        //     track: track_number as u8,
-        //     start: starting_frame,
-        // };
-
-        // Ok(Track {
-        //     toc_entry,
-        //     windows_identifier,
-        //     duration: duration_frames,
-        //     ..Default::default()
-        // })
+impl From<CdaFile> for Track<'static> {
+    fn from(cda: CdaFile) -> Self {
+        Self {
+            toc_entry: TocEntry {
+                track: cda.track_number as u8,
+                start: cda.start.into(),
+            },
+            duration: cda.duration.into(),
+            windows_identifier: Some(cda.windows_identifier),
+            ..Default::default()
+        }
     }
 }
 
