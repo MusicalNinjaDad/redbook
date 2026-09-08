@@ -1,3 +1,5 @@
+//! Provides a logical representation of an audio CD on the windows platform.
+
 use std::sync::Arc;
 use std::{io, path::Path};
 
@@ -20,6 +22,9 @@ pub struct AudioCd {
     drive: CdDrive,
     disc: Arc<Disc>,
 }
+
+impl !Send for AudioCd {}
+
 /// An AudioCd where metadata can no longer be mutated - ensuring safe Sync usage of
 /// [disc()][AudioCdExt::disc] and allowing, for example, separate threads to [rip][AudioCdExt::rip]
 /// and encode [to_flac][crate::RippedTrack::to_flac]
@@ -36,6 +41,7 @@ pub struct ReadOnlyAudioCd {
     drive: CdDrive,
     disc: Arc<Disc>,
 }
+
 impl AudioCd {
     #[cfg(not(target_family = "windows"))]
     pub fn new<P: AsRef<Path>>(_path: P) -> io::Result<Self> {
@@ -134,7 +140,7 @@ impl AudioCd {
         Ok(Self { drive, disc })
     }
 }
-impl !Send for AudioCd {}
+
 impl AudioCdExt for AudioCd {
     fn disc(&self) -> &Arc<crate::Disc> {
         &self.disc
@@ -163,6 +169,7 @@ impl AudioCdExt for AudioCd {
         unimplemented!("hardware access not available on other targets")
     }
 }
+
 impl AudioCdExt for ReadOnlyAudioCd {
     #[cfg(target_family = "windows")]
     fn read_chunk(
@@ -191,6 +198,7 @@ impl AudioCdExt for ReadOnlyAudioCd {
         &self.disc
     }
 }
+
 impl AudioCdExtMut for AudioCd {
     fn disc_mut(&mut self) -> &mut Disc {
         Arc::make_mut(&mut self.disc)
