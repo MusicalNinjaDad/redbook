@@ -11,8 +11,6 @@ fn gen_bindings() {
         "--out",
         BINDINGS,
         "--flat",
-        "--no-comment",
-        "--no-deps",
         "--sys",
         "--filter",
         "GetTimeZoneInformationForYear",
