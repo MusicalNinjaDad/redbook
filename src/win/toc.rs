@@ -251,6 +251,7 @@ impl From<CdaFile> for Track<'static> {
 mod tests {
     use super::*;
     use crate::test_fixtures::albums::TestAlbum;
+    use glob::glob;
     use rstest::rstest;
 
     #[rstest]
@@ -281,5 +282,23 @@ mod tests {
         let toc = album.load_cdrom_toc();
         let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
         assert_eq!(audio_tracks, album.expected_toc_entries());
+    }
+
+    #[rstest]
+    #[case(TestAlbum::DefinitelyMaybe)]
+    #[case(TestAlbum::TheWallDisc1)]
+    #[case(TestAlbum::TheWallDisc2)]
+    fn parse_cdas(#[case] album: TestAlbum) {
+        let expected_tracks = album.expected_tracks_minimal();
+        let cdas = album.assets_path().join("*.cda");
+
+        for (cda_file, track) in glob(&cdas.to_string_lossy()).unwrap().zip(expected_tracks) {
+            dbg!(&cda_file);
+            let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
+            assert_eq!(cda.track_number as u8, track.track_number());
+            assert_eq!(cda.start, track.toc_entry.start);
+            assert_eq!(cda.duration, track.duration);
+            // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
+        }
     }
 }
