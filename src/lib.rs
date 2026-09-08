@@ -292,7 +292,6 @@ pub trait AudioCdExt {
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size];
 
-        // TODO: Handle very short tracks < MAX_CHUNK_FRAMES
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
         let mut bytes_read_so_far = 0_i64;
 
