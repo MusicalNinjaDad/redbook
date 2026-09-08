@@ -10,7 +10,8 @@ use std::{fs, io, path::Path};
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
-use super::bindings::{CDROM_TOC, TRACK_DATA};
+use super::bindings::TRACK_DATA;
+pub(crate) use super::bindings::CDROM_TOC;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
 /// size of ffi struct [`CDROM_TOC`]
