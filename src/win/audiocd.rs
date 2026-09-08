@@ -1,10 +1,16 @@
 //! Provides a logical representation of an audio CD on the windows platform.
 
-use std::sync::Arc;
-use std::{io, path::Path};
+use std::{
+    fs,
+    io::{self, ErrorKind},
+    path::Path,
+    sync::Arc,
+};
 
-use super::drive::CdDrive;
-use crate::{AudioCdExt, AudioCdExtMut, Disc, Track};
+use tracing_result::Trace;
+
+use super::{drive::CdDrive, toc::CdaFile, toc::CdromTocExt};
+use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -51,12 +57,6 @@ impl AudioCd {
     /// Opens drive, reads CD
     #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        use std::{fs, io::ErrorKind};
-
-        use tracing_result::Trace;
-
-        use crate::{Frame, win::toc::CdromTocExt};
-
         let path_str = path.as_ref().display().to_string();
 
         const _TARGET: &str = "AudioCd::new";
@@ -67,8 +67,6 @@ impl AudioCd {
         let mut tracks: Vec<_> = fs::read_dir(&path)
             .or_error("open drive as dir")?
             .map(|track| {
-                use crate::{Track, win::toc::CdaFile};
-
                 let path = track.or_error("read dir entry for cda")?.path();
                 let cda = CdaFile::from_path(path).or_error("read cda")?;
                 Ok(Track::from(cda))
@@ -106,8 +104,6 @@ impl AudioCd {
             .or_warn("identifying last track")?;
 
         for track in tracks.iter() {
-            use crate::TocEntry;
-
             let track_number = track.toc_entry.track as usize;
 
             let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
