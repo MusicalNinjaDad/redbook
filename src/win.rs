@@ -434,7 +434,7 @@ impl AudioCd {
             .map(|track| {
                 let path = track.or_error("read dir entry for cda")?.path();
                 let cda = CdaFile::from_path(path).or_error("read cda")?;
-                Track::try_from(cda).map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+                Ok(Track::from(cda))
             })
             .try_collect()
             .or_error("parse cda")?;

@@ -5,7 +5,7 @@
 //! - windows ffi [`CDROM_TOC`]
 //! - windows [`CdaFile`]s
 
-use std::{fs, io, path::Path, time::Duration};
+use std::{fs, io, path::Path};
 
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
@@ -77,8 +77,6 @@ impl CdromTocExt for CDROM_TOC {
 ///
 /// See https://en.wikipedia.org/wiki/.cda_file
 pub struct CdaFile {
-    /// Should always be 1.
-    version: u16,
     /// The first track has the number 1
     track_number: u16,
     /// Identifier calculated by Windows for cdplayer.exe
@@ -227,7 +225,6 @@ impl CdaFile {
             .or_warn("")?;
 
         Ok(Self {
-            version,
             track_number,
             windows_identifier,
             start,
