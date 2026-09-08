@@ -299,8 +299,11 @@ pub trait AudioCdExt {
         );
         let frames_to_read = track.duration.as_usize().strict_rem(MAX_CHUNK_FRAMES);
 
-        let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
-        bytes_read_so_far += i64::from(bytes_read);
+        if !last_buf.is_empty() {
+            let bytes_read =
+                self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
+            bytes_read_so_far += i64::from(bytes_read);
+        }
 
         tracing::trace!(bytes_read_so_far);
         Ok(data)
