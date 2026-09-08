@@ -111,6 +111,7 @@ pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use tracing::field::Empty;
 use tracing_result::Trace;
 pub use win::AudioCd;
 
@@ -256,6 +257,7 @@ pub trait AudioCdExt {
     /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
         let _warn = tracing::warn_span!("read track", track_number).entered();
+        let trace = tracing::trace_span!("read track", track_size = Empty).entered();
 
         tracing::info!("");
 
@@ -281,13 +283,14 @@ pub trait AudioCdExt {
             })
             .or_error("")?;
 
+        trace.record("track_size", track_size);
+
         (track_size > 0)
             .ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "zero length track"))
             .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size];
-        tracing::trace!(data_len = data.len());
 
         // TODO: Handle very short tracks < MAX_CHUNK_FRAMES
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
