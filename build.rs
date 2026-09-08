@@ -31,6 +31,10 @@ fn main() -> Result<()> {
         &allowed_features,
     );
     ac.emit_unstable_feature(
+        OtherFeature("integer_cast_extras".to_string()),
+        &allowed_features,
+    );
+    ac.emit_unstable_feature(
         OtherFeature("iter_array_chunks".to_string()),
         &allowed_features,
     );
