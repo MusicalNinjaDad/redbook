@@ -3,8 +3,9 @@
 use std::sync::Arc;
 use std::{io, path::Path};
 
+use super::drive::CdDrive;
 use crate::Track;
-use crate::{AudioCdExt, AudioCdExtMut, Disc, win::CdDrive};
+use crate::{AudioCdExt, AudioCdExtMut, Disc};
 
 /// An AudioCd with potentially mutable metadata.
 ///
