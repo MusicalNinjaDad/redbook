@@ -7,6 +7,8 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![forbid(unsafe_attr_outside_unsafe)]
 #![forbid(unused_unsafe)]
+// Only applicable to library
+#![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
 #![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]

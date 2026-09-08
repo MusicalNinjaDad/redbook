@@ -55,7 +55,4 @@ clippy.let_underscore_untyped = "deny"
 clippy.unused_result_ok = "deny"
 clippy.used_underscore_binding = "deny"
 
-# Completeness
-rustc.missing_docs = "warn"
-
 # Unsafe lints are documented at top of lib.rs for ease of auditing

@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "to do")]
 //! Handles direct hardware access via Windows APIs
 
 use std::{

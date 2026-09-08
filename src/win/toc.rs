@@ -1,3 +1,5 @@
+#![expect(missing_docs, reason = "to do")]
+
 //! Windows-specific audio CD Table of Contents handling.
 //!
 //! Glues together:

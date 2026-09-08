@@ -2,6 +2,7 @@
     not(target_family = "windows"),
     expect(unused_imports, reason = "stubs")
 )]
+#![cfg_attr(not(target_family = "windows"), expect(missing_docs, reason = "stubs"))]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
