@@ -1,7 +1,7 @@
 //! Test parsing TOC for various albums
 
 use cdtoc::Toc;
-use redbook::{hex::parse_toc, test_fixtures::albums::TestAlbum, win::CdromTocExt};
+use redbook::{hex::parse_toc, test_fixtures::albums::TestAlbum, win::toc::CdromTocExt};
 use rstest::rstest;
 use windows_sys::Win32::Devices::Cdrom::CDROM_TOC;
 

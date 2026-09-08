@@ -4,7 +4,7 @@
 use std::fmt::Display;
 use std::path::PathBuf;
 
-use crate::{Frame, Msf, TocEntry, Track, win::CdromTocExt};
+use crate::{Frame, Msf, TocEntry, Track, win::toc::CdromTocExt};
 use windows_sys::Win32::Devices::Cdrom::CDROM_TOC;
 
 /// Test album identifier for parameterized tests
