@@ -98,7 +98,7 @@ pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
-pub use win::audiocd::AudioCd;
+pub use win::AudioCd;
 use windows_sys::Win32::Devices::Cdrom::TRACK_DATA;
 
 use std::{

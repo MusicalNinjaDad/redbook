@@ -22,6 +22,8 @@
 // - Panic on failure for any type conversions
 // - Use a liberal application of debug_assert
 
-pub mod audiocd;
+mod audiocd;
 pub mod drive;
 pub mod toc;
+
+pub use audiocd::{AudioCd, ReadOnlyAudioCd};
