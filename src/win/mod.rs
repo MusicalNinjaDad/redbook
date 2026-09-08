@@ -8,6 +8,16 @@
 #[forbid(unsafe_code)]
 mod audiocd;
 
+#[expect(unsafe_code, reason = "generated bindings to windows API via ffi")]
+#[expect(
+    clippy::undocumented_unsafe_blocks,
+    reason = "generated bindings to windows API via ffi"
+)]
+#[expect(dead_code)]
+#[expect(nonstandard_style)]
+#[expect(clippy::upper_case_acronyms)]
+mod bindings;
+
 // This is where any unsafe ffi usage belongs
 pub mod drive;
 pub mod toc;

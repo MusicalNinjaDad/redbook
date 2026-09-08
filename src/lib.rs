@@ -3,7 +3,7 @@
 #![forbid(clippy::missing_safety_doc)]
 #![deny(clippy::multiple_unsafe_ops_per_block)] // sometimes valuable to inline calls
 #![forbid(clippy::transmute_ptr_to_ptr)]
-#![forbid(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::undocumented_unsafe_blocks)] // auto-generated bindings
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![forbid(unsafe_attr_outside_unsafe)]
 #![forbid(unused_unsafe)]
