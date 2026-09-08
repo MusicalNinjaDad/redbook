@@ -1,3 +1,7 @@
+//! Validates that windows ffi bindings do not require updating.
+//!
+//! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
+
 use std::fs;
 use windows_bindgen::bindgen;
 

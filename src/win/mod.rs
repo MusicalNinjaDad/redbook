@@ -16,6 +16,7 @@ mod audiocd;
 #[expect(dead_code)]
 #[expect(nonstandard_style)]
 #[expect(clippy::upper_case_acronyms)]
+/// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod bindings;
 
 // This is where any unsafe ffi usage belongs
