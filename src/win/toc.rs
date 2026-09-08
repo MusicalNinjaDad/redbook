@@ -1,16 +1,17 @@
-// Import tests from ../win.rs
+//! Windows-specific audio CD Table of Contents handling.
+//! 
+//! Glues together:
+//! - [`cdtoc::Toc`]
+//! - windows ffi [`CDROM_TOC`]
+//! - windows [`CdaFile`]s
+
 use std::{fs, io, path::Path, time::Duration};
 
-// Import impl TryFrom<CdaFile> for Track<'static> from ../win.rs
-// Import CdaFile from ../win.rs
-// Import impl CdromTocExt for CDROM_TOC from ../win.rs
 use cdtoc::{Toc, TocError};
-// Import CdromTocExt from ../win.rs
 use windows_sys::Win32::Devices::Cdrom::CDROM_TOC;
 
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
-// Import TOC_SIZE from ../win.rs
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
 /// Manipulation of [`CDROM_TOC`]
