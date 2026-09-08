@@ -111,11 +111,12 @@ pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use tracing_result::Trace;
 pub use win::AudioCd;
 
 use std::{
     convert::TryFrom,
-    io,
+    io::{self, ErrorKind},
     ops::{Add, Rem, Sub},
     sync::Arc,
     time::Duration,
@@ -254,8 +255,16 @@ pub trait AudioCdExt {
     /// - For a typical 4-minute song, this will be approximately 40-50 MB
     /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
-        let track = self.disc().track(track_number).unwrap();
-        tracing::info!(track_number = track.track_number(), "read_track");
+        let _warn = tracing::warn_span!("read track", track_number).entered();
+
+        tracing::info!("");
+
+        let track = self
+            .disc()
+            .track(track_number)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "invalid track number"))
+            .or_warn("")?;
+
         let track_size = track.duration.as_usize().strict_mul(FRAME_SIZE);
         debug_assert!(track_size > 0);
 
