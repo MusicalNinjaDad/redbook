@@ -196,6 +196,7 @@ impl CdDrive {
     }
 
     #[cfg(target_family = "windows")]
+    /// Read a chunk of data from the disc to `buf`
     pub fn read_chunk(
         &self,
         track: &Track,
