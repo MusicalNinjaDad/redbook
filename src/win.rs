@@ -511,6 +511,8 @@ impl AudioCdExtMut for AudioCd {
 
     #[expect(refining_impl_trait)]
     fn lock(self) -> ReadOnlyAudioCd {
+        tracing::trace!(audiocd = ?self, "locking");
+        
         ReadOnlyAudioCd {
             drive: self.drive,
             disc: self.disc,
