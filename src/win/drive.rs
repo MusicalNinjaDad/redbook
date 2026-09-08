@@ -93,8 +93,8 @@ impl CdDrive {
 
             let lpfilename = WinString::from(windrive.as_str());
             let dwdesiredaccess = GENERIC_READ;
-            let dwsharemode = FILE_SHARE_READ;
-            let dwcreationdisposition = OPEN_EXISTING;
+            let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
+            let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
 
             CreateFile2(
                 lpfilename.as_pcwstr(),
@@ -127,7 +127,7 @@ impl CdDrive {
             DeviceIoControl(
                 // valid handle - we have just created it
                 handle,
-                IOCTL_CDROM_READ_TOC_EX,
+                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
                 // points to a buffer of type CDROM_READ_TOC_EX
                 &toc_command as *const _ as *const _,
                 // indicates the size, in bytes, of the input buffer,
@@ -252,7 +252,7 @@ impl CdDrive {
 
             DeviceIoControl(
                 *self.handle(),
-                IOCTL_CDROM_RAW_READ,
+                const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },
                 // If the IOCTL is from user mode, Irp->AssociatedIrp.SystemBuffer contains a RAW_READ_INFO
                 // structure that specifies the starting disk offset, the sector count, and the track mode
                 // (XA or CDDA) for the read.
