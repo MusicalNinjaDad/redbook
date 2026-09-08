@@ -298,6 +298,7 @@ mod tests {
             assert_eq!(cda.track_number as u8, track.track_number());
             assert_eq!(cda.start, track.toc_entry.start);
             assert_eq!(cda.duration, track.duration);
+            // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
         }
     }
