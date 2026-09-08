@@ -742,7 +742,10 @@ impl Disc {
         debug.record("status", status.to_string());
 
         if status.is_success() {
-            let image = response.bytes().map_err(io::Error::other).or_debug("unpacking response")?;
+            let image = response
+                .bytes()
+                .map_err(io::Error::other)
+                .or_debug("unpacking response")?;
 
             debug.record("size", image.len());
             tracing::info!("coverart_retrieved");
@@ -846,15 +849,24 @@ impl Disc {
     /// ```
     #[must_use = "may be `Some(Err(_))`"]
     pub fn save_cover_art<P: AsRef<Path>>(&self, directory: P) -> Option<io::Result<PathBuf>> {
+        let debug =
+            tracing::debug_span!("save_cover_art", location = Empty, size = Empty).entered();
+
         let data = &self.cover_art()?.data;
-        let written_to_path = try {
+        debug.record("size", data.len());
+
+        let directory = directory.as_ref().to_owned();
+        debug.record("location", directory.display().to_string());
+
+        let written_to_path = try bikeshed Result<_, _> {
             let path = directory
-                .as_ref()
-                .to_owned()
                 .join("front.jpeg")
-                .absolute()?;
-            let mut cover = File::create_new(&path)?;
-            cover.write_all(data)?;
+                .absolute()
+                .or_warn("unable to identify where to save cover art")?;
+            debug.record("location", path.display().to_string());
+
+            let mut cover = File::create_new(&path).or_warn("saving cover art")?;
+            cover.write_all(data).or_warn("saving cover art")?;
             path
         };
         Some(written_to_path)

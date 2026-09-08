@@ -219,9 +219,8 @@ fn main() -> Exit<()> {
         reason = "do not abort if CoverArtArchive not available"
     )]
     cd.disc_mut().update_cover_art();
-    if let Some(Err(error_saving_coverart)) = cd.disc().save_cover_art(&output_dir) {
-        dbg!(error_saving_coverart);
-    };
+    #[expect(unused_must_use, reason = "don't abort if unable to save cover art")]
+    cd.disc().save_cover_art(&output_dir);
 
     let cd = cd.lock();
     let disc = cd.disc().clone();
