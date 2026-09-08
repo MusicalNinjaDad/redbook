@@ -19,6 +19,14 @@ fn gen_bindings() {
         "IOCTL_CDROM_READ_TOC_EX",
         "RAW_READ_INFO",
         "TRACK_MODE_TYPE",
+        "CloseHandle",
+        "GENERIC_READ",
+        "HANDLE",
+        "INVALID_HANDLE_VALUE",
+        "CreateFile2",
+        "FILE_SHARE_READ",
+        "OPEN_EXISTING",
+        "DeviceIoControl",
     ]);
 
     // Check the output is the same as before.
