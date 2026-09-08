@@ -106,7 +106,6 @@ pub mod test_fixtures;
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 pub use win::AudioCd;
-use windows_sys::Win32::Devices::Cdrom::TRACK_DATA;
 
 use std::{
     convert::TryFrom,
@@ -962,29 +961,6 @@ impl Frame {
     /// ```
     pub fn relative_to_leadin(self) -> Self {
         self - LEADIN
-    }
-}
-
-impl From<&TRACK_DATA> for TocEntry {
-    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
-    ///
-    /// # Arguments
-    ///
-    /// * `track_data` - Raw track data from the Windows CDROM_TOC
-    ///
-    /// # Notes
-    ///
-    /// - The address is read as big-endian and converted to a frame position
-    /// - The lead-in offset is added to get the absolute frame position
-    ///
-    /// # TODOs
-    ///
-    /// - Consider making this fallible with `TryFrom` for better error handling
-    fn from(track_data: &TRACK_DATA) -> Self {
-        let relative = u32::from_be_bytes(track_data.Address);
-        let start = Frame::new(relative as usize) + LEADIN;
-        let track = track_data.TrackNumber;
-        Self { track, start }
     }
 }
 

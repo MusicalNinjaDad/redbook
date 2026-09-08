@@ -10,6 +10,7 @@ use std::{fs, io, path::Path};
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
+use super::bindings::{CDROM_TOC, TRACK_DATA};
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
 /// size of ffi struct [`CDROM_TOC`]
@@ -69,6 +70,29 @@ impl CdromTocExt for CDROM_TOC {
             .map(TocEntry::from)
             .map(|entry| entry.start)
             .ok_or(TocError::SectorOrder)
+    }
+}
+
+impl From<&TRACK_DATA> for TocEntry {
+    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
+    ///
+    /// # Arguments
+    ///
+    /// * `track_data` - Raw track data from the Windows CDROM_TOC
+    ///
+    /// # Notes
+    ///
+    /// - The address is read as big-endian and converted to a frame position
+    /// - The lead-in offset is added to get the absolute frame position
+    ///
+    /// # TODOs
+    ///
+    /// - Consider making this fallible with `TryFrom` for better error handling
+    fn from(track_data: &TRACK_DATA) -> Self {
+        let relative = u32::from_be_bytes(track_data.Address);
+        let start = Frame::new(relative as usize) + LEADIN;
+        let track = track_data.TrackNumber;
+        Self { track, start }
     }
 }
 
