@@ -7,17 +7,10 @@ use std::{
     ptr::{null, null_mut},
 };
 
-use windows_sys::{
-    Win32::{
-        Devices::Cdrom::{
-            CDROM_READ_TOC_EX, CDROM_TOC, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-            RAW_READ_INFO, TRACK_MODE_TYPE,
-        },
-        Foundation::{CloseHandle, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE},
-        Storage::FileSystem::{CreateFile2, FILE_SHARE_READ, OPEN_EXISTING},
-        System::IO::DeviceIoControl,
-    },
-    core::PCWSTR,
+use super::bindings::{
+    CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
+    GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+    OPEN_EXISTING, PCWSTR, RAW_READ_INFO, TRACK_MODE_TYPE,
 };
 
 use super::toc::TOC_SIZE;

@@ -9,7 +9,6 @@ use std::{fs, io, path::Path};
 
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
-use windows_sys::Win32::Devices::Cdrom::CDROM_TOC;
 
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 

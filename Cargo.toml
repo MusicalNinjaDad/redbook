@@ -29,14 +29,6 @@ tracing = "0.1"
 tracing-result = { git = "https://github.com/MusicalNinjaDad/tracing_result/" }
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 windows-link = "0.100.0"
-windows-sys = { version = "0.61.2", features = [
-    "Win32_Devices_Cdrom",
-    "Win32_Storage",
-    "Win32_Storage_FileSystem",
-    "Win32_Security",
-    "Win32_System",
-    "Win32_System_IO",
-] }
 zune-jpeg = "0.5.15"
 
 [dev-dependencies]
