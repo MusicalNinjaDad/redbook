@@ -317,9 +317,11 @@ mod tests {
     fn parse_cdas(#[case] album: TestAlbum) {
         let expected_tracks = album.expected_tracks_minimal();
         let cdas = album.assets_path().join("*.cda");
+        let cdas: Vec<_> = glob(&cdas.to_string_lossy()).unwrap().collect();
 
-        for (cda_file, track) in glob(&cdas.to_string_lossy()).unwrap().zip(expected_tracks) {
-            dbg!(&cda_file);
+        assert_eq!(cdas.len(), expected_tracks.len());
+
+        for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
             assert_eq!(cda.track_number as u8, track.track_number());
             assert_eq!(cda.start, track.toc_entry.start);
