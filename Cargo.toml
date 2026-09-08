@@ -41,6 +41,8 @@ zune-jpeg = "0.5.15"
 [dev-dependencies]
 glob = "0.3.4"
 rstest = "0.26.1"
+similar-asserts = "2.0.0"
+windows-bindgen = "0.100.0"
 
 [build-dependencies]
 build_safely = "0.5.4"
