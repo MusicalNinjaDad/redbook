@@ -257,7 +257,8 @@ pub trait AudioCdExt {
     /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
         let _warn = tracing::warn_span!("read track", track_number).entered();
-        let trace = tracing::trace_span!("read track", track_size = Empty).entered();
+        let trace =
+            tracing::trace_span!("read track", track_size = Empty, bytes_read = Empty).entered();
 
         tracing::info!("");
 
@@ -294,6 +295,7 @@ pub trait AudioCdExt {
 
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
         let mut bytes_read_so_far = 0_i64;
+        trace.record("bytes_read", bytes_read_so_far);
 
         for (i, buf) in bufs.iter_mut().enumerate() {
             let frames_to_read: u32 = MAX_CHUNK_FRAMES.try_into().unwrap();
@@ -315,6 +317,7 @@ pub trait AudioCdExt {
 
             let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read, buf)?;
             bytes_read_so_far += i64::from(bytes_read);
+            trace.record("bytes_read", bytes_read_so_far);
         }
 
         // Frames are multiple bytes, therefore must fit in usize, if track_size does
@@ -334,9 +337,9 @@ pub trait AudioCdExt {
             let bytes_read =
                 self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
             bytes_read_so_far += i64::from(bytes_read);
+            trace.record("bytes_read", bytes_read_so_far);
         }
 
-        tracing::trace!(bytes_read_so_far);
         Ok(data)
     }
 
