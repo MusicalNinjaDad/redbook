@@ -88,12 +88,19 @@
 //! metadata, before obtaining calling [lock][AudioCdExtMut::lock] so you can use separate threads
 //! for reading data and encoding.
 
+#[forbid(unsafe_code)]
 pub mod disc;
+#[forbid(unsafe_code)]
 pub mod hex;
+#[forbid(unsafe_code)]
 pub mod musicbrainz;
+#[forbid(unsafe_code)]
 pub mod tagging;
+
+// provides abstractions over direct hardware access
 pub mod win;
 
+#[forbid(unsafe_code)]
 pub mod test_fixtures;
 
 pub use disc::Disc;

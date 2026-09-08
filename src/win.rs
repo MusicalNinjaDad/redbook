@@ -22,7 +22,10 @@
 // - Panic on failure for any type conversions
 // - Use a liberal application of debug_assert
 
+#[forbid(unsafe_code)]
 mod audiocd;
+
+// This is where any unsafe ffi usage belongs
 pub mod drive;
 pub mod toc;
 
