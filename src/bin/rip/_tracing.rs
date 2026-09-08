@@ -27,7 +27,10 @@ impl Rip {
 
         // If let Some to be explicit about side-effects (file creation)
         let file = if let Some(logpath) = &self.log {
-            let file = fs::File::options().append(true).open(logpath)?;
+            let file = fs::File::options()
+                .append(true)
+                .create(true)
+                .open(logpath)?;
             let loglevel = LevelFilter::from(&self.loglevel);
             let json = match self.format {
                 crate::cli::LogFormat::Human => None,
