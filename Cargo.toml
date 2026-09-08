@@ -4,9 +4,7 @@ description = "CDDA CD digital audio as per RedBook"
 categories = ["Command line utilities", "Multimedia", "Hardware support"]
 keywords = ["ccda", "windows", "flac"]
 authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
-homepage = "https://github.com/MusicalNinjaDad/redbook"
 repository = "https://github.com/MusicalNinjaDad/redbook"
-readme = "README.md"
 license = "MIT"
 edition = "2024"
 version = "0.1.0"
@@ -30,18 +28,14 @@ try_v2 = "0.10.1"
 tracing = "0.1"
 tracing-result = { git = "https://github.com/MusicalNinjaDad/tracing_result/" }
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-windows-sys = { version = "0.61.2", features = [
-    "Win32_Devices_Cdrom",
-    "Win32_Storage",
-    "Win32_Storage_FileSystem",
-    "Win32_Security",
-    "Win32_System",
-    "Win32_System_IO",
-] }
+windows-link = "0.100.0"
 zune-jpeg = "0.5.15"
 
 [dev-dependencies]
+glob = "0.3.4"
 rstest = "0.26.1"
+similar-asserts = "2.0.0"
+windows-bindgen = "0.100.0"
 
 [build-dependencies]
 build_safely = "0.5.4"
@@ -60,8 +54,5 @@ clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "
 clippy.let_underscore_untyped = "deny"
 clippy.unused_result_ok = "deny"
 clippy.used_underscore_binding = "deny"
-
-# Completeness
-rustc.missing_docs = "warn"
 
 # Unsafe lints are documented at top of lib.rs for ease of auditing

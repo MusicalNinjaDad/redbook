@@ -1,7 +1,7 @@
 #[cfg(target_family = "windows")]
 use redbook::hex::hex_dump;
 #[cfg(target_family = "windows")]
-use redbook::win::CdDrive;
+use redbook::win::drive::CdDrive;
 
 #[cfg(target_family = "windows")]
 fn main() {

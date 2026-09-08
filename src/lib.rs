@@ -3,14 +3,21 @@
 #![forbid(clippy::missing_safety_doc)]
 #![deny(clippy::multiple_unsafe_ops_per_block)] // sometimes valuable to inline calls
 #![forbid(clippy::transmute_ptr_to_ptr)]
-#![forbid(clippy::undocumented_unsafe_blocks)]
+#![deny(clippy::undocumented_unsafe_blocks)] // auto-generated bindings
 #![forbid(unsafe_op_in_unsafe_fn)]
 #![forbid(unsafe_attr_outside_unsafe)]
 #![forbid(unused_unsafe)]
+// Only applicable to library
+#![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
 #![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
+#![cfg_attr(
+    all(unstable_integer_cast_extras, target_family = "windows"),
+    feature(integer_cast_extras)
+)]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
+#![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
@@ -87,18 +94,24 @@
 //! metadata, before obtaining calling [lock][AudioCdExtMut::lock] so you can use separate threads
 //! for reading data and encoding.
 
+#[forbid(unsafe_code)]
 pub mod disc;
+#[forbid(unsafe_code)]
 pub mod hex;
+#[forbid(unsafe_code)]
 pub mod musicbrainz;
+#[forbid(unsafe_code)]
 pub mod tagging;
+
+// provides abstractions over direct hardware access
 pub mod win;
 
+#[forbid(unsafe_code)]
 pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 pub use win::AudioCd;
-use windows_sys::Win32::Devices::Cdrom::TRACK_DATA;
 
 use std::{
     convert::TryFrom,
@@ -890,7 +903,11 @@ pub struct TocEntry {
 /// use std::time::Duration;
 /// let frames = Frame::from(Duration::from_secs(1));
 /// assert_eq!(frames.as_usize(), 75);
+///
 /// ```
+///
+/// # TODO
+/// - impl Display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
@@ -950,29 +967,6 @@ impl Frame {
     /// ```
     pub fn relative_to_leadin(self) -> Self {
         self - LEADIN
-    }
-}
-
-impl From<&TRACK_DATA> for TocEntry {
-    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
-    ///
-    /// # Arguments
-    ///
-    /// * `track_data` - Raw track data from the Windows CDROM_TOC
-    ///
-    /// # Notes
-    ///
-    /// - The address is read as big-endian and converted to a frame position
-    /// - The lead-in offset is added to get the absolute frame position
-    ///
-    /// # TODOs
-    ///
-    /// - Consider making this fallible with `TryFrom` for better error handling
-    fn from(track_data: &TRACK_DATA) -> Self {
-        let relative = u32::from_be_bytes(track_data.Address);
-        let start = Frame::new(relative as usize) + LEADIN;
-        let track = track_data.TrackNumber;
-        Self { track, start }
     }
 }
 
@@ -1096,6 +1090,9 @@ impl PartialEq<Msf> for Frame {
 /// let frames = Frame::from(msf);
 /// assert_eq!(frames.as_usize(), 6795);
 /// ```
+///
+///  # TODO
+/// - impl Display
 pub struct Msf {
     /// Minutes component (0-59).
     min: u8,
