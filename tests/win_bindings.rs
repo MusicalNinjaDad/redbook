@@ -13,10 +13,12 @@ fn gen_bindings() {
         "--flat",
         "--sys",
         "--filter",
-        "GetTimeZoneInformationForYear",
-        "SystemTimeToFileTime",
-        "SystemTimeToTzSpecificLocalTime",
-        "TzSpecificLocalTimeToSystemTime",
+        "CDROM_READ_TOC_EX",
+        "CDROM_TOC",
+        "IOCTL_CDROM_RAW_READ",
+        "IOCTL_CDROM_READ_TOC_EX",
+        "RAW_READ_INFO",
+        "TRACK_MODE_TYPE",
     ]);
 
     // Check the output is the same as before.
