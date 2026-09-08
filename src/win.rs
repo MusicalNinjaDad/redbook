@@ -60,6 +60,7 @@ const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 ///
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
+#[clippy::has_significant_drop]
 pub struct CdDrive {
     path: PathBuf,
     handle: HANDLE,
@@ -241,13 +242,13 @@ impl CdDrive {
         frames_to_read: u32,
         buf: &mut [u8],
     ) -> io::Result<u32> {
-        let _span = tracing::trace_span!(
+        let _trace = tracing::trace_span!(
             "CdDrive::read_chunk",
             track = track.toc_entry.track,
             frame_offset,
             frames_to_read
-        );
-        let _enter = _span.enter();
+        )
+        .entered();
         let offset = Sector::from_frame(track.toc_entry.start + frame_offset).offset();
         let read_command = RAW_READ_INFO {
             DiskOffset: offset,
@@ -511,6 +512,8 @@ impl AudioCdExtMut for AudioCd {
 
     #[expect(refining_impl_trait)]
     fn lock(self) -> ReadOnlyAudioCd {
+        tracing::trace!(audiocd = ?self, "locking");
+
         ReadOnlyAudioCd {
             drive: self.drive,
             disc: self.disc,

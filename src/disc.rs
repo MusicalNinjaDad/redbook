@@ -30,6 +30,7 @@ use std::{
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::Fetch;
+use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
@@ -190,8 +191,7 @@ impl Disc {
         leadout: Frame,
     ) -> Result<Self, DiscError> {
         let tracks: Vec<_> = tracks.into_iter().collect();
-        let _span = tracing::info_span!("Disc::new", track_count = tracks.len());
-        let _enter = _span.enter();
+        let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
         if toc.leadout() != leadout.as_usize() as u32 {
             return Err(DiscError::IncorrectLeadout);
@@ -422,8 +422,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
-        let _span = tracing::debug_span!("Disc::track", track_number = track_number);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::track", track_number = track_number).entered();
         let mut track = self.tracks.get(track_number - 1).cloned()?;
         track.meta = self
             .release()
@@ -460,8 +459,8 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn tracks(&self) -> Tracks<'_> {
-        let _span = tracing::debug_span!("Disc::tracks", track_count = self.tracks.len());
-        let _enter = _span.enter();
+        let _debug =
+            tracing::debug_span!("Disc::tracks", track_count = self.tracks.len()).entered();
         Tracks { disc: self, i: 0 }
     }
 
@@ -491,8 +490,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn set_release(&mut self, index: Option<usize>) -> &mut Self {
-        let _span = tracing::debug_span!("Disc::set_release", index = ?index);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::set_release", index = ?index).entered();
         self.release_index = match index {
             Some(index)
                 if self
@@ -506,7 +504,7 @@ impl Disc {
             }
             _ => None,
         };
-        let _ = self.reset_disc_index();
+        self.reset_disc_index();
         self
     }
 
@@ -616,6 +614,7 @@ impl Disc {
             Some(releases) if releases.len() == 1 => Some(1),
             _ => None,
         };
+        tracing::debug!(release_index = self.release_index);
         self
     }
 
@@ -718,32 +717,44 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn update_cover_art(&mut self) -> io::Result<()> {
+        let debug = tracing::debug_span!("", url = Empty, size = Empty, status = Empty).entered();
+        tracing::trace!("");
         let release_mbid = self
             .release()
-            .ok_or_else(|| io::Error::other("No releases found"))?
+            .ok_or_else(|| io::Error::other("No releases found"))
+            .or_warn("")?
             .id
             .clone();
 
         let client = reqwest::blocking::Client::new();
         let url = format!("https://coverartarchive.org/release/{release_mbid}/front");
+        debug.record("url", &url);
+        tracing::trace!("");
+
         let response = client
             .get(&url)
             .header("User-Agent", "splurt/0.1.0")
             .send()
-            .map_err(io::Error::other)?;
+            .map_err(io::Error::other)
+            .or_debug("requesting cover art")?;
 
-        let _span = tracing::info_span!("update_cover_art", url = %url);
-        let _enter = _span.enter();
+        let status = response.status();
+        debug.record("status", status.to_string());
 
-        if response.status().is_success() {
-            let image = response.bytes().map_err(io::Error::other)?;
+        if status.is_success() {
+            let image = response
+                .bytes()
+                .map_err(io::Error::other)
+                .or_debug("unpacking response")?;
+
+            debug.record("size", image.len());
+            tracing::info!("coverart_retrieved");
+
             let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image.clone());
             self.coverart = Some(cover);
-            tracing::info!(size_bytes = image.len(), "coverart_retrieved");
         } else {
-            let status = response.status();
             let reason = response.text().ok();
-            tracing::warn!(url = %url, status = %status, reason = ?reason, "coverart_failed");
+            tracing::warn!(name: "coverart failed", reason = ?reason);
         }
         Ok(())
     }
@@ -838,15 +849,24 @@ impl Disc {
     /// ```
     #[must_use = "may be `Some(Err(_))`"]
     pub fn save_cover_art<P: AsRef<Path>>(&self, directory: P) -> Option<io::Result<PathBuf>> {
+        let debug =
+            tracing::debug_span!("save_cover_art", location = Empty, size = Empty).entered();
+
         let data = &self.cover_art()?.data;
-        let written_to_path = try {
+        debug.record("size", data.len());
+
+        let directory = directory.as_ref().to_owned();
+        debug.record("location", directory.display().to_string());
+
+        let written_to_path = try bikeshed Result<_, _> {
             let path = directory
-                .as_ref()
-                .to_owned()
                 .join("front.jpeg")
-                .absolute()?;
-            let mut cover = File::create_new(&path)?;
-            cover.write_all(data)?;
+                .absolute()
+                .or_warn("unable to identify where to save cover art")?;
+            debug.record("location", path.display().to_string());
+
+            let mut cover = File::create_new(&path).or_warn("saving cover art")?;
+            cover.write_all(data).or_warn("saving cover art")?;
             path
         };
         Some(written_to_path)
@@ -884,8 +904,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
-        let _span = tracing::debug_span!("Disc::tag_for", track_number = track_number);
-        let _enter = _span.enter();
+        let _debug = tracing::debug_span!("Disc::tag_for", track_number = track_number).entered();
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 

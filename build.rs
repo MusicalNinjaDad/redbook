@@ -43,7 +43,10 @@ fn main() -> Result<()> {
         OtherFeature("path_absolute_method".to_string()),
         &allowed_features,
     );
-    ac.emit_unstable_feature(OtherFeature("try_blocks".to_string()), &allowed_features);
+    ac.emit_unstable_feature(
+        OtherFeature("try_blocks_heterogeneous".to_string()),
+        &allowed_features,
+    );
 
     Ok(())
 }

@@ -53,7 +53,8 @@ fn main() -> Exit<()> {
     let drive = PathBuf::from_str(&ripper.drive)?;
 
     ripper.init_tracing()?;
-    let mut _info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty).entered();
+    let info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty, artist = Empty)
+        .entered();
 
     let mut cd: AudioCd = AudioCd::new(drive)?;
 
@@ -118,14 +119,17 @@ fn main() -> Exit<()> {
                     };
                 };
                 cd.disc_mut().set_release(Some(selected));
+                tracing::debug!(
+                    name: "manually selected release",
+                    title = %cd.disc().title().unwrap_or_default(),
+                    country = %cd.disc().release().unwrap().country.clone().unwrap_or_default(),
+                    date = %cd.disc().release().unwrap().date.as_ref().cloned().unwrap_or_default()
+                );
             };
         }
     };
 
     let mut disc_title = cd.disc().title().unwrap_or_else(|| "Unknown".to_string());
-
-    _info.record("title", &disc_title);
-
     if cd
         .disc()
         .release()
@@ -140,6 +144,7 @@ fn main() -> Exit<()> {
                 .unwrap_or_else(|| "Unknown".to_string())
         ));
     }
+    info.record("title", &disc_title);
 
     let selected_track = match (ripper.all, ripper.track_number) {
         (true, Some(_)) => {
@@ -164,7 +169,7 @@ fn main() -> Exit<()> {
                     let mut input = String::new();
                     println!("\nEnter the track number to rip (a for all):");
 
-                    let _ = io::stdin().read_line(&mut input).map_err(|error| {
+                    let _: usize = io::stdin().read_line(&mut input).map_err(|error| {
                         println!(
                             "oops ... problem understanding you ... it's me, not you. {error}"
                         );
@@ -202,10 +207,11 @@ fn main() -> Exit<()> {
         .disc()
         .main_artist()
         .unwrap_or_else(|| "Unknown".to_string());
+    info.record("artist", &artist);
 
     // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
-    dbg!(&output_dir);
+    tracing::debug!(output_dir = %output_dir.display());
     fs::create_dir_all(&output_dir)?;
 
     #[expect(
@@ -213,9 +219,8 @@ fn main() -> Exit<()> {
         reason = "do not abort if CoverArtArchive not available"
     )]
     cd.disc_mut().update_cover_art();
-    if let Some(Err(error_saving_coverart)) = cd.disc().save_cover_art(&output_dir) {
-        dbg!(error_saving_coverart);
-    };
+    #[expect(unused_must_use, reason = "don't abort if unable to save cover art")]
+    cd.disc().save_cover_art(&output_dir);
 
     let cd = cd.lock();
     let disc = cd.disc().clone();
