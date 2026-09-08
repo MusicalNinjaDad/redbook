@@ -111,11 +111,13 @@ pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use tracing::field::Empty;
+use tracing_result::Trace;
 pub use win::AudioCd;
 
 use std::{
     convert::TryFrom,
-    io,
+    io::{self, ErrorKind},
     ops::{Add, Rem, Sub},
     sync::Arc,
     time::Duration,
@@ -254,18 +256,46 @@ pub trait AudioCdExt {
     /// - For a typical 4-minute song, this will be approximately 40-50 MB
     /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
-        let track = self.disc().track(track_number).unwrap();
-        tracing::info!(track_number = track.track_number(), "read_track");
-        let track_size = track.duration.as_usize().strict_mul(FRAME_SIZE);
-        debug_assert!(track_size > 0);
+        let _warn = tracing::warn_span!("read track", track_number).entered();
+        let trace =
+            tracing::trace_span!("read track", track_size = Empty, bytes_read = Empty).entered();
+
+        tracing::info!("");
+
+        let track = self
+            .disc()
+            .track(track_number)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "invalid track number"))
+            .or_warn("")?;
+
+        let track_size = track
+            .duration
+            .as_usize()
+            .checked_mul(FRAME_SIZE)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::FileTooLarge,
+                    format!(
+                        "track too long. {size} bytes but can only handle {max}",
+                        size = (track.duration.as_usize() as u128) * (FRAME_SIZE as u128),
+                        max = usize::MAX
+                    ),
+                )
+            })
+            .or_error("")?;
+
+        trace.record("track_size", track_size);
+
+        (track_size > 0)
+            .ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "zero length track"))
+            .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size];
-        tracing::trace!(data_len = data.len());
 
-        // TODO: Handle very short tracks < MAX_CHUNK_FRAMES
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
         let mut bytes_read_so_far = 0_i64;
+        trace.record("bytes_read", bytes_read_so_far);
 
         for (i, buf) in bufs.iter_mut().enumerate() {
             let frames_to_read: u32 = MAX_CHUNK_FRAMES.try_into().unwrap();
@@ -287,9 +317,11 @@ pub trait AudioCdExt {
 
             let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read, buf)?;
             bytes_read_so_far += i64::from(bytes_read);
+            trace.record("bytes_read", bytes_read_so_far);
         }
 
-        let frame_offset = bufs.len().strict_mul(MAX_CHUNK_FRAMES);
+        // Frames are multiple bytes, therefore must fit in usize, if track_size does
+        let frame_offset = bufs.len() * MAX_CHUNK_FRAMES;
         debug_assert_eq!(
             i64::try_from(frame_offset)
                 .unwrap()
@@ -297,12 +329,17 @@ pub trait AudioCdExt {
             bytes_read_so_far,
             "about to read last chunk. We have read {frame_offset} frames, but only {bytes_read_so_far} bytes so far"
         );
-        let frames_to_read = track.duration.as_usize().strict_rem(MAX_CHUNK_FRAMES);
 
-        let bytes_read = self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
-        bytes_read_so_far += i64::from(bytes_read);
+        let frames_to_read = track.duration.as_usize().rem(MAX_CHUNK_FRAMES);
+        debug_assert_eq!(frames_to_read * FRAME_SIZE, last_buf.len());
 
-        tracing::trace!(bytes_read_so_far);
+        if !last_buf.is_empty() {
+            let bytes_read =
+                self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
+            bytes_read_so_far += i64::from(bytes_read);
+            trace.record("bytes_read", bytes_read_so_far);
+        }
+
         Ok(data)
     }
 
