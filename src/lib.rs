@@ -15,6 +15,7 @@
 #![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![feature(iter_next_chunk)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -890,7 +891,11 @@ pub struct TocEntry {
 /// use std::time::Duration;
 /// let frames = Frame::from(Duration::from_secs(1));
 /// assert_eq!(frames.as_usize(), 75);
+///
 /// ```
+///
+/// # TODO
+/// - impl Display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
@@ -1096,6 +1101,9 @@ impl PartialEq<Msf> for Frame {
 /// let frames = Frame::from(msf);
 /// assert_eq!(frames.as_usize(), 6795);
 /// ```
+///
+///  # TODO
+/// - impl Display
 pub struct Msf {
     /// Minutes component (0-59).
     min: u8,
