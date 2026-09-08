@@ -60,6 +60,7 @@ const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 ///
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
+#[clippy::has_significant_drop]
 pub struct CdDrive {
     path: PathBuf,
     handle: HANDLE,
