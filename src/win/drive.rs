@@ -564,10 +564,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             )
         };
 
-        debug.record(
-            "path",
-            String::from_utf16_lossy(&deviceinterfacedetaildata.DevicePath),
-        );
+        debug.record("path", deviceinterfacedetaildata.to_string());
 
         let err = io::Error::last_os_error();
 
@@ -641,6 +638,18 @@ impl DeviceDetails {
     fn check_size(requiredsize: u32) -> io::Result<()> {
         (requiredsize <= size_of::<Self>() as u32)
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
+    }
+}
+
+impl Display for DeviceDetails {
+    /// Output the path, parsing correctly as null-terminated utf16
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let len = self
+            .DevicePath
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(self.DevicePath.len());
+        Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
     }
 }
 
