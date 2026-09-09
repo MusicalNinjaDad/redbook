@@ -472,7 +472,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         tracing::debug!("... found");
 
-        let mut deviceinterfacedetaildatasize = 0;
+        let mut deviceinterfacedetaildatasize: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -551,7 +551,9 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             String::from_utf16_lossy(&deviceinterfacedetaildata.DevicePath),
         );
 
-        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize);
+        let err = io::Error::last_os_error();
+
+        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, %err);
     }
 
     Ok(())
