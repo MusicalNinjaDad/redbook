@@ -472,7 +472,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         tracing::debug!("... found");
 
-        let mut deviceinterfacedetaildatasize: u32 = 0;
+        let mut requiredsize: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -491,7 +491,11 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
                 // a DeviceInterfaceDetailDataSize of zero
                 0,
                 // a valid RequiredSize variable
-                &mut deviceinterfacedetaildatasize as *mut _,
+                //
+                // Receives the required size of the DeviceInterfaceDetailData buffer.
+                // This size includes the size of the fixed part of the structure plus the number
+                // of bytes required for the variable-length device path string.
+                &mut requiredsize as *mut _,
                 null_mut(),
             )
         };
@@ -503,16 +507,21 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         let err = io::Error::last_os_error();
         tracing::debug!(%err, "hopefully ERROR_INSUFFICIENT_BUFFER");
-        tracing::debug!(deviceinterfacedetaildatasize);
+        tracing::debug!(requiredsize);
 
-        // SAFETY: the caller must set DeviceInterfaceDetailData.cbSize to
-        // izeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
-        // The cbSize member always contains the size of the fixed part of the data structure,
-        // not a size reflecting the variable-length string at the end.
-        let mut deviceinterfacedetaildata = SP_DEVICE_INTERFACE_DETAIL_DATA_W {
-            cbSize: size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32,
-            ..Default::default()
-        };
+        // SAFETY:
+        // Buffer required to be large enough
+        DeviceDetails::check_size(requiredsize).or_error("")?;
+
+        // SAFETY:
+        // 1. cbSize is fixed to correct value via construction:
+        //    the caller must set DeviceInterfaceDetailData.cbSize to
+        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        //    The cbSize member always contains the size of the fixed part of the data structure,
+        //    not a size reflecting the variable-length string at the end.
+        //
+        // 2. buffer length is validated as large enough via call to DeviceDetails::check_size above
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -535,12 +544,21 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
                 // fixed part of the data structure, not a size reflecting the variable-length
                 // string at the end.**
                 //
-                // SAFETY: **cbSize set upon construction**
-                &mut deviceinterfacedetaildata as *mut _,
-                // The size of the DeviceInterfaceDetailData buffer.
+                // SAFETY:
+                // 1. cbSize set upon construction
+                // 2. buffer size validated via call to get requiredsize above
+                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
+                //    with identical fields, layout & alignment
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
+                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
+                // to contain the fixed part of the structure and a single NULL to terminate an
+                // empty MULTI_SZ string.
                 //
-                // Obtained above as per 2-step process recommended in docs
-                deviceinterfacedetaildatasize,
+                // Therefore this size must be the total size of the DeviceDetails struct, which
+                // is known to have sufficient buffer for the fixed part, path + termination
+                const { size_of::<DeviceDetails>() as u32 },
                 null_mut(),
                 null_mut(),
             )
@@ -580,6 +598,39 @@ impl Display for Guid {
             u16::from_be_bytes(data4),
             u64::from_be_bytes(data5)
         )
+    }
+}
+
+#[repr(C)]
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+#[expect(nonstandard_style, reason = "mimic C++ struct")]
+/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DeviceDetails {
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; 264] = [0; _],
+}
+
+#[repr(C)]
+#[cfg(target_arch = "x86")]
+#[expect(nonstandard_style, reason = "mimic C++ struct")]
+/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DeviceDetails {
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; 264] = [0; _],
+}
+
+impl DeviceDetails {
+    fn check_size(requiredsize: u32) -> io::Result<()> {
+        (requiredsize <= size_of::<Self>() as u32)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
     }
 }
 
