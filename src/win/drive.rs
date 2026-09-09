@@ -418,7 +418,8 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
     for drive_index in 0.. {
-        let debug = tracing::debug_span!("list drives", drive_index, guid = Empty).entered();
+        let debug =
+            tracing::debug_span!("list drives", drive_index, guid = Empty, path = Empty).entered();
 
         tracing::debug!("checking ...");
 
@@ -465,7 +466,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             break;
         }
         debug.record(
-            "giud",
+            "guid",
             Guid(deviceinterfacedata.InterfaceClassGuid).to_string(),
         );
 
@@ -545,7 +546,12 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             )
         };
 
-        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, path = ?deviceinterfacedetaildata.DevicePath);
+        debug.record(
+            "path",
+            String::from_utf16_lossy(&deviceinterfacedetaildata.DevicePath),
+        );
+
+        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize);
     }
 
     Ok(())
