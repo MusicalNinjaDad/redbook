@@ -15,26 +15,26 @@ use super::bindings::{
     GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
     OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
 };
-
 use super::toc::TOC_SIZE;
 use crate::{
     FRAME_SIZE, Frame, Track,
+    hex::hex_dump,
     win::bindings::{
-        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID, GUID_DEVINTERFACE_CDROM,
+        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID, GUID_DEVINTERFACE_CDROM, HDEVINFO,
         SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces,
         SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
 };
-use crate::{hex::hex_dump, win::bindings::HDEVINFO};
+
+use safe_seal::DriveHandle;
 
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
-#[clippy::has_significant_drop]
 pub struct CdDrive {
     path: PathBuf,
-    handle: HANDLE,
+    handle: DriveHandle,
     toc: CDROM_TOC,
 }
 
@@ -88,51 +88,8 @@ impl CdDrive {
 
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let handle = DriveHandle::open(windrive).or_error("")?;
-
-        let toc_command = CDROM_READ_TOC_EX {
-            SessionTrack: 1,
-            ..Default::default()
-        };
-
-        let mut toc = CDROM_TOC::default();
-        let mut bytes_read: u32 = 0;
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        let read_toc = unsafe {
-            // SAFETY: inline based on
-            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
-            DeviceIoControl(
-                // valid handle - we have just created it
-                handle.0,
-                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
-                // points to a buffer of type CDROM_READ_TOC_EX
-                &toc_command as *const _ as *const _,
-                // indicates the size, in bytes, of the input buffer,
-                // which must be >= sizeof(CDROM_READ_TOC_EX).
-                size_of_val(&toc_command) as u32,
-                // CDROM_READ_TOC_EX does not allow setting `Format` but
-                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
-                // The output data is reported in a CDROM_TOC structure.
-                &mut toc as *mut _ as *mut _,
-                size_of_val(&toc) as u32,
-                &mut bytes_read as *mut _,
-                null_mut(),
-            )
-        };
-        if read_toc == 0 {
-            let error = io::Error::last_os_error();
-            tracing::error!(name:"reading TOC", bytes_read, %error);
-
-            #[expect(unsafe_code, reason = "ffi call")]
-            unsafe {
-                // SAFETY: handle has not been closed or mutated since it was opened above
-                CloseHandle(handle.0 as *mut _)
-            };
-
-            return Err(error);
-        };
-        assert!(bytes_read <= TOC_SIZE as u32);
-        Ok(Self { path, handle: handle.0, toc })
+        let toc = handle.read_toc()?;
+        Ok(Self { path, handle, toc })
     }
 
     /// The path of the drive
@@ -152,7 +109,8 @@ impl CdDrive {
         reason = "required to be unsafe, to allow CdDrive to be Send"
     )]
     pub unsafe fn handle(&self) -> &HANDLE {
-        &self.handle
+        // SAFETY: We provide the same safety message regarding `Send`
+        unsafe { self.handle.as_handle() }
     }
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
@@ -273,21 +231,6 @@ impl CdDrive {
             ));
         }
         Ok(bytes_read)
-    }
-}
-
-#[cfg(target_family = "windows")]
-impl Drop for CdDrive {
-    fn drop(&mut self) {
-        #[expect(unsafe_code, reason = "ffi call")]
-        unsafe {
-            // SAFETY: handle
-            // - was opened and validated in `open()`
-            // - has not been closed (no such methods provided on Self)
-            // - has not been externally mutated (no such methods provided on Self)
-            CloseHandle(self.handle as *mut _);
-        }
-        // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
     }
 }
 
@@ -629,42 +572,135 @@ impl Display for DeviceDetails {
     }
 }
 
-/// A open file handle which is known to point to a valid drive
-struct DriveHandle(HANDLE);
+mod safe_seal {
 
-impl DriveHandle {
-    fn open(path: WinString) -> io::Result<Self> {
-        #[expect(unsafe_code, reason = "ffi call")]
+    use super::*;
+    /// A open file handle which is known to point to a valid drive.
+    ///
+    /// # SAFETY
+    /// - Stored handle is not public. Can only be created via provided functions ensuring this
+    ///   is a safe new-type wrapper
+    /// - Handle is closed on Drop
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct DriveHandle(HANDLE);
+
+    /// # SAFETY
+    /// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to
+    ///   [`as_handle`][Self::as_handle] which includes specific safety restrictions allowing
+    ///   `DriveHandle` to be [Send]
+    /// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
+    #[expect(
+        unsafe_code,
+        reason = "Want to be able to rip in one thread and encode in another"
+    )]
+    // SAFETY: See documentation comment
+    unsafe impl Send for DriveHandle {}
+
+    #[cfg(target_family = "windows")]
+    impl Drop for DriveHandle {
+        fn drop(&mut self) {
+            #[expect(unsafe_code, reason = "ffi call")]
+            unsafe {
+                // SAFETY: handle
+                // - was opened and validated in `open()`
+                // - has not been closed (no such methods provided on Self)
+                // - has not been externally mutated (no such methods provided on Self)
+                CloseHandle(self.0 as *mut _);
+            }
+            // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
+        }
+    }
+
+    #[cfg(target_family = "windows")]
+    impl DriveHandle {
+        pub fn open(path: WinString) -> io::Result<Self> {
+            #[expect(unsafe_code, reason = "ffi call")]
+            #[expect(
+                clippy::multiple_unsafe_ops_per_block,
+                reason = "embedded call to ensure raw pointer dropped immediately"
+            )]
+            let handle: HANDLE = unsafe {
+                // SAFETY:
+                // - All parameter values constructed with provided consts, no magic numbers used
+                // - path is owned by this function and therefore valid for duration of this block
+                // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
+
+                let dwdesiredaccess = GENERIC_READ;
+                let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
+                let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
+
+                CreateFile2(
+                    path.as_pcwstr(),
+                    dwdesiredaccess,
+                    dwsharemode,
+                    dwcreationdisposition,
+                    null(),
+                )
+            };
+            // If the function fails, the return value is INVALID_HANDLE_VALUE.
+            // To get extended error information, call GetLastError.
+            if handle == INVALID_HANDLE_VALUE {
+                let error = io::Error::last_os_error();
+                tracing::error!(name: "getting handle for drive", %error);
+                return Err(error);
+            };
+            Ok(Self(handle))
+        }
+
+        pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
+            let toc_command = CDROM_READ_TOC_EX {
+                SessionTrack: 1,
+                ..Default::default()
+            };
+
+            let mut toc = CDROM_TOC::default();
+            let mut bytes_read: u32 = 0;
+
+            #[expect(unsafe_code, reason = "ffi call")]
+            let read_toc = unsafe {
+                // SAFETY: inline based on
+                // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+                DeviceIoControl(
+                    // valid handle - can only be created via Self::open
+                    self.0,
+                    const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
+                    // points to a buffer of type CDROM_READ_TOC_EX
+                    &toc_command as *const _ as *const _,
+                    // indicates the size, in bytes, of the input buffer,
+                    // which must be >= sizeof(CDROM_READ_TOC_EX).
+                    size_of_val(&toc_command) as u32,
+                    // CDROM_READ_TOC_EX does not allow setting `Format` but
+                    // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
+                    // The output data is reported in a CDROM_TOC structure.
+                    &mut toc as *mut _ as *mut _,
+                    size_of_val(&toc) as u32,
+                    &mut bytes_read as *mut _,
+                    null_mut(),
+                )
+            };
+            let _error_span = tracing::error_span!("reading TOC", bytes_read).entered();
+            (read_toc != 0)
+                .ok_or_else(io::Error::last_os_error)
+                .or_error("")?;
+            Ok(toc)
+        }
+    }
+
+    impl DriveHandle {
+        /// Obtain a reference to the underlying [`HANDLE`] for the drive.
+        ///
+        /// # SAFETY
+        /// - [`DriveHandle`] is marked as [`Send`]. Callers must ensure that the handle is not
+        ///   used to enable concurrent access to the drive ("processes and threads that share
+        ///   the same file must synchronize their access").
+        ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
         #[expect(
-            clippy::multiple_unsafe_ops_per_block,
-            reason = "embedded call to ensure raw pointer dropped immediately"
+            unsafe_code,
+            reason = "required to be unsafe, to allow DriveHandle to be Send"
         )]
-        let handle: HANDLE = unsafe {
-            // SAFETY:
-            // - All parameter values constructed with provided consts, no magic numbers used
-            // - path is owned by this function and therefore valid for duration of this block
-            // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
-
-            let dwdesiredaccess = GENERIC_READ;
-            let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
-            let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
-
-            CreateFile2(
-                path.as_pcwstr(),
-                dwdesiredaccess,
-                dwsharemode,
-                dwcreationdisposition,
-                null(),
-            )
-        };
-        // If the function fails, the return value is INVALID_HANDLE_VALUE.
-        // To get extended error information, call GetLastError.
-        if handle == INVALID_HANDLE_VALUE {
-            let error = io::Error::last_os_error();
-            tracing::error!(name: "getting handle for drive", %error);
-            return Err(error);
-        };
-        Ok(Self(handle))
+        pub unsafe fn as_handle(&self) -> &HANDLE {
+            &self.0
+        }
     }
 }
 
