@@ -7,7 +7,7 @@ authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
 repository = "https://github.com/MusicalNinjaDad/redbook"
 license = "MIT"
 edition = "2024"
-version = "0.1.2"
+version = "0.0.0"
 exclude = [
     "/.vibe/plans",
     "/.vibe/.tmp",
