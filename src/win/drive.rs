@@ -21,7 +21,8 @@ use crate::{
     FRAME_SIZE, Frame, Track,
     win::bindings::{
         DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID, GUID_DEVINTERFACE_CDROM,
-        SP_DEVICE_INTERFACE_DATA, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces,
+        SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
 };
 use crate::{hex::hex_dump, win::bindings::HDEVINFO};
@@ -418,7 +419,7 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
 pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
     for drive_index in 0.. {
         let debug = tracing::debug_span!("list drives", drive_index, guid = Empty).entered();
-        
+
         tracing::debug!("checking ...");
 
         // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
@@ -463,9 +464,88 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             tracing::debug!("... not found");
             break;
         }
-        debug.record("giud", Guid(deviceinterfacedata.InterfaceClassGuid).to_string());
+        debug.record(
+            "giud",
+            Guid(deviceinterfacedata.InterfaceClassGuid).to_string(),
+        );
 
         tracing::debug!("... found");
+
+        let mut deviceinterfacedetaildatasize = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        //
+        // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+        // NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+        // and a valid RequiredSize variable. In response to such a call, this function returns
+        // the required buffer size at RequiredSize and fails with GetLastError
+        // returning ERROR_INSUFFICIENT_BUFFER.
+        let get_required_buffer_size = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                deviceinfoset,
+                &deviceinterfacedata as *const _,
+                // a NULLDeviceInterfaceDetailData pointer
+                null_mut(),
+                // a DeviceInterfaceDetailDataSize of zero
+                0,
+                // a valid RequiredSize variable
+                &mut deviceinterfacedetaildatasize as *mut _,
+                null_mut(),
+            )
+        };
+
+        if get_required_buffer_size != 0 {
+            tracing::debug!("should have errored");
+            break;
+        }
+
+        let err = io::Error::last_os_error();
+        tracing::debug!(%err, "hopefully ERROR_INSUFFICIENT_BUFFER");
+        tracing::debug!(deviceinterfacedetaildatasize);
+
+        // SAFETY: the caller must set DeviceInterfaceDetailData.cbSize to
+        // izeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        // The cbSize member always contains the size of the fixed part of the data structure,
+        // not a size reflecting the variable-length string at the end.
+        let mut deviceinterfacedetaildata = SP_DEVICE_INTERFACE_DETAIL_DATA_W {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32,
+            ..Default::default()
+        };
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        let get_details = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
+                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
+                // typically returned by SetupDiEnumDeviceInterfaces.
+                &deviceinterfacedata as *const _,
+                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
+                // about the specified interface.
+                //
+                // ** If this parameter is specified, the caller must set
+                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
+                // before calling this function. The cbSize member always contains the size of the
+                // fixed part of the data structure, not a size reflecting the variable-length
+                // string at the end.**
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedetaildata as *mut _,
+                // The size of the DeviceInterfaceDetailData buffer.
+                //
+                // Obtained above as per 2-step process recommended in docs
+                deviceinterfacedetaildatasize,
+                null_mut(),
+                null_mut(),
+            )
+        };
+
+        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, path = ?deviceinterfacedetaildata.DevicePath);
     }
 
     Ok(())
