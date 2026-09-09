@@ -7,6 +7,7 @@ use std::{
     ptr::{null, null_mut},
 };
 
+use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::bindings::{
@@ -415,15 +416,17 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
 /// CURRENTLY UNSAFE as HDEVINFO is a type alias not a NewType
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
-    // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
-    // before calling SetupDiEnumDeviceInterfaces
-    let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
-        cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
-        ..Default::default()
-    };
-
     for drive_index in 0.. {
-        tracing::debug!(drive_index);
+        let debug = tracing::debug_span!("list drives", drive_index, guid = Empty).entered();
+        
+        tracing::debug!("checking ...");
+
+        // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+        // before calling SetupDiEnumDeviceInterfaces
+        let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: inline based on
@@ -457,10 +460,12 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
         // repeatedly increment MemberIndex and retrieve an interface until this function
         // fails and GetLastError returns ERROR_NO_MORE_ITEMS
         if get_data == 0 {
+            tracing::debug!("... not found");
             break;
         }
+        debug.record("giud", Guid(deviceinterfacedata.InterfaceClassGuid).to_string());
 
-        tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid));
+        tracing::debug!("... found");
     }
 
     Ok(())
