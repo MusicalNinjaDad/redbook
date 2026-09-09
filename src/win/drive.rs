@@ -1,7 +1,7 @@
 //! Handles direct hardware access via Windows APIs
 
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     io::{self, ErrorKind},
     path::{Path, PathBuf},
     ptr::{null, null_mut},
@@ -19,7 +19,8 @@ use super::toc::TOC_SIZE;
 use crate::{
     FRAME_SIZE, Frame, Track,
     win::bindings::{
-        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID_DEVINTERFACE_CDROM, SetupDiGetClassDevsW,
+        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID, GUID_DEVINTERFACE_CDROM,
+        SP_DEVICE_INTERFACE_DATA, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     },
 };
 use crate::{hex::hex_dump, win::bindings::HDEVINFO};
@@ -405,7 +406,96 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
     (handle != INVALID_HANDLE_VALUE)
         .ok_or_else(io::Error::last_os_error)
         .or_warn("invalid handle")?;
-    
+
     tracing::debug!(?handle);
     Ok(handle)
+}
+
+/// output drive details via tracing
+/// CURRENTLY UNSAFE as HDEVINFO is a type alias not a NewType
+#[expect(clippy::not_unsafe_ptr_arg_deref)]
+pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
+    // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+    // before calling SetupDiEnumDeviceInterfaces
+    let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+        cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+        ..Default::default()
+    };
+
+    #[expect(unsafe_code, reason = "ffi call")]
+    // SAFETY: inline based on
+    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+    unsafe {
+        SetupDiEnumDeviceInterfaces(
+            // A pointer to a device information set that contains the device
+            // interfaces for which to return information.
+            // UNSAFE DO NOT KEEP THIS PUBlIC
+            deviceinfoset,
+            // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+            // information about the interfaces that are associated with all the device
+            // information elements in DeviceInfoSet
+            null(),
+            // A pointer to a GUID that specifies the device interface class for the
+            // requested interface.
+            &GUID_DEVINTERFACE_CDROM as *const _,
+            // A zero-based index into the list of interfaces in the device information set.
+            0,
+            // A pointer to a caller-allocated buffer that contains, on successful return,
+            // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+            // that meets the search parameters.
+            // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+            // before calling this function.
+            //
+            // SAFETY: **cbSize set upon construction**
+            &mut deviceinterfacedata as *mut _,
+        )
+    };
+
+    tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid));
+
+    Ok(())
+}
+
+struct Guid(GUID);
+
+impl Display for Guid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let guid = self.0;
+
+        let mut data4 = [0; 2];
+        data4.copy_from_slice(&guid.data4[0..=1]);
+
+        let mut data5 = [0; 8];
+        data5[2..].copy_from_slice(&guid.data4[2..]);
+
+        write!(
+            f,
+            "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+            guid.data1,
+            guid.data2,
+            guid.data3,
+            u16::from_be_bytes(data4),
+            u64::from_be_bytes(data5)
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::win::{bindings::GUID, drive::Guid};
+
+    #[test]
+    /// See https://learn.microsoft.com/en-us/dotnet/api/system.guid.-ctor?view=net-10.0#system-guid-ctor(system-int32-system-int16-system-int16-system-byte())
+    fn format_guid() {
+        let guid = Guid(GUID {
+            data1: 1,
+            data2: 2,
+            data3: 3,
+            data4: [0, 1, 2, 3, 4, 5, 6, 7],
+        });
+
+        let expected = "00000001-0002-0003-0001-020304050607";
+
+        assert_eq!(guid.to_string(), expected);
+    }
 }
