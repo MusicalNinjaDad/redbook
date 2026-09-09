@@ -8,6 +8,12 @@ repository = "https://github.com/MusicalNinjaDad/redbook"
 license = "MIT"
 edition = "2024"
 version = "0.1.2"
+exclude = [
+    "/.vibe/plans",
+    "/.vibe/.tmp",
+    "/docs/**/*.json",
+    "/graphify-out/cache",
+]
 
 [dependencies]
 cdtoc = "0.14.0"
@@ -26,7 +32,7 @@ serde_json = "1.0"
 tabular = "0.2.0"
 try_v2 = "0.10.1"
 tracing = "0.1"
-tracing-result = { git = "https://github.com/MusicalNinjaDad/tracing_result/" }
+tracing-result = "0.0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
 windows-link = "0.100.0"
 zune-jpeg = "0.5.15"
