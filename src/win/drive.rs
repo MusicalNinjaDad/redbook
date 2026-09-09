@@ -422,36 +422,46 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
         ..Default::default()
     };
 
-    #[expect(unsafe_code, reason = "ffi call")]
-    // SAFETY: inline based on
-    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
-    unsafe {
-        SetupDiEnumDeviceInterfaces(
-            // A pointer to a device information set that contains the device
-            // interfaces for which to return information.
-            // UNSAFE DO NOT KEEP THIS PUBlIC
-            deviceinfoset,
-            // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
-            // information about the interfaces that are associated with all the device
-            // information elements in DeviceInfoSet
-            null(),
-            // A pointer to a GUID that specifies the device interface class for the
-            // requested interface.
-            &GUID_DEVINTERFACE_CDROM as *const _,
-            // A zero-based index into the list of interfaces in the device information set.
-            0,
-            // A pointer to a caller-allocated buffer that contains, on successful return,
-            // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
-            // that meets the search parameters.
-            // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
-            // before calling this function.
-            //
-            // SAFETY: **cbSize set upon construction**
-            &mut deviceinterfacedata as *mut _,
-        )
-    };
+    for drive_index in 0.. {
+        tracing::debug!(drive_index);
 
-    tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid));
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: inline based on
+        // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+        let get_data = unsafe {
+            SetupDiEnumDeviceInterfaces(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+                // information about the interfaces that are associated with all the device
+                // information elements in DeviceInfoSet
+                null(),
+                // A pointer to a GUID that specifies the device interface class for the
+                // requested interface.
+                &GUID_DEVINTERFACE_CDROM as *const _,
+                // A zero-based index into the list of interfaces in the device information set.
+                drive_index,
+                // A pointer to a caller-allocated buffer that contains, on successful return,
+                // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+                // that meets the search parameters.
+                // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+                // before calling this function.
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedata as *mut _,
+            )
+        };
+
+        // repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        if get_data == 0 {
+            break;
+        }
+
+        tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid));
+    }
 
     Ok(())
 }
