@@ -1,7 +1,7 @@
 [package]
 name = "redbook"
 description = "CDDA CD digital audio as per RedBook"
-categories = ["Command line utilities", "Multimedia", "Hardware support"]
+categories = ["command-line-utilities", "multimedia::audio", "hardware-support"]
 keywords = ["ccda", "windows", "flac"]
 authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
 repository = "https://github.com/MusicalNinjaDad/redbook"
