@@ -7,6 +7,8 @@ use std::{
     ptr::{null, null_mut},
 };
 
+use tracing_result::Trace;
+
 use super::bindings::{
     CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
     GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
@@ -14,8 +16,13 @@ use super::bindings::{
 };
 
 use super::toc::TOC_SIZE;
-use crate::hex::hex_dump;
-use crate::{FRAME_SIZE, Frame, Track};
+use crate::{
+    FRAME_SIZE, Frame, Track,
+    win::bindings::{
+        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID_DEVINTERFACE_CDROM, SetupDiGetClassDevsW,
+    },
+};
+use crate::{hex::hex_dump, win::bindings::HDEVINFO};
 
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
@@ -362,4 +369,41 @@ impl WinString {
     pub unsafe fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }
+}
+
+/// Get a handle to a device information set containing all CDROM available devices
+fn _get_drive_infosets() -> io::Result<HDEVINFO> {
+    #[expect(unsafe_code, reason = "ffi call")]
+    // SAFETY: inline based on:
+    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+    let handle = unsafe {
+        SetupDiGetClassDevsW(
+            // A pointer to the GUID for a device setup class or a device interface class.
+            &GUID_DEVINTERFACE_CDROM as *const _,
+            // This pointer is optional and can be NULL.
+            // If an enumeration value is not used to select devices, set Enumerator to NULL.
+            // - No PnP enumeration required
+            null(),
+            // A handle to the top-level window to be used for a user interface that is
+            // associated with installing a device instance in the device information set.
+            // This handle is optional and can be NULL.
+            // - Not installing a device
+            null_mut(),
+            // Filter the device information elements that are added to the device
+            // information set. This parameter can be a bitwise OR of zero or more flags
+            // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
+            //   specified device interface classes.
+            // - DIGCF_PRESENT: Return only devices that are currently present in a system.
+            DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
+        )
+    };
+
+    // If the operation succeeds, SetupDiGetClassDevs returns a handle to a device information
+    // set that contains all installed devices that matched the supplied parameters. If the
+    // operation fails, the function returns INVALID_HANDLE_VALUE. To get extended error
+    // information, call GetLastError.
+    (handle != INVALID_HANDLE_VALUE)
+        .ok_or_else(io::Error::last_os_error)
+        .or_warn("invalid handle")?;
+    Ok(handle)
 }
