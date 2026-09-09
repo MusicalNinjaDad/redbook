@@ -610,6 +610,11 @@ impl Display for Guid {
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+///
+/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
+///
+/// A real example of such a path is:
+/// `\\\\?\\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0`
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
@@ -628,6 +633,11 @@ struct DeviceDetails {
 }
 
 impl DeviceDetails {
+    /// Validate that the buffer provided by `DeviceDetails` is sufficient.
+    ///
+    /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
+    /// get the required size, then to call `check_size` before using DeviceDetails to store the
+    /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
     fn check_size(requiredsize: u32) -> io::Result<()> {
         (requiredsize <= size_of::<Self>() as u32)
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
