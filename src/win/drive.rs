@@ -372,7 +372,7 @@ impl WinString {
 }
 
 /// Get a handle to a device information set containing all CDROM available devices
-fn _get_drive_infosets() -> io::Result<HDEVINFO> {
+pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
     #[expect(unsafe_code, reason = "ffi call")]
     // SAFETY: inline based on:
     // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
@@ -405,5 +405,7 @@ fn _get_drive_infosets() -> io::Result<HDEVINFO> {
     (handle != INVALID_HANDLE_VALUE)
         .ok_or_else(io::Error::last_os_error)
         .or_warn("invalid handle")?;
+    
+    tracing::debug!(?handle);
     Ok(handle)
 }
