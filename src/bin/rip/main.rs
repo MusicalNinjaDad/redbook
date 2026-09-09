@@ -21,6 +21,7 @@ use std::{
 
 use clap::Parser;
 use exit_safely::Termination;
+use humanize_duration::{Truncate, prelude::DurationExt};
 use metaflac::{
     Block, Tag,
     block::{Picture, PictureType},
@@ -230,8 +231,6 @@ fn main() -> Exit<()> {
     let ripper = thread::spawn(move || {
         for track_number in track_numbers.clone() {
             try {
-                use humanize_duration::{Truncate, prelude::DurationExt};
-
                 let track = cd.disc().track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
 
