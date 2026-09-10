@@ -5,14 +5,17 @@
 //! - windows ffi [`CDROM_TOC`]
 //! - windows [`CdaFile`]s
 
-use std::{fs, io, path::Path};
+use std::{fs, io, path::Path, ptr::null_mut};
 
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
 pub(crate) use super::bindings::CDROM_TOC;
-use super::bindings::TRACK_DATA;
-use crate::{Frame, LEADIN, Msf, TocEntry, Track};
+use super::{bindings::TRACK_DATA, drive::DriveHandle};
+use crate::{
+    Frame, LEADIN, Msf, TocEntry, Track,
+    win::bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX},
+};
 
 /// size of ffi struct [`CDROM_TOC`]
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
@@ -21,6 +24,47 @@ pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 pub const CDA_LEN: usize = 0x2c;
 
 impl CDROM_TOC {
+    /// Load from disc
+    #[cfg(target_family = "windows")]
+    pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
+        let toc_command = CDROM_READ_TOC_EX {
+            SessionTrack: 1,
+            ..Default::default()
+        };
+
+        let mut toc = CDROM_TOC::default();
+        let mut bytes_read: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(clippy::multiple_unsafe_ops_per_block, reason = "obtain HANDLE inline")]
+        let read_toc = unsafe {
+            // SAFETY: inline based on
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+            DeviceIoControl(
+                // valid handle - upheld by DriveHandle
+                handle.as_handle_mut() as *mut _ as *mut _,
+                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
+                // points to a buffer of type CDROM_READ_TOC_EX
+                &toc_command as *const _ as *const _,
+                // indicates the size, in bytes, of the input buffer,
+                // which must be >= sizeof(CDROM_READ_TOC_EX).
+                size_of_val(&toc_command) as u32,
+                // CDROM_READ_TOC_EX does not allow setting `Format` but
+                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
+                // The output data is reported in a CDROM_TOC structure.
+                &mut toc as *mut _ as *mut _,
+                size_of_val(&toc) as u32,
+                &mut bytes_read as *mut _,
+                null_mut(),
+            )
+        };
+        let _error_span = tracing::error_span!("reading TOC", bytes_read).entered();
+        (read_toc != 0)
+            .ok_or_else(io::Error::last_os_error)
+            .or_error("")?;
+        Ok(toc)
+    }
+
     /// Parse raw bytes as a [`CDROM_TOC`] structure
     ///
     /// # Panics
