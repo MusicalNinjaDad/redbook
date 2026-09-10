@@ -30,6 +30,8 @@ fn gen_bindings() {
         "GUID_DEVINTERFACE_CDROM",
         "DIGCF_DEVICEINTERFACE",
         "DIGCF_PRESENT",
+        "ERROR_INSUFFICIENT_BUFFER",
+        "ERROR_NO_MORE_ITEMS",
         "FILE_SHARE_READ",
         "FILE_NAME_NORMALIZED",
         "GENERIC_READ",

@@ -26,7 +26,11 @@ use super::{
     },
     toc::TOC_SIZE,
 };
-use crate::{FRAME_SIZE, Frame, Track, hex::hex_dump};
+use crate::{
+    FRAME_SIZE, Frame, Track,
+    hex::hex_dump,
+    win::bindings::{ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS},
+};
 
 pub(super) use handle::DriveHandle;
 
@@ -332,6 +336,7 @@ impl WinString {
 }
 
 /// Get all the available drives, which have an AudioCd present
+#[cfg(target_family = "windows")]
 pub fn all_drives() -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
@@ -374,16 +379,190 @@ pub fn all_drives() -> io::Result<CdDrives> {
 }
 
 /// Iterator over all the available drives, which have an AudioCd present
+#[cfg(target_family = "windows")]
 pub struct CdDrives {
+    /// # SAFETY:
+    /// Must be a valid handle (pointer *mut c_void) to device information set.
+    /// Can only be constructed via [`all_drives`] which ensures this is upheld.
     deviceinfoset: HDEVINFO,
-    current_index: usize = 0,
+    /// Index of next element to retrieve from deviceinfoset.
+    /// `u32` as this is what the ffi calls use.
+    current_index: u32 = 0,
 }
 
+#[cfg(target_family = "windows")]
 impl Iterator for CdDrives {
     type Item = CdDrive;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        let drive_index = self.current_index;
+        let deviceinfoset = self.deviceinfoset;
+        self.current_index += 1;
+        let debug = tracing::debug_span!(
+            "next drive",
+            drive_index,
+            guid = Empty,
+            path_length = Empty,
+            path = Empty,
+        )
+        .entered();
+
+        // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+        // before calling SetupDiEnumDeviceInterfaces
+        let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: inline based on
+        // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+        let get_data = unsafe {
+            SetupDiEnumDeviceInterfaces(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                //
+                // SAFETY: Known to be a valid handle as this comes from non-public field in Self
+                deviceinfoset,
+                // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+                // information about the interfaces that are associated with *all* the device
+                // information elements in DeviceInfoSet
+                null(),
+                // A pointer to a GUID that specifies the device interface class for the
+                // requested interface.
+                &GUID_DEVINTERFACE_CDROM as *const _,
+                // A zero-based index into the list of interfaces in the device information set.
+                drive_index,
+                // A pointer to a caller-allocated buffer that contains, on successful return,
+                // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+                // that meets the search parameters.
+                // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+                // before calling this function.
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedata as *mut _,
+            )
+        };
+
+        let err = io::Error::last_os_error();
+        // repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        match (get_data, err.raw_os_error()) {
+            (0, Some(ERROR_NO_MORE_ITEMS)) => return None,
+            (0, _) => {
+                tracing::error!(drive_index, %err, "failed to get data about device");
+                return None;
+            }
+            _ => debug.record(
+                "guid",
+                Guid(deviceinterfacedata.InterfaceClassGuid).to_string(),
+            ),
+        };
+
+        let mut requiredsize: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        //
+        // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+        // NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+        // and a valid RequiredSize variable. In response to such a call, this function returns
+        // the required buffer size at RequiredSize and fails with GetLastError
+        // returning ERROR_INSUFFICIENT_BUFFER.
+        let get_required_buffer_size = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                deviceinfoset,
+                &deviceinterfacedata as *const _,
+                // a NULLDeviceInterfaceDetailData pointer
+                null_mut(),
+                // a DeviceInterfaceDetailDataSize of zero
+                0,
+                // a valid RequiredSize variable
+                //
+                // Receives the required size of the DeviceInterfaceDetailData buffer.
+                // This size includes the size of the fixed part of the structure plus the number
+                // of bytes required for the variable-length device path string.
+                &mut requiredsize as *mut _,
+                null_mut(),
+            )
+        };
+        let err = io::Error::last_os_error();
+        match (get_required_buffer_size, err.raw_os_error()) {
+            (0, Some(ERROR_INSUFFICIENT_BUFFER)) => debug.record("path_length", requiredsize),
+            _ => todo!(),
+        };
+
+        // SAFETY:
+        // Buffer required to be large enough
+        try bikeshed io::Result<()> { DeviceDetails::check_size(requiredsize).or_error("")? }
+            .ok()?;
+
+        // SAFETY:
+        // 1. cbSize is fixed to correct value via construction:
+        //    the caller must set DeviceInterfaceDetailData.cbSize to
+        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        //    The cbSize member always contains the size of the fixed part of the data structure,
+        //    not a size reflecting the variable-length string at the end.
+        //
+        // 2. buffer length is validated as large enough via call to DeviceDetails::check_size above
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        let get_details = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
+                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
+                // typically returned by SetupDiEnumDeviceInterfaces.
+                &deviceinterfacedata as *const _,
+                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
+                // about the specified interface.
+                //
+                // ** If this parameter is specified, the caller must set
+                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
+                // before calling this function. The cbSize member always contains the size of the
+                // fixed part of the data structure, not a size reflecting the variable-length
+                // string at the end.**
+                //
+                // SAFETY:
+                // 1. cbSize set upon construction
+                // 2. buffer size validated via call to get requiredsize above
+                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
+                //    with identical fields, layout & alignment
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
+                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
+                // to contain the fixed part of the structure and a single NULL to terminate an
+                // empty MULTI_SZ string.
+                //
+                // Therefore this size must be the total size of the DeviceDetails struct, which
+                // is known to have sufficient buffer for the fixed part, path + termination
+                const { size_of::<DeviceDetails>() as u32 },
+                null_mut(),
+                null_mut(),
+            )
+        };
+
+        match get_details {
+            0 => {
+                tracing::error!(get_details, err = %io::Error::last_os_error());
+                return None;
+            }
+            _ => debug.record("path", deviceinterfacedetaildata.to_string()),
+        };
+
+        match CdDrive::try_from(deviceinterfacedetaildata) {
+            Ok(cddrive) => Some(cddrive),
+            Err(error) if error.raw_os_error() == Some(21) => {
+                todo!("21: Not Ready = no disc in drive")
+            }
+            Err(_) => todo!(),
+        }
     }
 }
 
