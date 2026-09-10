@@ -7,14 +7,10 @@ use std::{
     sync::Arc,
 };
 
-#[cfg(target_family = "windows")]
 use tracing_result::Trace;
 
-use super::toc::CdaFile;
+use super::{drive::CdDrive, toc::CdaFile};
 use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
-
-#[cfg(target_family = "windows")]
-use super::drive::CdDrive;
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -47,19 +43,12 @@ impl !Send for AudioCd {}
 /// [`Sync`] references to the metadata can be obtained via [`disc().clone()`][AudioCdExt::disc]
 /// and safely passed to other threads.
 pub struct ReadOnlyAudioCd {
-    #[cfg_attr(not(target_family = "windows"), expect(dead_code, reason = "stubs"))]
     drive: CdDrive,
     disc: Arc<Disc>,
 }
 
 impl AudioCd {
-    #[cfg(not(target_family = "windows"))]
-    pub fn new<P: AsRef<Path>>(_path: P) -> io::Result<Self> {
-        unimplemented!("hardware access not available on other targets")
-    }
-
     /// Opens drive, reads CD
-    #[cfg(target_family = "windows")]
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path_str = path.as_ref().display().to_string();
 
@@ -146,7 +135,6 @@ impl AudioCdExt for AudioCd {
         &self.disc
     }
 
-    #[cfg(target_family = "windows")]
     fn read_chunk(
         &self,
         track: &Track,
@@ -156,22 +144,10 @@ impl AudioCdExt for AudioCd {
     ) -> io::Result<u32> {
         self.drive
             .read_chunk(track, frame_offset, frames_to_read, buf)
-    }
-
-    #[cfg(not(target_family = "windows"))]
-    fn read_chunk(
-        &self,
-        _track: &Track,
-        _frame_offset: usize,
-        _frames_to_read: u32,
-        _buf: &mut [u8],
-    ) -> io::Result<u32> {
-        unimplemented!("hardware access not available on other targets")
     }
 }
 
 impl AudioCdExt for ReadOnlyAudioCd {
-    #[cfg(target_family = "windows")]
     fn read_chunk(
         &self,
         track: &Track,
@@ -181,17 +157,6 @@ impl AudioCdExt for ReadOnlyAudioCd {
     ) -> io::Result<u32> {
         self.drive
             .read_chunk(track, frame_offset, frames_to_read, buf)
-    }
-
-    #[cfg(not(target_family = "windows"))]
-    fn read_chunk(
-        &self,
-        _track: &Track,
-        _frame_offset: usize,
-        _frames_to_read: u32,
-        _buf: &mut [u8],
-    ) -> io::Result<u32> {
-        unimplemented!("hardware access not available on other targets")
     }
 
     fn disc(&self) -> &Arc<crate::Disc> {

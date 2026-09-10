@@ -3,6 +3,7 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
 #[forbid(unsafe_code)]
+#[cfg(target_family = "windows")]
 mod audiocd;
 
 #[expect(unsafe_code, reason = "generated bindings to windows API via ffi")]
@@ -24,4 +25,5 @@ mod convert;
 pub mod drive;
 pub mod toc;
 
+#[cfg(target_family = "windows")]
 pub use audiocd::{AudioCd, ReadOnlyAudioCd};

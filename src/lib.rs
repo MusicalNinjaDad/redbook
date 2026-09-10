@@ -114,6 +114,7 @@ pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use tracing::field::Empty;
 use tracing_result::Trace;
+#[cfg(target_family = "windows")]
 pub use win::AudioCd;
 
 use std::{
