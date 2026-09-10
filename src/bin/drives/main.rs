@@ -8,8 +8,10 @@
 use std::io;
 
 #[cfg(target_family = "windows")]
-use redbook::win::drive::{_get_drive_infosets, _list_drives};
+use redbook::win::drive::{CdDrive, all_drives};
 use tracing::level_filters::LevelFilter;
+#[cfg(target_family = "windows")]
+use tracing_result::Trace;
 use tracing_subscriber::{
     Layer, fmt::layer, layer::SubscriberExt, registry, util::SubscriberInitExt,
 };
@@ -19,8 +21,14 @@ fn main() -> io::Result<()> {
     registry()
         .with(layer().with_filter(LevelFilter::DEBUG))
         .init();
-    let devs = _get_drive_infosets()?;
-    _list_drives(devs)?;
+
+    let drives: Vec<CdDrive> = all_drives().collect();
+
+    for cd in drives {
+        let path = cd.path();
+        let toc = cd.toc().as_toc().map_err(io::Error::other).or_warn("")?;
+        tracing::info!(path = %path.display(), %toc, "found");
+    }
     Ok(())
 }
 

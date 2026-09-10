@@ -331,6 +331,22 @@ impl WinString {
     }
 }
 
+/// Get all the available drives, which have an AudioCd present
+pub fn all_drives() -> CdDrives {
+    todo!()
+}
+
+/// Iterator over all the available drives, which have an AudioCd present
+pub struct CdDrives;
+
+impl Iterator for CdDrives {
+    type Item = CdDrive;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
 /// Get a handle to a device information set containing all CDROM available devices
 pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
     #[expect(unsafe_code, reason = "ffi call")]
