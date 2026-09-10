@@ -1,10 +1,4 @@
 //! Handles direct hardware access via Windows APIs
-
-#![cfg_attr(
-    not(target_family = "windows"),
-    expect(dead_code, reason = "TODO should / can this be only windows?")
-)]
-
 use std::{
     fmt::{Debug, Display},
     io::{self, ErrorKind},

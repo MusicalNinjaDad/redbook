@@ -11,11 +11,11 @@ use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
 pub(crate) use super::bindings::CDROM_TOC;
-use super::{
-    bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX, TRACK_DATA},
-    drive::DriveHandle,
-};
+use super::bindings::{CDROM_READ_TOC_EX, IOCTL_CDROM_READ_TOC_EX, TRACK_DATA};
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
+
+#[cfg(target_family = "windows")]
+use super::{bindings::DeviceIoControl, drive::DriveHandle};
 
 /// size of ffi struct [`CDROM_TOC`]
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();

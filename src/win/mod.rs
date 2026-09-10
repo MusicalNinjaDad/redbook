@@ -1,7 +1,3 @@
-#![cfg_attr(
-    not(target_family = "windows"),
-    expect(unused_imports, reason = "stubs")
-)]
 #![cfg_attr(not(target_family = "windows"), expect(missing_docs, reason = "stubs"))]
 
 //! Safe and sane wrappers around Windows APIs for CD drive access
@@ -23,7 +19,8 @@ mod bindings;
 #[forbid(unsafe_code)]
 mod convert;
 
-// This is where any unsafe ffi usage belongs
+// These modules are where any unsafe ffi usage occurs
+#[cfg(target_family = "windows")]
 pub mod drive;
 pub mod toc;
 

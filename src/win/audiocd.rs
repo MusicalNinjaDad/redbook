@@ -7,10 +7,14 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(target_family = "windows")]
 use tracing_result::Trace;
 
-use super::{drive::CdDrive, toc::CdaFile};
+use super::toc::CdaFile;
 use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
+
+#[cfg(target_family = "windows")]
+use super::drive::CdDrive;
 
 /// An AudioCd with potentially mutable metadata.
 ///
