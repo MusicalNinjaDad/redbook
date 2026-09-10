@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{FRAME_SIZE, Frame, Track, hex::hex_dump};
 
-pub(super) use safe_seal::DriveHandle;
+pub(super) use handle::DriveHandle;
 
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
@@ -592,7 +592,7 @@ impl Display for DeviceDetails {
     }
 }
 
-mod safe_seal {
+mod handle {
 
     use super::*;
     /// A open file handle which is known to point to a valid drive.
