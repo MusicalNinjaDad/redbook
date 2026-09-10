@@ -1,6 +1,7 @@
 windows_link::link!("kernel32.dll" "system" fn CloseHandle(hobject : HANDLE) -> BOOL);
 windows_link::link!("kernel32.dll" "system" fn CreateFile2(lpfilename : PCWSTR, dwdesiredaccess : u32, dwsharemode : u32, dwcreationdisposition : u32, pcreateexparams : *const CREATEFILE2_EXTENDED_PARAMETERS) -> HANDLE);
 windows_link::link!("kernel32.dll" "system" fn DeviceIoControl(hdevice : HANDLE, dwiocontrolcode : u32, lpinbuffer : *const core::ffi::c_void, ninbuffersize : u32, lpoutbuffer : *mut core::ffi::c_void, noutbuffersize : u32, lpbytesreturned : *mut u32, lpoverlapped : *mut OVERLAPPED) -> BOOL);
+windows_link::link!("kernel32.dll" "system" fn GetFinalPathNameByHandleW(hfile : HANDLE, lpszfilepath : PWSTR, cchfilepath : u32, dwflags : u32) -> u32);
 windows_link::link!("setupapi.dll" "system" fn SetupDiEnumDeviceInterfaces(deviceinfoset : HDEVINFO, deviceinfodata : *const SP_DEVINFO_DATA, interfaceclassguid : *const GUID, memberindex : u32, deviceinterfacedata : *mut SP_DEVICE_INTERFACE_DATA) -> BOOL);
 windows_link::link!("setupapi.dll" "system" fn SetupDiGetClassDevsW(classguid : *const GUID, enumerator : PCWSTR, hwndparent : HWND, flags : u32) -> HDEVINFO);
 windows_link::link!("setupapi.dll" "system" fn SetupDiGetDeviceInterfaceDetailW(deviceinfoset : HDEVINFO, deviceinterfacedata : *const SP_DEVICE_INTERFACE_DATA, deviceinterfacedetaildata : *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W, deviceinterfacedetaildatasize : u32, requiredsize : *mut u32, deviceinfodata : *mut SP_DEVINFO_DATA) -> BOOL);
@@ -39,6 +40,7 @@ pub struct CREATEFILE2_EXTENDED_PARAMETERS {
 }
 pub const DIGCF_DEVICEINTERFACE: i32 = 16;
 pub const DIGCF_PRESENT: i32 = 2;
+pub const FILE_NAME_NORMALIZED: i32 = 0;
 pub const FILE_SHARE_READ: i32 = 1;
 pub const GENERIC_READ: u32 = 2147483648;
 #[repr(C)]
@@ -94,6 +96,7 @@ pub struct OVERLAPPED_0_0 {
     pub OffsetHigh: u32,
 }
 pub type PCWSTR = *const u16;
+pub type PWSTR = *mut u16;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RAW_READ_INFO {
@@ -204,5 +207,6 @@ impl Default for TRACK_DATA {
     }
 }
 pub type TRACK_MODE_TYPE = i32;
+pub const VOLUME_NAME_DOS: i32 = 0;
 pub const XAForm2: TRACK_MODE_TYPE = 1;
 pub const YellowMode2: TRACK_MODE_TYPE = 0;

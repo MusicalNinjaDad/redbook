@@ -20,6 +20,7 @@ fn gen_bindings() {
         "CloseHandle",
         "CreateFile2",
         "DeviceIoControl",
+        "GetFinalPathNameByHandleW",
         "SetupDiEnumDeviceInterfaces",
         "SetupDiGetClassDevsW",
         "SetupDiGetDeviceInterfaceDetailW",
@@ -30,6 +31,7 @@ fn gen_bindings() {
         "DIGCF_DEVICEINTERFACE",
         "DIGCF_PRESENT",
         "FILE_SHARE_READ",
+        "FILE_NAME_NORMALIZED",
         "GENERIC_READ",
         "HANDLE",
         "HDEVINFO",
@@ -42,6 +44,7 @@ fn gen_bindings() {
         "SP_DEVINFO_DATA",
         "RAW_READ_INFO",
         "TRACK_MODE_TYPE",
+        "VOLUME_NAME_DOS",
     ]);
 
     // Check the output is the same as before.
