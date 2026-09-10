@@ -332,12 +332,52 @@ impl WinString {
 }
 
 /// Get all the available drives, which have an AudioCd present
-pub fn all_drives() -> CdDrives {
-    todo!()
+pub fn all_drives() -> io::Result<CdDrives> {
+    let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
+
+    #[expect(unsafe_code, reason = "ffi call")]
+    // SAFETY: inline based on:
+    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+    let deviceinfoset = unsafe {
+        SetupDiGetClassDevsW(
+            // A pointer to the GUID for a device setup class or a device interface class.
+            &GUID_DEVINTERFACE_CDROM as *const _,
+            // This pointer is optional and can be NULL.
+            // If an enumeration value is not used to select devices, set Enumerator to NULL.
+            // - No PnP enumeration required
+            null(),
+            // A handle to the top-level window to be used for a user interface that is
+            // associated with installing a device instance in the device information set.
+            // This handle is optional and can be NULL.
+            // - Not installing a device
+            null_mut(),
+            // Filter the device information elements that are added to the device
+            // information set. This parameter can be a bitwise OR of zero or more flags
+            // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
+            //   specified device interface classes.
+            // - DIGCF_PRESENT: Return only devices that are currently present in a system.
+            DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
+        )
+    };
+    debug.record("handle", format!("{deviceinfoset:?}"));
+
+    // If the operation succeeds, SetupDiGetClassDevs returns a handle to a device information
+    // set that contains all installed devices that matched the supplied parameters. If the
+    // operation fails, the function returns INVALID_HANDLE_VALUE. To get extended error
+    // information, call GetLastError.
+    (deviceinfoset != INVALID_HANDLE_VALUE)
+        .ok_or_else(io::Error::last_os_error)
+        .or_warn("invalid handle")?;
+
+    tracing::debug!("got device infoset");
+    Ok(CdDrives { deviceinfoset, .. })
 }
 
 /// Iterator over all the available drives, which have an AudioCd present
-pub struct CdDrives;
+pub struct CdDrives {
+    deviceinfoset: HDEVINFO,
+    current_index: usize = 0,
+}
 
 impl Iterator for CdDrives {
     type Item = CdDrive;
