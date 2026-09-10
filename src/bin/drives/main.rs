@@ -1,3 +1,8 @@
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(unused_imports, reason = "stubs")
+)]
+
 //! List available CD drives
 
 use std::io;
