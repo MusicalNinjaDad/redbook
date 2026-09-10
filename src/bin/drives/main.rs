@@ -7,6 +7,7 @@
 
 use std::io;
 
+#[cfg(target_family = "windows")]
 use redbook::win::drive::{_get_drive_infosets, _list_drives};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{

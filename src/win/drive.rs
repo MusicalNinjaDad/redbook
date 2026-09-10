@@ -1,5 +1,10 @@
 //! Handles direct hardware access via Windows APIs
 
+#![cfg_attr(
+    not(target_family = "windows"),
+    expect(dead_code, reason = "TODO should / can this be only windows?")
+)]
+
 use std::{
     fmt::{Debug, Display},
     io::{self, ErrorKind},
@@ -368,10 +373,17 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
 /// output drive details via tracing
 /// CURRENTLY UNSAFE as HDEVINFO is a type alias not a NewType
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
+#[cfg(target_family = "windows")]
 pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
     for drive_index in 0.. {
-        let debug =
-            tracing::debug_span!("list drives", drive_index, guid = Empty, path = Empty).entered();
+        let debug = tracing::debug_span!(
+            "list drives",
+            drive_index,
+            guid = Empty,
+            guid_path = Empty,
+            path = Empty
+        )
+        .entered();
 
         tracing::debug!("checking ...");
 
@@ -516,11 +528,12 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
             )
         };
 
-        debug.record("path", deviceinterfacedetaildata.to_string());
-
+        debug.record("guid_path", deviceinterfacedetaildata.to_string());
         let err = io::Error::last_os_error();
-
         tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, %err);
+
+        debug.record("path", deviceinterfacedetaildata.path().to_string());
+        tracing::debug!("... done");
     }
 
     Ok(())
@@ -556,6 +569,7 @@ impl Display for Guid {
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
+#[cfg(target_family = "windows")]
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
@@ -572,6 +586,7 @@ struct DeviceDetails {
 
 #[repr(C)]
 #[cfg(target_arch = "x86")]
+#[cfg(target_family = "windows")]
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
@@ -581,6 +596,7 @@ struct DeviceDetails {
     DevicePath: [u16; 264] = [0; _],
 }
 
+#[cfg(target_family = "windows")]
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
@@ -605,6 +621,7 @@ impl DeviceDetails {
     }
 }
 
+#[cfg(target_family = "windows")]
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
