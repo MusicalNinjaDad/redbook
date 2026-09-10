@@ -125,7 +125,7 @@ impl AudioCd {
         }
 
         let toc = wintoc
-            .to_toc()
+            .as_toc()
             .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
             .or_error("")?;
 

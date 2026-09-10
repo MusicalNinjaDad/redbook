@@ -36,7 +36,7 @@ impl CDROM_TOC {
         }
     }
 
-    pub fn to_toc(&self) -> Result<Toc, TocError> {
+    pub fn as_toc(&self) -> Result<Toc, TocError> {
         let audio = self
             .iter_audio()
             .map(|entry| entry.start.as_usize() as u32)
@@ -326,6 +326,6 @@ mod tests {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();
 
-        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
+        assert_eq!(toc, cdrom_toc.as_toc().unwrap())
     }
 }
