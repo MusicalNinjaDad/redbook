@@ -238,7 +238,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let mut handle = DriveHandle::open(device.path()).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
-        let path = PathBuf::new();
+        let path = handle.path()?;
         Ok(Self { path, handle, toc })
     }
 }
