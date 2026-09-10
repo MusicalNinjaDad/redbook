@@ -754,8 +754,11 @@ mod handle {
                 .ok_or_else(io::Error::last_os_error)
                 .or_error("getting path for drive")?;
 
+            tracing::debug!(?path_buf);
             let win_path = WinString::from(path_buf.as_slice());
+            tracing::debug!(%win_path);
             let path = PathBuf::from(win_path.to_string());
+            tracing::debug!(path = %path.display());
             Ok(path)
         }
     }
