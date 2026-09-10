@@ -11,8 +11,8 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::bindings::{
-    CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
-    GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+    CDDA, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
+    GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
     OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
 };
 use super::toc::TOC_SIZE;
@@ -87,8 +87,8 @@ impl CdDrive {
         let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
 
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
-        let handle = DriveHandle::open(windrive).or_error("")?;
-        let toc = handle.read_toc()?;
+        let mut handle = DriveHandle::open(windrive).or_error("")?;
+        let toc = CDROM_TOC::read_from(&mut handle)?;
         Ok(Self { path, handle, toc })
     }
 
@@ -645,44 +645,6 @@ mod safe_seal {
                 return Err(error);
             };
             Ok(Self(handle))
-        }
-
-        pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
-            let toc_command = CDROM_READ_TOC_EX {
-                SessionTrack: 1,
-                ..Default::default()
-            };
-
-            let mut toc = CDROM_TOC::default();
-            let mut bytes_read: u32 = 0;
-
-            #[expect(unsafe_code, reason = "ffi call")]
-            let read_toc = unsafe {
-                // SAFETY: inline based on
-                // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
-                DeviceIoControl(
-                    // valid handle - can only be created via Self::open
-                    self.0,
-                    const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
-                    // points to a buffer of type CDROM_READ_TOC_EX
-                    &toc_command as *const _ as *const _,
-                    // indicates the size, in bytes, of the input buffer,
-                    // which must be >= sizeof(CDROM_READ_TOC_EX).
-                    size_of_val(&toc_command) as u32,
-                    // CDROM_READ_TOC_EX does not allow setting `Format` but
-                    // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
-                    // The output data is reported in a CDROM_TOC structure.
-                    &mut toc as *mut _ as *mut _,
-                    size_of_val(&toc) as u32,
-                    &mut bytes_read as *mut _,
-                    null_mut(),
-                )
-            };
-            let _error_span = tracing::error_span!("reading TOC", bytes_read).entered();
-            (read_toc != 0)
-                .ok_or_else(io::Error::last_os_error)
-                .or_error("")?;
-            Ok(toc)
         }
 
         /// Obtain a reference to the underlying [`HANDLE`] for the drive.
