@@ -10,21 +10,17 @@ use std::{
 use tracing::field::Empty;
 use tracing_result::Trace;
 
-use super::bindings::{
-    CDDA, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
-    GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
-    OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
-};
-use super::toc::TOC_SIZE;
-use crate::{
-    FRAME_SIZE, Frame, Track,
-    hex::hex_dump,
-    win::bindings::{
-        DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID, GUID_DEVINTERFACE_CDROM, HDEVINFO,
+use super::{
+    bindings::{
+        CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
+        DeviceIoControl, FILE_SHARE_READ, GENERIC_READ, GUID, GUID_DEVINTERFACE_CDROM, HANDLE,
+        HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
         SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces,
         SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
+    toc::TOC_SIZE,
 };
+use crate::{FRAME_SIZE, Frame, Track, hex::hex_dump};
 
 pub(super) use safe_seal::DriveHandle;
 
