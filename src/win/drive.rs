@@ -843,7 +843,7 @@ struct DeviceDetails {
     DevicePath: [u16; 264] = [0; _],
 }
 
-#[repr(C)]
+#[repr(C, packed(1))]
 #[cfg(target_arch = "x86")]
 #[cfg(target_family = "windows")]
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
