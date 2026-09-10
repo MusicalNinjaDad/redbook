@@ -10,7 +10,10 @@
 // Only applicable to library
 #![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
-#![cfg_attr(unstable_default_field_values, feature(default_field_values))]
+#![cfg_attr(
+    all(unstable_default_field_values, target_family = "windows"),
+    feature(default_field_values)
+)]
 #![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
 #![cfg_attr(
@@ -20,10 +23,12 @@
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
 #![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
-#![cfg_attr(unstable_negative_impls, feature(negative_impls))]
+#![cfg_attr(
+    all(unstable_negative_impls, target_family = "windows"),
+    feature(negative_impls)
+)]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
-
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
