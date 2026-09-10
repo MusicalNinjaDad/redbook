@@ -4,10 +4,7 @@
 use std::fmt::Display;
 use std::path::PathBuf;
 
-use crate::{
-    Frame, Msf, TocEntry, Track,
-    win::toc::{CDROM_TOC, CdromTocExt},
-};
+use crate::{Frame, Msf, TocEntry, Track, win::toc::CDROM_TOC};
 
 /// Test album identifier for parameterized tests
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

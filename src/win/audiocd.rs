@@ -9,7 +9,7 @@ use std::{
 
 use tracing_result::Trace;
 
-use super::{drive::CdDrive, toc::CdaFile, toc::CdromTocExt};
+use super::{drive::CdDrive, toc::CdaFile};
 use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.

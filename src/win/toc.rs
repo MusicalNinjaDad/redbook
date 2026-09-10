@@ -1,5 +1,3 @@
-#![expect(missing_docs, reason = "to do")]
-
 //! Windows-specific audio CD Table of Contents handling.
 //!
 //! Glues together:
@@ -22,24 +20,12 @@ pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
 
-/// Manipulation of [`CDROM_TOC`]
-pub trait CdromTocExt {
+impl CDROM_TOC {
     /// Parse raw bytes as a [`CDROM_TOC`] structure
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
-
-    fn to_toc(&self) -> Result<Toc, TocError>;
-
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry>;
-
-    /// The absolute start of the lead out
-    fn leadout(&self) -> Result<Frame, TocError>;
-}
-
-impl CdromTocExt for CDROM_TOC {
-    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+    pub fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
         #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
             // SAFETY: correct size & alignment
@@ -50,7 +36,7 @@ impl CdromTocExt for CDROM_TOC {
         }
     }
 
-    fn to_toc(&self) -> Result<Toc, TocError> {
+    pub fn to_toc(&self) -> Result<Toc, TocError> {
         let audio = self
             .iter_audio()
             .map(|entry| entry.start.as_usize() as u32)
@@ -59,14 +45,15 @@ impl CdromTocExt for CDROM_TOC {
         Toc::from_parts(audio, None, leadout)
     }
 
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
+    pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| (1..0xA0).contains(&track.TrackNumber))
             .map(TocEntry::from)
     }
 
-    fn leadout(&self) -> Result<Frame, TocError> {
+    /// The absolute start of the lead out
+    pub fn leadout(&self) -> Result<Frame, TocError> {
         self.TrackData
             .iter()
             .find(|track| track.TrackNumber == 170)
