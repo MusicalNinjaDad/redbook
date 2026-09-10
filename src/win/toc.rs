@@ -42,7 +42,7 @@ impl CDROM_TOC {
             // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
             DeviceIoControl(
                 // valid handle - upheld by DriveHandle
-                handle.as_handle_mut() as *mut _ as *mut _,
+                *handle.as_handle_mut() as *mut _ ,
                 const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
                 // points to a buffer of type CDROM_READ_TOC_EX
                 &toc_command as *const _ as *const _,

@@ -387,8 +387,8 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         tracing::debug!("checking ...");
 
-        let cdrom_path = r#"\\.\G:"#;
-        debug.record("path", cdrom_path);
+        let cdrom_path = format!(r#"\\.\CDRom{drive_index}"#);
+        debug.record("path", &cdrom_path);
         let mut handle2 = DriveHandle::open(WinString::from(cdrom_path)).or_error("")?;
         tracing::debug!("opened handle");
 
