@@ -532,8 +532,15 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
         let err = io::Error::last_os_error();
         tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, %err);
 
-        let handle = DriveHandle::open(deviceinterfacedetaildata.path())?;
+        let mut handle = DriveHandle::open(deviceinterfacedetaildata.path())?;
         debug.record("path", handle.path()?.to_string_lossy().to_string());
+
+        let toc = CDROM_TOC::read_from(&mut handle)
+            .or_warn("")?
+            .as_toc()
+            .map_err(io::Error::other)
+            .or_warn("")?;
+        tracing::debug!(%toc);
 
         tracing::debug!("... done");
     }
@@ -613,13 +620,7 @@ impl DeviceDetails {
     #[cfg(target_family = "windows")]
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> WinString {
-        let words = self
-            .DevicePath
-            .iter()
-            .take_while(|c| **c != 0)
-            .copied()
-            .collect();
-        WinString { words }
+        WinString::from(self.DevicePath.as_slice())
     }
 }
 
@@ -678,6 +679,8 @@ mod handle {
     #[cfg(target_family = "windows")]
     impl DriveHandle {
         pub fn open(path: WinString) -> io::Result<Self> {
+            let _debug = tracing::debug_span!("opening drive handle", %path).entered();
+
             #[expect(unsafe_code, reason = "ffi call")]
             #[expect(
                 clippy::multiple_unsafe_ops_per_block,
@@ -708,6 +711,7 @@ mod handle {
                 tracing::error!(name: "getting handle for drive", %error);
                 return Err(error);
             };
+            tracing::debug!(?handle, "opened successfully");
             Ok(Self(handle))
         }
 
