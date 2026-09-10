@@ -20,6 +20,9 @@ mod audiocd;
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod bindings;
 
+#[forbid(unsafe_code)]
+mod convert;
+
 // This is where any unsafe ffi usage belongs
 pub mod drive;
 pub mod toc;
