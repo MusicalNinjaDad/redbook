@@ -387,6 +387,20 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         tracing::debug!("checking ...");
 
+        let cdrom_path = r#"\\.\G:"#;
+        debug.record("path", cdrom_path);
+        let mut handle2 = DriveHandle::open(WinString::from(cdrom_path)).or_error("")?;
+        tracing::debug!("opened handle");
+
+        let toc = CDROM_TOC::read_from(&mut handle2)
+            .or_warn("")?
+            .as_toc()
+            .map_err(io::Error::other)
+            .or_warn("")?;
+        tracing::debug!(%toc, "got toc");
+
+        debug.record("path", Empty);
+
         // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
         // before calling SetupDiEnumDeviceInterfaces
         let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
@@ -534,6 +548,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
 
         let mut handle = DriveHandle::open(deviceinterfacedetaildata.path())?;
         debug.record("path", handle.path()?.to_string_lossy().to_string());
+        tracing::debug!("opened handle1");
 
         let toc = CDROM_TOC::read_from(&mut handle)
             .or_warn("")?
