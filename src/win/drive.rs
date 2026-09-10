@@ -532,7 +532,9 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
         let err = io::Error::last_os_error();
         tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, %err);
 
-        debug.record("path", deviceinterfacedetaildata.path().to_string());
+        let handle = DriveHandle::open(deviceinterfacedetaildata.path())?;
+        debug.record("path", handle.path()?.to_string_lossy().to_string());
+
         tracing::debug!("... done");
     }
 
