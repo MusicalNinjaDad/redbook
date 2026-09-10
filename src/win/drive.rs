@@ -230,6 +230,18 @@ impl CdDrive {
     }
 }
 
+#[cfg(target_family = "windows")]
+impl TryFrom<DeviceDetails> for CdDrive {
+    type Error = io::Error;
+
+    fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
+        let mut handle = DriveHandle::open(device.path()).or_error("")?;
+        let toc = CDROM_TOC::read_from(&mut handle)?;
+        let path = PathBuf::new();
+        Ok(Self { path, handle, toc })
+    }
+}
+
 /// A pseudo-sector on an AudioCd
 ///
 /// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE]-byte frame is a 2048-byte
@@ -553,6 +565,18 @@ impl DeviceDetails {
     fn check_size(requiredsize: u32) -> io::Result<()> {
         (requiredsize <= size_of::<Self>() as u32)
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
+    }
+
+    #[cfg(target_family = "windows")]
+    /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
+    pub fn path(&self) -> WinString {
+        let words = self
+            .DevicePath
+            .iter()
+            .take_while(|c| **c != 0)
+            .copied()
+            .collect();
+        WinString { words }
     }
 }
 
