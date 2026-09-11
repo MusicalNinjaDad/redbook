@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
+use crate::win::bindings::IOCTL_CDROM_READ_TOC_EX;
 use crate::win::toc::CDROM_TOC;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
@@ -18,6 +19,8 @@ use super::bindgen::{
 };
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
+const THE_WALL_1: HANDLE = 2 as _;
+const THE_WALL_2: HANDLE = 3 as _;
 
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
@@ -25,6 +28,8 @@ impl TryFrom<HANDLE> for TestAlbum {
     fn try_from(handle: HANDLE) -> Result<Self, Self::Error> {
         match handle {
             DEFINITELY_MAYBE => Ok(DefinitelyMaybe),
+            THE_WALL_1 => Ok(TheWallDisc1),
+            THE_WALL_2 => Ok(TheWallDisc2),
             _ => Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "invalid album handle",
@@ -60,8 +65,8 @@ pub unsafe fn CreateFile2(
 
     match TestAlbum::try_from(&path).unwrap() {
         DefinitelyMaybe => DEFINITELY_MAYBE,
-        TheWallDisc1 => todo!("w1"),
-        TheWallDisc2 => todo!("w2"),
+        TheWallDisc1 => THE_WALL_1,
+        TheWallDisc2 => THE_WALL_2,
     }
 }
 pub unsafe fn DeviceIoControl(
@@ -74,14 +79,20 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
-    match (hdevice, dwiocontrolcode) {
-        (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => {
-            let toc = DefinitelyMaybe.load_cdrom_toc();
-            assert_eq!(noutbuffersize as usize, size_of_val(&toc));
-            unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+    let toc = match hdevice {
+        DEFINITELY_MAYBE if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
+            DefinitelyMaybe.load_cdrom_toc()
+        }
+        THE_WALL_1 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
+            TheWallDisc1.load_cdrom_toc()
+        }
+        THE_WALL_2 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
+            TheWallDisc2.load_cdrom_toc()
         }
         _ => todo!("mock DeviceIoControl"),
-    }
+    };
+    assert_eq!(noutbuffersize as usize, size_of_val(&toc));
+    unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
     1
 }
 pub unsafe fn SetupDiEnumDeviceInterfaces(
