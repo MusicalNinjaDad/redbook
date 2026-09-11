@@ -112,10 +112,10 @@ pub unsafe fn SetupDiGetClassDevsW(
     hwndparent: HWND,
     flags: u32,
 ) -> HDEVINFO {
-    let classguid = Guid(unsafe{*classguid});
+    let classguid = Guid(unsafe { *classguid });
     match classguid {
-        guid if guid == Guid(GUID_DEVINTERFACE_CDROM) => todo!("all drives"),
-        _ => todo!("unknown guid")
+        guid if guid == Guid(GUID_DEVINTERFACE_CDROM) => ALL_ALBUMS,
+        _ => todo!("unknown guid"),
     }
 }
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
