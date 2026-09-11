@@ -104,10 +104,23 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
-    match (deviceinfoset, memberindex) {
-        (ALL_ALBUMS, 0) => todo!("dm"),
+    let album = match (deviceinfoset, memberindex) {
+        (ALL_ALBUMS, 0) => DefinitelyMaybe as u32,
         _ => todo!("mock SetupDiEnumDeviceInterfaces"),
-    }
+    };
+    let data = SP_DEVICE_INTERFACE_DATA {
+        cbSize: const { size_of::<SP_DEVICE_INTERFACE_DATA>() as u32 },
+        InterfaceClassGuid: GUID {
+            data1: album,
+            data2: 0,
+            data3: 0,
+            data4: [0; _],
+        },
+        Flags: 0,
+        Reserved: 0,
+    };
+    unsafe { *deviceinterfacedata = data };
+    1
 }
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
