@@ -197,7 +197,7 @@ mod tests {
 
     #[rstest]
     #[case(DefinitelyMaybe)]
-    #[should_panic(expected = "create mock")]
+    #[should_panic(expected = "CreateFile2")]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         AudioCd::new(path).unwrap();

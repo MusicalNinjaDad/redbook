@@ -10,7 +10,7 @@ use super::bindgen::{
 };
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
-    todo!("create mock")
+    todo!("CloseHandle")
 }
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
@@ -19,7 +19,7 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
-    todo!("create mock")
+    todo!("CreateFile2")
 }
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
@@ -31,7 +31,7 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
-    todo!("create mock")
+    todo!("DeviceIoControl")
 }
 pub unsafe fn GetFinalPathNameByHandleW(
     hfile: HANDLE,
