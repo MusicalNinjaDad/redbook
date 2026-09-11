@@ -179,3 +179,19 @@ impl AudioCdExtMut for AudioCd {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+    use super::*;
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    fn new(#[case] album: TestAlbum) {
+        let path = album.assets_path();
+        AudioCd::new(path).unwrap();
+    }
+}
