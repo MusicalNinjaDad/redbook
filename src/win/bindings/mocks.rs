@@ -104,7 +104,10 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
-    todo!("mock SetupDiEnumDeviceInterfaces")
+    match (deviceinfoset, memberindex) {
+        (ALL_ALBUMS, 0) => todo!("dm"),
+        _ => todo!("mock SetupDiEnumDeviceInterfaces"),
+    }
 }
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
