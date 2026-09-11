@@ -24,8 +24,8 @@ pub(crate) use bindgen::*;
 
 #[cfg(any(test, doc, not(target_family = "windows")))]
 pub(crate) use mocks::{
-    CloseHandle, CreateFile2, DeviceIoControl, GetFinalPathNameByHandleW,
-    SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+    CloseHandle, CreateFile2, DeviceIoControl, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+    SetupDiGetDeviceInterfaceDetailW,
 };
 
 #[cfg(any(test, doc, not(target_family = "windows")))]

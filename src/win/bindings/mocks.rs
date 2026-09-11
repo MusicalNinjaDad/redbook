@@ -14,7 +14,7 @@ use super::{HANDLE, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETA
 
 // Only used for function signatures
 use super::bindgen::{
-    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, PWSTR, SP_DEVINFO_DATA,
+    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, SP_DEVINFO_DATA,
 };
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
@@ -83,14 +83,6 @@ pub unsafe fn DeviceIoControl(
         _ => todo!("mock DeviceIoControl"),
     }
     1
-}
-pub unsafe fn GetFinalPathNameByHandleW(
-    hfile: HANDLE,
-    lpszfilepath: PWSTR,
-    cchfilepath: u32,
-    dwflags: u32,
-) -> u32 {
-    todo!("create mock")
 }
 pub unsafe fn SetupDiEnumDeviceInterfaces(
     deviceinfoset: HDEVINFO,

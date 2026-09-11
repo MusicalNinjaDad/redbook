@@ -13,11 +13,10 @@ use super::{
     MAX_PATH_CHARS,
     bindings::{
         CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-        DeviceIoControl, FILE_NAME_NORMALIZED, FILE_SHARE_READ, GENERIC_READ,
-        GUID_DEVINTERFACE_CDROM, GetFinalPathNameByHandleW, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
-        IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
-        SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-        SetupDiGetDeviceInterfaceDetailW, VOLUME_NAME_DOS,
+        DeviceIoControl, FILE_SHARE_READ, GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
+        INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO,
+        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces,
+        SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
     convert::{Guid, Sector, WinPath, WinString},
     toc::TOC_SIZE,
@@ -639,38 +638,6 @@ mod handle {
         )]
         pub unsafe fn as_handle_mut(&mut self) -> &mut HANDLE {
             &mut self.0
-        }
-
-        pub fn path(&self) -> io::Result<PathBuf> {
-            // SAFETY: path_buf is sized to take `//?/{MAX_PATH}/0` as this is a handle for
-            // a drive the path itself must be DOS compatible and therefore < MAX_PATH chars
-            let mut path_buf: [u16; MAX_PATH_CHARS] = [0; _];
-
-            #[expect(unsafe_code, reason = "ffi call")]
-            // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
-            let get_path = unsafe {
-                GetFinalPathNameByHandleW(
-                    self.0,
-                    // SAFETY: path_buf is sized to take `//?/{MAX_PATH}/0` as this is a handle for
-                    // a drive the path itself must be DOS compatible and therefore < MAX_PATH chars
-                    &mut path_buf as *mut _,
-                    // The size of lpszFilePath, in TCHARs. This value must include a
-                    // NULL termination character.
-                    size_of_val(&path_buf) as u32,
-                    FILE_NAME_NORMALIZED as u32 | VOLUME_NAME_DOS as u32,
-                )
-            };
-
-            (get_path == 0)
-                .ok_or_else(io::Error::last_os_error)
-                .or_error("getting path for drive")?;
-
-            tracing::debug!(?path_buf);
-            let win_path = WinString::from(path_buf.as_slice());
-            tracing::debug!(%win_path);
-            let path = PathBuf::from(win_path.to_string());
-            tracing::debug!(path = %path.display());
-            Ok(path)
         }
     }
 
