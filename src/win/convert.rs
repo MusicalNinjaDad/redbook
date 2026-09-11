@@ -71,6 +71,15 @@ impl From<PathBuf> for WinPath {
     }
 }
 
+impl Display for WinPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WinPath::FilePath(path_buf) => write!(f, "{}", path_buf.display()),
+            WinPath::DevicePath(win_string) => write!(f, "{win_string}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A somewhat sane way of dealing with `PWSTR/PCWSTR`: A pointer to a null terminated string
 /// consisting of 'wide chars' (u16), encoded using UTF-16.

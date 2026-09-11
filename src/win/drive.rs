@@ -95,7 +95,11 @@ impl CdDrive {
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let mut handle = DriveHandle::open(windrive).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
-        Ok(Self { path: path.into(), handle, toc })
+        Ok(Self {
+            path: path.into(),
+            handle,
+            toc,
+        })
     }
 
     /// The path of the drive
