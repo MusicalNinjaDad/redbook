@@ -80,7 +80,7 @@ impl CdDrive {
     /// - The handle has minimal (shared read only) access rights and will be closed
     ///   when the [`CdDrive`] is dropped. Consider using [exit_safely] to ensure that
     ///   this occurs in your binary even on error.
-    #[cfg(target_family = "windows")]
+    
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
         let path_str = path.display().to_string();
@@ -134,7 +134,7 @@ impl CdDrive {
         &self.toc
     }
 
-    #[cfg(target_family = "windows")]
+    
     /// Read a chunk of data from the disc to `buf`
     pub fn read_chunk(
         &self,
@@ -235,7 +235,7 @@ impl CdDrive {
     }
 }
 
-#[cfg(target_family = "windows")]
+
 impl TryFrom<DeviceDetails> for CdDrive {
     type Error = io::Error;
 
@@ -248,7 +248,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
 }
 
 /// Get all the available drives, which have an AudioCd present
-#[cfg(target_family = "windows")]
+
 pub fn all_drives() -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
@@ -291,7 +291,7 @@ pub fn all_drives() -> io::Result<CdDrives> {
 }
 
 /// Iterator over all the available drives, which have an AudioCd present
-#[cfg(target_family = "windows")]
+
 pub struct CdDrives {
     /// # SAFETY:
     /// Must be a valid handle (pointer *mut c_void) to device information set.
@@ -302,7 +302,7 @@ pub struct CdDrives {
     current_index: u32 = 0,
 }
 
-#[cfg(target_family = "windows")]
+
 impl Iterator for CdDrives {
     type Item = CdDrive;
 
@@ -528,7 +528,7 @@ pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
 /// output drive details via tracing
 /// CURRENTLY UNSAFE as HDEVINFO is a type alias not a NewType
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
-#[cfg(target_family = "windows")]
+
 pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
     for drive_index in 0.. {
         let debug = tracing::debug_span!(
@@ -724,7 +724,7 @@ pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
-#[cfg(target_family = "windows")]
+
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
@@ -741,7 +741,7 @@ struct DeviceDetails {
 
 #[repr(C, packed(1))]
 #[cfg(target_arch = "x86")]
-#[cfg(target_family = "windows")]
+
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
@@ -751,7 +751,7 @@ struct DeviceDetails {
     DevicePath: [u16; 264] = [0; _],
 }
 
-#[cfg(target_family = "windows")]
+
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
@@ -763,14 +763,14 @@ impl DeviceDetails {
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
     }
 
-    #[cfg(target_family = "windows")]
+    
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> WinString {
         WinString::from(self.DevicePath.as_slice())
     }
 }
 
-#[cfg(target_family = "windows")]
+
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -807,7 +807,7 @@ mod handle {
     // SAFETY: See documentation comment
     unsafe impl Send for DriveHandle {}
 
-    #[cfg(target_family = "windows")]
+    
     impl Drop for DriveHandle {
         fn drop(&mut self) {
             #[expect(unsafe_code, reason = "ffi call")]
@@ -822,7 +822,7 @@ mod handle {
         }
     }
 
-    #[cfg(target_family = "windows")]
+    
     impl DriveHandle {
         pub fn open(path: WinString) -> io::Result<Self> {
             let _debug = tracing::debug_span!("opening drive handle", %path).entered();
