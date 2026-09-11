@@ -10,6 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::{
+    MAX_PATH_CHARS,
     bindings::{
         CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
         DeviceIoControl, FILE_NAME_NORMALIZED, FILE_SHARE_READ, GENERIC_READ,
@@ -21,6 +22,11 @@ use super::{
     convert::{Guid, Sector, WinString},
     toc::TOC_SIZE,
 };
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
 use crate::{
     FRAME_SIZE, Track,
     hex::hex_dump,
@@ -497,7 +503,7 @@ impl Iterator for CdDrives {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; 264] = [0; _],
+    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
 
 #[repr(C, packed(1))]
@@ -508,7 +514,7 @@ struct DeviceDetails {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; 264] = [0; _],
+    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
 
 impl DeviceDetails {
@@ -634,7 +640,7 @@ mod handle {
         pub fn path(&self) -> io::Result<PathBuf> {
             // SAFETY: path_buf is sized to take `//?/{MAX_PATH}/0` as this is a handle for
             // a drive the path itself must be DOS compatible and therefore < MAX_PATH chars
-            let mut path_buf: [u16; 265] = [0; _];
+            let mut path_buf: [u16; MAX_PATH_CHARS] = [0; _];
 
             #[expect(unsafe_code, reason = "ffi call")]
             // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew

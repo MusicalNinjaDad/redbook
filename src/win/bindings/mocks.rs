@@ -6,7 +6,7 @@ use std::slice;
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
-use super::super::convert::WinString;
+use super::super::{MAX_PATH_CHARS, convert::WinString};
 
 // Prefer re-exported types
 use super::{HANDLE, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W};
@@ -21,7 +21,7 @@ pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
 }
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
-///   a null-terminated, utf-16 encoded String, of at most 265 bytes.
+///   a null-terminated, utf-16 encoded String, of at most [MAX_PATH_CHARS].
 ///   The best way to achieve this is by passing the result of [`WinString::as_pcwstr()`]
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
@@ -30,7 +30,7 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
-    let pcwstr = unsafe { slice::from_raw_parts(lpfilename, 256) };
+    let pcwstr = unsafe { slice::from_raw_parts(lpfilename, MAX_PATH_CHARS) };
     let win_path = WinString::from(pcwstr).to_string();
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
 
