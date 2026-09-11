@@ -59,10 +59,17 @@ impl AudioCd {
         // durations and gives us a comparison to validate the raw TOC against.
         let mut tracks: Vec<_> = fs::read_dir(&path)
             .or_error("open drive as dir")?
-            .map(|track| {
-                let path = track.or_error("read dir entry for cda")?.path();
-                let cda = CdaFile::from_path(path).or_error("read cda")?;
-                Ok(Track::from(cda))
+            .filter_map(|track| {
+                let path = try bikeshed io::Result<_> {
+                    track.or_error("read dir entry for cda")?.path()
+                }
+                .ok()?;
+                (path.extension()? == "cda").then(|| {
+                    try bikeshed io::Result<_> {
+                        let cda = CdaFile::from_path(path).or_error("read cda")?;
+                        Track::from(cda)
+                    }
+                })
             })
             .try_collect()
             .or_error("parse cda")?;
@@ -190,6 +197,7 @@ mod tests {
 
     #[rstest]
     #[case(DefinitelyMaybe)]
+    #[should_panic(expected = "create mock")]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         AudioCd::new(path).unwrap();
