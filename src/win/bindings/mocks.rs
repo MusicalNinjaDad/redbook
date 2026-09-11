@@ -21,6 +21,7 @@ use super::bindgen::{
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
 const THE_WALL_2: HANDLE = 3 as _;
+const ALL_ALBUMS: HDEVINFO = 4 as _;
 
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
@@ -102,7 +103,7 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
-    todo!("create mock")
+    todo!("mock SetupDiEnumDeviceInterfaces")
 }
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
@@ -110,7 +111,7 @@ pub unsafe fn SetupDiGetClassDevsW(
     hwndparent: HWND,
     flags: u32,
 ) -> HDEVINFO {
-    todo!("create mock")
+    todo!("mock SetupDiGetClassDevsW")
 }
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,
@@ -120,5 +121,5 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     requiredsize: *mut u32,
     deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
-    todo!("create mock")
+    todo!("mock SetupDiGetDeviceInterfaceDetailW")
 }
