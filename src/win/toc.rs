@@ -7,7 +7,6 @@
 
 use std::{fs, io, path::Path};
 
-
 use std::ptr::null_mut;
 
 use cdtoc::{Toc, TocError};
@@ -16,7 +15,6 @@ use tracing_result::Trace;
 pub(crate) use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
-
 
 use super::{
     bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX},
@@ -31,7 +29,6 @@ pub const CDA_LEN: usize = 0x2c;
 
 impl CDROM_TOC {
     /// Load from disc
-    
     pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
         let toc_command = CDROM_READ_TOC_EX {
             SessionTrack: 1,
