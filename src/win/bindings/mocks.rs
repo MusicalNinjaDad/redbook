@@ -47,7 +47,14 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
-    let pcwstr = unsafe { slice::from_raw_parts(lpfilename, MAX_PATH_CHARS) };
+    #[expect(
+        clippy::multiple_unsafe_ops_per_block,
+        reason = "deference pointer arithmetic"
+    )]
+    let path_len = (0..MAX_PATH_CHARS)
+        .find(|&i| unsafe { *lpfilename.add(i) == 0 })
+        .expect("null termination before MAX_PATH_CHARS");
+    let pcwstr = unsafe { slice::from_raw_parts(lpfilename, path_len) };
     let win_path = WinString::from(pcwstr).to_string();
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
 
