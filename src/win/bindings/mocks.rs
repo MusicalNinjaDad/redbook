@@ -69,9 +69,11 @@ pub unsafe fn DeviceIoControl(
     match (hdevice, dwiocontrolcode) {
         (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => {
             let toc = DefinitelyMaybe.load_cdrom_toc();
-            1
+            assert_eq!(noutbuffersize as usize, size_of_val(&toc));
+            todo!("dm")
+            // 1
         }
-        _ => todo!("mock DeviceIoControl")
+        _ => todo!("mock DeviceIoControl"),
     }
 }
 pub unsafe fn GetFinalPathNameByHandleW(
