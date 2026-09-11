@@ -16,6 +16,8 @@ use super::bindgen::{
     BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, PWSTR, SP_DEVINFO_DATA,
 };
 
+const DEFINITELY_MAYBE: HANDLE = 1 as _;
+
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
 
@@ -30,10 +32,8 @@ impl TryFrom<HANDLE> for TestAlbum {
     }
 }
 
-const DEFINITELY_MAYBE: HANDLE = 1 as _;
-
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
-    todo!("mock CloseHandle")
+    0
 }
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
