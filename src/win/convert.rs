@@ -6,7 +6,19 @@ use super::bindings::GUID;
 use crate::{Frame, win::bindings::PCWSTR};
 
 /// A windows GUID - e.g. `53F56308-B6BF-11D0-94F2-00A0C91EFB8B`
+#[derive(Clone, Copy)]
 pub struct Guid(pub GUID);
+
+impl PartialEq for Guid {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.data1 == other.0.data1
+            && self.0.data2 == other.0.data2
+            && self.0.data3 == other.0.data3
+            && self.0.data4 == other.0.data4
+    }
+}
+
+impl Eq for Guid {}
 
 impl Display for Guid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

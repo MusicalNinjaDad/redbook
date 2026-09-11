@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::IOCTL_CDROM_READ_TOC_EX;
+use crate::win::bindings::{GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX};
+use crate::win::convert::Guid;
 use crate::win::toc::CDROM_TOC;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
@@ -111,7 +112,11 @@ pub unsafe fn SetupDiGetClassDevsW(
     hwndparent: HWND,
     flags: u32,
 ) -> HDEVINFO {
-    todo!("mock SetupDiGetClassDevsW")
+    let classguid = Guid(unsafe{*classguid});
+    match classguid {
+        guid if guid == Guid(GUID_DEVINTERFACE_CDROM) => todo!("all drives"),
+        _ => todo!("unknown guid")
+    }
 }
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,

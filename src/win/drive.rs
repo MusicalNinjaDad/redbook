@@ -664,7 +664,7 @@ mod miri {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "mock SetupDiGetClassDevsW")]
+    #[should_panic(expected = "all drives")]
     fn all() {
         let _drives = all_drives().unwrap();
     }
