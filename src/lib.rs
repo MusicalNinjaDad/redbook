@@ -52,7 +52,7 @@
 //!
 //! # Example
 //!
-//! ```rust, no_run, ignore-linux, ignore-darwin
+//! ```rust, no_run
 //! use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 //! # use std::{io, path::PathBuf};
 //! # use metaflac::block::{Picture, VorbisComment};
@@ -120,7 +120,6 @@ pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use tracing::field::Empty;
 use tracing_result::Trace;
-#[cfg(target_family = "windows")]
 pub use win::AudioCd;
 
 use std::{
@@ -176,7 +175,7 @@ pub const LEADIN: Frame = Frame(150);
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -225,7 +224,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -368,7 +367,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -402,7 +401,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -437,7 +436,7 @@ pub trait AudioCdExt {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -479,7 +478,7 @@ pub trait AudioCdExtMut {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -513,7 +512,7 @@ pub trait AudioCdExtMut {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -551,7 +550,7 @@ pub trait AudioCdExtMut {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -589,7 +588,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -644,7 +643,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// use std::fs::File;
     /// use std::io::Write;
@@ -714,7 +713,7 @@ impl RippedTrack {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -766,7 +765,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -792,7 +791,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -829,7 +828,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -870,7 +869,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
