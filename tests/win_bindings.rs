@@ -40,7 +40,10 @@ const BINDINGS: [&str; 30] = [
 
 #[test]
 fn gen_bindings() {
-    let src = PathBuf::from("src").join("win").join("bindings").join("bindgen.rs");
+    let src = PathBuf::from("src")
+        .join("win")
+        .join("bindings")
+        .join("bindgen.rs");
     let existing = fs::read_to_string(&src).unwrap();
 
     Bindgen::new()

@@ -4,14 +4,6 @@
 #[cfg(target_family = "windows")]
 mod audiocd;
 
-#[expect(unsafe_code, reason = "generated bindings to windows API via ffi")]
-#[expect(
-    clippy::undocumented_unsafe_blocks,
-    reason = "generated bindings to windows API via ffi"
-)]
-#[expect(dead_code)]
-#[expect(nonstandard_style)]
-#[expect(clippy::upper_case_acronyms)]
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod bindings;
 
