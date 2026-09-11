@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
+use crate::win::bindings::CDROM_READ_TOC_EX;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
 
@@ -66,8 +67,8 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
-    match hdevice {
-        DEFINITELY_MAYBE => todo!("dm"),
+    match (hdevice, dwiocontrolcode) {
+        (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => todo!("dm"),
         _ => todo!("mock DeviceIoControl")
     }
 }
