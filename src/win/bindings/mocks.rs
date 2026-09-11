@@ -68,7 +68,10 @@ pub unsafe fn DeviceIoControl(
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
     match (hdevice, dwiocontrolcode) {
-        (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => todo!("dm"),
+        (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => {
+            let toc = DefinitelyMaybe.load_cdrom_toc();
+            todo!("dm")
+        }
         _ => todo!("mock DeviceIoControl")
     }
 }
