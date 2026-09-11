@@ -1,5 +1,3 @@
-#![expect(missing_docs, reason = "to do")]
-
 //! Windows-specific audio CD Table of Contents handling.
 //!
 //! Glues together:
@@ -9,6 +7,9 @@
 
 use std::{fs, io, path::Path};
 
+#[cfg(target_family = "windows")]
+use std::ptr::null_mut;
+
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
@@ -16,30 +17,65 @@ pub(crate) use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
+#[cfg(target_family = "windows")]
+use super::{
+    bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX},
+    drive::DriveHandle,
+};
+
 /// size of ffi struct [`CDROM_TOC`]
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
 
-/// Manipulation of [`CDROM_TOC`]
-pub trait CdromTocExt {
+impl CDROM_TOC {
+    /// Load from disc
+    #[cfg(target_family = "windows")]
+    pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
+        let toc_command = CDROM_READ_TOC_EX {
+            SessionTrack: 1,
+            ..Default::default()
+        };
+
+        let mut toc = CDROM_TOC::default();
+        let mut bytes_read: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(clippy::multiple_unsafe_ops_per_block, reason = "obtain HANDLE inline")]
+        let read_toc = unsafe {
+            // SAFETY: inline based on
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+            DeviceIoControl(
+                // valid handle - upheld by DriveHandle
+                *handle.as_handle_mut() as *mut _,
+                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
+                // points to a buffer of type CDROM_READ_TOC_EX
+                &toc_command as *const _ as *const _,
+                // indicates the size, in bytes, of the input buffer,
+                // which must be >= sizeof(CDROM_READ_TOC_EX).
+                size_of_val(&toc_command) as u32,
+                // CDROM_READ_TOC_EX does not allow setting `Format` but
+                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
+                // The output data is reported in a CDROM_TOC structure.
+                &mut toc as *mut _ as *mut _,
+                size_of_val(&toc) as u32,
+                &mut bytes_read as *mut _,
+                null_mut(),
+            )
+        };
+        let _error_span = tracing::error_span!("reading TOC", bytes_read).entered();
+        (read_toc != 0)
+            .ok_or_else(io::Error::last_os_error)
+            .or_error("")?;
+        Ok(toc)
+    }
+
     /// Parse raw bytes as a [`CDROM_TOC`] structure
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC;
-
-    fn to_toc(&self) -> Result<Toc, TocError>;
-
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry>;
-
-    /// The absolute start of the lead out
-    fn leadout(&self) -> Result<Frame, TocError>;
-}
-
-impl CdromTocExt for CDROM_TOC {
-    fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+    pub fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
         #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
             // SAFETY: correct size & alignment
@@ -50,7 +86,7 @@ impl CdromTocExt for CDROM_TOC {
         }
     }
 
-    fn to_toc(&self) -> Result<Toc, TocError> {
+    pub fn as_toc(&self) -> Result<Toc, TocError> {
         let audio = self
             .iter_audio()
             .map(|entry| entry.start.as_usize() as u32)
@@ -59,14 +95,15 @@ impl CdromTocExt for CDROM_TOC {
         Toc::from_parts(audio, None, leadout)
     }
 
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
+    pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| (1..0xA0).contains(&track.TrackNumber))
             .map(TocEntry::from)
     }
 
-    fn leadout(&self) -> Result<Frame, TocError> {
+    /// The absolute start of the lead out
+    pub fn leadout(&self) -> Result<Frame, TocError> {
         self.TrackData
             .iter()
             .find(|track| track.TrackNumber == 170)
@@ -339,6 +376,6 @@ mod tests {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();
 
-        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
+        assert_eq!(toc, cdrom_toc.as_toc().unwrap())
     }
 }

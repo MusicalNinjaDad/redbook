@@ -26,6 +26,7 @@ use metaflac::{
     Block, Tag,
     block::{Picture, PictureType},
 };
+#[cfg(target_family = "windows")]
 use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureExt};
 use try_v2::Try;
 

@@ -1,30 +1,41 @@
 //! Handles direct hardware access via Windows APIs
-
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     io::{self, ErrorKind},
     path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
 
-use super::bindings::{
-    CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DeviceIoControl, FILE_SHARE_READ,
-    GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-    OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
+use tracing::field::Empty;
+use tracing_result::Trace;
+
+use super::{
+    bindings::{
+        CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
+        DeviceIoControl, FILE_NAME_NORMALIZED, FILE_SHARE_READ, GENERIC_READ,
+        GUID_DEVINTERFACE_CDROM, GetFinalPathNameByHandleW, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
+        IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
+        SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+        SetupDiGetDeviceInterfaceDetailW, VOLUME_NAME_DOS,
+    },
+    convert::{Guid, Sector, WinString},
+    toc::TOC_SIZE,
+};
+use crate::{
+    FRAME_SIZE, Track,
+    hex::hex_dump,
+    win::bindings::{ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS},
 };
 
-use super::toc::TOC_SIZE;
-use crate::hex::hex_dump;
-use crate::{FRAME_SIZE, Frame, Track};
+pub(super) use handle::DriveHandle;
 
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
-#[clippy::has_significant_drop]
 pub struct CdDrive {
     path: PathBuf,
-    handle: HANDLE,
+    handle: DriveHandle,
     toc: CDROM_TOC,
 }
 
@@ -76,82 +87,9 @@ impl CdDrive {
 
         let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
 
-        let windrive = format!(r"\\.\{}", path.display());
-        #[expect(unsafe_code, reason = "ffi call")]
-        #[expect(
-            clippy::multiple_unsafe_ops_per_block,
-            reason = "embedded call to ensure raw pointer dropped immediately"
-        )]
-        let handle: HANDLE = unsafe {
-            // SAFETY:
-            // - All parameter values constructed with provided consts, no magic numbers used
-            // - lpfilename (passed as raw pointer) is valid for duration of this block
-            // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
-
-            let lpfilename = WinString::from(windrive.as_str());
-            let dwdesiredaccess = GENERIC_READ;
-            let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
-            let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
-
-            CreateFile2(
-                lpfilename.as_pcwstr(),
-                dwdesiredaccess,
-                dwsharemode,
-                dwcreationdisposition,
-                null(),
-            )
-        };
-        // If the function fails, the return value is INVALID_HANDLE_VALUE.
-        // To get extended error information, call GetLastError.
-        if handle == INVALID_HANDLE_VALUE {
-            let error = io::Error::last_os_error();
-            tracing::error!(name: "getting handle for drive", %error);
-            return Err(error);
-        };
-
-        let toc_command = CDROM_READ_TOC_EX {
-            SessionTrack: 1,
-            ..Default::default()
-        };
-
-        let mut toc = CDROM_TOC::default();
-        let mut bytes_read: u32 = 0;
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        let read_toc = unsafe {
-            // SAFETY: inline based on
-            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
-            DeviceIoControl(
-                // valid handle - we have just created it
-                handle,
-                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
-                // points to a buffer of type CDROM_READ_TOC_EX
-                &toc_command as *const _ as *const _,
-                // indicates the size, in bytes, of the input buffer,
-                // which must be >= sizeof(CDROM_READ_TOC_EX).
-                size_of_val(&toc_command) as u32,
-                // CDROM_READ_TOC_EX does not allow setting `Format` but
-                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
-                // The output data is reported in a CDROM_TOC structure.
-                &mut toc as *mut _ as *mut _,
-                size_of_val(&toc) as u32,
-                &mut bytes_read as *mut _,
-                null_mut(),
-            )
-        };
-        if read_toc == 0 {
-            let error = io::Error::last_os_error();
-            tracing::error!(name:"reading TOC", bytes_read, %error);
-
-            #[expect(unsafe_code, reason = "ffi call")]
-            unsafe {
-                // SAFETY: handle has not been closed or mutated since it was opened above
-                CloseHandle(handle as *mut _)
-            };
-
-            return Err(error);
-        };
-        assert!(bytes_read <= TOC_SIZE as u32);
+        let windrive = WinString::from(format!(r"\\.\{}", path.display()));
+        let mut handle = DriveHandle::open(windrive).or_error("")?;
+        let toc = CDROM_TOC::read_from(&mut handle)?;
         Ok(Self { path, handle, toc })
     }
 
@@ -172,7 +110,8 @@ impl CdDrive {
         reason = "required to be unsafe, to allow CdDrive to be Send"
     )]
     pub unsafe fn handle(&self) -> &HANDLE {
-        &self.handle
+        // SAFETY: We provide the same safety message regarding `Send`
+        unsafe { self.handle.as_handle() }
     }
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
@@ -297,69 +236,693 @@ impl CdDrive {
 }
 
 #[cfg(target_family = "windows")]
-impl Drop for CdDrive {
-    fn drop(&mut self) {
+impl TryFrom<DeviceDetails> for CdDrive {
+    type Error = io::Error;
+
+    fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
+        let mut handle = DriveHandle::open(device.path()).or_error("")?;
+        let toc = CDROM_TOC::read_from(&mut handle)?;
+        let path = handle.path()?;
+        Ok(Self { path, handle, toc })
+    }
+}
+
+/// Get all the available drives, which have an AudioCd present
+#[cfg(target_family = "windows")]
+pub fn all_drives() -> io::Result<CdDrives> {
+    let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
+
+    #[expect(unsafe_code, reason = "ffi call")]
+    // SAFETY: inline based on:
+    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+    let deviceinfoset = unsafe {
+        SetupDiGetClassDevsW(
+            // A pointer to the GUID for a device setup class or a device interface class.
+            &GUID_DEVINTERFACE_CDROM as *const _,
+            // This pointer is optional and can be NULL.
+            // If an enumeration value is not used to select devices, set Enumerator to NULL.
+            // - No PnP enumeration required
+            null(),
+            // A handle to the top-level window to be used for a user interface that is
+            // associated with installing a device instance in the device information set.
+            // This handle is optional and can be NULL.
+            // - Not installing a device
+            null_mut(),
+            // Filter the device information elements that are added to the device
+            // information set. This parameter can be a bitwise OR of zero or more flags
+            // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
+            //   specified device interface classes.
+            // - DIGCF_PRESENT: Return only devices that are currently present in a system.
+            DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
+        )
+    };
+    debug.record("handle", format!("{deviceinfoset:?}"));
+
+    // If the operation succeeds, SetupDiGetClassDevs returns a handle to a device information
+    // set that contains all installed devices that matched the supplied parameters. If the
+    // operation fails, the function returns INVALID_HANDLE_VALUE. To get extended error
+    // information, call GetLastError.
+    (deviceinfoset != INVALID_HANDLE_VALUE)
+        .ok_or_else(io::Error::last_os_error)
+        .or_warn("invalid handle")?;
+
+    tracing::debug!("got device infoset");
+    Ok(CdDrives { deviceinfoset, .. })
+}
+
+/// Iterator over all the available drives, which have an AudioCd present
+#[cfg(target_family = "windows")]
+pub struct CdDrives {
+    /// # SAFETY:
+    /// Must be a valid handle (pointer *mut c_void) to device information set.
+    /// Can only be constructed via [`all_drives`] which ensures this is upheld.
+    deviceinfoset: HDEVINFO,
+    /// Index of next element to retrieve from deviceinfoset.
+    /// `u32` as this is what the ffi calls use.
+    current_index: u32 = 0,
+}
+
+#[cfg(target_family = "windows")]
+impl Iterator for CdDrives {
+    type Item = CdDrive;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let drive_index = self.current_index;
+        let deviceinfoset = self.deviceinfoset;
+        self.current_index += 1;
+        let debug = tracing::debug_span!(
+            "next drive",
+            drive_index,
+            guid = Empty,
+            path_length = Empty,
+            path = Empty,
+        )
+        .entered();
+
+        // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+        // before calling SetupDiEnumDeviceInterfaces
+        let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
+
         #[expect(unsafe_code, reason = "ffi call")]
-        unsafe {
-            // SAFETY: handle
-            // - was opened and validated in `open()`
-            // - has not been closed (no such methods provided on Self)
-            // - has not been externally mutated (no such methods provided on Self)
-            CloseHandle(self.handle as *mut _);
+        // SAFETY: inline based on
+        // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+        let get_data = unsafe {
+            SetupDiEnumDeviceInterfaces(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                //
+                // SAFETY: Known to be a valid handle as this comes from non-public field in Self
+                deviceinfoset,
+                // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+                // information about the interfaces that are associated with *all* the device
+                // information elements in DeviceInfoSet
+                null(),
+                // A pointer to a GUID that specifies the device interface class for the
+                // requested interface.
+                &GUID_DEVINTERFACE_CDROM as *const _,
+                // A zero-based index into the list of interfaces in the device information set.
+                drive_index,
+                // A pointer to a caller-allocated buffer that contains, on successful return,
+                // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+                // that meets the search parameters.
+                // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+                // before calling this function.
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedata as *mut _,
+            )
+        };
+
+        let err = io::Error::last_os_error();
+        // repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        match (get_data, err.raw_os_error()) {
+            (0, Some(ERROR_NO_MORE_ITEMS)) => return None,
+            (0, _) => {
+                tracing::error!(drive_index, %err, "failed to get data about device");
+                return None;
+            }
+            _ => debug.record(
+                "guid",
+                Guid(deviceinterfacedata.InterfaceClassGuid).to_string(),
+            ),
+        };
+
+        let mut requiredsize: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        //
+        // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+        // NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+        // and a valid RequiredSize variable. In response to such a call, this function returns
+        // the required buffer size at RequiredSize and fails with GetLastError
+        // returning ERROR_INSUFFICIENT_BUFFER.
+        let get_required_buffer_size = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                deviceinfoset,
+                &deviceinterfacedata as *const _,
+                // a NULLDeviceInterfaceDetailData pointer
+                null_mut(),
+                // a DeviceInterfaceDetailDataSize of zero
+                0,
+                // a valid RequiredSize variable
+                //
+                // Receives the required size of the DeviceInterfaceDetailData buffer.
+                // This size includes the size of the fixed part of the structure plus the number
+                // of bytes required for the variable-length device path string.
+                &mut requiredsize as *mut _,
+                null_mut(),
+            )
+        };
+        let err = io::Error::last_os_error();
+        match (get_required_buffer_size, err.raw_os_error()) {
+            (0, Some(ERROR_INSUFFICIENT_BUFFER)) => debug.record("path_length", requiredsize),
+            _ => {
+                tracing::error!(%err, "reading required buffer size");
+                return None;
+            }
+        };
+
+        // SAFETY:
+        // Buffer required to be large enough
+        try bikeshed io::Result<()> { DeviceDetails::check_size(requiredsize).or_error("")? }
+            .ok()?;
+
+        // SAFETY:
+        // 1. cbSize is fixed to correct value via construction:
+        //    the caller must set DeviceInterfaceDetailData.cbSize to
+        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        //    The cbSize member always contains the size of the fixed part of the data structure,
+        //    not a size reflecting the variable-length string at the end.
+        //
+        // 2. buffer length is validated as large enough via call to DeviceDetails::check_size above
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        let get_details = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
+                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
+                // typically returned by SetupDiEnumDeviceInterfaces.
+                &deviceinterfacedata as *const _,
+                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
+                // about the specified interface.
+                //
+                // ** If this parameter is specified, the caller must set
+                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
+                // before calling this function. The cbSize member always contains the size of the
+                // fixed part of the data structure, not a size reflecting the variable-length
+                // string at the end.**
+                //
+                // SAFETY:
+                // 1. cbSize set upon construction
+                // 2. buffer size validated via call to get requiredsize above
+                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
+                //    with identical fields, layout & alignment
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
+                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
+                // to contain the fixed part of the structure and a single NULL to terminate an
+                // empty MULTI_SZ string.
+                //
+                // Therefore this size must be the total size of the DeviceDetails struct, which
+                // is known to have sufficient buffer for the fixed part, path + termination
+                const { size_of::<DeviceDetails>() as u32 },
+                null_mut(),
+                null_mut(),
+            )
+        };
+
+        match get_details {
+            0 => {
+                tracing::error!(get_details, err = %io::Error::last_os_error());
+                return None;
+            }
+            _ => debug.record("path", deviceinterfacedetaildata.to_string()),
+        };
+
+        match CdDrive::try_from(deviceinterfacedetaildata) {
+            Ok(cddrive) => Some(cddrive),
+            Err(error) if error.raw_os_error() == Some(21) => {
+                // OS error 21 (device not ready) = no disc in drive
+                drop(debug);
+                self.next()
+            }
+            Err(error) => {
+                tracing::error!(%error, "opening device");
+                None
+            }
         }
-        // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
     }
 }
 
-/// A pseudo-sector on an AudioCd
-///
-/// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE]-byte frame is a 2048-byte
-/// sector.
-///
-/// Internally stores the relative frame (excluding 150 lead-in frames)
-pub struct Sector(i64);
+/// Get a handle to a device information set containing all CDROM available devices
+pub fn _get_drive_infosets() -> io::Result<HDEVINFO> {
+    #[expect(unsafe_code, reason = "ffi call")]
+    // SAFETY: inline based on:
+    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+    let handle = unsafe {
+        SetupDiGetClassDevsW(
+            // A pointer to the GUID for a device setup class or a device interface class.
+            &GUID_DEVINTERFACE_CDROM as *const _,
+            // This pointer is optional and can be NULL.
+            // If an enumeration value is not used to select devices, set Enumerator to NULL.
+            // - No PnP enumeration required
+            null(),
+            // A handle to the top-level window to be used for a user interface that is
+            // associated with installing a device instance in the device information set.
+            // This handle is optional and can be NULL.
+            // - Not installing a device
+            null_mut(),
+            // Filter the device information elements that are added to the device
+            // information set. This parameter can be a bitwise OR of zero or more flags
+            // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
+            //   specified device interface classes.
+            // - DIGCF_PRESENT: Return only devices that are currently present in a system.
+            DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
+        )
+    };
 
-impl Sector {
-    /// Construct from an absolute frame number (including lead-in)
-    pub fn from_frame(frame: Frame) -> Self {
-        Self(frame.relative_to_leadin().as_usize() as i64)
+    // If the operation succeeds, SetupDiGetClassDevs returns a handle to a device information
+    // set that contains all installed devices that matched the supplied parameters. If the
+    // operation fails, the function returns INVALID_HANDLE_VALUE. To get extended error
+    // information, call GetLastError.
+    (handle != INVALID_HANDLE_VALUE)
+        .ok_or_else(io::Error::last_os_error)
+        .or_warn("invalid handle")?;
+
+    tracing::debug!(?handle);
+    Ok(handle)
+}
+
+/// output drive details via tracing
+/// CURRENTLY UNSAFE as HDEVINFO is a type alias not a NewType
+#[expect(clippy::not_unsafe_ptr_arg_deref)]
+#[cfg(target_family = "windows")]
+pub fn _list_drives(deviceinfoset: HDEVINFO) -> io::Result<()> {
+    for drive_index in 0.. {
+        let debug = tracing::debug_span!(
+            "list drives",
+            drive_index,
+            guid = Empty,
+            guid_path = Empty,
+            path = Empty
+        )
+        .entered();
+
+        tracing::debug!("checking ...");
+
+        let cdrom_path = format!(r#"\\.\CDRom{drive_index}"#);
+        debug.record("path", &cdrom_path);
+        let mut handle2 = DriveHandle::open(WinString::from(cdrom_path)).or_error("")?;
+        tracing::debug!("opened handle");
+
+        let toc = CDROM_TOC::read_from(&mut handle2)
+            .or_warn("")?
+            .as_toc()
+            .map_err(io::Error::other)
+            .or_warn("")?;
+        tracing::debug!(%toc, "got toc");
+
+        debug.record("path", Empty);
+
+        // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+        // before calling SetupDiEnumDeviceInterfaces
+        let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: inline based on
+        // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+        let get_data = unsafe {
+            SetupDiEnumDeviceInterfaces(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+                // information about the interfaces that are associated with all the device
+                // information elements in DeviceInfoSet
+                null(),
+                // A pointer to a GUID that specifies the device interface class for the
+                // requested interface.
+                &GUID_DEVINTERFACE_CDROM as *const _,
+                // A zero-based index into the list of interfaces in the device information set.
+                drive_index,
+                // A pointer to a caller-allocated buffer that contains, on successful return,
+                // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+                // that meets the search parameters.
+                // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+                // before calling this function.
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedata as *mut _,
+            )
+        };
+
+        // repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        if get_data == 0 {
+            tracing::debug!("... not found");
+            break;
+        }
+        debug.record(
+            "guid",
+            Guid(deviceinterfacedata.InterfaceClassGuid).to_string(),
+        );
+
+        tracing::debug!("... found");
+
+        let mut requiredsize: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        //
+        // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+        // NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+        // and a valid RequiredSize variable. In response to such a call, this function returns
+        // the required buffer size at RequiredSize and fails with GetLastError
+        // returning ERROR_INSUFFICIENT_BUFFER.
+        let get_required_buffer_size = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                deviceinfoset,
+                &deviceinterfacedata as *const _,
+                // a NULLDeviceInterfaceDetailData pointer
+                null_mut(),
+                // a DeviceInterfaceDetailDataSize of zero
+                0,
+                // a valid RequiredSize variable
+                //
+                // Receives the required size of the DeviceInterfaceDetailData buffer.
+                // This size includes the size of the fixed part of the structure plus the number
+                // of bytes required for the variable-length device path string.
+                &mut requiredsize as *mut _,
+                null_mut(),
+            )
+        };
+
+        if get_required_buffer_size != 0 {
+            tracing::debug!("should have errored");
+            break;
+        }
+
+        let err = io::Error::last_os_error();
+        tracing::debug!(%err, "hopefully ERROR_INSUFFICIENT_BUFFER");
+        tracing::debug!(requiredsize);
+
+        // SAFETY:
+        // Buffer required to be large enough
+        DeviceDetails::check_size(requiredsize).or_error("")?;
+
+        // SAFETY:
+        // 1. cbSize is fixed to correct value via construction:
+        //    the caller must set DeviceInterfaceDetailData.cbSize to
+        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        //    The cbSize member always contains the size of the fixed part of the data structure,
+        //    not a size reflecting the variable-length string at the end.
+        //
+        // 2. buffer length is validated as large enough via call to DeviceDetails::check_size above
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        let get_details = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                // UNSAFE DO NOT KEEP THIS PUBlIC
+                deviceinfoset,
+                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
+                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
+                // typically returned by SetupDiEnumDeviceInterfaces.
+                &deviceinterfacedata as *const _,
+                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
+                // about the specified interface.
+                //
+                // ** If this parameter is specified, the caller must set
+                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
+                // before calling this function. The cbSize member always contains the size of the
+                // fixed part of the data structure, not a size reflecting the variable-length
+                // string at the end.**
+                //
+                // SAFETY:
+                // 1. cbSize set upon construction
+                // 2. buffer size validated via call to get requiredsize above
+                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
+                //    with identical fields, layout & alignment
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
+                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
+                // to contain the fixed part of the structure and a single NULL to terminate an
+                // empty MULTI_SZ string.
+                //
+                // Therefore this size must be the total size of the DeviceDetails struct, which
+                // is known to have sufficient buffer for the fixed part, path + termination
+                const { size_of::<DeviceDetails>() as u32 },
+                null_mut(),
+                null_mut(),
+            )
+        };
+
+        debug.record("guid_path", deviceinterfacedetaildata.to_string());
+        let err = io::Error::last_os_error();
+        tracing::debug!(get_details, cbsize = deviceinterfacedata.cbSize, %err);
+
+        let mut handle = DriveHandle::open(deviceinterfacedetaildata.path())?;
+        debug.record("path", handle.path()?.to_string_lossy().to_string());
+        tracing::debug!("opened handle1");
+
+        let toc = CDROM_TOC::read_from(&mut handle)
+            .or_warn("")?
+            .as_toc()
+            .map_err(io::Error::other)
+            .or_warn("")?;
+        tracing::debug!(%toc);
+
+        tracing::debug!("... done");
     }
 
-    /// For passing to `DeviceIoControl(..,IOCTL_CDROM_RAW_READ,..)`
+    Ok(())
+}
+
+#[repr(C)]
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+#[cfg(target_family = "windows")]
+#[expect(nonstandard_style, reason = "mimic C++ struct")]
+/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+///
+/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
+///
+/// A real example of such a path is:
+/// `\\\\?\\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DeviceDetails {
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; 264] = [0; _],
+}
+
+#[repr(C, packed(1))]
+#[cfg(target_arch = "x86")]
+#[cfg(target_family = "windows")]
+#[expect(nonstandard_style, reason = "mimic C++ struct")]
+/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DeviceDetails {
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; 264] = [0; _],
+}
+
+#[cfg(target_family = "windows")]
+impl DeviceDetails {
+    /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
-    /// - Pretends that each frame is a 2048-byte sector.
-    /// - Returned offset is relative to start of audio data
-    pub fn offset(&self) -> i64 {
-        self.0 * 2048
+    /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
+    /// get the required size, then to call `check_size` before using DeviceDetails to store the
+    /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
+    fn check_size(requiredsize: u32) -> io::Result<()> {
+        (requiredsize <= size_of::<Self>() as u32)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
+    }
+
+    #[cfg(target_family = "windows")]
+    /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
+    pub fn path(&self) -> WinString {
+        WinString::from(self.DevicePath.as_slice())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// A somewhat sane way of dealing with `PWSTR/PCWSTR`: A pointer to a null terminated string
-/// consisting of 'wide chars' (u16), encoded using UTF-16.
-///
-/// Construct via `WinString::from(&str)`
-pub struct WinString {
-    words: Vec<u16>,
-}
-
-impl From<&str> for WinString {
-    fn from(utf8: &str) -> Self {
-        // see https://kennykerr.ca/rust-getting-started/string-tutorial.html
-        let words = utf8.encode_utf16().chain(Some(0)).collect();
-        Self { words }
+#[cfg(target_family = "windows")]
+impl Display for DeviceDetails {
+    /// Output the path, parsing correctly as null-terminated utf16
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let len = self
+            .DevicePath
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(self.DevicePath.len());
+        Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
     }
 }
 
-impl WinString {
-    /// Create a `PCWSTR` - note this is a raw pointer.
+mod handle {
+
+    use super::*;
+    /// A open file handle which is known to point to a valid drive.
     ///
     /// # SAFETY
-    /// You must ensure that the returned `PCWSTR` is not used after self is dropped.
-    /// It is recommended to call this directly in the call to a WinAPI unsafe function,
-    /// see [AudioCd::new()] for an example
-    #[expect(unsafe_code, reason = "returns raw pointer")]
-    pub unsafe fn as_pcwstr(&self) -> PCWSTR {
-        self.words.as_ptr()
+    /// - Stored handle is not public. Can only be created via provided functions ensuring this
+    ///   is a safe new-type wrapper
+    /// - Handle is closed on Drop
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct DriveHandle(HANDLE);
+
+    /// # SAFETY
+    /// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to
+    ///   [`as_handle`][Self::as_handle] which includes specific safety restrictions allowing
+    ///   `DriveHandle` to be [Send]
+    /// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
+    #[expect(
+        unsafe_code,
+        reason = "Want to be able to rip in one thread and encode in another"
+    )]
+    // SAFETY: See documentation comment
+    unsafe impl Send for DriveHandle {}
+
+    #[cfg(target_family = "windows")]
+    impl Drop for DriveHandle {
+        fn drop(&mut self) {
+            #[expect(unsafe_code, reason = "ffi call")]
+            unsafe {
+                // SAFETY: handle
+                // - was opened and validated in `open()`
+                // - has not been closed (no such methods provided on Self)
+                // - has not been externally mutated (no such methods provided on Self)
+                CloseHandle(self.0 as *mut _);
+            }
+            // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
+        }
+    }
+
+    #[cfg(target_family = "windows")]
+    impl DriveHandle {
+        pub fn open(path: WinString) -> io::Result<Self> {
+            let _debug = tracing::debug_span!("opening drive handle", %path).entered();
+
+            #[expect(unsafe_code, reason = "ffi call")]
+            let handle: HANDLE = unsafe {
+                // SAFETY:
+                // - All parameter values constructed with provided consts, no magic numbers used
+                // - path is owned by this function and therefore valid for duration of this block
+                // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
+
+                let dwdesiredaccess = GENERIC_READ;
+                let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
+                let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
+
+                CreateFile2(
+                    path.as_pcwstr(),
+                    dwdesiredaccess,
+                    dwsharemode,
+                    dwcreationdisposition,
+                    null(),
+                )
+            };
+            // If the function fails, the return value is INVALID_HANDLE_VALUE.
+            // To get extended error information, call GetLastError.
+            if handle == INVALID_HANDLE_VALUE {
+                let error = io::Error::last_os_error();
+                tracing::error!(name: "getting handle for drive", %error);
+                return Err(error);
+            };
+            tracing::debug!(?handle, "opened successfully");
+            Ok(Self(handle))
+        }
+
+        /// Obtain a reference to the underlying [`HANDLE`] for the drive.
+        ///
+        /// # SAFETY
+        /// - Any modifications to the underlying [`HANDLE`] must ensure:
+        ///   1. That the previous handle is properly closed
+        ///   2. That the new handle is valid, open and refers to an available device which
+        ///      supports [`GUID_DEVINTERFACE_CDROM`]
+        /// - [`DriveHandle`] is marked as [`Send`]. Callers must ensure that the handle is not
+        ///   used to enable concurrent access to the drive ("processes and threads that share
+        ///   the same file must synchronize their access").
+        ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
+        #[expect(
+            unsafe_code,
+            reason = "required to be unsafe, to allow DriveHandle to be Send"
+        )]
+        pub unsafe fn as_handle_mut(&mut self) -> &mut HANDLE {
+            &mut self.0
+        }
+
+        pub fn path(&self) -> io::Result<PathBuf> {
+            // SAFETY: path_buf is sized to take `//?/{MAX_PATH}/0` as this is a handle for
+            // a drive the path itself must be DOS compatible and therefore < MAX_PATH chars
+            let mut path_buf: [u16; 265] = [0; _];
+
+            #[expect(unsafe_code, reason = "ffi call")]
+            // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
+            let get_path = unsafe {
+                GetFinalPathNameByHandleW(
+                    self.0,
+                    // SAFETY: path_buf is sized to take `//?/{MAX_PATH}/0` as this is a handle for
+                    // a drive the path itself must be DOS compatible and therefore < MAX_PATH chars
+                    &mut path_buf as *mut _,
+                    // The size of lpszFilePath, in TCHARs. This value must include a
+                    // NULL termination character.
+                    size_of_val(&path_buf) as u32,
+                    FILE_NAME_NORMALIZED as u32 | VOLUME_NAME_DOS as u32,
+                )
+            };
+
+            (get_path == 0)
+                .ok_or_else(io::Error::last_os_error)
+                .or_error("getting path for drive")?;
+
+            tracing::debug!(?path_buf);
+            let win_path = WinString::from(path_buf.as_slice());
+            tracing::debug!(%win_path);
+            let path = PathBuf::from(win_path.to_string());
+            tracing::debug!(path = %path.display());
+            Ok(path)
+        }
+    }
+
+    impl DriveHandle {
+        /// Obtain a reference to the underlying [`HANDLE`] for the drive.
+        ///
+        /// # SAFETY
+        /// - [`DriveHandle`] is marked as [`Send`]. Callers must ensure that the handle is not
+        ///   used to enable concurrent access to the drive ("processes and threads that share
+        ///   the same file must synchronize their access").
+        ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
+        #[expect(
+            unsafe_code,
+            reason = "required to be unsafe, to allow DriveHandle to be Send"
+        )]
+        pub unsafe fn as_handle(&self) -> &HANDLE {
+            &self.0
+        }
     }
 }

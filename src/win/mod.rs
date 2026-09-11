@@ -1,12 +1,7 @@
-#![cfg_attr(
-    not(target_family = "windows"),
-    expect(unused_imports, reason = "stubs")
-)]
-#![cfg_attr(not(target_family = "windows"), expect(missing_docs, reason = "stubs"))]
-
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
 #[forbid(unsafe_code)]
+#[cfg(target_family = "windows")]
 mod audiocd;
 
 #[expect(unsafe_code, reason = "generated bindings to windows API via ffi")]
@@ -20,8 +15,13 @@ mod audiocd;
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod bindings;
 
-// This is where any unsafe ffi usage belongs
+#[forbid(unsafe_code)]
+pub mod convert;
+
+// These modules are where any unsafe ffi usage occurs
+#[cfg(target_family = "windows")]
 pub mod drive;
 pub mod toc;
 
+#[cfg(target_family = "windows")]
 pub use audiocd::{AudioCd, ReadOnlyAudioCd};
