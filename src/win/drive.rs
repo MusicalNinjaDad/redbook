@@ -133,7 +133,6 @@ impl CdDrive {
         &self.toc
     }
 
-    
     /// Read a chunk of data from the disc to `buf`
     pub fn read_chunk(
         &self,
@@ -234,7 +233,6 @@ impl CdDrive {
     }
 }
 
-
 impl TryFrom<DeviceDetails> for CdDrive {
     type Error = io::Error;
 
@@ -298,7 +296,6 @@ pub struct CdDrives {
     /// `u32` as this is what the ffi calls use.
     current_index: u32 = 0,
 }
-
 
 impl Iterator for CdDrives {
     type Item = CdDrive;
@@ -736,7 +733,6 @@ struct DeviceDetails {
 
 #[repr(C, packed(1))]
 #[cfg(target_arch = "x86")]
-
 #[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
@@ -745,7 +741,6 @@ struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
     DevicePath: [u16; 264] = [0; _],
 }
-
 
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
@@ -758,13 +753,11 @@ impl DeviceDetails {
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
     }
 
-    
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> WinString {
         WinString::from(self.DevicePath.as_slice())
     }
 }
-
 
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
@@ -802,7 +795,6 @@ mod handle {
     // SAFETY: See documentation comment
     unsafe impl Send for DriveHandle {}
 
-    
     impl Drop for DriveHandle {
         fn drop(&mut self) {
             #[expect(unsafe_code, reason = "ffi call")]
@@ -817,7 +809,6 @@ mod handle {
         }
     }
 
-    
     impl DriveHandle {
         pub fn open(path: WinString) -> io::Result<Self> {
             let _debug = tracing::debug_span!("opening drive handle", %path).entered();
