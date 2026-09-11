@@ -194,9 +194,13 @@ mod tests {
 
     #[rstest]
     #[case(DefinitelyMaybe)]
-    #[should_panic(expected = "dm")]
+    #[should_panic(expected = "mock DeviceIoControl")]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
-        AudioCd::new(path).unwrap();
+        let cd = AudioCd::new(path).unwrap();
+        #[expect(unsafe_code)]
+        // SAFETY: not a real handle
+        let handle = unsafe { cd.drive.handle() };
+        assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
     }
 }

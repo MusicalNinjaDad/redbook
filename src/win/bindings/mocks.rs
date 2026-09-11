@@ -2,7 +2,7 @@
 //! on any host
 
 use std::path::PathBuf;
-use std::slice;
+use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
@@ -16,8 +16,24 @@ use super::bindgen::{
     BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, PWSTR, SP_DEVINFO_DATA,
 };
 
+impl TryFrom<HANDLE> for TestAlbum {
+    type Error = io::Error;
+
+    fn try_from(handle: HANDLE) -> Result<Self, Self::Error> {
+        match handle {
+            DEFINITELY_MAYBE => Ok(DefinitelyMaybe),
+            _ => Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "invalid album handle",
+            )),
+        }
+    }
+}
+
+const DEFINITELY_MAYBE: HANDLE = 1 as _;
+
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
-    todo!("CloseHandle")
+    todo!("mock CloseHandle")
 }
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
@@ -35,7 +51,7 @@ pub unsafe fn CreateFile2(
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
 
     match TestAlbum::try_from(&path).unwrap() {
-        DefinitelyMaybe => todo!("dm"),
+        DefinitelyMaybe => DEFINITELY_MAYBE,
         TheWallDisc1 => todo!("w1"),
         TheWallDisc2 => todo!("w2"),
     }
@@ -50,7 +66,7 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
-    todo!("DeviceIoControl")
+    todo!("mock DeviceIoControl")
 }
 pub unsafe fn GetFinalPathNameByHandleW(
     hfile: HANDLE,
