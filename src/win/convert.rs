@@ -96,7 +96,10 @@ impl From<&[u16]> for WinString {
 
 impl Display for WinString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&String::from_utf16_lossy(&self.words), f)
+        Display::fmt(
+            &String::from_utf16_lossy(&self.words[..self.words.len() - 1]),
+            f,
+        )
     }
 }
 
@@ -129,5 +132,12 @@ mod tests {
         let expected = "00000001-0002-0003-0001-020304050607";
 
         assert_eq!(guid.to_string(), expected);
+    }
+
+    #[test]
+    fn display_winstring() {
+        let s = "a/load/of/text";
+        let w = WinString::from(s);
+        assert_eq!(s, w.to_string());
     }
 }
