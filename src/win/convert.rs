@@ -65,6 +65,12 @@ pub enum WinPath {
     DevicePath(WinString),
 }
 
+impl From<PathBuf> for WinPath {
+    fn from(path: PathBuf) -> Self {
+        Self::FilePath(path)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A somewhat sane way of dealing with `PWSTR/PCWSTR`: A pointer to a null terminated string
 /// consisting of 'wide chars' (u16), encoded using UTF-16.
