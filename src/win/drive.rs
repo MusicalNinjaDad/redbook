@@ -658,3 +658,14 @@ mod handle {
         }
     }
 }
+
+#[cfg(test)]
+mod miri {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "mock SetupDiGetClassDevsW")]
+    fn all() {
+        let _drives = all_drives().unwrap();
+    }
+}
