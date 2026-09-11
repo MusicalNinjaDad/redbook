@@ -194,7 +194,7 @@ mod tests {
 
     #[rstest]
     #[case(DefinitelyMaybe)]
-    #[should_panic(expected = "mock DeviceIoControl")]
+    #[should_panic(expected = "dm")]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();

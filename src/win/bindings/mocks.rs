@@ -66,7 +66,10 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
-    todo!("mock DeviceIoControl")
+    match hdevice {
+        DEFINITELY_MAYBE => todo!("dm"),
+        _ => todo!("mock DeviceIoControl")
+    }
 }
 pub unsafe fn GetFinalPathNameByHandleW(
     hfile: HANDLE,
