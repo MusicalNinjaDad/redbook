@@ -13,4 +13,8 @@
 mod bindgen;
 mod mocks;
 
+#[cfg(all(target_family = "windows", not(any(test, doc))))]
+pub(crate) use bindgen::*;
+
+#[cfg(any(test, doc, not(target_family = "windows")))]
 pub(crate) use bindgen::*;
