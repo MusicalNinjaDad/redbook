@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::CDROM_READ_TOC_EX;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
 
@@ -70,7 +69,7 @@ pub unsafe fn DeviceIoControl(
     match (hdevice, dwiocontrolcode) {
         (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => {
             let toc = DefinitelyMaybe.load_cdrom_toc();
-            todo!("dm")
+            1
         }
         _ => todo!("mock DeviceIoControl")
     }
