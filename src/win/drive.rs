@@ -664,7 +664,7 @@ mod miri {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "mock SetupDiGetDeviceInterfaceDetailW")]
+    #[should_panic(expected = "dm")]
     fn all() {
         let mut drives = all_drives().unwrap();
         let _dm = drives.next().unwrap();

@@ -142,5 +142,11 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     requiredsize: *mut u32,
     deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
-    todo!("mock SetupDiGetDeviceInterfaceDetailW")
+    match (
+        deviceinfoset,
+        unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
+    ) {
+        (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => todo!("dm"),
+        _ => todo!("mock SetupDiGetDeviceInterfaceDetailW"),
+    }
 }
