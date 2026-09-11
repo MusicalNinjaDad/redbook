@@ -401,7 +401,10 @@ impl Iterator for CdDrives {
         let err = io::Error::last_os_error();
         match (get_required_buffer_size, err.raw_os_error()) {
             (0, Some(ERROR_INSUFFICIENT_BUFFER)) => debug.record("path_length", requiredsize),
-            _ => todo!(),
+            _ => {
+                tracing::error!(%err, "reading required buffer size");
+                return None;
+            }
         };
 
         // SAFETY:
@@ -471,9 +474,14 @@ impl Iterator for CdDrives {
         match CdDrive::try_from(deviceinterfacedetaildata) {
             Ok(cddrive) => Some(cddrive),
             Err(error) if error.raw_os_error() == Some(21) => {
-                todo!("21: Not Ready = no disc in drive")
+                // OS error 21 (device not ready) = no disc in drive
+                drop(debug);
+                self.next()
             }
-            Err(_) => todo!(),
+            Err(error) => {
+                tracing::error!(%error, "opening device");
+                None
+            }
         }
     }
 }
