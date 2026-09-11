@@ -1091,6 +1091,7 @@ mod tests {
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
+    #[cfg_attr(miri, ignore = "no unsafe used & super slow on miri")]
     fn identify_disc_index(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
         let tracks = album.expected_tracks_minimal();
