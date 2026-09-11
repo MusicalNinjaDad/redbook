@@ -1,6 +1,13 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
+use std::path::PathBuf;
+use std::slice;
+
+use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+use super::super::convert::WinString;
+
 // Prefer re-exported types
 use super::{HANDLE, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W};
 
@@ -12,6 +19,10 @@ use super::bindgen::{
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
     todo!("CloseHandle")
 }
+/// # SAFETY:
+/// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
+///   a null-terminated, utf-16 encoded String, of at most 265 bytes.
+///   The best way to achieve this is by passing the result of [`WinString::as_pcwstr()`]
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
     dwdesiredaccess: u32,
@@ -19,7 +30,15 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
-    todo!("CreateFile2")
+    let pcwstr = unsafe { slice::from_raw_parts(lpfilename, 256) };
+    let win_path = WinString::from(pcwstr).to_string();
+    let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
+
+    match TestAlbum::try_from(&path).unwrap() {
+        DefinitelyMaybe => todo!("dm"),
+        TheWallDisc1 => todo!("w1"),
+        TheWallDisc2 => todo!("w2"),
+    }
 }
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,

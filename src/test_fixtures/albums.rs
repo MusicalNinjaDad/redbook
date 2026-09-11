@@ -1,8 +1,7 @@
 #![expect(missing_docs, reason = "needs update")]
 //! Test fixtures for album data
 
-use std::fmt::Display;
-use std::path::PathBuf;
+use std::{fmt::Display, io, path::PathBuf};
 
 use crate::{Frame, Msf, TocEntry, Track, win::toc::CDROM_TOC};
 
@@ -20,6 +19,20 @@ impl Display for TestAlbum {
             TestAlbum::DefinitelyMaybe => write!(f, "DefinitelyMaybe"),
             TestAlbum::TheWallDisc1 => write!(f, "TheWallDisc1"),
             TestAlbum::TheWallDisc2 => write!(f, "TheWallDisc2"),
+        }
+    }
+}
+
+impl TryFrom<&PathBuf> for TestAlbum {
+    type Error = io::Error;
+
+    fn try_from(path: &PathBuf) -> io::Result<Self> {
+        // TODO: handle testing on windows -> other path format?
+        match path.display().to_string().as_str() {
+            "tests/assets/definitely_maybe" => Ok(TestAlbum::DefinitelyMaybe),
+            "tests/assets/the_wall/disc1" => Ok(TestAlbum::TheWallDisc1),
+            "tests/assets/the_wall/disc2" => Ok(TestAlbum::TheWallDisc2),
+            _ => Err(io::Error::new(io::ErrorKind::NotFound, "unknown album")),
         }
     }
 }

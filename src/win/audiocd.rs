@@ -60,15 +60,12 @@ impl AudioCd {
         let mut tracks: Vec<_> = fs::read_dir(&path)
             .or_error("open drive as dir")?
             .filter_map(|track| {
-                let path = try bikeshed io::Result<_> {
-                    track.or_error("read dir entry for cda")?.path()
-                }
-                .ok()?;
-                (path.extension()? == "cda").then(|| {
-                    try bikeshed io::Result<_> {
-                        let cda = CdaFile::from_path(path).or_error("read cda")?;
-                        Track::from(cda)
-                    }
+                let path =
+                    try bikeshed io::Result<_> { track.or_error("read dir entry for cda")?.path() }
+                        .ok()?;
+                (path.extension()? == "cda").then(|| try bikeshed io::Result<_> {
+                    let cda = CdaFile::from_path(path).or_error("read cda")?;
+                    Track::from(cda)
                 })
             })
             .try_collect()
@@ -197,7 +194,7 @@ mod tests {
 
     #[rstest]
     #[case(DefinitelyMaybe)]
-    #[should_panic(expected = "CreateFile2")]
+    #[should_panic(expected = "dm")]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         AudioCd::new(path).unwrap();
