@@ -198,8 +198,10 @@ mod tests {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();
         #[expect(unsafe_code)]
-        // SAFETY: not a real handle
+        // SAFETY: not a real handle and no threads involved
         let handle = unsafe { cd.drive.handle() };
         assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
+        let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
+        assert_eq!(album.expected_toc_entries(), toc_entries);
     }
 }
