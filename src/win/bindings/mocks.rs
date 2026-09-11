@@ -1,9 +1,12 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
+// Prefer re-exported types
+use super::{HANDLE, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W};
+
+// Only used for function signatures
 use super::bindgen::{
-    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HANDLE, HDEVINFO, HWND, OVERLAPPED, PCWSTR, PWSTR,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
+    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, PWSTR, SP_DEVINFO_DATA,
 };
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
