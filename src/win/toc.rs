@@ -308,6 +308,7 @@ impl From<CdaFile> for Track<'static> {
 }
 
 #[cfg(test)]
+#[forbid(unsafe_code)]
 mod tests {
     use super::*;
     use crate::test_fixtures::albums::TestAlbum;

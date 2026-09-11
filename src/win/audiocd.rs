@@ -185,7 +185,7 @@ impl AudioCdExtMut for AudioCd {
 }
 
 #[cfg(test)]
-mod tests {
+mod miri {
     use rstest::rstest;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};

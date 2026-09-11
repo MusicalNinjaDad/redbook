@@ -115,6 +115,7 @@ impl WinString {
 }
 
 #[cfg(test)]
+#[forbid(unsafe_code)]
 mod tests {
 
     use super::*;

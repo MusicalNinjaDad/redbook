@@ -84,4 +84,4 @@ jobs:
         tool: cargo-nextest
     - uses: Swatinem/rust-cache@v2.9.2
     - name: miri
-      run: cargo miri nextest run win
+      run: cargo miri nextest run miri
