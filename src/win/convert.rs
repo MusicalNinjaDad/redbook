@@ -1,6 +1,6 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 
 use super::bindings::GUID;
 use crate::{Frame, win::bindings::PCWSTR};
@@ -51,6 +51,18 @@ impl Sector {
     pub fn offset(&self) -> i64 {
         self.0 * 2048
     }
+}
+
+/// A path - of course, it's never quite that simple ;)
+///
+/// See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WinPath {
+    /// A standard file system path e.g. "D:\":
+    FilePath(PathBuf),
+    /// `\\.\` prefixed Win32 Device Namespace Path:
+    /// https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#win32-device-namespaces
+    DevicePath(WinString),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

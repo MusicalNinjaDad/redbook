@@ -19,7 +19,7 @@ use super::{
         SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
         SetupDiGetDeviceInterfaceDetailW, VOLUME_NAME_DOS,
     },
-    convert::{Guid, Sector, WinString},
+    convert::{Guid, Sector, WinPath, WinString},
     toc::TOC_SIZE,
 };
 #[cfg(any(
@@ -40,7 +40,7 @@ pub(super) use handle::DriveHandle;
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
 pub struct CdDrive {
-    path: PathBuf,
+    path: WinPath,
     handle: DriveHandle,
     toc: CDROM_TOC,
 }
