@@ -99,7 +99,7 @@ impl CdDrive {
     }
 
     /// The path of the drive
-    pub fn path(&self) -> &Path {
+    pub fn path(&self) -> &WinPath {
         &self.path
     }
 
