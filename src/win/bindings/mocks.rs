@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
+use crate::win::toc::CDROM_TOC;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
 
@@ -70,11 +71,11 @@ pub unsafe fn DeviceIoControl(
         (DEFINITELY_MAYBE, CDROM_READ_TOC_EX) => {
             let toc = DefinitelyMaybe.load_cdrom_toc();
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
-            todo!("dm")
-            // 1
+            unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
         }
         _ => todo!("mock DeviceIoControl"),
     }
+    1
 }
 pub unsafe fn GetFinalPathNameByHandleW(
     hfile: HANDLE,
