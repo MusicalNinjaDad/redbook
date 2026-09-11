@@ -5,6 +5,8 @@
 use std::{fs, path::PathBuf};
 use windows_bindgen::Bindgen;
 
+// Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
+// as these are not visible for import.
 const BINDINGS: [&str; 30] = [
     "CloseHandle",
     "CreateFile2",
