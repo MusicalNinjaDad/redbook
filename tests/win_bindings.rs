@@ -41,6 +41,7 @@ const BINDINGS: [&str; 30] = [
 ];
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn gen_bindings() {
     let src = PathBuf::from("src")
         .join("win")
