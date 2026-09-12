@@ -149,6 +149,14 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     requiredsize: *mut u32,
     deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
+    let album = match (
+        deviceinfoset,
+        unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
+    ) {
+        (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
+        _ => todo!("mock SetupDiGetDeviceInterfaceDetailW"),
+    };
+    
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
@@ -157,12 +165,5 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         (true, 0, false) => todo!("get required size"),
         _ => (),
     }
-    let album = match (
-        deviceinfoset,
-        unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
-    ) {
-        (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
-        _ => todo!("mock SetupDiGetDeviceInterfaceDetailW"),
-    };
     1
 }
