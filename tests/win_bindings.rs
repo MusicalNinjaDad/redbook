@@ -3,6 +3,8 @@
 //! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
 
 use std::{fs, path::PathBuf};
+use syn::Item::{Fn, Macro};
+use tempfile::NamedTempFile;
 use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
@@ -69,4 +71,49 @@ fn gen_bindings() {
     if !new.lines().eq(existing.lines()) {
         panic!("generated file `{}` is changed.", src.display());
     }
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn mocks() {
+    let tmp_bindings = NamedTempFile::new().unwrap();
+    Bindgen::new()
+        .output(tmp_bindings.path())
+        .filters(BINDINGS)
+        .sys()
+        .flat()
+        .write();
+    let bindings_contents = fs::read_to_string(tmp_bindings.path()).unwrap();
+    let mocks_src = PathBuf::from("src")
+        .join("win")
+        .join("bindings")
+        .join("mocks.rs");
+    let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
+    let bindings = syn::parse_file(&bindings_contents).unwrap();
+    let mocks = syn::parse_file(&mocks_contents).unwrap();
+    let bindings_functions: Vec<_> = bindings
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let Macro(mac) = item {
+                Some(mac)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let mocks_functions: Vec<_> = mocks
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let Fn(function) = item {
+                Some(function)
+            } else {
+                None
+            }
+        })
+        .collect();
+    dbg!(&bindings_functions);
+    dbg!(&mocks_functions);
+    assert_eq!(bindings_functions.len(), mocks_functions.len())
 }
