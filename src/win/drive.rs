@@ -678,17 +678,19 @@ mod handle {
 
 #[cfg(test)]
 mod miri {
-    use crate::test_fixtures::albums::TestAlbum::DefinitelyMaybe;
+    use crate::test_fixtures::albums::TestAlbum::*;
 
     use super::*;
 
     #[test]
     fn all() {
         let drives = all_drives().unwrap();
-        let albums: Vec<_> = drives.collect();
-        assert_eq!(
-            albums.first().unwrap().toc().as_toc().unwrap(),
-            DefinitelyMaybe.expected_toc()
-        );
+        let albums: Vec<_> = drives.map(|drive| drive.toc().as_toc().unwrap()).collect();
+        let expected = [
+            DefinitelyMaybe.expected_toc(),
+            TheWallDisc1.expected_toc(),
+            TheWallDisc2.expected_toc(),
+        ];
+        assert_eq!(albums, expected);
     }
 }

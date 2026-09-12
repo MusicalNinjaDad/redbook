@@ -6,7 +6,8 @@ use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::{
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX,
+    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM,
+    IOCTL_CDROM_READ_TOC_EX,
 };
 use crate::win::convert::Guid;
 use crate::win::drive::DeviceDetails;
@@ -177,6 +178,8 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
 ) -> BOOL {
     let album = match (deviceinfoset, memberindex) {
         (ALL_ALBUMS, 0) => DefinitelyMaybe as u32,
+        (ALL_ALBUMS, 1) => TheWallDisc1 as u32,
+        (ALL_ALBUMS, 2) => TheWallDisc2 as u32,
         (ALL_ALBUMS, _) => failure!(ERROR_NO_MORE_ITEMS),
         _ => panic!("unknown deviceinfoset"),
     };
