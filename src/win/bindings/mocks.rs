@@ -154,16 +154,27 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
     ) {
         (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
-        _ => todo!("mock SetupDiGetDeviceInterfaceDetailW"),
+        _ => todo!("mock other albums"),
     };
-    
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
         requiredsize.is_null(),
     ) {
-        (true, 0, false) => todo!("get required size"),
-        _ => (),
+        (true, 0, false) => {
+            dbg!("get required size");
+            let path_len =
+                r"\\.\".len() + album.assets_path().display().to_string().len() + "\0".len();
+            // This potentially slightly oversizes the requirement. This is acceptable for
+            // testing purposes to avoid the complexity of calculating the size required when
+            // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
+            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
+            // SAFETY: Have validated pointer is not NULL, mock runs on debug build so as u32
+            // will panic on overflow.
+            unsafe {*requiredsize = size as u32 };
+            // return "failed"
+            0
+        }
+        _ => todo!("get data"),
     }
-    1
 }
