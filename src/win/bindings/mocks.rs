@@ -288,12 +288,15 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, s, true) => {
+            // SAFETY check
+            assert!(path_len <= MAX_PATH_CHARS);
             let mut data = DeviceDetails::default();
             match data.set_path(&WinString::from(album_path)) {
                 Ok(words) if words == path_len + 1 => {
                     // SAFETY:
                     // - validated pointer is not NULL (in match arm)
                     // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                    // - DeviceDetails has space for MAX_PATH_CHARS
                     unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
                     success!()
                 }
