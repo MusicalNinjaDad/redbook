@@ -154,6 +154,38 @@ pub unsafe fn SetupDiGetClassDevsW(
 ///    and a valid RequiredSize variable. In response to such a call, this function returns
 ///    the required buffer size at RequiredSize and fails with GetLastError
 ///    returning ERROR_INSUFFICIENT_BUFFER.
+/// 2. Allocate an appropriately sized buffer and call the function again to get the
+///    interface details.
+///
+/// # SAFETY:
+/// 1.  If getting the required buffer size:
+///     - `deviceinterfacedetaildata` must be NULL
+///     - `deviceinterfacedetailsize` must be 0
+///     - `requiredsize` must be a valid pointer
+/// 2.  If getting the device interface data
+///     - `deviceinterfacedetaildata` must be a valid pointer
+///     - `deviceinterfacedetaildata.cbSize` must be set to `size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>()`
+///       before calling this function. The cbSize member always contains the size of the fixed part
+///       of the data structure, not a size reflecting the variable-length string at the end.
+///     - `deviceinterfacedetaildata.DevicePath` must be sufficiently sized, for the returned
+///       path INCLUDING a terminating NULL character.
+///     - `deviceinterfacedetailsize` must be size_of_val(deviceinterfacedetaildata)
+///     - `requiredsize` must be NULL
+///
+/// # Arguments
+/// - `[in] deviceinfoset`: A pointer to the device information set that contains the interface
+///   for which to retrieve details. This handle is typically returned by [SetupDiGetClassDevsW].
+/// - `[in] deviceinterfacedata`: A pointer to an [SP_DEVICE_INTERFACE_DATA] structure that specifies
+///   the interface in DeviceInfoSet for which to retrieve details. A pointer of this type is
+///   typically returned by [SetupDiEnumDeviceInterfaces].
+/// - `[out, optional] deviceinterfacedetaildata`: A pointer to an [SP_DEVICE_INTERFACE_DETAIL_DATA_W]
+///   structure to receive information about the specified interface. This parameter is optional
+///   and can be NULL.
+/// - `[in] deviceinterfacedetaildatasize`: The size of the DeviceInterfaceDetailData buffer.
+/// - `[out, optional] requiredsize`: receives the required size of the DeviceInterfaceDetailData
+///   buffer. This size includes the size of the fixed part of the structure plus the number of
+///   bytes required for the variable-length device path string. This parameter is optional and
+///   can be NULL.
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,
     deviceinterfacedata: *const SP_DEVICE_INTERFACE_DATA,
@@ -169,6 +201,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
         _ => todo!("mock other albums"),
     };
+    let album_path = format!(r"\\.\{}", album.assets_path().display());
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
@@ -176,12 +209,10 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     ) {
         (true, 0, false) => {
             dbg!("get required size");
-            let path_len =
-                r"\\.\".len() + album.assets_path().display().to_string().len() + "\0".len();
             // This potentially slightly oversizes the requirement. This is acceptable for
             // testing purposes to avoid the complexity of calculating the size required when
             // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
-            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
+            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + album_path.len();
             // SAFETY: Have validated pointer is not NULL, mock runs on debug build so as u32
             // will panic on overflow.
             unsafe { *requiredsize = size as u32 };
