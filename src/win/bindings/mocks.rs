@@ -68,7 +68,9 @@ macro_rules! success {
 }
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
-    0
+    // TODO: Maybe mock this with some thread-local RefCell HashSet or similar to
+    // allow for tests which validate closure in error cases & ensure no double closures.
+    success!()
 }
 
 /// # SAFETY:
