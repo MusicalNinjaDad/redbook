@@ -61,7 +61,7 @@ macro_rules! success {
     };
     ($success_code:expr) => {
         return $success_code
-    }
+    };
 }
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
