@@ -287,9 +287,10 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             unsafe { *requiredsize = size as u32 };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
-        (false, s, true) => {
+        (false, _, true) => {
             // SAFETY check
-            assert!(path_len <= MAX_PATH_CHARS);
+            DeviceDetails::check_size(path_len as u32)
+                .expect("DeviceDetails has space for MAX_PATH_CHARS, we should be below that");
             let mut data = DeviceDetails::default();
             match data.set_path(&WinString::from(album_path)) {
                 Ok(words) if words == path_len + 1 => {

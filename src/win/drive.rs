@@ -536,7 +536,7 @@ impl DeviceDetails {
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
     /// get the required size, then to call `check_size` before using DeviceDetails to store the
     /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    fn check_size(requiredsize: u32) -> io::Result<()> {
+    pub fn check_size(requiredsize: u32) -> io::Result<()> {
         (requiredsize <= size_of::<Self>() as u32)
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
     }
