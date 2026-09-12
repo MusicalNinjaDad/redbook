@@ -213,6 +213,7 @@ pub unsafe fn SetupDiGetClassDevsW(
         _ => todo!("unknown guid"),
     }
 }
+
 /// This function can be used in one of two ways. Usually in sequence:
 ///
 /// 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
