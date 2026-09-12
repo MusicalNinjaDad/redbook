@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::{ERROR_INSUFFICIENT_BUFFER, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX};
+use crate::win::bindings::{
+    ERROR_INSUFFICIENT_BUFFER, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX,
+};
 use crate::win::convert::Guid;
 use crate::win::toc::CDROM_TOC;
 
@@ -38,6 +40,17 @@ impl TryFrom<HANDLE> for TestAlbum {
             )),
         }
     }
+}
+
+/// (Optionally) set `last_os_err` to `errno` then return 0 to signify failure
+macro_rules! failure {
+    () => {
+        return 0
+    };
+    ($errno:expr) => {{
+        errno::set_errno(errno::Errno($errno));
+        return 0;
+    }};
 }
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
@@ -171,10 +184,8 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
             // SAFETY: Have validated pointer is not NULL, mock runs on debug build so as u32
             // will panic on overflow.
-            unsafe {*requiredsize = size as u32 };
-            errno::set_errno(errno::Errno(ERROR_INSUFFICIENT_BUFFER));
-            // return "failed"
-            0
+            unsafe { *requiredsize = size as u32 };
+            failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         _ => todo!("get data"),
     }
