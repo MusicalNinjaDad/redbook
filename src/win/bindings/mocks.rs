@@ -187,6 +187,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             unsafe { *requiredsize = size as u32 };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
-        _ => todo!("get data"),
+        (false, s, true) => todo!("get data"),
+        _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
     }
 }
