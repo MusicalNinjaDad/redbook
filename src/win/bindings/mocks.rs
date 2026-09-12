@@ -134,6 +134,13 @@ pub unsafe fn SetupDiGetClassDevsW(
         _ => todo!("unknown guid"),
     }
 }
+/// This function can be used in one of two ways. Usually in sequence:
+///
+/// 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+///    NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+///    and a valid RequiredSize variable. In response to such a call, this function returns
+///    the required buffer size at RequiredSize and fails with GetLastError
+///    returning ERROR_INSUFFICIENT_BUFFER.
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,
     deviceinterfacedata: *const SP_DEVICE_INTERFACE_DATA,
@@ -143,10 +150,19 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
     match (
+        deviceinterfacedetaildata.is_null(),
+        deviceinterfacedetaildatasize,
+        requiredsize.is_null(),
+    ) {
+        (true, 0, false) => todo!("get required size"),
+        _ => (),
+    }
+    let album = match (
         deviceinfoset,
         unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
     ) {
-        (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => todo!("dm"),
+        (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
         _ => todo!("mock SetupDiGetDeviceInterfaceDetailW"),
-    }
+    };
+    1
 }
