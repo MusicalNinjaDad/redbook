@@ -6,7 +6,7 @@ use std::{io, slice};
 
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::{
-    ERROR_INSUFFICIENT_BUFFER, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX,
+    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX,
 };
 use crate::win::convert::Guid;
 use crate::win::drive::DeviceDetails;
@@ -135,7 +135,7 @@ pub unsafe fn DeviceIoControl(
 ///
 /// Repeatedly increment `memberindex` and retrieve an interface until this function fails and
 /// [`last_os_error`][std::io::Error::last_os_error] returns
-/// [`ERROR_NO_MORE_ITEMS`][super::ERROR_NO_MORE_ITEMS].
+/// [`ERROR_NO_MORE_ITEMS`][ERROR_NO_MORE_ITEMS].
 ///
 /// # Return value / `last_os_error`
 /// - non-zero: success
@@ -171,13 +171,14 @@ pub unsafe fn DeviceIoControl(
 pub unsafe fn SetupDiEnumDeviceInterfaces(
     deviceinfoset: HDEVINFO,
     deviceinfodata: *const SP_DEVINFO_DATA,
-    interfaceclassguid: *const GUID,
+    _interfaceclassguid: *const GUID,
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
     let album = match (deviceinfoset, memberindex) {
         (ALL_ALBUMS, 0) => DefinitelyMaybe as u32,
-        _ => todo!("mock SetupDiEnumDeviceInterfaces"),
+        (ALL_ALBUMS, _) => failure!(ERROR_NO_MORE_ITEMS),
+        _ => panic!("unknown deviceinfoset"),
     };
     let data = SP_DEVICE_INTERFACE_DATA {
         cbSize: const { size_of::<SP_DEVICE_INTERFACE_DATA>() as u32 },

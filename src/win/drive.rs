@@ -680,12 +680,15 @@ mod handle {
 mod miri {
     use crate::test_fixtures::albums::TestAlbum::DefinitelyMaybe;
 
-use super::*;
+    use super::*;
 
     #[test]
     fn all() {
-        let mut drives = all_drives().unwrap();
-        let dm = drives.next().unwrap();
-        assert_eq!(dm.toc().as_toc().unwrap(), DefinitelyMaybe.expected_toc());
+        let drives = all_drives().unwrap();
+        let albums: Vec<_> = drives.collect();
+        assert_eq!(
+            albums.first().unwrap().toc().as_toc().unwrap(),
+            DefinitelyMaybe.expected_toc()
+        );
     }
 }
