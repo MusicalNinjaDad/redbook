@@ -5,7 +5,8 @@
 use proc_macro2::{Span, TokenStream};
 use std::{fs, path::PathBuf};
 use syn::{
-    Item::{Fn, Macro}, Safety, Signature, Token, parse2,
+    Item::{Fn, Macro},
+    Safety, Signature, Token, parse2,
 };
 use tempfile::NamedTempFile;
 use windows_bindgen::Bindgen;
@@ -78,6 +79,10 @@ fn gen_bindings() {
 
 #[test]
 #[cfg_attr(miri, ignore)]
+/// Checks that
+/// - all ffi functions are mocked
+/// - the mock signatures are correct
+/// - no mock functions exist without equivalent ffi function
 fn mocks() {
     let tmp_bindings = NamedTempFile::new().unwrap();
     Bindgen::new()
@@ -87,15 +92,8 @@ fn mocks() {
         .flat()
         .write();
     let bindings_contents = fs::read_to_string(tmp_bindings.path()).unwrap();
-    dbg!(&bindings_contents);
-    let mocks_src = PathBuf::from("src")
-        .join("win")
-        .join("bindings")
-        .join("mocks.rs");
-    let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
     let bindings = syn::parse_file(&bindings_contents).unwrap();
-    let mocks = syn::parse_file(&mocks_contents).unwrap();
-    let bindings_functions: Vec<_> = bindings
+    let mut bindings_functions: Vec<_> = bindings
         .items
         .iter()
         .filter_map(|item| {
@@ -115,7 +113,15 @@ fn mocks() {
             }
         })
         .collect();
-    let mocks_functions: Vec<_> = mocks
+    bindings_functions.sort_by_key(|sig| sig.ident.clone());
+
+    let mocks_src = PathBuf::from("src")
+        .join("win")
+        .join("bindings")
+        .join("mocks.rs");
+    let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
+    let mocks = syn::parse_file(&mocks_contents).unwrap();
+    let mut mocks_functions: Vec<_> = mocks
         .items
         .iter()
         .filter_map(|item| {
@@ -129,8 +135,7 @@ fn mocks() {
             }
         })
         .collect();
-    dbg!(&bindings_functions);
-    dbg!(&mocks_functions);
-    assert_eq!(bindings_functions.len(), mocks_functions.len());
+    mocks_functions.sort_by_key(|sig| sig.ident.clone());
+
     similar_asserts::assert_eq!(bindings_functions, mocks_functions);
 }
