@@ -123,6 +123,51 @@ pub unsafe fn DeviceIoControl(
     unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
     1
 }
+
+/// Enumerates the device interfaces that are contained in a device information set.
+///
+/// Repeated calls to this function return an [`SP_DEVICE_INTERFACE_DATA`] structure for a different
+/// device interface. This function can be called repeatedly to get information about interfaces
+/// in a device information set that are associated with a particular device information element
+/// or that are associated with all device information elements.
+///
+/// # Usage
+///
+/// Repeatedly increment `memberindex` and retrieve an interface until this function fails and
+/// [`last_os_error`][std::io::Error::last_os_error] returns
+/// [`ERROR_NO_MORE_ITEMS`][super::ERROR_NO_MORE_ITEMS].
+///
+/// # Return value / `last_os_error`
+/// - non-zero: success
+/// - 0, ERROR_NO_MORE_ITEMS: member index out of bounds
+///
+/// # SAFETY
+/// - The caller must set `deviceinterfacedata.cbSize` to `size_of::<SP_DEVICE_INTERFACE_DATA>()`
+///
+/// # Note
+/// If `deviceinfodata` specifies a  particular device, the `memberindex` is relative to only the
+/// interfaces exposed by that device.
+///
+/// # Arguments
+/// - `[in] deviceinfoset`: A pointer to a device information set that contains the device
+///   interfaces for which to return information. This handle is typically returned by
+///   [SetupDiGetClassDevsW].
+/// - `[in, optional] deviceinfodata`: A pointer to an `SP_DEVINFO_DATA` structure that specifies a
+///   device information element in `deviceinfoset`. This parameter is optional and can be NULL.
+///     - If this parameter is specified, `SetupDiEnumDeviceInterfaces` constrains the enumeration
+///       to the interfaces that are supported by the specified device. (But see "Note", above)
+///     - If this parameter is NULL, repeated calls to `SetupDiEnumDeviceInterfaces` return
+///       information about the interfaces that are associated with all the device information
+///       elements in `deviceinfoset`
+///     - This pointer is typically returned by `SetupDiEnumDeviceInfo`
+///     - **Usage not supported in mock**
+/// - `[in] interfaceclassguid`: A pointer to a GUID that specifies the device interface class
+///   for the requested interface.
+/// - `[in] memberindex`: A zero-based index into the list of interfaces in the device
+///   information set. See `Usage`, above for details.
+/// - `[out] deviceinterfacedata`: A pointer to a caller-allocated buffer that contains, on
+///   successful return, a completed [`SP_DEVICE_INTERFACE_DATA`] structure that identifies an
+///   interface that meets the search parameters.
 pub unsafe fn SetupDiEnumDeviceInterfaces(
     deviceinfoset: HDEVINFO,
     deviceinfodata: *const SP_DEVINFO_DATA,
@@ -146,8 +191,9 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
         Reserved: 0,
     };
     unsafe { *deviceinterfacedata = data };
-    1
+    success!()
 }
+
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
     enumerator: PCWSTR,
