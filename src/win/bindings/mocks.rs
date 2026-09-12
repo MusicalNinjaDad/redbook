@@ -4,24 +4,20 @@
 use std::path::PathBuf;
 use std::{io, slice};
 
-use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::{
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM,
-    IOCTL_CDROM_READ_TOC_EX,
+use super::super::{
+    MAX_PATH_CHARS,
+    convert::{Guid, WinString},
+    drive::DeviceDetails,
+    toc::CDROM_TOC,
 };
-use crate::win::convert::Guid;
-use crate::win::drive::DeviceDetails;
-use crate::win::toc::CDROM_TOC;
-
-use super::super::{MAX_PATH_CHARS, convert::WinString};
-
-// Prefer re-exported types
-use super::{HANDLE, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W};
-
-// Only used for function signatures
 use super::bindgen::{
     BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, SP_DEVINFO_DATA,
 };
+use super::{
+    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
+    IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+};
+use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
