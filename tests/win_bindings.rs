@@ -2,9 +2,12 @@
 //!
 //! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
 
-use std::{fs, path::PathBuf};
 use proc_macro2::TokenStream;
-use syn::Item::{Fn, Macro};
+use std::{fs, path::PathBuf};
+use syn::{
+    Item::{Fn, Macro},
+    Signature, parse2,
+};
 use tempfile::NamedTempFile;
 use windows_bindgen::Bindgen;
 
@@ -85,6 +88,7 @@ fn mocks() {
         .flat()
         .write();
     let bindings_contents = fs::read_to_string(tmp_bindings.path()).unwrap();
+    dbg!(&bindings_contents);
     let mocks_src = PathBuf::from("src")
         .join("win")
         .join("bindings")
@@ -98,7 +102,10 @@ fn mocks() {
         .filter_map(|item| {
             if let Macro(mac) = item {
                 let defn: TokenStream = mac.mac.tokens.clone().into_iter().skip(2).collect();
-                Some(defn)
+                dbg!(&defn);
+                let sig: Signature = parse2(defn).unwrap();
+                dbg!(&sig);
+                Some(sig)
             } else {
                 None
             }
