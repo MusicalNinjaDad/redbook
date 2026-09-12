@@ -2,11 +2,10 @@
 //!
 //! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use std::{fs, path::PathBuf};
 use syn::{
-    Item::{Fn, Macro},
-    Signature, parse2,
+    Item::{Fn, Macro}, Safety, Signature, Token, parse2,
 };
 use tempfile::NamedTempFile;
 use windows_bindgen::Bindgen;
@@ -103,7 +102,12 @@ fn mocks() {
             if let Macro(mac) = item {
                 let defn: TokenStream = mac.mac.tokens.clone().into_iter().skip(2).collect();
                 dbg!(&defn);
-                let sig: Signature = parse2(defn).unwrap();
+                let mut sig: Signature = parse2(defn).unwrap();
+                let u = Token![unsafe](Span::call_site());
+                // link macro does not include unsafe keyword
+                sig.safety = Safety::Unsafe(u);
+                // remove trailing punctuation as this may be added to mocks by rustfmt
+                sig.inputs.pop_punct();
                 dbg!(&sig);
                 Some(sig)
             } else {
@@ -116,7 +120,10 @@ fn mocks() {
         .iter()
         .filter_map(|item| {
             if let Fn(function) = item {
-                Some(function)
+                let mut sig = function.sig.clone();
+                // remove trailing punctuation as this may be added to mocks by rustfmt
+                sig.inputs.pop_punct();
+                Some(sig)
             } else {
                 None
             }
@@ -124,5 +131,6 @@ fn mocks() {
         .collect();
     dbg!(&bindings_functions);
     dbg!(&mocks_functions);
-    assert_eq!(bindings_functions.len(), mocks_functions.len())
+    assert_eq!(bindings_functions.len(), mocks_functions.len());
+    similar_asserts::assert_eq!(bindings_functions, mocks_functions);
 }

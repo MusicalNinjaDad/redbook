@@ -171,7 +171,7 @@ pub unsafe fn DeviceIoControl(
 pub unsafe fn SetupDiEnumDeviceInterfaces(
     deviceinfoset: HDEVINFO,
     deviceinfodata: *const SP_DEVINFO_DATA,
-    _interfaceclassguid: *const GUID,
+    interfaceclassguid: *const GUID,
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
