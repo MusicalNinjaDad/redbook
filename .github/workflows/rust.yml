@@ -66,3 +66,22 @@ jobs:
       run: rustup install && rustup update
     - name: fmt
       run: cargo fmt --check
+
+  miri:
+    needs: skip_check
+    if: needs.skip_check.outputs.should_skip != 'true'
+
+    runs-on: ubuntu-latest
+    env: 
+      MIRIFLAGS: -Zmiri-disable-isolation
+
+    steps:
+    - uses: actions/checkout@v7
+    - name: Update rust
+      run: rustup install && rustup update && rustup component add miri
+    - uses: taiki-e/install-action@v2.87.11
+      with:
+        tool: cargo-nextest
+    - uses: Swatinem/rust-cache@v2.9.2
+    - name: miri
+      run: cargo miri nextest run miri

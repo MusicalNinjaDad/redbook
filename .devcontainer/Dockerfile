@@ -9,6 +9,7 @@ RUN cargo binstall -y cargo-xwin \
     && cargo xwin cache windows-msvc-sysroot \
     && cargo xwin cache xwin \
     && rustup target add x86_64-pc-windows-msvc \
-    && rustup install --target x86_64-pc-windows-msvc nightly
+    && rustup install --target x86_64-pc-windows-msvc nightly \
+    && rustup +nightly component add miri
 
 RUN cargo binstall -y ripgrep

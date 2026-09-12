@@ -1,12 +1,24 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 
 use super::bindings::GUID;
 use crate::{Frame, win::bindings::PCWSTR};
 
 /// A windows GUID - e.g. `53F56308-B6BF-11D0-94F2-00A0C91EFB8B`
+#[derive(Clone, Copy)]
 pub struct Guid(pub GUID);
+
+impl PartialEq for Guid {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.data1 == other.0.data1
+            && self.0.data2 == other.0.data2
+            && self.0.data3 == other.0.data3
+            && self.0.data4 == other.0.data4
+    }
+}
+
+impl Eq for Guid {}
 
 impl Display for Guid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,6 +65,33 @@ impl Sector {
     }
 }
 
+/// A path - of course, it's never quite that simple ;)
+///
+/// See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WinPath {
+    /// A standard file system path e.g. "D:\":
+    FilePath(PathBuf),
+    /// `\\.\` prefixed Win32 Device Namespace Path:
+    /// https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#win32-device-namespaces
+    DevicePath(WinString),
+}
+
+impl From<PathBuf> for WinPath {
+    fn from(path: PathBuf) -> Self {
+        Self::FilePath(path)
+    }
+}
+
+impl Display for WinPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WinPath::FilePath(path_buf) => write!(f, "{}", path_buf.display()),
+            WinPath::DevicePath(win_string) => write!(f, "{win_string}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A somewhat sane way of dealing with `PWSTR/PCWSTR`: A pointer to a null terminated string
 /// consisting of 'wide chars' (u16), encoded using UTF-16.
@@ -96,7 +135,10 @@ impl From<&[u16]> for WinString {
 
 impl Display for WinString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&String::from_utf16_lossy(&self.words), f)
+        Display::fmt(
+            &String::from_utf16_lossy(&self.words[..self.words.len() - 1]),
+            f,
+        )
     }
 }
 
@@ -109,9 +151,16 @@ impl WinString {
     pub fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }
+
+    /// A slice of `u16` "words" representing the stored characters.
+    /// Including the final `\0` termination.
+    pub fn as_words(&self) -> &[u16] {
+        &self.words
+    }
 }
 
 #[cfg(test)]
+#[forbid(unsafe_code)]
 mod tests {
 
     use super::*;
@@ -129,5 +178,12 @@ mod tests {
         let expected = "00000001-0002-0003-0001-020304050607";
 
         assert_eq!(guid.to_string(), expected);
+    }
+
+    #[test]
+    fn display_winstring() {
+        let s = "a/load/of/text";
+        let w = WinString::from(s);
+        assert_eq!(s, w.to_string());
     }
 }

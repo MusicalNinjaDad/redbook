@@ -59,10 +59,14 @@ impl AudioCd {
         // durations and gives us a comparison to validate the raw TOC against.
         let mut tracks: Vec<_> = fs::read_dir(&path)
             .or_error("open drive as dir")?
-            .map(|track| {
-                let path = track.or_error("read dir entry for cda")?.path();
-                let cda = CdaFile::from_path(path).or_error("read cda")?;
-                Ok(Track::from(cda))
+            .filter_map(|track| {
+                let path =
+                    try bikeshed io::Result<_> { track.or_error("read dir entry for cda")?.path() }
+                        .ok()?;
+                (path.extension()? == "cda").then(|| try bikeshed io::Result<_> {
+                    let cda = CdaFile::from_path(path).or_error("read cda")?;
+                    Track::from(cda)
+                })
             })
             .try_collect()
             .or_error("parse cda")?;
@@ -177,5 +181,29 @@ impl AudioCdExtMut for AudioCd {
             drive: self.drive,
             disc: self.disc,
         }
+    }
+}
+
+#[cfg(test)]
+mod miri {
+    use rstest::rstest;
+
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+    use super::*;
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    fn new(#[case] album: TestAlbum) {
+        let path = album.assets_path();
+        let cd = AudioCd::new(path).unwrap();
+        #[expect(unsafe_code)]
+        // SAFETY: not a real handle and no threads involved
+        let handle = unsafe { cd.drive.handle() };
+        assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
+        let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
+        assert_eq!(album.expected_toc_entries(), toc_entries);
     }
 }

@@ -18,6 +18,7 @@ exclude = [
 [dependencies]
 cdtoc = "0.14.0"
 clap = { version = "4.6.5", features = ["derive"] }
+errno = "0.3.14"
 exit_safely = "0.3.1"
 flacenc = { version = "0.5.1" }
 humanize-duration = "0.0.7"
@@ -39,8 +40,11 @@ zune-jpeg = "0.5.15"
 
 [dev-dependencies]
 glob = "0.3.4"
+proc-macro2 = "1.0.107"
 rstest = "0.26.1"
 similar-asserts = "2.0.0"
+syn = {version = "3.0.5", features = ["full", "extra-traits"]}
+tempfile = "3.27.0"
 windows-bindgen = "0.100.0"
 
 [build-dependencies]

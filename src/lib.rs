@@ -10,23 +10,14 @@
 // Only applicable to library
 #![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
-#![cfg_attr(
-    all(unstable_default_field_values, target_family = "windows"),
-    feature(default_field_values)
-)]
-#![cfg_attr(all(unstable_exact_div, target_family = "windows"), feature(exact_div))]
+#![cfg_attr(unstable_default_field_values, feature(default_field_values))]
+#![cfg_attr(unstable_exact_div, feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
-#![cfg_attr(
-    all(unstable_integer_cast_extras, target_family = "windows"),
-    feature(integer_cast_extras)
-)]
+#![cfg_attr(unstable_integer_cast_extras, feature(integer_cast_extras))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
 #![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
-#![cfg_attr(
-    all(unstable_negative_impls, target_family = "windows"),
-    feature(negative_impls)
-)]
+#![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 
@@ -52,7 +43,7 @@
 //!
 //! # Example
 //!
-//! ```rust, no_run, ignore-linux, ignore-darwin
+//! ```rust, no_run
 //! use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 //! # use std::{io, path::PathBuf};
 //! # use metaflac::block::{Picture, VorbisComment};
@@ -120,7 +111,6 @@ pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use tracing::field::Empty;
 use tracing_result::Trace;
-#[cfg(target_family = "windows")]
 pub use win::AudioCd;
 
 use std::{
@@ -176,7 +166,7 @@ pub const LEADIN: Frame = Frame(150);
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -225,7 +215,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -368,7 +358,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -402,7 +392,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -437,7 +427,7 @@ pub trait AudioCdExt {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -479,7 +469,7 @@ pub trait AudioCdExtMut {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -513,7 +503,7 @@ pub trait AudioCdExtMut {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -551,7 +541,7 @@ pub trait AudioCdExtMut {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -589,7 +579,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -644,7 +634,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// use std::fs::File;
     /// use std::io::Write;
@@ -714,7 +704,7 @@ impl RippedTrack {
 ///
 /// # Examples
 ///
-/// ```rust, no_run, ignore-linux, ignore-darwin
+/// ```rust, no_run
 /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
 /// # use std::{io, path::PathBuf};
 /// # let drive_path = PathBuf::new();
@@ -766,7 +756,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -792,7 +782,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -829,7 +819,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
@@ -870,7 +860,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run, ignore-linux, ignore-darwin
+    /// ```rust, no_run
     /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
     /// # use std::{io, path::PathBuf};
     /// # let drive_path = PathBuf::new();
