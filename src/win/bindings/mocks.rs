@@ -70,6 +70,7 @@ macro_rules! success {
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
     0
 }
+
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
 ///   a null-terminated, utf-16 encoded String, of at most [MAX_PATH_CHARS].
@@ -257,12 +258,16 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     requiredsize: *mut u32,
     deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
+    assert!(!deviceinterfacedata.is_null());
     let album = match (
         deviceinfoset,
+        // SAFETY: Not-null
         unsafe { *deviceinterfacedata }.InterfaceClassGuid.data1,
     ) {
         (ALL_ALBUMS, id) if id == DefinitelyMaybe as u32 => DefinitelyMaybe,
-        _ => todo!("mock other albums"),
+        (ALL_ALBUMS, id) if id == TheWallDisc1 as u32 => TheWallDisc1,
+        (ALL_ALBUMS, id) if id == TheWallDisc2 as u32 => TheWallDisc2,
+        _ => panic!("unrecognised call to SetupDiGetDeviceInterfaceDetailW"),
     };
     let album_path = format!(r"\\.\{}", album.assets_path().display());
     let path_len = album_path.len();
@@ -277,8 +282,9 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             // testing purposes to avoid the complexity of calculating the size required when
             // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
             let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
-            // SAFETY: Have validated pointer is not NULL, mock runs on debug build so as u32
-            // will panic on overflow.
+            // SAFETY:
+            // - validated pointer is not NULL (in match arm)
+            // - mock runs on debug build so as u32 will panic on overflow.
             unsafe { *requiredsize = size as u32 };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
@@ -287,12 +293,12 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             match data.set_path(&WinString::from(album_path)) {
                 Ok(words) if words == path_len + 1 => {
                     // SAFETY:
-                    // - pointer is not null (match arm)
+                    // - validated pointer is not NULL (in match arm)
                     // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
                     unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
                     success!()
                 }
-                _ => todo!("setting path failed"),
+                _ => panic!("setting path failed"),
             };
         }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
