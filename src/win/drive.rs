@@ -677,11 +677,14 @@ mod handle {
 
 #[cfg(test)]
 mod miri {
-    use super::*;
+    use crate::test_fixtures::albums::TestAlbum::DefinitelyMaybe;
+
+use super::*;
 
     #[test]
     fn all() {
         let mut drives = all_drives().unwrap();
-        let _dm = drives.next().unwrap();
+        let dm = drives.next().unwrap();
+        assert_eq!(dm.toc().as_toc().unwrap(), DefinitelyMaybe.expected_toc());
     }
 }
