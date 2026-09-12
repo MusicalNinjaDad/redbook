@@ -18,7 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
     - name: install tools
-      uses: taiki-e/install-action@v2.87.1
+      uses: taiki-e/install-action@v2.87.4
       with:
         tool: |
           jaq
@@ -51,7 +51,7 @@ jobs:
       - name: install rust
         run: rustup install && rustup update && rustup target add x86_64-pc-windows-msvc
       - name: install build-tools
-        uses: taiki-e/install-action@v2.86.6
+        uses: taiki-e/install-action@v2.87.4
         with:
           tool: cargo-xwin,cargo-about
       - name: build
@@ -117,7 +117,7 @@ jobs:
         with:
           name: windows
       - name: install tools
-        uses: taiki-e/install-action@v2.87.1
+        uses: taiki-e/install-action@v2.87.4
         with:
           tool: parse-changelog
       - name: publish release
