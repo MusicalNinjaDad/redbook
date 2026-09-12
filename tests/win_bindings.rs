@@ -3,7 +3,7 @@
 //! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
 
 use proc_macro2::{Span, TokenStream};
-use std::{fs, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 use syn::{
     Item::{Fn, Macro},
     Safety, Signature, Token, parse2,
@@ -54,8 +54,16 @@ fn gen_bindings() {
         .join("bindgen.rs");
     let existing = fs::read_to_string(&src).unwrap();
 
+    let overwrite = env::var("WIN_BINDGEN") == Ok("OVERWRITE".to_string());
+
+    let out = if overwrite {
+        src
+    } else {
+        NamedTempFile::new().unwrap().path().to_path_buf()
+    };
+
     Bindgen::new()
-        .output(&src)
+        .output(&out)
         .filters(BINDINGS)
         .sys()
         .flat()
@@ -64,16 +72,19 @@ fn gen_bindings() {
     // Check the output is the same as before.
     // Depending on the git configuration the file may have been checked out with `\r\n` newlines or
     // with `\n`. Compare line-by-line to ignore this difference.
-    let mut new = fs::read_to_string(&src).unwrap();
+    let mut new = fs::read_to_string(&out).unwrap();
     if existing.contains("\r\n") && !new.contains("\r\n") {
         new = new.replace("\n", "\r\n");
     } else if !existing.contains("\r\n") && new.contains("\r\n") {
         new = new.replace("\r\n", "\n");
     }
 
-    similar_asserts::assert_eq!(existing, new);
-    if !new.lines().eq(existing.lines()) {
-        panic!("generated file `{}` is changed.", src.display());
+    if !overwrite {
+        similar_asserts::assert_eq!(
+            existing,
+            new,
+            "Windows bindings have changed. Re-run with WIN_BINDGEN=OVERWRITE to update"
+        );
     }
 }
 
