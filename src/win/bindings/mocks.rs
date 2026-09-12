@@ -54,14 +54,16 @@ macro_rules! failure {
     }};
 }
 
-/// Return a sucess, by default using code `1`
+/// Set `last_os_err` to `0` then return a success value, by default: `1`
 macro_rules! success {
-    () => {
-        return 1
-    };
-    ($success_code:expr) => {
-        return $success_code
-    };
+    () => {{
+        errno::set_errno(errno::Errno(0));
+        return 1;
+    }};
+    ($success_code:expr) => {{
+        errno::set_errno(errno::Errno(0));
+        return $success_code;
+    }};
 }
 
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
