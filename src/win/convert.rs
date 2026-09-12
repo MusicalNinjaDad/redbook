@@ -151,6 +151,12 @@ impl WinString {
     pub fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }
+
+    /// A slice of `u16` "words" representing the stored characters.
+    /// Including the final `\0` termination.
+    pub fn as_words(&self) -> &[u16] {
+        &self.words
+    }
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use crate::win::bindings::{
     ERROR_INSUFFICIENT_BUFFER, GUID_DEVINTERFACE_CDROM, IOCTL_CDROM_READ_TOC_EX,
 };
 use crate::win::convert::Guid;
+use crate::win::drive::DeviceDetails;
 use crate::win::toc::CDROM_TOC;
 
 use super::super::{MAX_PATH_CHARS, convert::WinString};
@@ -202,6 +203,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         _ => todo!("mock other albums"),
     };
     let album_path = format!(r"\\.\{}", album.assets_path().display());
+    let path_len = album_path.len();
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
@@ -212,13 +214,21 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             // This potentially slightly oversizes the requirement. This is acceptable for
             // testing purposes to avoid the complexity of calculating the size required when
             // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
-            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + album_path.len();
+            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
             // SAFETY: Have validated pointer is not NULL, mock runs on debug build so as u32
             // will panic on overflow.
             unsafe { *requiredsize = size as u32 };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
-        (false, s, true) => todo!("get data"),
+        (false, s, true) => {
+            let mut data = DeviceDetails::default();
+            match data.set_path(&WinString::from(album_path)) {
+                Ok(words) if words == path_len + 1 => {
+                    todo!("return data")
+                }
+                _ => todo!("setting path failed"),
+            };
+        }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
     }
 }

@@ -504,7 +504,7 @@ impl Iterator for CdDrives {
 /// A real example of such a path is:
 /// `\\\\?\\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct DeviceDetails {
+pub(super) struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
@@ -515,7 +515,7 @@ struct DeviceDetails {
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct DeviceDetails {
+pub(super) struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
@@ -534,6 +534,22 @@ impl DeviceDetails {
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> WinString {
         WinString::from(self.DevicePath.as_slice())
+    }
+
+    /// Set the path. Returns the number of u16 "words" stored on success, or
+    /// `ErrorKind::InvalidData` if the provided path is too large.
+    pub(super) fn set_path(&mut self, path: &WinString) -> io::Result<usize> {
+        let len = path.as_words().len();
+        (len < self.DevicePath.len()).ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "path too long: can only store {MAX_PATH_CHARS} words, received {len} words"
+                ),
+            )
+        })?;
+        self.DevicePath[..len].copy_from_slice(path.as_words());
+        Ok(len)
     }
 }
 
@@ -664,7 +680,7 @@ mod miri {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "get data")]
+    #[should_panic(expected = "return data")]
     fn all() {
         let mut drives = all_drives().unwrap();
         let _dm = drives.next().unwrap();
