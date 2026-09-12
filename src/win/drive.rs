@@ -2,6 +2,7 @@
 use std::{
     fmt::{Debug, Display},
     io::{self, ErrorKind},
+    mem::offset_of,
     path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
@@ -519,6 +520,14 @@ pub(super) struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
+
+const _: () = {
+    assert!(align_of::<DeviceDetails>() == align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
+    assert!(
+        offset_of!(DeviceDetails, DevicePath)
+            == offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
+    );
+};
 
 // TODO: const assert alignment etc.
 impl DeviceDetails {
