@@ -54,6 +54,16 @@ macro_rules! failure {
     }};
 }
 
+/// Return a sucess, by default using code `1`
+macro_rules! success {
+    () => {
+        return 1
+    };
+    ($success_code:expr) => {
+        return $success_code
+    }
+}
+
 pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
     0
 }
@@ -228,7 +238,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                     // - pointer is not null (match arm)
                     // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
                     unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
-                    todo!("return data")
+                    success!()
                 }
                 _ => todo!("setting path failed"),
             };
