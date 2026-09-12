@@ -224,6 +224,10 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             let mut data = DeviceDetails::default();
             match data.set_path(&WinString::from(album_path)) {
                 Ok(words) if words == path_len + 1 => {
+                    // SAFETY:
+                    // - pointer is not null (match arm)
+                    // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                    unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
                     todo!("return data")
                 }
                 _ => todo!("setting path failed"),
