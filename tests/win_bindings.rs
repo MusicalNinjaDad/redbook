@@ -3,6 +3,7 @@
 //! Based upon the approach used in [`chrono`](https://github.com/chronotope/chrono/blob/6adaa5240c26fecb7bd9077334a91f8f67f4f3fe/tests/win_bindings.rs)
 
 use std::{fs, path::PathBuf};
+use proc_macro2::TokenStream;
 use syn::Item::{Fn, Macro};
 use tempfile::NamedTempFile;
 use windows_bindgen::Bindgen;
@@ -96,7 +97,8 @@ fn mocks() {
         .iter()
         .filter_map(|item| {
             if let Macro(mac) = item {
-                Some(mac)
+                let defn: TokenStream = mac.mac.tokens.clone().into_iter().skip(2).collect();
+                Some(defn)
             } else {
                 None
             }
