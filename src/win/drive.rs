@@ -520,6 +520,7 @@ pub(super) struct DeviceDetails {
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
 
+// TODO: const assert alignment etc.
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
