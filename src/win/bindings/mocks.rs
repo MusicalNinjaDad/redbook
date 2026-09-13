@@ -97,6 +97,78 @@ pub unsafe fn CreateFile2(
         TheWallDisc2 => THE_WALL_2,
     }
 }
+
+/// Sends a control code directly to a specified device driver, causing the corresponding device
+/// to perform the corresponding operation. (See also [MS learn][docs_DeviceIoControl])
+///
+/// # SAFETY
+/// - `hdevice` must be a valid handle to an open resource of the correct type and with the correct
+///   access flags for `dwiocontrolcode`.
+/// - `hdevice` must NOT have been opened with `FILE_FLAG_OVERLAPPED` (currently unsupported).
+/// - `lpinbuffer`, `ninbuffersize`, `lpoutbuffer` & `noutbuffersize` must be correct for the
+///   requested `dwiocontrolcode`.
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
+///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
+///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
+///       whose contents indicate what information should be retrieved from the target device
+///     - `ninbuffersize`: the size, in bytes, of the input buffer,
+///       which must be >= `size_of<CDROM_READ_TOC_EX>()`
+///     - `lpoutbuffer`: usually points to a [`CDROM_TOC`] **see Notes** (see also [MS learn][docs_CDROM_TOC]).
+///     - `noutbuffersize`: the size, in bytes, of the output buffer,
+///       which must be >= MINIMUM_CDROM_READ_TOC_EX_SIZE.
+///       Setting this to `size_of::<CDROM_TOC>()` or equivalent is recommended
+/// - `lpbytesreturned` cannot be NULL. See Notes for reason.
+/// - `lpoverlapped` MUST be NULL. See Notes for reason.
+///
+/// # Notes
+/// - The mock version supports the following control codes:
+///     - [`IOCTL_CDROM_READ_TOC_EX`]
+/// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
+///   expose the `format` field. Instead providing `_bitfeld: u8` with the first 4 bits representing
+///   `format`. Adjusting these will affect the requirements placed on `lpoutbuffer` & `noutbuffersize`
+/// - We currently do not support overlapped operations and:
+///     - If `lpoverlapped` is NULL, `lpbytesreturned` cannot be NULL.
+///       Even when an operation returns no output data and `lpoutbuffer` is NULL,
+///       `DeviceIoControl` makes use of `lpbytesreturned`.
+///       After such an operation, the value of `lpbytesreturned` is meaningless.
+///     - If `lpoverlapped` is not NULL, `lpbytesreturned` is not NULL and the operation returns data,
+///       `lpbytesreturned` is meaningless until the overlapped operation has completed.
+///       To retrieve the number of bytes returned, call `GetOverlappedResult`.
+///       If `hdevice` is associated with an I/O completion port, you can retrieve the number of bytes
+///       returned by calling `GetQueuedCompletionStatus`.
+///
+/// # Returns / `last_os_error`
+/// - If the output buffer is too small to receive any data, the call fails, sets
+///   `ERROR_INSUFFICIENT_BUFFER`, and `lpbytesreturned` is 0.
+/// - If the output buffer is too small to hold all of the data but can hold some entries, some
+///   drivers will return as much data as fits. In this case, the call fails, sets `ERROR_MORE_DATA`,
+///   and `lpbytesreturned` indicates the amount of data received. Your application should call
+///   `DeviceIoControl` again with the same operation, specifying a new starting point.
+///
+/// # Arguments
+/// - `[in] hdevice`: A handle to the device on which the operation is to be performed. The
+///   device is typically a volume, directory, file, or stream. To retrieve a device handle,
+///   use [`CreateFile2`]
+/// - `[in] dwiocontrolcode`: The control code for the operation. This value identifies the
+///   specific operation to be performed and the type of device on which to perform it.
+/// - `[in, optional] lpinbuffer`: A pointer to the input buffer that contains the data required
+///   to perform the operation. The format of this data depends on the value of the `dwiocontrolcode`
+///   parameter. This parameter can be NULL if `dwiocontrolcode` specifies an operation that does not
+///   require input data.
+/// - `[in] ninbuffersize`: The size of the input buffer, in bytes.
+/// - `[out, optional] lpoutbuffer`: A pointer to the output buffer that is to receive the data
+///   returned by the operation. The format of this data depends on the value of the `dwiocontrolcode`
+///   parameter. This parameter can be NULL if `dwiocontrolcode` specifies an operation that does
+///   not return data.
+/// - `[in] noutbuffersize`: The size of the output buffer, in bytes.
+/// - `[out, optional] lpbytesreturned`: A pointer to a variable that receives the size of the data
+///   stored in the output buffer, in bytes.
+/// - `[in, out, optional] lpOverlapped`: A pointer to an OVERLAPPED structure. Currently not supported
+///   must be NULL
+///
+/// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+/// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+/// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
     dwiocontrolcode: u32,
