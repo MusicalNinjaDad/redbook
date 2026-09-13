@@ -13,7 +13,7 @@ use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
 // as these are not visible for import.
-const BINDINGS: [&str; 32] = [
+const BINDINGS: [&str; 33] = [
     "CloseHandle",
     "CreateFile2",
     "DeviceIoControl",
@@ -28,6 +28,7 @@ const BINDINGS: [&str; 32] = [
     "DIGCF_PRESENT",
     "ERROR_INSUFFICIENT_BUFFER",
     "ERROR_NO_MORE_ITEMS",
+    "FILE_DEVICE_CD_ROM",
     "FILE_FLAG_OVERLAPPED",
     "FILE_SHARE_READ",
     "FILE_NAME_NORMALIZED",

@@ -145,11 +145,16 @@ pub unsafe fn CreateFile2(
 /// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
 /// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
 /// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
-/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`],
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
 ///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
 ///       whose contents indicate what information should be retrieved from the target device
 ///     - `lpoutbuffer`: usually points to a [`CDROM_TOC`] **see Notes** (see also [MS learn][docs_CDROM_TOC]).
+/// - For `dwiocontrolcode` [`IOCTL_STORAGE_GET_DEVICE_NUMBER`],
+///   (see also [MS Learn][docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]):
+///     - `lpinbuffer` is NULL
+///     - `ninbuffersize` is 0
+///     - `lpoutbuffer`: points to a [`STORAGE_DEVICE_NUMBER`]
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///
@@ -202,6 +207,7 @@ pub unsafe fn CreateFile2(
 ///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+/// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
 /// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,

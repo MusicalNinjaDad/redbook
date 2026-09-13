@@ -16,8 +16,8 @@ use super::{
         CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
         DeviceIoControl, FILE_SHARE_READ, GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
         INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO,
-        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiEnumDeviceInterfaces,
-        SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
+        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
     convert::{Guid, Sector, WinPath, WinString},
     toc::TOC_SIZE,
@@ -256,6 +256,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let mut handle = DriveHandle::open(device.path()).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
+        let _fs_path = handle.fs_path()?;
         let path = WinPath::DevicePath(device.path());
         Ok(Self { path, handle, toc })
     }
@@ -584,6 +585,8 @@ impl Display for DeviceDetails {
 
 mod handle {
 
+    use crate::win::bindings::{FILE_DEVICE_CD_ROM, IOCTL_STORAGE_GET_DEVICE_NUMBER};
+
     use super::*;
     /// A open file handle which is known to point to a valid drive.
     ///
@@ -643,6 +646,51 @@ mod handle {
                 .or_error("getting handle for drive")?;
             tracing::debug!(?handle, "opened successfully");
             Ok(Self(handle))
+        }
+
+        /// get a currently valid file-system path, not valid across reboots but can be passed
+        /// to [`std::fs::read_dir`] etc.
+        pub fn fs_path(&self) -> io::Result<PathBuf> {
+            let mut info: STORAGE_DEVICE_NUMBER = Default::default();
+            let mut bytes_returned: u32 = 0;
+
+            #[expect(unsafe_code, reason = "ffi call")]
+            let get_info = unsafe {
+                // SAFETY:
+                // - handle known to be valid, owned by Self
+                // - IOCTL_STORAGE_GET_DEVICE_NUMBER does not require input
+                // - output buffer of type STORAGE_DEVICE_NUMBER
+                // - bytes returned is not NULL
+                // - not overlapped
+                DeviceIoControl(
+                    self.0,
+                    const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast_unsigned() },
+                    null(),
+                    0,
+                    &mut info as *mut _ as *mut _,
+                    const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() },
+                    &mut bytes_returned as *mut _,
+                    null_mut(),
+                )
+            };
+            (get_info != 0)
+                .ok_or_else(io::Error::last_os_error)
+                .or_warn("unable to get meaningful drive details")?;
+            (bytes_returned == const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast::<u32>() })
+                .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "wrong number of bytes received. Expected {correct} got {bytes_returned}",
+                        correct = const { size_of::<STORAGE_DEVICE_NUMBER>() }
+                    ),
+                )
+            }).or_error("")?;
+            (info.DeviceType == const { FILE_DEVICE_CD_ROM.strict_cast_unsigned() })
+                .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "Invalid device type"))
+                .or_warn("not a CDROM");
+            let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
+            Ok(path)
         }
 
         /// Obtain a reference to the underlying [`HANDLE`] for the drive.
