@@ -171,7 +171,14 @@ impl CdDrive {
             TrackMode: CDDA,
         };
 
-        let bytes_to_read = frames_to_read * const { FRAME_SIZE.strict_cast::<u32>() };
+        let bytes_to_read = frames_to_read
+            .checked_mul(const { FRAME_SIZE.strict_cast::<u32>() })
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::OutOfMemory,
+                    "requested too many bytes for architecture",
+                )
+            })?;
         // SAFETY check:
         // Buffer is expected size. This is a runtime check because `buf` is provided by caller.
         (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
