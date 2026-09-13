@@ -125,11 +125,14 @@ impl CdDrive {
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
+        // SAFETY check: stored value is the expected size
+        let toc: CDROM_TOC = self.toc;
+        const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
+
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
-            // SAFETY: check stored value is the expected size
-            assert_eq!(size_of_val(&self.toc), TOC_SIZE);
-            std::slice::from_raw_parts(&self.toc as *const _ as *const _, TOC_SIZE)
+            // SAFETY: correct size validated above
+            std::slice::from_raw_parts(&toc as *const _ as *const _, TOC_SIZE)
         }
     }
 
@@ -159,13 +162,31 @@ impl CdDrive {
         )
         .entered();
         let offset = Sector::from_frame(track.toc_entry.start + frame_offset).offset();
-        let read_command = RAW_READ_INFO {
+
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let read_command: RAW_READ_INFO = RAW_READ_INFO {
             DiskOffset: offset,
             SectorCount: frames_to_read,
             TrackMode: CDDA,
         };
 
-        let bytes_to_read = frames_to_read * FRAME_SIZE as u32;
+        let bytes_to_read = frames_to_read
+            .checked_mul(const { FRAME_SIZE.strict_cast::<u32>() })
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::OutOfMemory,
+                    "requested too many bytes for architecture",
+                )
+            })?;
+        // SAFETY check:
+        // Buffer is expected size. This is a runtime check because `buf` is provided by caller.
+        (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
+                .ok_or_else(|| io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
+                )
+            )?;
 
         let mut bytes_read: u32 = 0;
         tracing::trace!(offset = offset);
@@ -177,24 +198,6 @@ impl CdDrive {
         )]
         // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
-            // SAFETY check: Buffer is expected size.
-            // Runtime check as `buf` is provided by caller
-            (bytes_to_read == buf.len() as u32)
-                .ok_or_else(|| io::Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
-                )
-            )?;
-
-            // SAFETY check: Buffer is exact size for Sector count.
-            // Debug check as we generated SectorCount and have validated bytes_to_read above.
-            debug_assert_eq!(
-                read_command.SectorCount,
-                bytes_to_read
-                    .div_exact(FRAME_SIZE.try_into().unwrap())
-                    .expect("no remainder")
-            );
-
             DeviceIoControl(
                 *self.handle(),
                 const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },
@@ -204,12 +207,16 @@ impl CdDrive {
                 &read_command as *const _ as *const _,
                 // Parameters.DeviceIoControl.InputBufferLength specifies the size, in bytes, of the
                 // structure, which must be >= sizeof(RAW_READ_INFO)
-                size_of_val(&read_command) as u32,
+                const { size_of::<RAW_READ_INFO>().strict_cast() },
                 // Cannot reallocate without risking invalidating pointer. We create frame with capacity
                 // equal to read_command.SectorCount * Sectorsize.
                 buf as *mut _ as *mut _,
-                // Parameters.DeviceIoControl.OutputBufferLength
-                // specifies the size of the buffer to be read, which must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                // SAFETY:
+                // 1. bytes_to_read == buf.len() is validated at runtime, above
+                // 2. This must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                //    - SectorCount = frames_to_read
+                //    - RAW_SECTOR_SIZE = FRAME_SIZE
+                //    - bytes_to_read = (frames_to_read * FRAME_SIZE) == (SectorCount * RAW_SECTOR_SIZE)
                 bytes_to_read,
                 &mut bytes_read as *mut _,
                 null_mut(),
@@ -620,29 +627,20 @@ mod handle {
             #[expect(unsafe_code, reason = "ffi call")]
             let handle: HANDLE = unsafe {
                 // SAFETY:
-                // - All parameter values constructed with provided consts, no magic numbers used
-                // - path is owned by this function and therefore valid for duration of this block
-                // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
-
-                let dwdesiredaccess = GENERIC_READ;
-                let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
-                let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
-
+                // - `path` is owned by this function and therefore valid for duration of this block
+                // - returned handle will be stored in `Self` immediately after successful creation
+                // - `Drop` calls `CloseHandle`
                 CreateFile2(
                     path.as_pcwstr(),
-                    dwdesiredaccess,
-                    dwsharemode,
-                    dwcreationdisposition,
+                    GENERIC_READ,
+                    const { FILE_SHARE_READ.strict_cast_unsigned() },
+                    const { OPEN_EXISTING.strict_cast_unsigned() },
                     null(),
                 )
             };
-            // If the function fails, the return value is INVALID_HANDLE_VALUE.
-            // To get extended error information, call GetLastError.
-            if handle == INVALID_HANDLE_VALUE {
-                let error = io::Error::last_os_error();
-                tracing::error!(name: "getting handle for drive", %error);
-                return Err(error);
-            };
+            (handle != INVALID_HANDLE_VALUE)
+                .ok_or_else(io::Error::last_os_error)
+                .or_error("getting handle for drive")?;
             tracing::debug!(?handle, "opened successfully");
             Ok(Self(handle))
         }

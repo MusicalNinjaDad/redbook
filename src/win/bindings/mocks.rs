@@ -18,6 +18,8 @@ use super::{
     IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
+use crate::win::bindings::CDROM_READ_TOC_EX;
+use crate::win::bindings::bindgen::FILE_FLAG_OVERLAPPED;
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -69,10 +71,36 @@ pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
     success!()
 }
 
+/// Creates or opens a file or I/O device. (See also [Ms Learn][docs_CreateFile2])
+///
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
 ///   a null-terminated, utf-16 encoded String, of at most [MAX_PATH_CHARS].
 ///   The best way to achieve this is by passing the result of [`WinString::as_pcwstr()`]
+/// - The returned handle must be closed via [CloseHandle] when no longer needed. It is recommended
+///   to store it in a custom struct and implement [`Drop`] to close the handle. Particular care
+///   should be taken if errors occur between opening the handle and creating the wrapping struct.
+///
+/// # Notes
+/// - Overlapped access is not supported. `pcreateexparams.dwFileFlags` must not include [FILE_FLAG_OVERLAPPED]
+///
+/// # Returns / `last_os_error`
+/// - on success: A handle that can be passed to [DeviceIoControl]
+/// - on failure: [INVALID_HANDLE_VALUE][super::INVALID_HANDLE_VALUE].
+///   To get extended error information, call [`last_os_error`][io::Error::last_os_error].
+///
+/// # Arguments
+/// - `[in] lpfilename`: The name of the file or device to be created or opened.
+/// - `[in] dwdesiredaccess`: The requested access to the file or device. For opening a CD drive
+///   use [GENERIC_READ][super::GENERIC_READ]
+/// - `[in] dwShareMode`: The requested sharing mode of the file or device. For opening a CD drive
+///   use [`FILE_SHARE_READ`][super::FILE_SHARE_READ]
+/// - `[in] dwcreationdisposition`: An action to take on a file or device that exists or does not
+///   exist. For opening a CD drive use [OPEN_EXISTING][super::OPEN_EXISTING]
+/// - `[in, optional] pcreateexparams`: Pointer to an optional [CREATEFILE2_EXTENDED_PARAMETERS]
+///   structure. Not supported in mock. See Note.
+///
+/// [docs_CreateFile2]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
     dwdesiredaccess: u32,
@@ -80,6 +108,14 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
+    // Overlapped IO is unsupported
+    if !pcreateexparams.is_null() {
+        assert_eq!(
+            unsafe { *pcreateexparams }.dwFileFlags & FILE_FLAG_OVERLAPPED.strict_cast::<u32>(),
+            0
+        )
+    };
+
     #[expect(
         clippy::multiple_unsafe_ops_per_block,
         reason = "deference pointer arithmetic"
@@ -88,6 +124,7 @@ pub unsafe fn CreateFile2(
         .find(|&i| unsafe { *lpfilename.add(i) == 0 })
         .expect("null termination before MAX_PATH_CHARS");
     let pcwstr = unsafe { slice::from_raw_parts(lpfilename, path_len) };
+
     let win_path = WinString::from(pcwstr).to_string();
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
 
@@ -97,6 +134,74 @@ pub unsafe fn CreateFile2(
         TheWallDisc2 => THE_WALL_2,
     }
 }
+
+/// Sends a control code directly to a specified device driver, causing the corresponding device
+/// to perform the corresponding operation. (See also [MS learn][docs_DeviceIoControl])
+///
+/// # SAFETY
+/// - `hdevice` must be a valid handle to an open resource of the correct type and with the correct
+///   access flags for `dwiocontrolcode`.
+/// - `hdevice` must NOT have been opened with `FILE_FLAG_OVERLAPPED` (currently unsupported).
+/// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
+/// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
+/// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
+///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
+///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
+///       whose contents indicate what information should be retrieved from the target device
+///     - `lpoutbuffer`: usually points to a [`CDROM_TOC`] **see Notes** (see also [MS learn][docs_CDROM_TOC]).
+/// - `lpbytesreturned` cannot be NULL. See Notes for reason.
+/// - `lpoverlapped` MUST be NULL. See Notes for reason.
+///
+/// # Notes
+/// - The mock version supports the following control codes:
+///     - [`IOCTL_CDROM_READ_TOC_EX`]
+/// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
+///   expose the `format` field. Instead providing `_bitfeld: u8` with the first 4 bits representing
+///   `format`. Adjusting these will affect the requirements placed on `lpoutbuffer` & `noutbuffersize`
+/// - We currently do not support overlapped operations and:
+///     - If `lpoverlapped` is NULL, `lpbytesreturned` cannot be NULL.
+///       Even when an operation returns no output data and `lpoutbuffer` is NULL,
+///       `DeviceIoControl` makes use of `lpbytesreturned`.
+///       After such an operation, the value of `lpbytesreturned` is meaningless.
+///     - If `lpoverlapped` is not NULL, `lpbytesreturned` is not NULL and the operation returns data,
+///       `lpbytesreturned` is meaningless until the overlapped operation has completed.
+///       To retrieve the number of bytes returned, call `GetOverlappedResult`.
+///       If `hdevice` is associated with an I/O completion port, you can retrieve the number of bytes
+///       returned by calling `GetQueuedCompletionStatus`.
+///
+/// # Returns / `last_os_error`
+/// - If the output buffer is too small to receive any data, the call fails, sets
+///   `ERROR_INSUFFICIENT_BUFFER`, and `lpbytesreturned` is 0.
+/// - If the output buffer is too small to hold all of the data but can hold some entries, some
+///   drivers will return as much data as fits. In this case, the call fails, sets `ERROR_MORE_DATA`,
+///   and `lpbytesreturned` indicates the amount of data received. Your application should call
+///   `DeviceIoControl` again with the same operation, specifying a new starting point.
+///
+/// # Arguments
+/// - `[in] hdevice`: A handle to the device on which the operation is to be performed. The
+///   device is typically a volume, directory, file, or stream. To retrieve a device handle,
+///   use [`CreateFile2`]
+/// - `[in] dwiocontrolcode`: The control code for the operation. This value identifies the
+///   specific operation to be performed and the type of device on which to perform it.
+/// - `[in, optional] lpinbuffer`: A pointer to the input buffer that contains the data required
+///   to perform the operation. The format of this data depends on the value of the `dwiocontrolcode`
+///   parameter. This parameter can be NULL if `dwiocontrolcode` specifies an operation that does not
+///   require input data.
+/// - `[in] ninbuffersize`: The size of the input buffer, in bytes.
+/// - `[out, optional] lpoutbuffer`: A pointer to the output buffer that is to receive the data
+///   returned by the operation. The format of this data depends on the value of the `dwiocontrolcode`
+///   parameter. This parameter can be NULL if `dwiocontrolcode` specifies an operation that does
+///   not return data.
+/// - `[in] noutbuffersize`: The size of the output buffer, in bytes.
+/// - `[out, optional] lpbytesreturned`: A pointer to a variable that receives the size of the data
+///   stored in the output buffer, in bytes.
+/// - `[in, out, optional] lpOverlapped`: A pointer to an OVERLAPPED structure. Currently not supported
+///   must be NULL
+///
+/// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+/// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+/// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
     dwiocontrolcode: u32,
@@ -107,6 +212,26 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
+    // Adding safety checks as assertions in mock programatically ensures all tested callsites
+    // conform to requirements.
+    // Cannot check validity of HANDLE.
+    // Cannot check size_of lp*buffer - unable to reliably identify this due to opaque c_void
+    match dwiocontrolcode as i32 {
+        IOCTL_CDROM_READ_TOC_EX => {
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<CDROM_READ_TOC_EX>()
+            );
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<CDROM_TOC>()
+            );
+        }
+        _ => unimplemented!("unsupported control code"),
+    };
+    assert!(!lpbytesreturned.is_null());
+    assert!(lpoverlapped.is_null());
+
     let toc = match hdevice {
         DEFINITELY_MAYBE if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
             DefinitelyMaybe.load_cdrom_toc()
@@ -117,11 +242,11 @@ pub unsafe fn DeviceIoControl(
         THE_WALL_2 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
             TheWallDisc2.load_cdrom_toc()
         }
-        _ => todo!("mock DeviceIoControl"),
+        _ => todo!("mock DeviceIoControl for additional control codes"),
     };
     assert_eq!(noutbuffersize as usize, size_of_val(&toc));
     unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
-    1
+    success!()
 }
 
 /// Enumerates the device interfaces that are contained in a device information set.
@@ -210,7 +335,7 @@ pub unsafe fn SetupDiGetClassDevsW(
     }
 }
 
-/// This function can be used in one of two ways. Usually in sequence:
+/// Used in one of two ways. Usually in sequence:
 ///
 /// 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
 ///    NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,

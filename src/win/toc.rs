@@ -30,12 +30,16 @@ pub const CDA_LEN: usize = 0x2c;
 impl CDROM_TOC {
     /// Load from disc
     pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
-        let toc_command = CDROM_READ_TOC_EX {
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {
             SessionTrack: 1,
             ..Default::default()
         };
 
-        let mut toc = CDROM_TOC::default();
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let mut toc: CDROM_TOC = CDROM_TOC::default();
         let mut bytes_read: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
@@ -51,12 +55,12 @@ impl CDROM_TOC {
                 &toc_command as *const _ as *const _,
                 // indicates the size, in bytes, of the input buffer,
                 // which must be >= sizeof(CDROM_READ_TOC_EX).
-                size_of_val(&toc_command) as u32,
+                const { size_of::<CDROM_READ_TOC_EX>().strict_cast() },
                 // CDROM_READ_TOC_EX does not allow setting `Format` but
                 // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
                 // The output data is reported in a CDROM_TOC structure.
                 &mut toc as *mut _ as *mut _,
-                size_of_val(&toc) as u32,
+                const { size_of::<CDROM_TOC>().strict_cast() },
                 &mut bytes_read as *mut _,
                 null_mut(),
             )
