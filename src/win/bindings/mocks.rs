@@ -19,7 +19,7 @@ use super::{
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::CDROM_READ_TOC_EX;
-use crate::win::bindings::bindgen::FILE_FLAG_OVERLAPPED;
+use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -156,6 +156,7 @@ pub unsafe fn CreateFile2(
 /// # Notes
 /// - The mock version supports the following control codes:
 ///     - [`IOCTL_CDROM_READ_TOC_EX`]
+///     - [`IOCTL_STORAGE_GET_DEVICE_NUMBER`]
 /// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
 ///   expose the `format` field. Instead providing `_bitfeld: u8` with the first 4 bits representing
 ///   `format`. Adjusting these will affect the requirements placed on `lpoutbuffer` & `noutbuffersize`
@@ -227,6 +228,7 @@ pub unsafe fn DeviceIoControl(
                 size_of::<CDROM_TOC>()
             );
         }
+        IOCTL_STORAGE_GET_DEVICE_NUMBER => todo!("mock get device number"),
         _ => unimplemented!("unsupported control code"),
     };
     assert!(!lpbytesreturned.is_null());

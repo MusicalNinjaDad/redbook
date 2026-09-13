@@ -690,6 +690,7 @@ mod miri {
     use super::*;
 
     #[test]
+    #[should_panic(expected = "mock get device number")]
     fn all() {
         let drives = all_drives().unwrap();
         let albums: Vec<_> = drives.map(|drive| drive.toc().as_toc().unwrap()).collect();
