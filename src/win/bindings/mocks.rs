@@ -19,7 +19,7 @@ use super::{
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
-use crate::win::bindings::{CDROM_READ_TOC_EX, STORAGE_DEVICE_NUMBER};
+use crate::win::bindings::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -257,6 +257,16 @@ pub unsafe fn DeviceIoControl(
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
             unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+        }
+        IOCTL_STORAGE_GET_DEVICE_NUMBER => {
+            let info = STORAGE_DEVICE_NUMBER {
+                DeviceType: const { FILE_DEVICE_CD_ROM.strict_cast_unsigned() },
+                DeviceNumber: hdevice as u32,
+                PartitionNumber: -1_i32 as u32,
+            };
+            assert_eq!(noutbuffersize.strict_cast::<usize>(), size_of_val(&info));
+            unsafe { *(lpoutbuffer as *mut STORAGE_DEVICE_NUMBER) = info };
+            unsafe { *lpbytesreturned = size_of_val(&info).strict_cast() };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
     }

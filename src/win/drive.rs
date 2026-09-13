@@ -676,6 +676,7 @@ mod handle {
             (get_info != 0)
                 .ok_or_else(io::Error::last_os_error)
                 .or_warn("unable to get meaningful drive details")?;
+
             (bytes_returned == const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast::<u32>() })
                 .ok_or_else(|| {
                 io::Error::new(
@@ -685,10 +686,13 @@ mod handle {
                         correct = const { size_of::<STORAGE_DEVICE_NUMBER>() }
                     ),
                 )
-            }).or_error("")?;
+            })
+            .or_error("")?;
+
             (info.DeviceType == const { FILE_DEVICE_CD_ROM.strict_cast_unsigned() })
                 .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "Invalid device type"))
-                .or_warn("not a CDROM");
+                .or_warn("not a CDROM")?;
+
             let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
             Ok(path)
         }
@@ -738,7 +742,6 @@ mod miri {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "mock DeviceIoControl for additional control codes")]
     fn all() {
         let drives = all_drives().unwrap();
         let albums: Vec<_> = drives.map(|drive| drive.toc().as_toc().unwrap()).collect();
