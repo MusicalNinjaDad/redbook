@@ -159,7 +159,10 @@ impl CdDrive {
         )
         .entered();
         let offset = Sector::from_frame(track.toc_entry.start + frame_offset).offset();
-        let read_command = RAW_READ_INFO {
+
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let read_command: RAW_READ_INFO = RAW_READ_INFO {
             DiskOffset: offset,
             SectorCount: frames_to_read,
             TrackMode: CDDA,
@@ -177,8 +180,8 @@ impl CdDrive {
         )]
         // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
-            // SAFETY check: Buffer is expected size.
-            // Runtime check as `buf` is provided by caller
+            // SAFETY check:
+            // Buffer is expected size. This is a runtime check because `buf` is provided by caller
             (bytes_to_read == buf.len() as u32)
                 .ok_or_else(|| io::Error::new(
                     ErrorKind::InvalidInput,
@@ -204,7 +207,7 @@ impl CdDrive {
                 &read_command as *const _ as *const _,
                 // Parameters.DeviceIoControl.InputBufferLength specifies the size, in bytes, of the
                 // structure, which must be >= sizeof(RAW_READ_INFO)
-                size_of_val(&read_command) as u32,
+                const { size_of::<RAW_READ_INFO>().strict_cast() },
                 // Cannot reallocate without risking invalidating pointer. We create frame with capacity
                 // equal to read_command.SectorCount * Sectorsize.
                 buf as *mut _ as *mut _,
