@@ -13,7 +13,7 @@ use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
 // as these are not visible for import.
-const BINDINGS: [&str; 30] = [
+const BINDINGS: [&str; 32] = [
     "CloseHandle",
     "CreateFile2",
     "DeviceIoControl",
@@ -37,10 +37,12 @@ const BINDINGS: [&str; 30] = [
     "INVALID_HANDLE_VALUE",
     "IOCTL_CDROM_RAW_READ",
     "IOCTL_CDROM_READ_TOC_EX",
+    "IOCTL_STORAGE_GET_DEVICE_NUMBER",
     "OPEN_EXISTING",
     "SP_DEVICE_INTERFACE_DATA",
     "SP_DEVICE_INTERFACE_DETAIL_DATA_W",
     "SP_DEVINFO_DATA",
+    "STORAGE_DEVICE_NUMBER",
     "RAW_READ_INFO",
     "TRACK_MODE_TYPE",
     "VOLUME_NAME_DOS",

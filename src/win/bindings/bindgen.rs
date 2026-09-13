@@ -65,6 +65,7 @@ pub type HWND = *mut core::ffi::c_void;
 pub const INVALID_HANDLE_VALUE: HANDLE = -1 as _;
 pub const IOCTL_CDROM_RAW_READ: i32 = 147518;
 pub const IOCTL_CDROM_READ_TOC_EX: i32 = 147540;
+pub const IOCTL_STORAGE_GET_DEVICE_NUMBER: i32 = 2953344;
 pub type LPSECURITY_ATTRIBUTES = *mut SECURITY_ATTRIBUTES;
 pub const OPEN_EXISTING: i32 = 3;
 #[repr(C)]
@@ -192,6 +193,13 @@ pub struct SP_DEVINFO_DATA {
     pub ClassGuid: GUID,
     pub DevInst: u32,
     pub Reserved: usize,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct STORAGE_DEVICE_NUMBER {
+    pub DeviceType: u32,
+    pub DeviceNumber: u32,
+    pub PartitionNumber: u32,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
