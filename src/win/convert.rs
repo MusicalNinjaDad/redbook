@@ -1,6 +1,6 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::{fmt::Display, path::PathBuf};
+use std::fmt::Display;
 
 use super::bindings::GUID;
 use crate::{Frame, win::bindings::PCWSTR};
@@ -62,33 +62,6 @@ impl Sector {
     /// - Returned offset is relative to start of audio data
     pub fn offset(&self) -> i64 {
         self.0 * 2048
-    }
-}
-
-/// A path - of course, it's never quite that simple ;)
-///
-/// See https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum WinPath {
-    /// A standard file system path e.g. "D:\":
-    FilePath(PathBuf),
-    /// `\\.\` prefixed Win32 Device Namespace Path:
-    /// https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#win32-device-namespaces
-    DevicePath(WinString),
-}
-
-impl From<PathBuf> for WinPath {
-    fn from(path: PathBuf) -> Self {
-        Self::FilePath(path)
-    }
-}
-
-impl Display for WinPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WinPath::FilePath(path_buf) => write!(f, "{}", path_buf.display()),
-            WinPath::DevicePath(win_string) => write!(f, "{win_string}"),
-        }
     }
 }
 

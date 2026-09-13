@@ -41,6 +41,7 @@ pub const DIGCF_DEVICEINTERFACE: i32 = 16;
 pub const DIGCF_PRESENT: i32 = 2;
 pub const ERROR_INSUFFICIENT_BUFFER: i32 = 122;
 pub const ERROR_NO_MORE_ITEMS: i32 = 259;
+pub const FILE_DEVICE_CD_ROM: i32 = 2;
 pub const FILE_FLAG_OVERLAPPED: i32 = 1073741824;
 pub const FILE_NAME_NORMALIZED: i32 = 0;
 pub const FILE_SHARE_READ: i32 = 1;
@@ -65,6 +66,7 @@ pub type HWND = *mut core::ffi::c_void;
 pub const INVALID_HANDLE_VALUE: HANDLE = -1 as _;
 pub const IOCTL_CDROM_RAW_READ: i32 = 147518;
 pub const IOCTL_CDROM_READ_TOC_EX: i32 = 147540;
+pub const IOCTL_STORAGE_GET_DEVICE_NUMBER: i32 = 2953344;
 pub type LPSECURITY_ATTRIBUTES = *mut SECURITY_ATTRIBUTES;
 pub const OPEN_EXISTING: i32 = 3;
 #[repr(C)]
@@ -192,6 +194,13 @@ pub struct SP_DEVINFO_DATA {
     pub ClassGuid: GUID,
     pub DevInst: u32,
     pub Reserved: usize,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct STORAGE_DEVICE_NUMBER {
+    pub DeviceType: u32,
+    pub DeviceNumber: u32,
+    pub PartitionNumber: u32,
 }
 #[repr(C)]
 #[derive(Clone, Copy)]

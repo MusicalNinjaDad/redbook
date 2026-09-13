@@ -5,6 +5,8 @@
 
 //! List available CD drives
 
+#[cfg(target_family = "windows")]
+use std::fs;
 use std::io;
 
 #[cfg(target_family = "windows")]
@@ -27,7 +29,13 @@ fn main() -> io::Result<()> {
     for cd in drives {
         let path = cd.path();
         let toc = cd.toc().as_toc().map_err(io::Error::other).or_warn("")?;
-        tracing::info!(%path, %toc, "found");
+        tracing::info!(path = %path.display(), %toc, "found");
+    }
+
+    let drive0 = fs::read_dir(r"\\.\CDROM0");
+    dbg!(&drive0);
+    for file in drive0? {
+        dbg!(file?);
     }
     Ok(())
 }

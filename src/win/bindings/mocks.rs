@@ -18,8 +18,8 @@ use super::{
     IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::CDROM_READ_TOC_EX;
-use crate::win::bindings::bindgen::FILE_FLAG_OVERLAPPED;
+use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
+use crate::win::bindings::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -145,17 +145,23 @@ pub unsafe fn CreateFile2(
 /// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
 /// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
 /// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
-/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`],
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
 ///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
 ///       whose contents indicate what information should be retrieved from the target device
 ///     - `lpoutbuffer`: usually points to a [`CDROM_TOC`] **see Notes** (see also [MS learn][docs_CDROM_TOC]).
+/// - For `dwiocontrolcode` [`IOCTL_STORAGE_GET_DEVICE_NUMBER`],
+///   (see also [MS Learn][docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]):
+///     - `lpinbuffer` is NULL
+///     - `ninbuffersize` is 0
+///     - `lpoutbuffer`: points to a [`STORAGE_DEVICE_NUMBER`]
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///
 /// # Notes
 /// - The mock version supports the following control codes:
 ///     - [`IOCTL_CDROM_READ_TOC_EX`]
+///     - [`IOCTL_STORAGE_GET_DEVICE_NUMBER`]
 /// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
 ///   expose the `format` field. Instead providing `_bitfeld: u8` with the first 4 bits representing
 ///   `format`. Adjusting these will affect the requirements placed on `lpoutbuffer` & `noutbuffersize`
@@ -201,6 +207,7 @@ pub unsafe fn CreateFile2(
 ///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+/// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
 /// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
@@ -227,25 +234,42 @@ pub unsafe fn DeviceIoControl(
                 size_of::<CDROM_TOC>()
             );
         }
+        IOCTL_STORAGE_GET_DEVICE_NUMBER => {
+            assert!(lpinbuffer.is_null());
+            assert_eq!(ninbuffersize, 0);
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_DEVICE_NUMBER>()
+            );
+        }
         _ => unimplemented!("unsupported control code"),
     };
     assert!(!lpbytesreturned.is_null());
     assert!(lpoverlapped.is_null());
 
-    let toc = match hdevice {
-        DEFINITELY_MAYBE if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            DefinitelyMaybe.load_cdrom_toc()
+    match dwiocontrolcode.strict_cast::<i32>() {
+        IOCTL_CDROM_READ_TOC_EX => {
+            let toc = match hdevice {
+                DEFINITELY_MAYBE => DefinitelyMaybe.load_cdrom_toc(),
+                THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
+                THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
+                _ => panic!("unknown album"),
+            };
+            assert_eq!(noutbuffersize as usize, size_of_val(&toc));
+            unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
         }
-        THE_WALL_1 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            TheWallDisc1.load_cdrom_toc()
-        }
-        THE_WALL_2 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            TheWallDisc2.load_cdrom_toc()
+        IOCTL_STORAGE_GET_DEVICE_NUMBER => {
+            let info = STORAGE_DEVICE_NUMBER {
+                DeviceType: const { FILE_DEVICE_CD_ROM.strict_cast_unsigned() },
+                DeviceNumber: hdevice as u32,
+                PartitionNumber: -1_i32 as u32,
+            };
+            assert_eq!(noutbuffersize.strict_cast::<usize>(), size_of_val(&info));
+            unsafe { *(lpoutbuffer as *mut STORAGE_DEVICE_NUMBER) = info };
+            unsafe { *lpbytesreturned = size_of_val(&info).strict_cast() };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
-    };
-    assert_eq!(noutbuffersize as usize, size_of_val(&toc));
-    unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+    }
     success!()
 }
 

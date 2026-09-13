@@ -50,14 +50,24 @@ pub struct ReadOnlyAudioCd {
 impl AudioCd {
     /// Opens drive, reads CD
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let path_str = path.as_ref().display().to_string();
+        let _err_span =
+            tracing::error_span!("AudioCd::new", path = %path.as_ref().display()).entered();
+        let drive = CdDrive::open(path)?;
+        Self::try_from(drive)
+    }
+}
 
-        const _TARGET: &str = "AudioCd::new";
-        let _err_span = tracing::error_span!(_TARGET, path = %path_str).entered();
+impl TryFrom<CdDrive> for AudioCd {
+    type Error = io::Error;
+
+    fn try_from(drive: CdDrive) -> Result<Self, Self::Error> {
+        let _err_span =
+            tracing::error_span!("AudioCd::TryFrom<CdDrive>", path = %drive.path().display())
+                .entered();
 
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        let mut tracks: Vec<_> = fs::read_dir(&path)
+        let mut tracks: Vec<_> = fs::read_dir(drive.path())
             .or_error("open drive as dir")?
             .filter_map(|track| {
                 let path =
@@ -71,8 +81,6 @@ impl AudioCd {
             .try_collect()
             .or_error("parse cda")?;
         tracks.sort_by_key(|track| track.toc_entry.start);
-
-        let drive = CdDrive::open(path)?;
 
         let wintoc = drive.toc();
         (wintoc.FirstTrack
