@@ -185,7 +185,7 @@ impl CdDrive {
         let read_chunk = unsafe {
             // SAFETY check:
             // Buffer is expected size. This is a runtime check because `buf` is provided by caller
-            (bytes_to_read == buf.len() as u32)
+            (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
                 .ok_or_else(|| io::Error::new(
                     ErrorKind::InvalidInput,
                     format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
