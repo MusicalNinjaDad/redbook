@@ -71,10 +71,34 @@ pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
     success!()
 }
 
+/// Creates or opens a file or I/O device. (See also [Ms Learn][docs_CreateFile2])
+///
 /// # SAFETY:
 /// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
 ///   a null-terminated, utf-16 encoded String, of at most [MAX_PATH_CHARS].
 ///   The best way to achieve this is by passing the result of [`WinString::as_pcwstr()`]
+/// - The returned handle must be closed via [CloseHandle] when no longer needed. It is recommended
+///   to store it in a custom struct and implement [`Drop`] to close the handle. Particular care
+///   should be taken if errors occur between opening the handle and creating the wrapping struct.
+///
+/// # Notes
+/// - Overlapped access is not supported. `pcreateexparams.dwFileFlags` must not include [FILE_FLAG_OVERLAPPED]
+///
+/// # Returns
+/// A handle that can be passed to [DeviceIoControl]
+///
+/// # Arguments
+/// - `[in] lpfilename`: The name of the file or device to be created or opened.
+/// - `[in] dwdesiredaccess`: The requested access to the file or device. For opening a CD drive
+///   use [GENERIC_READ][super::GENERIC_READ]
+/// - `[in] dwShareMode`: The requested sharing mode of the file or device. For opening a CD drive
+///   use [`FILE_SHARE_READ`][super::FILE_SHARE_READ]
+/// - `[in] dwcreationdisposition`: An action to take on a file or device that exists or does not
+///   exist. For opening a CD drive use [OPEN_EXISTING][super::OPEN_EXISTING]
+/// - `[in, optional] pcreateexparams`: Pointer to an optional [CREATEFILE2_EXTENDED_PARAMETERS]
+///   structure. Not supported in mock. See Note.
+///
+/// [docs_CreateFile2]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
     dwdesiredaccess: u32,
@@ -89,6 +113,7 @@ pub unsafe fn CreateFile2(
             0
         )
     };
+
     #[expect(
         clippy::multiple_unsafe_ops_per_block,
         reason = "deference pointer arithmetic"
@@ -97,6 +122,7 @@ pub unsafe fn CreateFile2(
         .find(|&i| unsafe { *lpfilename.add(i) == 0 })
         .expect("null termination before MAX_PATH_CHARS");
     let pcwstr = unsafe { slice::from_raw_parts(lpfilename, path_len) };
+
     let win_path = WinString::from(pcwstr).to_string();
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
 
