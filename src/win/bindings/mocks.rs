@@ -247,20 +247,19 @@ pub unsafe fn DeviceIoControl(
     assert!(!lpbytesreturned.is_null());
     assert!(lpoverlapped.is_null());
 
-    let toc = match hdevice {
-        DEFINITELY_MAYBE if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            DefinitelyMaybe.load_cdrom_toc()
-        }
-        THE_WALL_1 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            TheWallDisc1.load_cdrom_toc()
-        }
-        THE_WALL_2 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
-            TheWallDisc2.load_cdrom_toc()
+    match dwiocontrolcode.strict_cast::<i32>() {
+        IOCTL_CDROM_READ_TOC_EX => {
+            let toc = match hdevice {
+                DEFINITELY_MAYBE => DefinitelyMaybe.load_cdrom_toc(),
+                THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
+                THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
+                _ => panic!("unknown album"),
+            };
+            assert_eq!(noutbuffersize as usize, size_of_val(&toc));
+            unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
-    };
-    assert_eq!(noutbuffersize as usize, size_of_val(&toc));
-    unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+    }
     success!()
 }
 
