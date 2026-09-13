@@ -1,4 +1,4 @@
-use std::{fs, process::Termination as _T};
+use std::{fs, path::PathBuf, process::Termination as _T};
 
 use tracing_subscriber::{
     filter::LevelFilter, fmt::layer, prelude::*, registry, util::TryInitError,
@@ -25,12 +25,9 @@ impl Rip {
             .with_writer(std::io::stderr)
             .with_filter(stderr_level);
 
-        // If let Some to be explicit about side-effects (file creation)
-        let file = if let Some(logpath) = &self.log {
-            let file = fs::File::options()
-                .append(true)
-                .create(true)
-                .open(logpath)?;
+        let file = if self.loglevel != LogLevel::Off {
+            let path = self.log.clone().unwrap_or_else(|| PathBuf::from("rip.log"));
+            let file = fs::File::options().append(true).create(true).open(path)?;
             let loglevel = LevelFilter::from(&self.loglevel);
             let json = match self.format {
                 crate::cli::LogFormat::Human => None,
@@ -55,6 +52,8 @@ impl Rip {
 impl From<&LogLevel> for LevelFilter {
     fn from(level: &LogLevel) -> Self {
         match level {
+            LogLevel::Off => LevelFilter::OFF,
+            LogLevel::Error => LevelFilter::ERROR,
             LogLevel::Warn => LevelFilter::WARN,
             LogLevel::Info => LevelFilter::INFO,
             LogLevel::Debug => LevelFilter::DEBUG,

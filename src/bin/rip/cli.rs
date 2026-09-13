@@ -23,17 +23,11 @@ pub struct Rip {
     /// Reduce verbosity, can be provided multiple times (e.g. -qq) to be even quieter.
     #[arg(short = 'q', action = clap::ArgAction::Count, conflicts_with = "verbose")]
     pub quiet: u8,
-    /// Output information to <LOGFILE>. Not affected by -v / -q
+    /// Output information to <LOGFILE>. If not provided this will be `rip.log` Not affected by -v / -q
     #[arg(long, value_name = "LOGFILE")]
     pub log: Option<PathBuf>,
     /// Information level to ouput to logfile
-    #[arg(
-        long,
-        value_name = "LOGLEVEL",
-        value_enum,
-        default_value_os_t,
-        requires = "log"
-    )]
+    #[arg(long, value_name = "LOGLEVEL", value_enum, default_value_os_t)]
     pub loglevel: LogLevel,
     /// Logfile format
     #[arg(
@@ -54,6 +48,8 @@ impl Rip {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Default)]
 pub enum LogLevel {
+    Off,
+    Error,
     Warn,
     Info,
     #[default]
