@@ -7,7 +7,7 @@ use clap::{Parser, ValueEnum};
 /// Rip CD audio tracks to WAV files
 pub struct Rip {
     /// The drive path (e.g., E:)
-    pub drive: String,
+    pub drive: Option<PathBuf>,
     /// The track number (1-indexed)
     #[arg(default_value = None)]
     pub track_number: Option<usize>,

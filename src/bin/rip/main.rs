@@ -14,7 +14,6 @@ use std::{
     io::{self, Write},
     path::PathBuf,
     process::Termination as _T,
-    str::FromStr,
     sync::mpsc,
     thread,
 };
@@ -27,7 +26,9 @@ use metaflac::{
     block::{Picture, PictureType},
 };
 #[cfg(target_family = "windows")]
-use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureExt};
+use redbook::{
+    AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureExt, win::drive::all_drives,
+};
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
@@ -52,13 +53,22 @@ fn main() -> Exit<()> {
 
     let ripper = Rip::try_parse()?;
 
-    let drive = PathBuf::from_str(&ripper.drive)?;
-
     ripper.init_tracing()?;
-    let info = tracing::info_span!("Rip", drive = %drive.display(), title = Empty, artist = Empty)
-        .entered();
+    let info = tracing::info_span!("Rip", drive = Empty, title = Empty, artist = Empty).entered();
 
-    let mut cd: AudioCd = AudioCd::new(drive)?;
+    let mut cd = match ripper.drive {
+        Some(drive) => {
+            info.record("drive", drive.display().to_string());
+            AudioCd::new(drive)?
+        }
+        None => {
+            let _drive = all_drives()?
+                .next()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+            // AudioCd::from(drive);
+            todo!()
+        }
+    };
 
     #[expect(unused_must_use, reason = "do not abort if musicbrainz not available")]
     cd.disc_mut().update_musicbrainz();
