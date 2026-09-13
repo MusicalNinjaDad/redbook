@@ -62,11 +62,10 @@ fn main() -> Exit<()> {
             AudioCd::new(drive)?
         }
         None => {
-            let _drive = all_drives()?
+            let drive = all_drives()?
                 .next()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-            // AudioCd::from(drive);
-            todo!()
+            AudioCd::try_from(drive)?
         }
     };
 
