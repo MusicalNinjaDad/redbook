@@ -19,6 +19,7 @@ use super::{
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::CDROM_READ_TOC_EX;
+use crate::win::bindings::bindgen::FILE_FLAG_OVERLAPPED;
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -81,7 +82,13 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
-    // TODO: add safety check that `FILE_FLAG_OVERLAPPED` is not set
+    // Overlapped IO is unsupported
+    if !pcreateexparams.is_null() {
+        assert_eq!(
+            unsafe { *pcreateexparams }.dwFileFlags & FILE_FLAG_OVERLAPPED.strict_cast::<u32>(),
+            0
+        )
+    };
     #[expect(
         clippy::multiple_unsafe_ops_per_block,
         reason = "deference pointer arithmetic"
