@@ -197,7 +197,7 @@ impl CdDrive {
             debug_assert_eq!(
                 read_command.SectorCount,
                 bytes_to_read
-                    .div_exact(FRAME_SIZE.try_into().unwrap())
+                    .div_exact(FRAME_SIZE.strict_cast())
                     .expect("no remainder")
             );
 
