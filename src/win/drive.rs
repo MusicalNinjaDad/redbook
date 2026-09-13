@@ -191,15 +191,6 @@ impl CdDrive {
         )]
         // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
-            // SAFETY check: Buffer is exact size for Sector count.
-            // Debug check as we generated SectorCount and have validated bytes_to_read above.
-            debug_assert_eq!(
-                read_command.SectorCount,
-                bytes_to_read
-                    .div_exact(FRAME_SIZE.strict_cast())
-                    .expect("no remainder")
-            );
-
             DeviceIoControl(
                 *self.handle(),
                 const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },

@@ -33,7 +33,6 @@ fn main() -> Result<()> {
         OtherFeature("default_field_values".to_string()),
         &allowed_features,
     );
-    ac.emit_unstable_feature(OtherFeature("exact_div".to_string()), &allowed_features);
     ac.emit_unstable_feature(
         OtherFeature("exact_size_is_empty".to_string()),
         &allowed_features,
