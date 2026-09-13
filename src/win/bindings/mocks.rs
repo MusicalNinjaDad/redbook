@@ -18,6 +18,7 @@ use super::{
     IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
+use crate::win::bindings::CDROM_READ_TOC_EX;
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -80,6 +81,7 @@ pub unsafe fn CreateFile2(
     dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
+    // TODO: add safety check that `FILE_FLAG_OVERLAPPED` is not set
     #[expect(
         clippy::multiple_unsafe_ops_per_block,
         reason = "deference pointer arithmetic"
@@ -105,18 +107,14 @@ pub unsafe fn CreateFile2(
 /// - `hdevice` must be a valid handle to an open resource of the correct type and with the correct
 ///   access flags for `dwiocontrolcode`.
 /// - `hdevice` must NOT have been opened with `FILE_FLAG_OVERLAPPED` (currently unsupported).
-/// - `lpinbuffer`, `ninbuffersize`, `lpoutbuffer` & `noutbuffersize` must be correct for the
-///   requested `dwiocontrolcode`.
+/// - `ninbuffersize` must be `size_of_val(&lpinbuffer)`
+/// - `noutbuffersize` must be `size_of_val(&lpoutbuffer)`
+/// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
 /// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
 ///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
 ///       whose contents indicate what information should be retrieved from the target device
-///     - `ninbuffersize`: the size, in bytes, of the input buffer,
-///       which must be >= `size_of<CDROM_READ_TOC_EX>()`
 ///     - `lpoutbuffer`: usually points to a [`CDROM_TOC`] **see Notes** (see also [MS learn][docs_CDROM_TOC]).
-///     - `noutbuffersize`: the size, in bytes, of the output buffer,
-///       which must be >= MINIMUM_CDROM_READ_TOC_EX_SIZE.
-///       Setting this to `size_of::<CDROM_TOC>()` or equivalent is recommended
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///
@@ -179,6 +177,26 @@ pub unsafe fn DeviceIoControl(
     lpbytesreturned: *mut u32,
     lpoverlapped: *mut OVERLAPPED,
 ) -> BOOL {
+    // Adding safety checks as assertions in mock programatically ensures all tested callsites
+    // conform to requirements.
+    // Cannot check validity of HANDLE.
+    // Cannot check size_of lp*buffer - unable to reliably identify this due to opaque c_void
+    match dwiocontrolcode as i32 {
+        IOCTL_CDROM_READ_TOC_EX => {
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<CDROM_READ_TOC_EX>()
+            );
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<CDROM_TOC>()
+            );
+        }
+        _ => unimplemented!("unsupported control code"),
+    };
+    assert!(!lpbytesreturned.is_null());
+    assert!(lpoverlapped.is_null());
+
     let toc = match hdevice {
         DEFINITELY_MAYBE if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
             DefinitelyMaybe.load_cdrom_toc()
