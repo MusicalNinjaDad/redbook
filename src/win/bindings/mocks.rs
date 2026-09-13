@@ -84,8 +84,10 @@ pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
 /// # Notes
 /// - Overlapped access is not supported. `pcreateexparams.dwFileFlags` must not include [FILE_FLAG_OVERLAPPED]
 ///
-/// # Returns
-/// A handle that can be passed to [DeviceIoControl]
+/// # Returns / `last_os_error`
+/// - on success: A handle that can be passed to [DeviceIoControl]
+/// - on failure: [INVALID_HANDLE_VALUE][super::INVALID_HANDLE_VALUE].
+///   To get extended error information, call [`last_os_error`][io::Error::last_os_error].
 ///
 /// # Arguments
 /// - `[in] lpfilename`: The name of the file or device to be created or opened.

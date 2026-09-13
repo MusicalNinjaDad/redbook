@@ -620,29 +620,20 @@ mod handle {
             #[expect(unsafe_code, reason = "ffi call")]
             let handle: HANDLE = unsafe {
                 // SAFETY:
-                // - All parameter values constructed with provided consts, no magic numbers used
-                // - path is owned by this function and therefore valid for duration of this block
-                // - See https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
-
-                let dwdesiredaccess = GENERIC_READ;
-                let dwsharemode = const { FILE_SHARE_READ.strict_cast_unsigned() };
-                let dwcreationdisposition = const { OPEN_EXISTING.strict_cast_unsigned() };
-
+                // - `path` is owned by this function and therefore valid for duration of this block
+                // - returned handle will be stored in `Self` immediately after successful creation
+                // - `Drop` calls `CloseHandle`
                 CreateFile2(
                     path.as_pcwstr(),
-                    dwdesiredaccess,
-                    dwsharemode,
-                    dwcreationdisposition,
+                    GENERIC_READ,
+                    const { FILE_SHARE_READ.strict_cast_unsigned() },
+                    const { OPEN_EXISTING.strict_cast_unsigned() },
                     null(),
                 )
             };
-            // If the function fails, the return value is INVALID_HANDLE_VALUE.
-            // To get extended error information, call GetLastError.
-            if handle == INVALID_HANDLE_VALUE {
-                let error = io::Error::last_os_error();
-                tracing::error!(name: "getting handle for drive", %error);
-                return Err(error);
-            };
+            (handle != INVALID_HANDLE_VALUE)
+                .ok_or_else(io::Error::last_os_error)
+                .or_error("getting handle for drive")?;
             tracing::debug!(?handle, "opened successfully");
             Ok(Self(handle))
         }
