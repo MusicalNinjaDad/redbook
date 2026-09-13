@@ -128,8 +128,9 @@ impl CdDrive {
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
             // SAFETY: check stored value is the expected size
-            assert_eq!(size_of_val(&self.toc), TOC_SIZE);
-            std::slice::from_raw_parts(&self.toc as *const _ as *const _, TOC_SIZE)
+            let toc: CDROM_TOC = self.toc;
+            const { assert!( size_of::<CDROM_TOC>() == TOC_SIZE) };
+            std::slice::from_raw_parts(&toc as *const _ as *const _, TOC_SIZE)
         }
     }
 
