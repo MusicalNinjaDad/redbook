@@ -10,9 +10,11 @@
 // Only applicable to library
 #![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
+#![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
 #![cfg_attr(unstable_exact_div, feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
+#![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_integer_cast_extras, feature(integer_cast_extras))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
 #![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
