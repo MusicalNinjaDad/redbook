@@ -171,7 +171,15 @@ impl CdDrive {
             TrackMode: CDDA,
         };
 
-        let bytes_to_read = frames_to_read * FRAME_SIZE as u32;
+        let bytes_to_read = frames_to_read * const { FRAME_SIZE.strict_cast::<u32>() };
+        // SAFETY check:
+        // Buffer is expected size. This is a runtime check because `buf` is provided by caller
+        (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
+                .ok_or_else(|| io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
+                )
+            )?;
 
         let mut bytes_read: u32 = 0;
         tracing::trace!(offset = offset);
@@ -183,15 +191,6 @@ impl CdDrive {
         )]
         // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         let read_chunk = unsafe {
-            // SAFETY check:
-            // Buffer is expected size. This is a runtime check because `buf` is provided by caller
-            (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
-                .ok_or_else(|| io::Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
-                )
-            )?;
-
             // SAFETY check: Buffer is exact size for Sector count.
             // Debug check as we generated SectorCount and have validated bytes_to_read above.
             debug_assert_eq!(
