@@ -125,11 +125,13 @@ impl CdDrive {
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
+        // SAFETY check: stored value is the expected size
+        let toc: CDROM_TOC = self.toc;
+        const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
+
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
-            // SAFETY: check stored value is the expected size
-            let toc: CDROM_TOC = self.toc;
-            const { assert!( size_of::<CDROM_TOC>() == TOC_SIZE) };
+            // SAFETY: correct size validated above
             std::slice::from_raw_parts(&toc as *const _ as *const _, TOC_SIZE)
         }
     }
