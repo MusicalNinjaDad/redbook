@@ -142,8 +142,8 @@ pub unsafe fn CreateFile2(
 /// - `hdevice` must be a valid handle to an open resource of the correct type and with the correct
 ///   access flags for `dwiocontrolcode`.
 /// - `hdevice` must NOT have been opened with `FILE_FLAG_OVERLAPPED` (currently unsupported).
-/// - `ninbuffersize` must be `size_of_val(&lpinbuffer)`
-/// - `noutbuffersize` must be `size_of_val(&lpoutbuffer)`
+/// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
+/// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
 /// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
 /// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`] specifically,
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
