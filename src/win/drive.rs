@@ -173,7 +173,7 @@ impl CdDrive {
 
         let bytes_to_read = frames_to_read * const { FRAME_SIZE.strict_cast::<u32>() };
         // SAFETY check:
-        // Buffer is expected size. This is a runtime check because `buf` is provided by caller
+        // Buffer is expected size. This is a runtime check because `buf` is provided by caller.
         (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
                 .ok_or_else(|| io::Error::new(
                     ErrorKind::InvalidInput,
@@ -213,8 +213,12 @@ impl CdDrive {
                 // Cannot reallocate without risking invalidating pointer. We create frame with capacity
                 // equal to read_command.SectorCount * Sectorsize.
                 buf as *mut _ as *mut _,
-                // Parameters.DeviceIoControl.OutputBufferLength
-                // specifies the size of the buffer to be read, which must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                // SAFETY:
+                // 1. bytes_to_read == buf.len() is validated at runtime, above
+                // 2. This must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                //    - SectorCount = frames_to_read
+                //    - RAW_SECTOR_SIZE = FRAME_SIZE
+                //    - bytes_to_read = (frames_to_read * FRAME_SIZE) == (SectorCount * RAW_SECTOR_SIZE)
                 bytes_to_read,
                 &mut bytes_read as *mut _,
                 null_mut(),
