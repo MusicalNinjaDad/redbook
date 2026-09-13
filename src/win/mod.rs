@@ -1,5 +1,6 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
+#[cfg_attr(not(test), forbid(unsafe_code))]
 mod audiocd;
 
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
