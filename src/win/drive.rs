@@ -19,7 +19,7 @@ use super::{
         SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
         SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
-    convert::{Guid, Sector, WinPath, WinString},
+    convert::{Guid, Sector, WinString},
     toc::TOC_SIZE,
 };
 #[cfg(any(
@@ -40,7 +40,7 @@ pub(super) use handle::DriveHandle;
 /// # SAFETY
 /// - CdDrive cannot be `Clone` to avoid duplicate handles
 pub struct CdDrive {
-    path: WinPath,
+    path: PathBuf,
     handle: DriveHandle,
     toc: CDROM_TOC,
 }
@@ -95,15 +95,11 @@ impl CdDrive {
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let mut handle = DriveHandle::open(windrive).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
-        Ok(Self {
-            path: path.into(),
-            handle,
-            toc,
-        })
+        Ok(Self { path, handle, toc })
     }
 
     /// The path of the drive
-    pub fn path(&self) -> &WinPath {
+    pub fn path(&self) -> &PathBuf {
         &self.path
     }
 
@@ -256,7 +252,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let mut handle = DriveHandle::open(device.path()).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
-        let path = WinPath::FilePath(handle.fs_path()?);
+        let path = handle.fs_path()?;
         Ok(Self { path, handle, toc })
     }
 }
