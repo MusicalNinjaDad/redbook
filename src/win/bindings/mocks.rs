@@ -18,8 +18,8 @@ use super::{
     IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::CDROM_READ_TOC_EX;
 use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
+use crate::win::bindings::{CDROM_READ_TOC_EX, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -234,7 +234,14 @@ pub unsafe fn DeviceIoControl(
                 size_of::<CDROM_TOC>()
             );
         }
-        IOCTL_STORAGE_GET_DEVICE_NUMBER => todo!("mock get device number"),
+        IOCTL_STORAGE_GET_DEVICE_NUMBER => {
+            assert!(lpinbuffer.is_null());
+            assert_eq!(ninbuffersize, 0);
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_DEVICE_NUMBER>()
+            );
+        }
         _ => unimplemented!("unsupported control code"),
     };
     assert!(!lpbytesreturned.is_null());
