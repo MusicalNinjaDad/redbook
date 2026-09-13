@@ -214,11 +214,11 @@ pub unsafe fn DeviceIoControl(
         THE_WALL_2 if dwiocontrolcode == IOCTL_CDROM_READ_TOC_EX as u32 => {
             TheWallDisc2.load_cdrom_toc()
         }
-        _ => todo!("mock DeviceIoControl"),
+        _ => todo!("mock DeviceIoControl for additional control codes"),
     };
     assert_eq!(noutbuffersize as usize, size_of_val(&toc));
     unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
-    1
+    success!()
 }
 
 /// Enumerates the device interfaces that are contained in a device information set.
@@ -307,7 +307,7 @@ pub unsafe fn SetupDiGetClassDevsW(
     }
 }
 
-/// This function can be used in one of two ways. Usually in sequence:
+/// Used in one of two ways. Usually in sequence:
 ///
 /// 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
 ///    NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
