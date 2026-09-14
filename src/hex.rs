@@ -96,7 +96,7 @@ pub fn hex_dump(bytes: &[u8]) -> String {
 /// as used by [cdtoc::Toc::from_cdtoc] and described at
 /// [dbpoweramp forum](https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686)
 #[tracing::instrument(level = "debug", skip(bytes), fields(entry_count = bytes.len() / 11))]
-pub fn parse_toc(bytes: Vec<u8>) -> String {
+pub fn parse_toc(bytes: Vec<u8>) -> io::Result<String> {
     #[expect(
         clippy::chunks_exact_to_as_chunks,
         reason = "TODO error handling if not exact"
@@ -104,13 +104,13 @@ pub fn parse_toc(bytes: Vec<u8>) -> String {
     let mut entries: Vec<_> = bytes
         .chunks_exact(11)
         .map(TocEntry::from_scsi_readtoc_0010b)
-        .filter(|entry| entry.track != 0xA0 && entry.track != 0xA1)
-        .collect();
+        .filter(|&entry| entry?.track != 0xA0 && entry?.track != 0xA1)
+        .try_collect()?;
     entries.sort_by_key(|entry| entry.track);
     let tracks = entries.len() - 1; // Special entry A2 (leadout)
     let timings = entries
         .iter()
-        .map(|entry| format!("{frames:02x}+", frames = entry.start.as_usize()))
+        .map(|entry| format!("{frames:02x}+", frames = entry?.start.as_usize()))
         .collect::<String>();
     format!("{tracks:02x}+{timings}")
         .trim_end_matches("+")

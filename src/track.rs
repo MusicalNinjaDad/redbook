@@ -1,6 +1,9 @@
 //! Provides [`Track`] & associated types
 
+use std::io::{self, ErrorKind};
+
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use tracing_result::Trace;
 
 use crate::{Frame, Msf};
 
@@ -252,11 +255,61 @@ impl TocEntry {
     /// | 8     | Start Mins |
     /// | 9     | Start Secs |
     /// | 10    | Start Frames |
-    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> Self {
-        let track = data[3];
-        let start = Msf::new(data[8], data[9], data[10]);
+    /// 
+    /// # Note
+    /// This will also parse the special TOC entries as "tracks"
+    /// - 0xA0: first track number = Start Mins
+    /// - 0xA1: last track number = Start Mins
+    /// - 0xA2: leadout
+    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
+        let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
+
+        let mut iter = data.iter().copied();
+
+        // After this check it's OK to call `unwrap` on `next`
+        (iter.len() == 11)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "invalid 0010b response: expected 11 bytes, received {}",
+                        iter.len()
+                    ),
+                )
+            })
+            .or_warn("")?;
+
+        (iter.next().unwrap() == 1)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    "multi-session discs are not supported",
+                )
+            })
+            .or_warn("")?;
+
+        (iter.next().unwrap() & 0b11110000 == 0b00010000)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("invalid ADR value: expected 0001xxxx, got {:#08b}", data[2]),
+                )
+            })
+            .or_warn("")?;
+
+        let track = iter.next().unwrap();
+
+        (iter.next_chunk::<4>().unwrap() == [0; _])
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "expected zeros"))
+            .or_warn("")?;
+
+        let start = Msf::new(
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+        );
         let start = Frame::from(start);
-        Self { track, start }
+        Ok(Self { track, start })
     }
 }
 

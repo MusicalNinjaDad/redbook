@@ -195,7 +195,7 @@ impl CdaFile {
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "Missing or invalid RIFF header")
             })
-            .or_warn("")?;
+            .or_warn("")?;  
 
         let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
         (chunk_size == 36)
