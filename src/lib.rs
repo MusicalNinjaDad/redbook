@@ -96,6 +96,7 @@
 #[forbid(unsafe_code)]
 pub mod disc;
 #[forbid(unsafe_code)]
+#[doc(hidden)]
 pub mod hex;
 #[forbid(unsafe_code)]
 pub mod musicbrainz;

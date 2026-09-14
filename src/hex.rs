@@ -1,12 +1,9 @@
-#![expect(missing_docs, reason = "needs update")]
 //! Hex parsing utilities for CD TOC data
 //!
-//! # Tracing
+//! # Note
 //!
-//! This module emits the following spans:
-//! - `hex_to_bytes` (TRACE): Hex string parsing with `len` field
-//! - `hex_dump` (TRACE): Byte dumping with `bytes.len()` field
-//! - `parse_toc` (DEBUG): TOC parsing with entry count
+//! This module is not part of the public API and subject to change without the usual
+//! semver guarantees.
 use std::{
     error::Error,
     fmt::{Debug, Display},
