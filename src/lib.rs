@@ -119,36 +119,38 @@ pub use audiocd::*;
 
 #[forbid(unsafe_code)]
 pub mod disc;
-#[forbid(unsafe_code)]
-#[doc(hidden)]
-pub mod hex;
+#[doc(inline)]
+pub use disc::Disc;
 
 #[forbid(unsafe_code)]
-mod toc;
-pub use toc::*;
+pub mod tagging;
 
 #[forbid(unsafe_code)]
 mod track;
 pub use track::*;
 
 #[forbid(unsafe_code)]
-pub mod tagging;
+pub mod toc;
+#[doc(inline)]
+pub use toc::{Frame, Msf, TocEntry};
 
 // provides abstractions over direct hardware access
 pub mod win;
+#[doc(inline)]
+pub use win::AudioCd;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
+pub mod hex;
+#[forbid(unsafe_code)]
+#[doc(hidden)]
 pub mod test_fixtures;
-
-pub use disc::Disc;
-pub use win::AudioCd;
 
 /// Size of a single CDDA audio frame in bytes.
 ///
 /// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
 /// of raw audio data.
-const FRAME_SIZE: usize = 2352;
+pub const FRAME_SIZE: usize = 2352;
 
 /// Maximum number of frames that can be read in a single chunk.
 ///

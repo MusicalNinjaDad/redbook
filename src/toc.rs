@@ -1,3 +1,5 @@
+//! Support for Tables of Contents & Frame-based time
+
 use std::{
     io::{self, ErrorKind},
     ops::{Add, Rem, Sub},
