@@ -29,7 +29,7 @@ use crate::{
 /// This is the main starting point for all data and actions you take on the CD itself.
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
-/// 
+///
 /// # Example
 ///
 /// ```no_run
