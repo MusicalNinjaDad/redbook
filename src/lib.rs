@@ -107,6 +107,7 @@ pub mod tagging;
 pub mod win;
 
 #[forbid(unsafe_code)]
+#[doc(hidden)]
 pub mod test_fixtures;
 
 pub use disc::Disc;
