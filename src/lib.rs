@@ -114,13 +114,11 @@
 
 #[forbid(unsafe_code)]
 mod audiocd;
-#[doc(inline)]
 pub use audiocd::*;
 
 #[forbid(unsafe_code)]
-pub mod disc;
-#[doc(inline)]
-pub use disc::Disc;
+mod disc;
+pub use disc::*;
 
 #[forbid(unsafe_code)]
 pub mod tagging;
