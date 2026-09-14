@@ -3,7 +3,6 @@
 //! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
 //! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 use std::{
-    fmt::Display,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -88,32 +87,6 @@ pub struct Disc {
     coverart: Option<Picture>,
 }
 
-#[derive(Debug)]
-/// Errors that can occur when creating a [`Disc`].
-pub enum DiscError {
-    /// The leadout frame does not match the TOC's leadout value.
-    IncorrectLeadout,
-    /// A track's MSF or duration does not match the corresponding TOC entry.
-    TocMismatch,
-}
-
-impl std::error::Error for DiscError {}
-
-impl Display for DiscError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DiscError::IncorrectLeadout => write!(f, "incorrect leadout"),
-            DiscError::TocMismatch => write!(f, "TOC mismatch"),
-        }
-    }
-}
-
-impl From<DiscError> for io::Error {
-    fn from(error: DiscError) -> Self {
-        io::Error::new(io::ErrorKind::InvalidData, error)
-    }
-}
-
 impl Disc {
     /// Creates a new [`Disc`] from a table of contents, tracks, and leadout frame.
     ///
@@ -157,29 +130,32 @@ impl Disc {
         toc: Toc,
         tracks: T,
         leadout: Frame,
-    ) -> Result<Self, DiscError> {
+    ) -> io::Result<Self> {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
         if toc.leadout() != leadout.as_usize() as u32 {
-            return Err(DiscError::IncorrectLeadout);
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "IncorrectLeadout",
+            ));
         }
 
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
             let toc_track = toc
                 .audio_track(track_number)
-                .ok_or(DiscError::TocMismatch)?;
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))?;
 
             let (min, sec, frame) = toc_track.msf();
             if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                return Err(DiscError::TocMismatch);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
             }
 
             let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
             let min = (((d * 24) + h as u64) * 60) + min as u64;
             if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                return Err(DiscError::TocMismatch);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
             }
         }
 
