@@ -94,7 +94,7 @@ pub fn hex_dump(bytes: &[u8]) -> String {
         .join(" ")
 }
 
-/// Converts a hex dump of raw TOC data to the format
+/// Converts a hex dump of raw TOC data provided by SCSI command READ TOC 0010b to the format
 /// `[audio trackcount]+[first audio track address]+[second audio track address]`
 /// as used by [cdtoc::Toc::from_cdtoc] and described at
 /// [dbpoweramp forum](https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686)
