@@ -23,8 +23,7 @@
 //! # End-to-end functionality
 //!
 //! 1. **Hardware access** Read audio data from a CD
-//! 2. **Parse & lookup** information on the album *including coverart*, generate tags
-//!    & embeddable coverart
+//! 2. **Parse & lookup** information on the album, generate tags  & embeddable coverart
 //! 3. **Encode music** to wav or flac
 //!
 //! # Structure
