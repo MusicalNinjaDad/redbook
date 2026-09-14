@@ -11,18 +11,9 @@ use std::{
 };
 
 use crate::{
-    Frame, Msf, TocEntry,
+    TocEntry,
     hex::HexErrorKind::{InvalidValue, NotPairs},
 };
-
-impl TocEntry {
-    pub fn from_raw_toc_bytes(data: &[u8]) -> Self {
-        let track = data[3];
-        let start = Msf::new(data[8], data[9], data[10]);
-        let start = Frame::from(start);
-        Self { track, start }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseHexError {
@@ -112,7 +103,7 @@ pub fn parse_toc(bytes: Vec<u8>) -> String {
     )]
     let mut entries: Vec<_> = bytes
         .chunks_exact(11)
-        .map(TocEntry::from_raw_toc_bytes)
+        .map(TocEntry::from_scsi_readtoc_0010b)
         .filter(|entry| entry.track != 0xA0 && entry.track != 0xA1)
         .collect();
     entries.sort_by_key(|entry| entry.track);

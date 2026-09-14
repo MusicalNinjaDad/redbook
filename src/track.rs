@@ -2,7 +2,7 @@
 
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 
-use crate::Frame;
+use crate::{Frame, Msf};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 /// A track on a CD with associated metadata.
@@ -232,6 +232,32 @@ pub struct TocEntry {
     pub track: u8,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     pub start: Frame,
+}
+
+impl TocEntry {
+    /// Generate a TocEntry from a sequence of bytes as provided by MMC-3 command READ TOC
+    /// format 0010b (Section 5.23.4)
+    ///
+    /// # Data format
+    /// | byte  | contents |
+    /// |------:|----------:|
+    /// | 0     | Session Number |
+    /// | 1     | ADR CONTROL |
+    /// | 2     | ZERO |
+    /// | 3     | Track Number |
+    /// | 4     | ZERO |
+    /// | 5     | ZERO |
+    /// | 6     | ZERO |
+    /// | 7     | ZERO |
+    /// | 8     | Start Mins |
+    /// | 9     | Start Secs |
+    /// | 10    | Start Frames |
+    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> Self {
+        let track = data[3];
+        let start = Msf::new(data[8], data[9], data[10]);
+        let start = Frame::from(start);
+        Self { track, start }
+    }
 }
 
 /// A ripped audio track containing raw CD data and metadata.
