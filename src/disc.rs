@@ -1,25 +1,7 @@
 //! Disc metadata and MusicBrainz integration
 //!
-//! This module provides the [`Disc`] struct for representing a physical CD,
-//! including its table of contents, tracks, and metadata retrieved from
-//! MusicBrainz and CoverArtArchive.
-//!
-//! # Tracing
-//!
-//! This module emits the following spans:
-//! - `Disc::new` (INFO): Disc creation with `track_count` field
-//! - `Disc::track` (DEBUG): Track lookup with `track_number` field
-//! - `Disc::tracks` (DEBUG): Track iteration
-//! - `Disc::set_release` (DEBUG): Release selection with `index` field
-//! - `Disc::tag_for` (DEBUG): Tag generation with `track_number` and `title` fields
-//! - `update_musicbrainz` (INFO): MusicBrainz update with `discid` field
-//! - `update_cover_art` (INFO): Cover art retrieval
-//!
-//! Events:
-//! - `musicbrainz_retrieved` (INFO): On successful MusicBrainz lookup with `releases` count
-//! - `coverart_retrieved` (INFO): On successful cover art retrieval with `size_bytes` field
-//! - `coverart_failed` (WARN): On cover art retrieval failure with `url`, `status`, and `reason` fields
-
+//! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
+//! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 use std::{
     fmt::Display,
     fs::File,
@@ -47,7 +29,7 @@ use crate::{
 /// This is the main starting point for all data and actions you take on the CD itself.
 /// It is usually stored in some kind of drive struct which implements
 /// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
-///
+/// 
 /// # Example
 ///
 /// ```no_run
