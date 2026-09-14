@@ -255,7 +255,7 @@ impl TocEntry {
     /// | 8     | Start Mins |
     /// | 9     | Start Secs |
     /// | 10    | Start Frames |
-    /// 
+    ///
     /// # Note
     /// This will also parse the special TOC entries as "tracks"
     /// - 0xA0: first track number = Start Mins

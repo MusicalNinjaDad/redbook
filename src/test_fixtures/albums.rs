@@ -71,7 +71,7 @@ impl TestAlbum {
     pub fn expected_toc(&self) -> cdtoc::Toc {
         let path = self.toc_path();
         let toc_dump = super::load_hex_file(&path);
-        let toc_string = crate::hex::parse_toc(toc_dump);
+        let toc_string = crate::hex::parse_toc(toc_dump).unwrap();
         cdtoc::Toc::from_cdtoc(toc_string).unwrap()
     }
 
