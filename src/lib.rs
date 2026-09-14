@@ -65,7 +65,9 @@
 //! // Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
 //! let cd = cd.lock();
 //!
-//! // rip the first track, not using threads in this example
+//! // See bin/rip/main.rs for an example of how to use channels & separate threads to rip & encode.
+//!
+//! // rip the first track
 //! let track1 = cd.rip(1)?;
 //!
 //! // encode the first track to flac
@@ -79,19 +81,42 @@
 //!
 //! # Tracing
 //!
-//! Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages.
-//! Specific details are in the documentation for the various modules.
+//! Redbook leverages [tracing](https://crates.io/crates/tracing). Info, Warn & Error messages
+//! are designed to be directly usable as output from a CLI binary.
 //!
 //! # Safety
 //!
-//! Unsafe code is limited to specific hardware access modules. All unsafe code includes full safety
-//! comments.
+//! - Unsafe code is limited to specific hardware access modules.
+//! - All other modules are marked `#[forbid(unsafe_code)]`.
+//! - Every unsafe call is annotated with `#[expect(unsafe_code, reason = "...")]`.
+//! - All unsafe code includes full safety comments.
+//! - All ffi calls are also mocked with full safety instructions, ensuring that IDE integration
+//!   provides these details in-situ. The correctness of the mock signatures is validated on every
+//!   test run.
+//! - We use miri to check for potential UB (thanks to the mocks we can create tests for miri to run
+//!   that validate all the unsafe callsites)
+//! - It goes without saying but, ALL unsafe code is *hand crafted by humans*. Agents.md
+//!   specifically forbids any unsafe code changes or generation.
 //!
 //! # Thread Safety
 //!
-//! [AudioCdExt] and [AudioCdExtMut] are separate traits, to allow for initially updating and mutating
-//! metadata, before obtaining calling [lock][AudioCdExtMut::lock] so you can use separate threads
-//! for reading data and encoding.
+//! File handles are not `Sync`, but you almost certainly will want to split reading data from a CD
+//! and processing that data into separate threads. To facilitate this [AudioCdExt] and
+//! [AudioCdExtMut] are separate traits. See the example for how to take advantage to initially
+//! update and mutate metadata, before obtaining calling [lock][AudioCdExtMut::lock] and spawning
+//! threads to use that data.
+//!
+//! # Nightly only
+//!
+//! This crate is nightly only for a few reasons:
+//! - I want to rely on downstream crates which use nightly features, in particular: leveraging
+//!   `poratble_simd` in [`flacenc`] (currently disabled); and `try_trait_v2` for [`exit_safely`] in
+//!   binaries & tracing ergonomics via [`tracing_result`].
+//! - I find many of the ergonomic benefits worth the toolchain restriction.
+//! - I want to support development of the language and stabilisation of new features.
+//!
+//! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
+//! to avoid future lint errors for stable features
 
 #[forbid(unsafe_code)]
 pub mod disc;

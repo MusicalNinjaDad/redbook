@@ -39,6 +39,7 @@ windows-link = "0.100.0"
 zune-jpeg = "0.5.15"
 
 [dev-dependencies]
+build_safely = "0.5.4" # for doc reference
 glob = "0.3.4"
 proc-macro2 = "1.0.107"
 rstest = "0.26.1"
