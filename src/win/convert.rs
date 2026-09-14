@@ -115,7 +115,10 @@ impl Display for WinString {
     }
 }
 
-#[expect(rustdoc::private_intra_doc_links, reason = "1. in-IDE help, 2. lint enforcement of privacy")]
+#[expect(
+    rustdoc::private_intra_doc_links,
+    reason = "1. in-IDE help, 2. lint enforcement of privacy"
+)]
 impl WinString {
     /// Create a [`PCWSTR`] - note this is a raw pointer.
     ///
