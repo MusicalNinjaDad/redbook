@@ -12,7 +12,7 @@ use std::ptr::null_mut;
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
-pub(crate) use super::bindings::CDROM_TOC;
+pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 

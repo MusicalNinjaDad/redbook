@@ -253,7 +253,7 @@ pub trait AudioCdExt {
     /// Reads all frames from a track and returns the raw audio data.
     ///
     /// This is a convenience method that handles the chunking logic for reading
-    /// an entire track, which may be larger than [`MAX_CHUNK_BYTES`].
+    /// an entire track, which may be larger than can be read in a single IO call.
     ///
     /// # Arguments
     ///

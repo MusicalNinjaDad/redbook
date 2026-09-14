@@ -13,14 +13,14 @@ use tracing_result::Trace;
 use super::{
     MAX_PATH_CHARS,
     bindings::{
-        CDDA, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-        DeviceIoControl, FILE_SHARE_READ, GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
+        CDDA, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
+        FILE_SHARE_READ, GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
         INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO,
         SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
         SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
     convert::{Guid, Sector, WinString},
-    toc::TOC_SIZE,
+    toc::{CDROM_TOC, TOC_SIZE},
 };
 #[cfg(any(
     target_arch = "aarch64",
@@ -35,6 +35,10 @@ use crate::{
 
 pub(super) use handle::DriveHandle;
 
+#[expect(
+    rustdoc::private_intra_doc_links,
+    reason = "1. in-IDE help, 2. lint enforcement of privacy"
+)]
 /// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
 ///
 /// # SAFETY
@@ -45,6 +49,10 @@ pub struct CdDrive {
     toc: CDROM_TOC,
 }
 
+#[expect(
+    rustdoc::private_intra_doc_links,
+    reason = "1. in-IDE help, 2. lint enforcement of privacy"
+)]
 /// # SAFETY
 /// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to [`handle`][Self::handle]
 ///   which includes specific safety restrictions allowing `CdDrive` to be [Send]
@@ -103,6 +111,10 @@ impl CdDrive {
         &self.path
     }
 
+    #[expect(
+        rustdoc::private_intra_doc_links,
+        reason = "1. in-IDE help, 2. lint enforcement of privacy"
+    )]
     /// Obtain a reference to the [`HANDLE`] for the drive.
     ///
     /// # SAFETY
