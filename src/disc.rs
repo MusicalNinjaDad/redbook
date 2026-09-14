@@ -309,8 +309,9 @@ impl Disc {
     /// # Notes
     ///
     /// Returns the human-readable disc number (e.g., "1", "2"). Requires a valid release
-    /// and disc index to have been selected, see [`set_release()`][Self::set_release], [`update_musicbrainz()`][Self::update_musicbrainz],
-    /// and [`reset_disc_index()`][Self::reset_disc_index] for details.
+    /// and disc index to have been selected, see [`set_release()`][Self::set_release],
+    /// [`update_musicbrainz()`][Self::update_musicbrainz], and
+    /// [`reset_disc_index()`][Self::reset_disc_index] for details.
     ///
     /// # Examples
     ///
