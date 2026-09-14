@@ -128,9 +128,8 @@ mod track;
 pub use track::*;
 
 #[forbid(unsafe_code)]
-pub mod toc;
-#[doc(inline)]
-pub use toc::{Frame, Msf, TocEntry};
+mod toc;
+pub use toc::*;
 
 // provides abstractions over direct hardware access
 pub mod win;
