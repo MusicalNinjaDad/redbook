@@ -9,16 +9,16 @@ use musicbrainz_rs::entity::discid::Discid;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
-use crate::{FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Track};
+use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Track};
 
 /// Trait providing read-only access to audio CD functionality.
 ///
 /// This trait is implemented by types that provide read access to CD audio data,
-/// such as [`AudioCd`]. It allows reading raw audio data from tracks and accessing
+/// such as [`AudioCd`][crate::AudioCd]. It allows reading raw audio data from tracks and accessing
 /// metadata about the disc.
 ///
 /// # Notes
-/// - This trait is designed to be used after calling [`lock`](trait@AudioCdExtMut::lock) on
+/// - This trait is designed to be used after calling [`lock`](AudioCdExtMut::lock) on
 ///   a mutable handle, ensuring thread-safe access to the CD.
 /// - All methods are safe and do not require unsafe code.
 ///
@@ -85,7 +85,7 @@ pub trait AudioCdExt {
     /// let num_tracks = disc.tracks().len();
     /// # Ok::<(), io::Error>(())
     /// ```
-    fn disc(&self) -> &Arc<crate::Disc>;
+    fn disc(&self) -> &Arc<Disc>;
 
     /// Reads all frames from a track and returns the raw audio data.
     ///
@@ -110,7 +110,7 @@ pub trait AudioCdExt {
     ///
     /// - The returned data is in raw CDDA format (2352 bytes per frame)
     /// - For a typical 4-minute song, this will be approximately 40-50 MB
-    /// - Consider using [`rip`](trait@AudioCdExt::rip) if you need the track number associated with the data
+    /// - Consider using [`rip`](AudioCdExt::rip) if you need the track number associated with the data
     fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
         let _warn = tracing::warn_span!("read track", track_number).entered();
         let trace =
@@ -211,7 +211,7 @@ pub trait AudioCdExt {
     ///
     /// # Notes
     ///
-    /// - Use [`disc_mut().update_musicbrainz()`](trait@AudioCdExtMut::disc_mut) to fetch MusicBrainz data
+    /// - Use [`disc_mut().update_musicbrainz()`](AudioCdExtMut::disc_mut) to fetch MusicBrainz data
     /// - The data is cached in the [`Disc`] struct
     ///
     /// # Examples
@@ -233,7 +233,7 @@ pub trait AudioCdExt {
 
     /// Rips a single track, returning track metadata and raw audio data.
     ///
-    /// This is a convenience method that combines [`read_track`](trait@AudioCdExt::read_track)
+    /// This is a convenience method that combines [`read_track`](AudioCdExt::read_track)
     /// with track number information, returning a [`RippedTrack`] struct.
     ///
     /// # Arguments
@@ -246,7 +246,7 @@ pub trait AudioCdExt {
     ///
     /// # Errors
     ///
-    /// Returns an error if the track cannot be read (see [`read_track`](trait@AudioCdExt::read_track)).
+    /// Returns an error if the track cannot be read (see [`read_track`](AudioCdExt::read_track)).
     ///
     /// # Examples
     ///
@@ -273,14 +273,14 @@ pub trait AudioCdExt {
 /// Trait providing mutable access to audio CD functionality.
 ///
 /// This trait is implemented by types that provide mutable access to CD audio data
-/// and metadata, such as [`AudioCd`]. It allows updating metadata and then
+/// and metadata, such as [`AudioCd`][crate::AudioCd]. It allows updating metadata and then
 /// locking the handle for thread-safe read operations.
 ///
 /// # Notes
 ///
 /// - Use this trait for initial setup: loading MusicBrainz data, selecting releases,
 ///   and fetching cover art.
-/// - After setup, call [`lock`](trait@AudioCdExtMut::lock) to obtain a thread-safe
+/// - After setup, call [`lock`](AudioCdExtMut::lock) to obtain a thread-safe
 ///   immutable handle implementing [`AudioCdExt`].
 ///
 /// # Examples
@@ -342,7 +342,7 @@ pub trait AudioCdExtMut {
     /// // ... modify disc as needed
     /// # Ok::<(), io::Error>(())
     /// ```
-    fn disc_mut(&mut self) -> &mut crate::disc::Disc;
+    fn disc_mut(&mut self) -> &mut Disc;
 
     /// Consumes self and returns an immutable, thread-safe handle.
     ///

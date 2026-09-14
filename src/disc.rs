@@ -975,8 +975,8 @@ impl Disc {
 #[derive(Debug)]
 /// An iterator over the tracks of a [`Disc`].
 ///
-/// Created by [`Disc::tracks()`][Self::tracks]. Each track yielded by this iterator has its
-/// metadata populated from the selected release, if available.
+/// Created by [`Disc::tracks()`]. Each track yielded by this iterator has its metadata populated
+/// from the selected release, if available.
 ///
 /// # Notes
 ///
