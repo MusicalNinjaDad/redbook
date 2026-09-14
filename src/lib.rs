@@ -1,12 +1,5 @@
 // Unsafe restricted to dedicated wrapper modules
 #![deny(unsafe_code)]
-#![forbid(clippy::missing_safety_doc)]
-#![deny(clippy::multiple_unsafe_ops_per_block)] // sometimes valuable to inline calls
-#![forbid(clippy::transmute_ptr_to_ptr)]
-#![deny(clippy::undocumented_unsafe_blocks)] // auto-generated bindings
-#![forbid(unsafe_op_in_unsafe_fn)]
-#![forbid(unsafe_attr_outside_unsafe)]
-#![forbid(unused_unsafe)]
 // Only applicable to library
 #![deny(missing_docs)]
 // All experimental features are only enabled when on a toolchain where they are still unstable
@@ -87,6 +80,7 @@
 //! # Safety
 //!
 //! - Unsafe code is limited to specific hardware access modules.
+//! - `#![deny(unsafe_code)]` with a wide selection of additional lints defined in `Cargo.toml`
 //! - All other modules are marked `#[forbid(unsafe_code)]`.
 //! - Every unsafe call is annotated with `#[expect(unsafe_code, reason = "...")]`.
 //! - All unsafe code includes full safety comments.
