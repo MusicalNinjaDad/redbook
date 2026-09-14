@@ -262,6 +262,7 @@ impl TocEntry {
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
     pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
+        dbg!(data);
         let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
         let mut iter = data.iter().copied();
@@ -279,7 +280,8 @@ impl TocEntry {
             })
             .or_warn("")?;
 
-        (iter.next().unwrap() == 1)
+        let session_number = iter.next().unwrap();
+        (session_number == 1)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::InvalidData,
@@ -288,7 +290,8 @@ impl TocEntry {
             })
             .or_warn("")?;
 
-        (iter.next().unwrap() & 0b11110000 == 0b00010000)
+        let acr_control = iter.next().unwrap();
+        (acr_control & 0b11110000 == 0b00010000)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::InvalidData,
@@ -297,9 +300,15 @@ impl TocEntry {
             })
             .or_warn("")?;
 
+        let tno = iter.next().unwrap();
+        (tno == 0)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid TNO"))
+            .or_warn("")?;
+
         let track = iter.next().unwrap();
 
-        (iter.next_chunk::<4>().unwrap() == [0; _])
+        let zeros = iter.next_chunk::<4>().unwrap();
+        (zeros == [0; _])
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "expected zeros"))
             .or_warn("")?;
 
