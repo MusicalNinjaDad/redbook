@@ -1,5 +1,7 @@
 use std::{
-    io::{self, ErrorKind}, ops::{Add, Rem, Sub}, time::Duration,
+    io::{self, ErrorKind},
+    ops::{Add, Rem, Sub},
+    time::Duration,
 };
 
 use tracing_result::Trace;

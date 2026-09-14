@@ -275,7 +275,7 @@ impl CdaFile {
         let sec = data.next().unwrap();
         let min = data.next().unwrap();
         let duration = Msf::new(min, sec, frame);
-        
+
         (duration == duration_frames)
             .ok_or_else(|| {
                 io::Error::new(
