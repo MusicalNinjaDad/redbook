@@ -29,14 +29,16 @@ use std::{
 
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
-use musicbrainz_rs::Fetch;
+use musicbrainz_rs::{
+    Fetch,
+    entity::{discid::Discid, release::Release},
+};
 use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
     Frame, Msf, Track,
-    musicbrainz::{ArtistCreditsExt, Discid, Release, VorbisTagExt},
-    tagging::PictureExt,
+    tagging::{ArtistCreditsExt, PictureExt, VorbisTagExt},
 };
 
 #[derive(Debug, Clone, PartialEq)]

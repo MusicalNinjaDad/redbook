@@ -117,8 +117,6 @@ pub mod disc;
 #[doc(hidden)]
 pub mod hex;
 #[forbid(unsafe_code)]
-pub mod musicbrainz;
-#[forbid(unsafe_code)]
 pub mod tagging;
 
 // provides abstractions over direct hardware access
@@ -130,6 +128,7 @@ pub mod test_fixtures;
 
 pub use disc::Disc;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use musicbrainz_rs::entity::discid::Discid;
 use tracing::field::Empty;
 use tracing_result::Trace;
 pub use win::AudioCd;
@@ -141,8 +140,6 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-
-use musicbrainz::Discid;
 
 /// Size of a single CDDA audio frame in bytes.
 ///
@@ -748,7 +745,7 @@ pub struct Track<'meta> {
     /// Windows-specific track identifier (from CDROM_TOC).
     pub windows_identifier: Option<u32>,
     /// Optional reference to MusicBrainz track metadata.
-    meta: Option<&'meta musicbrainz::Track>,
+    meta: Option<&'meta musicbrainz_rs::entity::release::Track>,
 }
 
 impl Track<'static> {
@@ -899,7 +896,7 @@ impl<'meta> Track<'meta> {
     /// }
     /// # Ok::<(), io::Error>(())
     /// ```
-    pub fn meta(&self) -> Option<&'meta musicbrainz::Track> {
+    pub fn meta(&self) -> Option<&'meta musicbrainz_rs::entity::release::Track> {
         self.meta
     }
 }

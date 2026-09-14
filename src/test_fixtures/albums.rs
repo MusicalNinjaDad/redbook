@@ -426,7 +426,7 @@ impl TestAlbum {
     }
 
     /// Load musicbrainz data from the musicbrainz.json file for this album
-    pub fn expected_musicbrainz(&self) -> crate::musicbrainz::Discid {
+    pub fn expected_musicbrainz(&self) -> musicbrainz_rs::entity::discid::Discid {
         let path = self.assets_path().join("musicbrainz.json");
         let json_content = std::fs::read_to_string(&path)
             .unwrap_or_else(|_| panic!("Failed to read musicbrainz.json from {:?}", path));
