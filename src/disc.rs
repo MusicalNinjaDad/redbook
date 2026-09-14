@@ -97,11 +97,6 @@ impl Disc {
     /// - Each track's start position (MSF) must match its corresponding TOC entry
     /// - Each track's duration must match the duration calculated from its TOC entry
     ///
-    /// # Errors
-    ///
-    /// - Returns [`DiscError::IncorrectLeadout`] if the leadout doesn't match the TOC.
-    /// - Returns [`DiscError::TocMismatch`] if any track doesn't match its TOC entry.
-    ///
     /// # Examples
     ///
     /// ```
