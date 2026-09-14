@@ -13,7 +13,7 @@
 
 #[expect(missing_docs)]
 mod bindgen;
-#[expect(unused_variables)]
+
 mod mocks;
 
 #[cfg(all(target_family = "windows", not(any(test, doc))))]

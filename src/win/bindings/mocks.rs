@@ -65,7 +65,7 @@ macro_rules! success {
     }};
 }
 
-pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
+pub unsafe fn CloseHandle(#[expect(unused_variables)] hobject: HANDLE) -> BOOL {
     // TODO: Maybe mock this with some thread-local RefCell HashSet or similar to
     // allow for tests which validate closure in error cases & ensure no double closures.
     success!()
@@ -103,9 +103,9 @@ pub unsafe fn CloseHandle(hobject: HANDLE) -> BOOL {
 /// [docs_CreateFile2]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
 pub unsafe fn CreateFile2(
     lpfilename: PCWSTR,
-    dwdesiredaccess: u32,
-    dwsharemode: u32,
-    dwcreationdisposition: u32,
+    #[expect(unused_variables)] dwdesiredaccess: u32,
+    #[expect(unused_variables)] dwsharemode: u32,
+    #[expect(unused_variables)] dwcreationdisposition: u32,
     pcreateexparams: *const CREATEFILE2_EXTENDED_PARAMETERS,
 ) -> HANDLE {
     // Overlapped IO is unsupported
@@ -319,8 +319,8 @@ pub unsafe fn DeviceIoControl(
 ///   interface that meets the search parameters.
 pub unsafe fn SetupDiEnumDeviceInterfaces(
     deviceinfoset: HDEVINFO,
-    deviceinfodata: *const SP_DEVINFO_DATA,
-    interfaceclassguid: *const GUID,
+    #[expect(unused_variables)] deviceinfodata: *const SP_DEVINFO_DATA,
+    #[expect(unused_variables)] interfaceclassguid: *const GUID,
     memberindex: u32,
     deviceinterfacedata: *mut SP_DEVICE_INTERFACE_DATA,
 ) -> BOOL {
@@ -348,9 +348,9 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
 
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
-    enumerator: PCWSTR,
-    hwndparent: HWND,
-    flags: u32,
+    #[expect(unused_variables)] enumerator: PCWSTR,
+    #[expect(unused_variables)] hwndparent: HWND,
+    #[expect(unused_variables)] flags: u32,
 ) -> HDEVINFO {
     let classguid = Guid(unsafe { *classguid });
     match classguid {
@@ -404,7 +404,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinterfacedetaildata: *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
     deviceinterfacedetaildatasize: u32,
     requiredsize: *mut u32,
-    deviceinfodata: *mut SP_DEVINFO_DATA,
+    #[expect(unused_variables)] deviceinfodata: *mut SP_DEVINFO_DATA,
 ) -> BOOL {
     assert!(!deviceinterfacedata.is_null());
     let album = match (
