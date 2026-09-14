@@ -38,13 +38,13 @@ enum SelectedTrack {
     One(usize),
 }
 
-mod _releases;
+mod release_menu;
 mod _tracing;
 mod cli;
 mod sanitize;
 pub(crate) use cli::Rip;
 
-use crate::_releases::release_menu;
+use crate::release_menu::release_menu;
 use crate::sanitize::FilenameSanitize;
 
 #[cfg(target_family = "windows")]
