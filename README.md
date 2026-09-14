@@ -11,7 +11,7 @@ Most of what this library provides is "glue", bringing together crates which cov
 ### End-to-end functionality
 
 1. **Hardware access** Read audio data from a CD
-2. **Parse & lookup** information on the album *including coverart*, generate tags & embeddable coverart
+2. **Parse & lookup** information on the album, generate tags & embeddable coverart
 3. **Encode music** to wav or flac
 
 ### Structure
@@ -51,10 +51,6 @@ let tags: Option<VorbisComment> = disc.tag_for(1);
 let cover: Option<&Picture> = disc.cover_art();
 ```
 
-### Tracing
-
-Redbook leverages [tracing](https://crates.io/crates/tracing) with meaningful spans & messages. Specific details are in the documentation for the various modules.
-
 ### Core functionality alternatives
 
 Most of these are the individual crates which are glued together:
@@ -64,6 +60,46 @@ Most of these are the individual crates which are glued together:
 - [musicbrainz_rs](https://crates.io/crates/musicbrainz_rs) - for querying MusicBrainz and parsing the results
 - [flacenc](https://crates.io/crates/flacenc) - for encoding to FLAC (currently slightly broken after changes to `portable_simd` earlier this year)
 - [metaflac](https://crates.io/crates/metaflac) - for tagging FLAC files
+
+### Tracing
+
+Redbook leverages [tracing](https://crates.io/crates/tracing). Info, Warn & Error messages
+are designed to be directly usable as output from a CLI binary.
+
+### Safety
+
+- Unsafe code is limited to specific hardware access modules.
+- `#![deny(unsafe_code)]` with a wide selection of additional lints defined in `Cargo.toml`
+- All other modules are marked `#[forbid(unsafe_code)]`.
+- Every unsafe call is annotated with `#[expect(unsafe_code, reason = "...")]`.
+- All unsafe code includes full safety comments.
+- All ffi calls are also mocked with full safety instructions, ensuring that IDE integration
+  provides these details in-situ. The correctness of the mock signatures is validated on every
+  test run.
+- We use miri to check for potential UB (thanks to the mocks we can create tests for miri to run
+  that validate all the unsafe callsites)
+- It goes without saying but, ALL unsafe code is *hand crafted by humans*. Agents.md
+  specifically forbids any unsafe code changes or generation.
+
+### Thread Safety
+
+File handles are not `Sync`, but you almost certainly will want to split reading data from a CD
+and processing that data into separate threads. To facilitate this `AudioCdExt` and
+`AudioCdExtMut` are separate traits. See the example for how to take advantage to initially
+update and mutate metadata, before obtaining calling `lock` and spawning
+threads to use that data.
+
+### Nightly only
+
+This crate is nightly only for a few reasons:
+
+- I want to rely on downstream crates which use nightly features, in particular: leveraging
+  `poratble_simd` in [`flacenc`](https://crates.io/crates/flacenc) (currently disabled); and `try_trait_v2` for [`exit_safely`](https://crates.io/crates/exit_safely) in
+  binaries & tracing ergonomics via [`tracing_result`](https://crates.io/crates/tracing_result).
+- I find many of the ergonomic benefits worth the toolchain restriction.
+- I want to support development of the language and stabilisation of new features.
+The crate uses [`build_safely`](https://crates.io/crates/build_safely) to ensure that every experimental feature behaves as expected and
+to avoid future lint errors for stable features
 
 ### Limitations / TODOs
 
