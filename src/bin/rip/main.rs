@@ -38,9 +38,9 @@ enum SelectedTrack {
     One(usize),
 }
 
-mod release_menu;
-mod _tracing;
 mod cli;
+mod output;
+mod release_menu;
 mod sanitize;
 pub(crate) use cli::Rip;
 
