@@ -109,7 +109,7 @@ impl CdDrive {
     /// - [`CdDrive`] is marked as [`Send`]. Callers must ensure that the handle is not
     ///   used to enable concurrent access to the drive ("processes and threads that share
     ///   the same file must synchronize their access").
-    ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
+    ///   See: [MS Learn](https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles)
     #[expect(
         unsafe_code,
         reason = "required to be unsafe, to allow CdDrive to be Send"

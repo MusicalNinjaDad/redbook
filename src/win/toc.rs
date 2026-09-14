@@ -139,7 +139,7 @@ impl From<&TRACK_DATA> for TocEntry {
 
 /// A windows .cda file detailling CD TOC info for a given track.
 ///
-/// See https://en.wikipedia.org/wiki/.cda_file
+/// See [specification](https://en.wikipedia.org/wiki/.cda_file)
 pub struct CdaFile {
     /// The first track has the number 1
     track_number: u16,
@@ -170,7 +170,7 @@ impl CdaFile {
 
     /// Create a new `CdaFile`
     ///
-    /// Contents are validated based on https://en.wikipedia.org/wiki/.cda_file
+    /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
     pub fn new(contents: Vec<u8>) -> io::Result<Self> {
         let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
 

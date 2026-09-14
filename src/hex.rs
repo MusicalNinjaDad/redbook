@@ -103,7 +103,7 @@ pub fn hex_dump(bytes: &[u8]) -> String {
 /// Converts a hex dump of raw TOC data to the format
 /// `[audio trackcount]+[first audio track address]+[second audio track address]`
 /// as used by [cdtoc::Toc::from_cdtoc] and described at
-/// https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
+/// [dbpoweramp forum](https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686)
 #[tracing::instrument(level = "debug", skip(bytes), fields(entry_count = bytes.len() / 11))]
 pub fn parse_toc(bytes: Vec<u8>) -> String {
     #[expect(
