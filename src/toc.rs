@@ -493,6 +493,86 @@ impl PartialEq<Frame> for Msf {
     }
 }
 
+/// Converts a hex dump of raw TOC data provided by SCSI command READ TOC 0010b to the format
+/// `[audio trackcount]+[first audio track address]+[second audio track address]`
+/// as used by [cdtoc::Toc::from_cdtoc] and described at
+/// [dbpoweramp forum](https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686)
+#[tracing::instrument(level = "debug", skip(bytes), fields(entry_count = bytes.len() / 11))]
+pub fn parse_toc(bytes: Vec<u8>) -> io::Result<String> {
+    let (entries, rem) = bytes.as_chunks::<11>();
+    rem.is_empty()
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "invalid 0010b output: not multiple of 11 bytes",
+            )
+        })
+        .or_warn("")?;
+
+    let mut entries: Vec<_> = entries
+        .iter()
+        .map(|entry| TocEntry::from_scsi_readtoc_0010b(entry.as_slice()))
+        .try_collect()?;
+
+    entries.sort_by_key(|entry| entry.track);
+
+    let leadout = entries
+        .pop()
+        .filter(|leadout| leadout.track == 0xA2)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no leadout"))?;
+
+    // track number stored in minutes field in TOC
+    let Msf {
+        min: last_track, ..
+    } = entries
+        .pop()
+        .filter(|last| last.track == 0xA1)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no last track specified"))?
+        .start
+        .into();
+
+    let Msf {
+        min: first_track, ..
+    } = entries
+        .pop()
+        .filter(|last| last.track == 0xA0)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no fisrt track specified"))?
+        .start
+        .into();
+
+    let tracks = entries.len();
+
+    (first_track
+        == entries
+            .first()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
+            .or_warn("")?
+            .track)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track number mismatch"))
+        .or_warn("")?;
+
+    (last_track
+        == entries
+            .last()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
+            .or_warn("")?
+            .track)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "last track number mismatch"))
+        .or_warn("")?;
+
+    let timings = entries
+        .iter()
+        .map(|entry| format!("{frames:02x}+", frames = entry.start.as_usize()))
+        .collect::<String>();
+    let toc = [
+        &format!("{tracks:02x}"),
+        timings.trim_end_matches("+"),
+        &format!("{:02x}", leadout.start.as_usize()),
+    ]
+    .join("+");
+    Ok(toc)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
