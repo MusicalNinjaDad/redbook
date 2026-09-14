@@ -3,7 +3,7 @@
 
 use std::{fmt::Display, io, path::PathBuf};
 
-use crate::{Frame, Msf, TocEntry, Track, win::toc::CDROM_TOC};
+use crate::{Frame, Msf, TocEntry, Track, toc::TocString, win::toc::CDROM_TOC};
 
 /// Test album identifier for parameterized tests
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,8 +71,8 @@ impl TestAlbum {
     pub fn expected_toc(&self) -> cdtoc::Toc {
         let path = self.toc_path();
         let toc_dump = super::load_hex_file(&path);
-        let toc_string = crate::toc::parse_toc(toc_dump).unwrap();
-        cdtoc::Toc::from_cdtoc(toc_string).unwrap()
+        let toc_string = TocString::from_scsi_readtoc_0010b(toc_dump).unwrap();
+        cdtoc::Toc::from(toc_string)
     }
 
     /// Load and parse the CDROM_TOC.hex file

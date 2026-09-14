@@ -90,22 +90,6 @@ pub struct Disc {
 
 #[derive(Debug)]
 /// Errors that can occur when creating a [`Disc`].
-///
-/// These errors are returned by [`Disc::new()`][Self::new] when the provided data is inconsistent.
-///
-/// # Examples
-///
-/// ```rust
-/// use redbook::disc::DiscError;
-///
-/// // Leadout frame doesn't match TOC
-/// let result: Result<(), DiscError> = Err(DiscError::IncorrectLeadout);
-/// assert!(matches!(result, Err(DiscError::IncorrectLeadout)));
-///
-/// // Track MSF or duration doesn't match TOC entry
-/// let result: Result<(), DiscError> = Err(DiscError::TocMismatch);
-/// assert!(matches!(result, Err(DiscError::TocMismatch)));
-/// ```
 pub enum DiscError {
     /// The leadout frame does not match the TOC's leadout value.
     IncorrectLeadout,
