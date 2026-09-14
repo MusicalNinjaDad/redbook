@@ -4,6 +4,10 @@ use clap::{Parser, ValueEnum};
 
 #[derive(Parser)]
 #[command(version)]
+#[expect(
+    rustdoc::invalid_html_tags,
+    reason = "doc comments for --help & man page"
+)]
 /// Rip CD audio tracks to WAV files
 pub struct Rip {
     /// The drive path (e.g., E:)

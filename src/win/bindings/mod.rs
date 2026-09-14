@@ -10,17 +10,17 @@
     dead_code,
     reason = "until we split and have an extra use for auto-generated stuff that we don't use"
 )]
-#![cfg_attr(
-    any(test, doc, not(target_family = "windows")),
-    expect(unused_imports, reason = "need to tidy up cfg windows gates")
-)]
 
+#[expect(missing_docs)]
 mod bindgen;
-#[expect(unused_variables)]
+
 mod mocks;
 
 #[cfg(all(target_family = "windows", not(any(test, doc))))]
-pub(crate) use bindgen::*;
+pub(crate) use bindgen::{
+    CloseHandle, CreateFile2, DeviceIoControl, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+    SetupDiGetDeviceInterfaceDetailW,
+};
 
 #[cfg(any(test, doc, not(target_family = "windows")))]
 pub(crate) use mocks::{
@@ -28,13 +28,11 @@ pub(crate) use mocks::{
     SetupDiGetDeviceInterfaceDetailW,
 };
 
-#[cfg(any(test, doc, not(target_family = "windows")))]
 pub use bindgen::{
     CDDA, CDROM_READ_TOC_EX, CDROM_TOC, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_NAME_NORMALIZED,
-    FILE_SHARE_READ, GENERIC_READ, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
-    INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-    IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, PCWSTR, RAW_READ_INFO,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
-    STORAGE_DEVICE_NUMBER, TRACK_DATA, TRACK_MODE_TYPE, VOLUME_NAME_DOS,
+    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
+    GENERIC_READ, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
+    IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING,
+    PCWSTR, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+    STORAGE_DEVICE_NUMBER, TRACK_DATA,
 };

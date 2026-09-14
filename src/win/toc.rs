@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "WIP")]
 //! Windows-specific audio CD Table of Contents handling.
 //!
 //! Glues together:
@@ -12,7 +13,7 @@ use std::ptr::null_mut;
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
-pub(crate) use super::bindings::CDROM_TOC;
+pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
 use crate::{Frame, LEADIN, Msf, TocEntry, Track};
 
@@ -139,7 +140,7 @@ impl From<&TRACK_DATA> for TocEntry {
 
 /// A windows .cda file detailling CD TOC info for a given track.
 ///
-/// See https://en.wikipedia.org/wiki/.cda_file
+/// See [specification](https://en.wikipedia.org/wiki/.cda_file)
 pub struct CdaFile {
     /// The first track has the number 1
     track_number: u16,
@@ -170,7 +171,7 @@ impl CdaFile {
 
     /// Create a new `CdaFile`
     ///
-    /// Contents are validated based on https://en.wikipedia.org/wiki/.cda_file
+    /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
     pub fn new(contents: Vec<u8>) -> io::Result<Self> {
         let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
 
@@ -249,14 +250,14 @@ impl CdaFile {
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
         let starting_frame =
-            Frame(u32::from_le_bytes(data.next_chunk().unwrap()) as usize) + LEADIN;
-        let duration_frames = Frame(u32::from_le_bytes(data.next_chunk().unwrap()) as usize);
+            Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize) + LEADIN;
+        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize);
 
-        let start = Msf {
-            frame: data.next().unwrap(),
-            sec: data.next().unwrap(),
-            min: data.next().unwrap(),
-        };
+        let start_frame = data.next().unwrap();
+        let start_sec = data.next().unwrap();
+        let start_min = data.next().unwrap();
+        let start = Msf::new(start_min, start_sec, start_frame);
+
         (start == starting_frame)
             .ok_or_else(|| {
                 io::Error::new(
@@ -270,11 +271,11 @@ impl CdaFile {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing null byte"))
             .or_warn("")?;
 
-        let duration = Msf {
-            frame: data.next().unwrap(),
-            sec: data.next().unwrap(),
-            min: data.next().unwrap(),
-        };
+        let frame = data.next().unwrap();
+        let sec = data.next().unwrap();
+        let min = data.next().unwrap();
+        let duration = Msf::new(min, sec, frame);
+
         (duration == duration_frames)
             .ok_or_else(|| {
                 io::Error::new(

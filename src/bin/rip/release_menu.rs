@@ -1,5 +1,5 @@
-use musicbrainz_rs::chrono::NaiveDate;
-use redbook::{Disc, musicbrainz::Release};
+use musicbrainz_rs::{chrono::NaiveDate, entity::release::Release};
+use redbook::Disc;
 use std::collections::BTreeMap;
 use tabular::{Row, Table, row};
 

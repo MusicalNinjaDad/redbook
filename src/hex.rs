@@ -1,31 +1,16 @@
-#![expect(missing_docs, reason = "needs update")]
 //! Hex parsing utilities for CD TOC data
 //!
-//! # Tracing
+//! # Note
 //!
-//! This module emits the following spans:
-//! - `hex_to_bytes` (TRACE): Hex string parsing with `len` field
-//! - `hex_dump` (TRACE): Byte dumping with `bytes.len()` field
-//! - `parse_toc` (DEBUG): TOC parsing with entry count
+//! This module is not part of the public API and subject to change without the usual
+//! semver guarantees.
 use std::{
     error::Error,
     fmt::{Debug, Display},
     num::ParseIntError,
 };
 
-use crate::{
-    Frame, Msf, TocEntry,
-    hex::HexErrorKind::{InvalidValue, NotPairs},
-};
-
-impl TocEntry {
-    pub fn from_raw_toc_bytes(data: &[u8]) -> Self {
-        let track = data[3];
-        let start = Msf::new(data[8], data[9], data[10]);
-        let start = Frame::from(start);
-        Self { track, start }
-    }
-}
+use crate::hex::HexErrorKind::{InvalidValue, NotPairs};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseHexError {
@@ -101,32 +86,6 @@ pub fn hex_dump(bytes: &[u8]) -> String {
         .map(|b| format!("{:02x}", b))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// Converts a hex dump of raw TOC data to the format
-/// `[audio trackcount]+[first audio track address]+[second audio track address]`
-/// as used by [cdtoc::Toc::from_cdtoc] and described at
-/// https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
-#[tracing::instrument(level = "debug", skip(bytes), fields(entry_count = bytes.len() / 11))]
-pub fn parse_toc(bytes: Vec<u8>) -> String {
-    #[expect(
-        clippy::chunks_exact_to_as_chunks,
-        reason = "TODO error handling if not exact"
-    )]
-    let mut entries: Vec<_> = bytes
-        .chunks_exact(11)
-        .map(TocEntry::from_raw_toc_bytes)
-        .filter(|entry| entry.track != 0xA0 && entry.track != 0xA1)
-        .collect();
-    entries.sort_by_key(|entry| entry.track);
-    let tracks = entries.len() - 1; // Special entry A2 (leadout)
-    let timings = entries
-        .iter()
-        .map(|entry| format!("{frames:02x}+", frames = entry.start.as_usize()))
-        .collect::<String>();
-    format!("{tracks:02x}+{timings}")
-        .trim_end_matches("+")
-        .to_string()
 }
 
 #[cfg(test)]

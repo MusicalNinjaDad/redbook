@@ -1,27 +1,8 @@
 //! Disc metadata and MusicBrainz integration
 //!
-//! This module provides the [`Disc`] struct for representing a physical CD,
-//! including its table of contents, tracks, and metadata retrieved from
-//! MusicBrainz and CoverArtArchive.
-//!
-//! # Tracing
-//!
-//! This module emits the following spans:
-//! - `Disc::new` (INFO): Disc creation with `track_count` field
-//! - `Disc::track` (DEBUG): Track lookup with `track_number` field
-//! - `Disc::tracks` (DEBUG): Track iteration
-//! - `Disc::set_release` (DEBUG): Release selection with `index` field
-//! - `Disc::tag_for` (DEBUG): Tag generation with `track_number` and `title` fields
-//! - `update_musicbrainz` (INFO): MusicBrainz update with `discid` field
-//! - `update_cover_art` (INFO): Cover art retrieval
-//!
-//! Events:
-//! - `musicbrainz_retrieved` (INFO): On successful MusicBrainz lookup with `releases` count
-//! - `coverart_retrieved` (INFO): On successful cover art retrieval with `size_bytes` field
-//! - `coverart_failed` (WARN): On cover art retrieval failure with `url`, `status`, and `reason` fields
-
+//! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
+//! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 use std::{
-    fmt::Display,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -29,14 +10,16 @@ use std::{
 
 use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
-use musicbrainz_rs::Fetch;
+use musicbrainz_rs::{
+    Fetch,
+    entity::{discid::Discid, release::Release},
+};
 use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
     Frame, Msf, Track,
-    musicbrainz::{ArtistCreditsExt, Discid, Release, VorbisTagExt},
-    tagging::PictureExt,
+    tagging::{ArtistCreditsExt, PictureExt, VorbisTagExt},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,48 +87,6 @@ pub struct Disc {
     coverart: Option<Picture>,
 }
 
-#[derive(Debug)]
-/// Errors that can occur when creating a [`Disc`].
-///
-/// These errors are returned by [`Disc::new()`][Self::new] when the provided data is inconsistent.
-///
-/// # Examples
-///
-/// ```rust
-/// use redbook::disc::DiscError;
-///
-/// // Leadout frame doesn't match TOC
-/// let result: Result<(), DiscError> = Err(DiscError::IncorrectLeadout);
-/// assert!(matches!(result, Err(DiscError::IncorrectLeadout)));
-///
-/// // Track MSF or duration doesn't match TOC entry
-/// let result: Result<(), DiscError> = Err(DiscError::TocMismatch);
-/// assert!(matches!(result, Err(DiscError::TocMismatch)));
-/// ```
-pub enum DiscError {
-    /// The leadout frame does not match the TOC's leadout value.
-    IncorrectLeadout,
-    /// A track's MSF or duration does not match the corresponding TOC entry.
-    TocMismatch,
-}
-
-impl std::error::Error for DiscError {}
-
-impl Display for DiscError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DiscError::IncorrectLeadout => write!(f, "incorrect leadout"),
-            DiscError::TocMismatch => write!(f, "TOC mismatch"),
-        }
-    }
-}
-
-impl From<DiscError> for io::Error {
-    fn from(error: DiscError) -> Self {
-        io::Error::new(io::ErrorKind::InvalidData, error)
-    }
-}
-
 impl Disc {
     /// Creates a new [`Disc`] from a table of contents, tracks, and leadout frame.
     ///
@@ -155,11 +96,6 @@ impl Disc {
     /// - The leadout frame must match the TOC's leadout value
     /// - Each track's start position (MSF) must match its corresponding TOC entry
     /// - Each track's duration must match the duration calculated from its TOC entry
-    ///
-    /// # Errors
-    ///
-    /// - Returns [`DiscError::IncorrectLeadout`] if the leadout doesn't match the TOC.
-    /// - Returns [`DiscError::TocMismatch`] if any track doesn't match its TOC entry.
     ///
     /// # Examples
     ///
@@ -182,36 +118,39 @@ impl Disc {
     ///
     /// # TODO
     ///
-    /// - Add `new_unchecked()` and/or handle mixed-mode CDs as per [`TOC-string definition`]
-    ///   (https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc#post16082)
-    ///   
+    /// - Add `new_unchecked()` and/or handle mixed-mode CDs as per [TOC string definition][definition]
+    ///
+    /// [definition]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc#post16082
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
         leadout: Frame,
-    ) -> Result<Self, DiscError> {
+    ) -> io::Result<Self> {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
         if toc.leadout() != leadout.as_usize() as u32 {
-            return Err(DiscError::IncorrectLeadout);
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "IncorrectLeadout",
+            ));
         }
 
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
             let toc_track = toc
                 .audio_track(track_number)
-                .ok_or(DiscError::TocMismatch)?;
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))?;
 
             let (min, sec, frame) = toc_track.msf();
             if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                return Err(DiscError::TocMismatch);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
             }
 
             let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
             let min = (((d * 24) + h as u64) * 60) + min as u64;
             if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                return Err(DiscError::TocMismatch);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
             }
         }
 
@@ -365,8 +304,9 @@ impl Disc {
     /// # Notes
     ///
     /// Returns the human-readable disc number (e.g., "1", "2"). Requires a valid release
-    /// and disc index to have been selected, see [`set_release()`][Self::set_release], [`update_musicbrainz()`][Self::update_musicbrainz],
-    /// and [`reset_disc_index()`][Self::reset_disc_index] for details.
+    /// and disc index to have been selected, see [`set_release()`][Self::set_release],
+    /// [`update_musicbrainz()`][Self::update_musicbrainz], and
+    /// [`reset_disc_index()`][Self::reset_disc_index] for details.
     ///
     /// # Examples
     ///
@@ -1007,8 +947,8 @@ impl Disc {
 #[derive(Debug)]
 /// An iterator over the tracks of a [`Disc`].
 ///
-/// Created by [`Disc::tracks()`][Self::tracks]. Each track yielded by this iterator has its
-/// metadata populated from the selected release, if available.
+/// Created by [`Disc::tracks()`]. Each track yielded by this iterator has its metadata populated
+/// from the selected release, if available.
 ///
 /// # Notes
 ///

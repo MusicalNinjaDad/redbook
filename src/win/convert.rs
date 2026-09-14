@@ -44,8 +44,8 @@ impl Display for Guid {
 
 /// A pseudo-sector on an AudioCd
 ///
-/// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE]-byte frame is a 2048-byte
-/// sector.
+/// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE][crate::FRAME_SIZE]-byte
+/// frame is a 2048-byte sector.
 ///
 /// Internally stores the relative frame (excluding 150 lead-in frames)
 pub struct Sector(i64);
@@ -115,6 +115,10 @@ impl Display for WinString {
     }
 }
 
+#[expect(
+    rustdoc::private_intra_doc_links,
+    reason = "1. in-IDE help, 2. lint enforcement of privacy"
+)]
 impl WinString {
     /// Create a [`PCWSTR`] - note this is a raw pointer.
     ///

@@ -5,6 +5,7 @@
 use proc_macro2::{Span, TokenStream};
 use std::{env, fs, path::PathBuf};
 use syn::{
+    FnArg,
     Item::{Fn, Macro},
     Safety, Signature, Token, parse2,
 };
@@ -144,6 +145,11 @@ fn mocks() {
                 let mut sig = function.sig.clone();
                 // remove trailing punctuation as this may be added to mocks by rustfmt
                 sig.inputs.pop_punct();
+                sig.inputs.iter_mut().for_each(|arg| {
+                    if let FnArg::Typed(arg) = arg {
+                        arg.attrs = vec![];
+                    }
+                });
                 Some(sig)
             } else {
                 None

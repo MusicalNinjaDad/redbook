@@ -38,13 +38,13 @@ enum SelectedTrack {
     One(usize),
 }
 
-mod _releases;
-mod _tracing;
 mod cli;
+mod output;
+mod release_menu;
 mod sanitize;
 pub(crate) use cli::Rip;
 
-use crate::_releases::release_menu;
+use crate::release_menu::release_menu;
 use crate::sanitize::FilenameSanitize;
 
 #[cfg(target_family = "windows")]
@@ -107,7 +107,7 @@ fn main() -> Exit<()> {
                 let release_menu = release_menu(cd.disc())?;
                 println!("{}", release_menu.table);
                 let selected = loop {
-                    #[expect(unused, reason = "loop on error")]
+                    #[expect(unused_must_use, reason = "loop on error")]
                     try {
                         let mut input = String::new();
                         println!("\nEnter the number of the release to use:");
@@ -118,7 +118,7 @@ fn main() -> Exit<()> {
                             );
                         })?;
 
-                        let choice = input.trim().parse::<usize>().map_err(|error| {
+                        let choice = input.trim().parse::<usize>().map_err(|_| {
                             println!("oops ... try again {input} is not a number");
                         })?;
 
@@ -175,7 +175,7 @@ fn main() -> Exit<()> {
             println!("a. All tracks");
 
             loop {
-                #[expect(unused, reason = "loop on error")]
+                #[expect(unused_must_use, reason = "loop on error")]
                 try {
                     let mut input = String::new();
                     println!("\nEnter the track number to rip (a for all):");
@@ -191,7 +191,7 @@ fn main() -> Exit<()> {
                         break SelectedTrack::All;
                     }
 
-                    let choice: usize = input_trimmed.parse().map_err(|error| {
+                    let choice: usize = input_trimmed.parse().map_err(|_| {
                         println!("oops ... try again {input_trimmed} is not a number");
                     })?;
 
