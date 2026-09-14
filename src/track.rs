@@ -1,11 +1,8 @@
 //! Provides [`Track`] & associated types
 
-use std::io::{self, ErrorKind};
-
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
-use tracing_result::Trace;
 
-use crate::{Frame, Msf};
+use crate::{Frame, TocEntry};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 /// A track on a CD with associated metadata.
@@ -202,123 +199,6 @@ impl<'meta> Track<'meta> {
     /// ```
     pub fn meta(&self) -> Option<&'meta musicbrainz_rs::entity::release::Track> {
         self.meta
-    }
-}
-
-/// Entry in a CD TOC (Table of Contents).
-///
-/// Represents a single entry from the CD's Table of Contents, containing the
-/// track number and its absolute start position on the disc.
-///
-/// # Notes
-///
-/// - The start position includes the lead-in area (150 frames)
-/// - Used for low-level disc navigation and track positioning
-///
-/// # Examples
-///
-/// ```rust, no_run
-/// use redbook::TocEntry;
-/// use redbook::Frame;
-///
-/// // Create a TOC entry for track 1 starting at frame 150 (beginning of lead-in)
-/// let entry = TocEntry {
-///     track: 1,
-///     start: Frame::new(150),
-/// };
-///
-/// assert_eq!(entry.track, 1);
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct TocEntry {
-    /// The 1-indexed track number.
-    pub track: u8,
-    /// Absolute start position of this track on the disc, including lead-in (150 frames).
-    pub start: Frame,
-}
-
-impl TocEntry {
-    /// Generate a TocEntry from a sequence of bytes as provided by MMC-3 command READ TOC
-    /// format 0010b (Section 5.23.4)
-    ///
-    /// # Data format
-    /// | byte  | contents |
-    /// |------:|----------:|
-    /// | 0     | Session Number |
-    /// | 1     | ADR CONTROL |
-    /// | 2     | ZERO |
-    /// | 3     | Track Number |
-    /// | 4     | ZERO |
-    /// | 5     | ZERO |
-    /// | 6     | ZERO |
-    /// | 7     | ZERO |
-    /// | 8     | Start Mins |
-    /// | 9     | Start Secs |
-    /// | 10    | Start Frames |
-    ///
-    /// # Note
-    /// This will also parse the special TOC entries as "tracks"
-    /// - 0xA0: first track number = Start Mins
-    /// - 0xA1: last track number = Start Mins
-    /// - 0xA2: leadout
-    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
-        dbg!(data);
-        let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
-
-        let mut iter = data.iter().copied();
-
-        // After this check it's OK to call `unwrap` on `next`
-        (iter.len() == 11)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "invalid 0010b response: expected 11 bytes, received {}",
-                        iter.len()
-                    ),
-                )
-            })
-            .or_warn("")?;
-
-        let session_number = iter.next().unwrap();
-        (session_number == 1)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "multi-session discs are not supported",
-                )
-            })
-            .or_warn("")?;
-
-        let acr_control = iter.next().unwrap();
-        (acr_control & 0b11110000 == 0b00010000)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("invalid ADR value: expected 0001xxxx, got {:#08b}", data[2]),
-                )
-            })
-            .or_warn("")?;
-
-        let tno = iter.next().unwrap();
-        (tno == 0)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid TNO"))
-            .or_warn("")?;
-
-        let track = iter.next().unwrap();
-
-        let zeros = iter.next_chunk::<4>().unwrap();
-        (zeros == [0; _])
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "expected zeros"))
-            .or_warn("")?;
-
-        let start = Msf::new(
-            iter.next().unwrap(),
-            iter.next().unwrap(),
-            iter.next().unwrap(),
-        );
-        let start = Frame::from(start);
-        Ok(Self { track, start })
     }
 }
 

@@ -250,14 +250,14 @@ impl CdaFile {
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
         let starting_frame =
-            Frame(u32::from_le_bytes(data.next_chunk().unwrap()) as usize) + LEADIN;
-        let duration_frames = Frame(u32::from_le_bytes(data.next_chunk().unwrap()) as usize);
+            Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize) + LEADIN;
+        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize);
 
-        let start = Msf {
-            frame: data.next().unwrap(),
-            sec: data.next().unwrap(),
-            min: data.next().unwrap(),
-        };
+        let start_frame = data.next().unwrap();
+        let start_sec = data.next().unwrap();
+        let start_min = data.next().unwrap();
+        let start = Msf::new(start_min, start_sec, start_frame);
+
         (start == starting_frame)
             .ok_or_else(|| {
                 io::Error::new(
@@ -271,11 +271,11 @@ impl CdaFile {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing null byte"))
             .or_warn("")?;
 
-        let duration = Msf {
-            frame: data.next().unwrap(),
-            sec: data.next().unwrap(),
-            min: data.next().unwrap(),
-        };
+        let frame = data.next().unwrap();
+        let sec = data.next().unwrap();
+        let min = data.next().unwrap();
+        let duration = Msf::new(min, sec, frame);
+        
         (duration == duration_frames)
             .ok_or_else(|| {
                 io::Error::new(
