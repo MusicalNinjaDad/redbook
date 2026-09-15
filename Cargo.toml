@@ -16,7 +16,7 @@ exclude = [
 ]
 
 [dependencies]
-build_safely = "0.5.4" # for doc link
+build_safely =  "0.6.0" # for doc link
 cdtoc = "0.14.0"
 clap = { version = "4.6.5", features = ["derive"] }
 errno = "0.3.14"
@@ -49,7 +49,7 @@ tempfile = "3.27.0"
 windows-bindgen = "0.100.0"
 
 [build-dependencies]
-build_safely = "0.5.4"
+build_safely = "0.6.0"
 clap = { version = "4.6.5", features = ["derive"] }
 clap_builder = "4.6.5"
 clap_complete = "4.6.8"
