@@ -1,6 +1,6 @@
 # redbook changelog
 
-## [WIP]
+## [v0.2.1]
 
 ### Bugfixes
 
