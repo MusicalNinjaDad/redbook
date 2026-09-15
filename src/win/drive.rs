@@ -447,7 +447,6 @@ impl Iterator for CdDrives {
             SetupDiGetDeviceInterfaceDetailW(
                 // A pointer to a device information set that contains the device
                 // interfaces for which to return information.
-                // UNSAFE DO NOT KEEP THIS PUBlIC
                 deviceinfoset,
                 // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
                 // in DeviceInfoSet for which to retrieve details. A pointer of this type is
