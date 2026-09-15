@@ -25,6 +25,7 @@ fn main() -> Result<()> {
     // `unstable.allow-features` in `.cargo/config.toml`.
     let allowed_features = cargo_allowed_features()?;
 
+    ac.emit_unstable_feature(OtherFeature("const_ops".to_string()), &allowed_features);
     ac.emit_unstable_feature(
         OtherFeature("const_trait_impl".to_string()),
         &allowed_features,
