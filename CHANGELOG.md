@@ -1,5 +1,12 @@
 # redbook changelog
 
+## [WIP]
+
+### Bugfixes
+
+- fix issue with passing binary artifact between steps for publishing
+- use build_safely for feature const_ops
+
 ## [v0.2.0]
 
 ### New Features
