@@ -19,51 +19,24 @@ fn main() -> Result<()> {
         }
     }
 
-    let ac = AutoCfg::new()?;
+    let mut ac = AutoCfg::new()?;
 
     // check to see any  downstream crate has defined
     // `unstable.allow-features` in `.cargo/config.toml`.
     let allowed_features = cargo_allowed_features()?;
 
-    ac.emit_unstable_feature(OtherFeature("const_ops".to_string()), &allowed_features);
-    ac.emit_unstable_feature(
-        OtherFeature("const_trait_impl".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("default_field_values".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("exact_size_is_empty".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(OtherFeature("integer_casts".to_string()), &allowed_features);
-    ac.emit_unstable_feature(
-        OtherFeature("integer_cast_extras".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("iter_array_chunks".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("iter_next_chunk".to_string()),
-        &allowed_features,
-    );
+    ac.emit_unstable_feature(const_ops, &allowed_features);
+    ac.emit_unstable_feature(const_trait_impl, &allowed_features);
+    ac.emit_unstable_feature(default_field_values, &allowed_features);
+    ac.emit_unstable_feature(exact_size_is_empty, &allowed_features);
+    ac.emit_unstable_feature(integer_casts, &allowed_features);
+    ac.emit_unstable_feature(integer_cast_extras, &allowed_features);
+    ac.emit_unstable_feature(iter_array_chunks, &allowed_features);
+    ac.emit_unstable_feature(iter_next_chunk, &allowed_features);
     ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
-    ac.emit_unstable_feature(
-        OtherFeature("negative_impls".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("path_absolute_method".to_string()),
-        &allowed_features,
-    );
-    ac.emit_unstable_feature(
-        OtherFeature("try_blocks_heterogeneous".to_string()),
-        &allowed_features,
-    );
+    ac.emit_unstable_feature(negative_impls, &allowed_features);
+    ac.emit_unstable_feature(path_absolute_method, &allowed_features);
+    ac.emit_unstable_feature(try_blocks_heterogeneous, &allowed_features);
 
     Ok(())
 }
