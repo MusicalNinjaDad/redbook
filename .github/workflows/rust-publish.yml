@@ -34,6 +34,7 @@ jobs:
     - id: changelog
       name: validate changelog
       run: | 
+        parse-changelog CHANGELOG.md ${{ steps.version.outputs.version }}
         echo "## Changelog entry" >> $GITHUB_STEP_SUMMARY
         echo "$(parse-changelog CHANGELOG.md ${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
 
