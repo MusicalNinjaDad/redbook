@@ -43,7 +43,8 @@
                         // Prefer support for windows code right now - see https://users.rust-lang.org/t/how-to-have-completion-in-inactive-target-blocks-when-using-rust-analyzer/127208
                         "allTargets": true,
                         "target": "x86_64-pc-windows-msvc",
-                        "features": "all"
+                        "features": "all",
+                        "targetDir": true
                     },
                     "check": {
                         "extraEnv": {
