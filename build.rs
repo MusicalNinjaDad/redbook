@@ -1,8 +1,11 @@
-use build_safely::prelude::*;
+use build_safely::{BuildError, prelude::*};
 
 include!("./src/bin/rip/cli.rs");
 
 fn main() -> Result<()> {
+    slint_build::compile("./src/bin/gui/gui.slint")
+        .map_err(|err| BuildError::Other(err.to_string()))?;
+
     if get_var("PROFILE")? == "release" {
         use clap_builder::{CommandFactory, ValueEnum};
         use clap_complete::Shell;

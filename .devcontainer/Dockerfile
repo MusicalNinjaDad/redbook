@@ -19,6 +19,7 @@ RUN cargo binstall -y \
         slint-lsp \
         slint-viewer \
     && sudo dnf install \
+        fontconfig-devel \
         libinput \
         wayland-devel \
         xorg-x11-server-Xwayland
