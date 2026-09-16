@@ -297,7 +297,7 @@ pub trait AudioCdExt {
 /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
 ///
 /// // Select a specific release
-/// cd.disc_mut().set_release(Some(2));
+/// cd.disc_mut().set_release_index(Some(2));
 ///
 /// // Fetch cover art
 /// let _ignore_network_errors = cd.disc_mut().update_cover_art();

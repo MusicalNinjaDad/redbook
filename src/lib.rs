@@ -50,7 +50,7 @@
 //! let _ = cd.disc_mut().update_musicbrainz();
 //!
 //! // There are often multiple releases with the same tracks - select the right one.
-//! cd.disc_mut().set_release(Some(2));
+//! cd.disc_mut().set_release_index(Some(2));
 //!
 //! // Try to get the cover art from CoverArtArchive based on the musicbrainz info.
 //! let _ = cd.disc_mut().update_cover_art();

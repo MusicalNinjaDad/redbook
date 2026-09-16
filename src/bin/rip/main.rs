@@ -94,7 +94,7 @@ fn main() -> Exit<()> {
                                 .position(|release| release.id == latest_release.id)
                         })
                 });
-            cd.disc_mut().set_release(latest_release);
+            cd.disc_mut().set_release_index(latest_release);
             tracing::info!(
                 name: "selected latest release",
                 title = %cd.disc().title().unwrap_or_default(),
@@ -129,7 +129,7 @@ fn main() -> Exit<()> {
                         break index;
                     };
                 };
-                cd.disc_mut().set_release(Some(selected));
+                cd.disc_mut().set_release_index(Some(selected));
                 tracing::debug!(
                     name: "manually selected release",
                     title = %cd.disc().title().unwrap_or_default(),

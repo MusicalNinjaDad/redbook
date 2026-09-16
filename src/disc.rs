@@ -52,7 +52,7 @@ use crate::{
 /// disc.update_musicbrainz()?;
 ///
 /// // Select a specific release & attempt to get the cover art from CoverArtArchive
-/// disc.set_release(Some(2)).update_cover_art()?;
+/// disc.set_release_index(Some(2)).update_cover_art()?;
 ///
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
@@ -200,7 +200,7 @@ impl Disc {
     /// if disc.release().is_none() {
     ///     // ... some logic to identify the correct release
     ///     let correct_release = Some(2);
-    ///     disc.set_release(correct_release);
+    ///     disc.set_release_index(correct_release);
     /// }
     ///
     /// let release = disc.release();
@@ -448,13 +448,13 @@ impl Disc {
     /// disc.update_musicbrainz()?;
     ///
     /// // Select the second release (if available)
-    /// disc.set_release(Some(1));
+    /// disc.set_release_index(Some(1));
     ///
     /// // Or reset the selection
-    /// disc.set_release(None);
+    /// disc.set_release_index(None);
     /// # Ok::<(), std::io::Error>(())
     /// ```
-    pub fn set_release(&mut self, index: Option<usize>) -> &mut Self {
+    pub fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release", index = ?index).entered();
         self.release_index = match index {
             Some(index)
@@ -616,7 +616,7 @@ impl Disc {
     /// // Check if release was auto-selected
     /// if disc.release().is_none() {
     ///     // Multiple releases found, need to select one
-    ///     disc.set_release(Some(0));
+    ///     disc.set_release_index(Some(0));
     /// }
     ///
     /// // Check if disc index was auto-selected
@@ -1065,7 +1065,7 @@ mod tests {
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        disc.set_release(Some(album.release()));
+        disc.set_release_index(Some(album.release()));
         assert_eq!(disc.disc_index(), album.expected_disc_index());
     }
 
@@ -1097,7 +1097,7 @@ mod tests {
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
 
-        disc.set_release(Some(999));
+        disc.set_release_index(Some(999));
         assert!(disc.release_index.is_none());
     }
 
@@ -1110,7 +1110,7 @@ mod tests {
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
 
-        disc.set_release(Some(0));
+        disc.set_release_index(Some(0));
         assert!(disc.release_index.is_none());
     }
 }
