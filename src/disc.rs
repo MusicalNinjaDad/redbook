@@ -429,6 +429,22 @@ impl Disc {
         Some(releases)
     }
 
+    /// Set the release, or reset to `None`.
+    ///
+    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    pub fn set_release(&mut self, release: Option<&Release>) -> &mut Self {
+        let _debug = tracing::debug_span!("Disc::set_release", ?release).entered();
+        self.release_index = release.and_then(|release| {
+            self.musicbrainz.as_ref().and_then(|mb| {
+                mb.releases
+                    .as_ref()
+                    .and_then(|releases| releases.iter().position(|rel| rel.id == release.id))
+            })
+        });
+        self.reset_disc_index();
+        self
+    }
+
     /// Set the selected release by index, or reset to `None`.
     ///
     /// Providing an invalid index will make no change. Returns `self` for chaining.
@@ -455,7 +471,7 @@ impl Disc {
     /// # Ok::<(), std::io::Error>(())
     /// ```
     pub fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
-        let _debug = tracing::debug_span!("Disc::set_release", index = ?index).entered();
+        let _debug = tracing::debug_span!("Disc::set_release_index", index = ?index).entered();
         self.release_index = match index {
             Some(index)
                 if self
@@ -1084,6 +1100,21 @@ mod tests {
         disc.set_musicbrainz(musicbrainz);
         let ordered: Vec<_> = disc.all_releases().unwrap().into_iter().cloned().collect();
         assert_eq!(ordered, expected_order);
+    }
+
+    #[test]
+    fn set_release() {
+        let album = TheWallDisc2;
+        let expected_order = album.expected_releases_in_order();
+        let toc = album.expected_toc();
+        let tracks = album.expected_tracks_minimal();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        disc.set_release(expected_order.first());
+        assert_eq!(disc.release_index, Some(1));
     }
 
     #[test]
