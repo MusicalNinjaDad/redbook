@@ -1,0 +1,12 @@
+Multiple releases found. Please select one:
+
+Definitely Maybe
+================
+    Date        Country  Barcode        
+1.  2005-05-17  US       827969457320   
+2.  2000        GB       5055019600623  
+3.  1994-08-31  US       074646643129   
+4.  1994-08-30  GB       5017556601693  (Plant MFG pressing)
+5.  1994-08-30  XE       5099747731822  
+6.  1994        AU       9399747731829  
+

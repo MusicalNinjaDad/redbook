@@ -62,11 +62,11 @@ pub fn release_menu(disc: &Disc) -> Option<ReleaseMenu<'_>> {
     release_table.add_heading("");
     Some(ReleaseMenu {
         table: release_table.to_string(),
-        releases
+        releases,
     })
 }
 
-#[cfg_attr(not(any(test, target_family = "windows")), expect(dead_code))]
+#[cfg_attr(not(target_family = "windows"), expect(dead_code))]
 pub struct ReleaseMenu<'disc> {
     pub table: String,
     pub releases: Vec<&'disc Release>,
@@ -74,13 +74,19 @@ pub struct ReleaseMenu<'disc> {
 
 #[cfg(test)]
 mod tests {
-    use redbook::{Track, test_fixtures::albums::TestAlbum};
+    use redbook::{
+        Track,
+        test_fixtures::albums::TestAlbum::{self, *},
+    };
+    use rstest::rstest;
 
     use super::*;
 
-    #[test]
-    fn the_wall_2_menu() {
-        let album = TestAlbum::TheWallDisc2;
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    fn release_menus(#[case] album: TestAlbum) {
         let toc: cdtoc::Toc = album.expected_toc();
         let tracks: Vec<Track> = album.expected_tracks_minimal();
         let leadout = album.expected_leadout();
