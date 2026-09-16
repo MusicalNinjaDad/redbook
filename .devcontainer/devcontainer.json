@@ -27,7 +27,9 @@
                 "vadimcn.vscode-lldb",
                 // configs, docs, etc.
                 "DavidAnson.vscode-markdownlint",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                // ui
+                "Slint.slint"
             ],
             "settings": {
                 // rust

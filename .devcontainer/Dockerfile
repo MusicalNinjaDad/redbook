@@ -13,3 +13,12 @@ RUN cargo binstall -y cargo-xwin \
     && rustup +nightly component add miri
 
 RUN cargo binstall -y ripgrep
+
+# Slint UI
+RUN cargo binstall -y \
+        slint-lsp \
+        slint-viewer \
+    && sudo dnf install \
+        libinput \
+        wayland-devel \
+        xorg-x11-server-Xwayland
