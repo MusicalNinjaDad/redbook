@@ -1044,6 +1044,8 @@ impl<'m> ExactSizeIterator for Tracks<'m> {
 
 #[cfg(test)]
 mod tests {
+    use std::iter::zip;
+
     use super::*;
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use rstest::rstest;
@@ -1117,8 +1119,10 @@ mod tests {
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        disc.set_release(ordered_releases.first());
-        assert_eq!(disc.release_index.as_ref(), expected_order.first());
+        for (release, index) in zip(ordered_releases, expected_order) {
+            disc.set_release(Some(&release));
+            assert_eq!(disc.release_index, Some(index));
+        }
     }
 
     #[test]
