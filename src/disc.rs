@@ -1102,10 +1102,14 @@ mod tests {
         assert_eq!(ordered, expected_order);
     }
 
-    #[test]
-    fn set_release() {
-        let album = TheWallDisc2;
-        let expected_order = album.expected_releases_in_order();
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    fn set_release_by_ref(#[case] album: TestAlbum) {
+        let ordered_releases = album.expected_releases_in_order();
+        let expected_order = album.expected_release_order();
+
         let toc = album.expected_toc();
         let tracks = album.expected_tracks_minimal();
         let leadout = album.expected_leadout();
@@ -1113,8 +1117,8 @@ mod tests {
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        disc.set_release(expected_order.first());
-        assert_eq!(disc.release_index, Some(1));
+        disc.set_release(ordered_releases.first());
+        assert_eq!(disc.release_index.as_ref(), expected_order.first());
     }
 
     #[test]

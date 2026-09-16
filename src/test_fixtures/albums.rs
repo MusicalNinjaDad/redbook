@@ -434,13 +434,18 @@ impl TestAlbum {
             .unwrap_or_else(|e| panic!("Failed to parse musicbrainz.json from {:?}: {}", path, e))
     }
 
-    /// The releases sorted by title then newest-oldest
-    pub fn expected_releases_in_order(&self) -> Vec<musicbrainz_rs::entity::release::Release> {
-        let order = match self {
+    /// Indices of releases, sorted by title then newest-oldest
+    pub fn expected_release_order(&self) -> Vec<usize> {
+        match self {
             TestAlbum::DefinitelyMaybe => vec![4, 5, 1, 2, 0, 3],
             TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
-        };
+        }
+    }
+
+    /// The releases sorted by title then newest-oldest
+    pub fn expected_releases_in_order(&self) -> Vec<musicbrainz_rs::entity::release::Release> {
+        let order = self.expected_release_order();
         let releases = self.expected_musicbrainz().releases.unwrap();
         order.iter().map(|&i| releases[i].clone()).collect()
     }
