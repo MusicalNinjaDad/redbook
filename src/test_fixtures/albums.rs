@@ -437,8 +437,9 @@ impl TestAlbum {
     /// The releases sorted by title then newest-oldest
     pub fn expected_releases_in_order(&self) -> Vec<musicbrainz_rs::entity::release::Release> {
         let order = match self {
+            TestAlbum::DefinitelyMaybe => vec![4, 5, 1, 2, 0, 3],
+            TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
-            _ => todo!("ordering"),
         };
         let releases = self.expected_musicbrainz().releases.unwrap();
         order.iter().map(|&i| releases[i].clone()).collect()
