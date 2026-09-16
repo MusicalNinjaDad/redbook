@@ -434,6 +434,16 @@ impl TestAlbum {
             .unwrap_or_else(|e| panic!("Failed to parse musicbrainz.json from {:?}: {}", path, e))
     }
 
+    /// The releases sorted by title then newest-oldest
+    pub fn expected_releases_in_order(&self) -> Vec<musicbrainz_rs::entity::release::Release> {
+        let order = match self {
+            TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
+            _ => todo!("ordering"),
+        };
+        let releases = self.expected_musicbrainz().releases.unwrap();
+        order.iter().map(|&i| releases[i].clone()).collect()
+    }
+
     /// Load the expected release menu from release_selection.txt
     pub fn expected_release_menu(&self) -> Option<String> {
         let path = self.assets_path().join("release_selection.txt");

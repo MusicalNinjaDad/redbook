@@ -12,6 +12,7 @@ use cdtoc::Toc;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::{
     Fetch,
+    chrono::NaiveDate,
     entity::{discid::Discid, release::Release},
 };
 use tracing::field::Empty;
@@ -402,6 +403,30 @@ impl Disc {
         let _debug =
             tracing::debug_span!("Disc::tracks", track_count = self.tracks.len()).entered();
         Tracks { disc: self, i: 0 }
+    }
+
+    /// Get the possible releases grouped by title then sorted newest to oldest
+    pub fn all_releases(&self) -> Option<Vec<&Release>> {
+        let mut releases: Vec<_> = self
+            .musicbrainz
+            .as_ref()?
+            .releases
+            .as_ref()?
+            .iter()
+            .collect();
+        releases.sort_by_key(|release| {
+            release
+                .date
+                .as_ref()
+                .and_then(|date| date.into_naive_date(1, 1, 1).ok())
+                .unwrap_or(
+                    // NaiveDate::default() is 1970-01-01 which is unsuitable for older music
+                    NaiveDate::from_ymd_opt(1, 1, 1).unwrap(),
+                )
+        });
+        releases.reverse();
+        releases.sort_by_key(|release| &release.title);
+        Some(releases)
     }
 
     /// Set the selected release by index, or reset to `None`.
@@ -1042,6 +1067,28 @@ mod tests {
         disc.set_musicbrainz(musicbrainz);
         disc.set_release(Some(album.release()));
         assert_eq!(disc.disc_index(), album.expected_disc_index());
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    fn all_releases(#[case] album: TestAlbum) {
+        let expected_order = album.expected_releases_in_order();
+        let toc = album.expected_toc();
+        let tracks = album.expected_tracks_minimal();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        let ordered: Vec<_> = disc
+            .all_releases()
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect();
+        assert_eq!(ordered, expected_order);
     }
 
     #[test]
