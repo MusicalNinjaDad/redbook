@@ -67,7 +67,6 @@ impl TocEntry {
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
     pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
-        dbg!(data);
         let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
         let mut iter = data.iter().copied();
