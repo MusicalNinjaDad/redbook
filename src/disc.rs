@@ -1082,12 +1082,7 @@ mod tests {
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        let ordered: Vec<_> = disc
-            .all_releases()
-            .unwrap()
-            .into_iter()
-            .cloned()
-            .collect();
+        let ordered: Vec<_> = disc.all_releases().unwrap().into_iter().cloned().collect();
         assert_eq!(ordered, expected_order);
     }
 
