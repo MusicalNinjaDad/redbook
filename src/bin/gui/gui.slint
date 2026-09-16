@@ -1,40 +1,49 @@
+component Album {
+    in property <brush> bkg <=> box.background;
+    in property <string> album-title <=> album.text;
+    in property <string> album-details <=> release.text;
+    in property <image> thumbnail <=> thumb.source;
+    box := Rectangle {
+        accessible-role: AccessibleRole.list-item;
+        accessible-description: album.text + release.text;
+        border-radius: 4px;
+        drop-shadow-offset-x: 0px;
+        drop-shadow-offset-y: 0px;
+        drop-shadow-color: darkgray;
+        drop-shadow-blur: 8px;
+        HorizontalLayout {
+            alignment: start;
+            padding: 10px;
+            thumb := Image {
+                horizontal-alignment: left;
+                width: 140px;
+                height: 140px;
+            }
+
+            VerticalLayout {
+                spacing: 10px;
+                padding: 20px;
+                alignment: start;
+                album := Text {
+                    font-weight: FontWeight.semi-bold;
+                    font-size: 1.5rem;
+                }
+
+                release := Text { }
+            }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     title: "rip";
-    preferred-width: 500px;
-    preferred-height: 300px;
     FlexboxLayout {
-        Rectangle {
-            accessible-role: AccessibleRole.list-item;
-            accessible-description: album.text + release.text;
-            border-radius: 4px;
-            drop-shadow-offset-x: 0px;
-            drop-shadow-offset-y: 0px;
-            drop-shadow-color: darkgray;
-            drop-shadow-blur: 8px;
-            background: root.background;
-            HorizontalLayout {
-                alignment: start;
-                padding: 10px;
-                Image {
-                    horizontal-alignment: left;
-                    width: 140px;
-                    height: 140px;
-                    source: @image-url("https://coverartarchive.org/release/9822581d-98bf-3f97-a94c-4b1350d090aa/front-250");
-                }
-                VerticalLayout {
-                    spacing: 10px;
-                    padding: 20px;
-                    alignment: start;
-                    album := Text {
-                        text: "Oasis: Definitely Maybe";
-                        font-weight: FontWeight.semi-bold;
-                        font-size: 1.5rem;
-                    }
-                    release := Text {
-                        text: "1994-08-30 - GB - 5017556601693  (Plant MFG pressing)";
-                    }
-                }
-            }
+        padding: 20px;
+        Album {
+            bkg: root.background;
+            album-title: "Oasis: Definitely Maybe";
+            album-details: "1994-08-30 - GB - 5017556601693  (Plant MFG pressing)";
+            thumbnail: @image-url("https://coverartarchive.org/release/9822581d-98bf-3f97-a94c-4b1350d090aa/front-250");
         }
     }
 }
