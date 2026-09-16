@@ -66,7 +66,7 @@ pub fn release_menu(disc: &Disc) -> Option<ReleaseMenu<'_>> {
     })
 }
 
-#[cfg_attr(not(target_family = "windows"), expect(dead_code))]
+#[cfg_attr(not(any(test, target_family = "windows")), expect(dead_code))]
 pub struct ReleaseMenu<'disc> {
     pub table: String,
     pub releases: Vec<&'disc Release>,
@@ -97,5 +97,23 @@ mod tests {
         println!("{}", table);
         let expected_menu = album.expected_release_menu().unwrap();
         assert_eq!(table, expected_menu);
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    fn release_order(#[case] album: TestAlbum) {
+        let expected_order = album.expected_releases_in_order();
+        let toc = album.expected_toc();
+        let tracks = album.expected_tracks_minimal();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        let ReleaseMenu { releases, .. } = release_menu(&disc).unwrap();
+        let ordered: Vec<_> = releases.into_iter().cloned().collect();
+        assert_eq!(ordered, expected_order);
     }
 }
