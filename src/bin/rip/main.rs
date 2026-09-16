@@ -122,14 +122,14 @@ fn main() -> Exit<()> {
                             println!("oops ... try again {input} is not a number");
                         })?;
 
-                        let index = release_menu.index_for(choice).ok_or_else(|| {
+                        let &release = release_menu.releases.get(choice).ok_or_else(|| {
                             println!("oops ... I can't find release number {choice}");
                         })?;
 
-                        break index;
+                        break release.clone();
                     };
                 };
-                cd.disc_mut().set_release_index(Some(selected));
+                cd.disc_mut().set_release(Some(&selected));
                 tracing::debug!(
                     name: "manually selected release",
                     title = %cd.disc().title().unwrap_or_default(),
