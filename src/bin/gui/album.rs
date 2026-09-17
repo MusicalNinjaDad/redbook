@@ -1,11 +1,14 @@
 use musicbrainz_rs::entity::release::Release;
+use redbook::tagging::ArtistCreditsExt;
 use slint::ToSharedString;
 
 use crate::AlbumDetails;
 
 impl From<&Release> for AlbumDetails {
     fn from(release: &Release) -> Self {
-        let album = release.title.to_shared_string();
+        let artist = release.main_artist().clone().unwrap_or_default();
+        let title = release.title.clone();
+        let album = [artist, title].join(": ").to_shared_string();
         let comment = release
             .disambiguation
             .as_ref()
@@ -60,9 +63,7 @@ mod tests {
         let details = AlbumDetails::from(disc.release().unwrap());
 
         let expected = AlbumDetails {
-            // TODO: add artist name
-            // album: "Oasis: Definitely Maybe".into(),
-            album: "Definitely Maybe".into(),
+            album: "Oasis: Definitely Maybe".into(),
             date: "1994-08-30".into(),
             location: "GB".into(),
             barcode: "5017556601693".into(),
