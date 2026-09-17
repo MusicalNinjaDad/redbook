@@ -793,6 +793,11 @@ impl Disc {
         self
     }
 
+    /// Get the cover art thumbnail for a given release
+    pub fn get_thumbnail(&self, release_id: &str) -> Option<&Picture> {
+        self.thumbnails.get(release_id)
+    }
+
     /// Get the 0-indexed disc number within a multi-disc release, if available.
     ///
     /// # Notes
