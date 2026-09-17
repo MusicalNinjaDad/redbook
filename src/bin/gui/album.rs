@@ -42,7 +42,7 @@ impl From<&Disc> for AlbumDetails {
         let release = disc.release().unwrap();
         let mut details = AlbumDetails::from(release);
         let thumb = disc.get_thumbnail(&release.id).unwrap();
-        let image = Image::load_from_data(&thumb.to_bytes(), Some("jpg")).unwrap();
+        let image = Image::load_from_data(&thumb.data, Some("jpg")).unwrap();
         details.thumbnail = image;
         details
     }
@@ -108,7 +108,6 @@ mod tests {
         disc.set_release_index(Some(album.release()));
         let release_id = disc.release().unwrap().id.clone();
         let thumb = fs::read(album.thumbnail_path()).unwrap();
-        dbg!(&thumb[0..10]);
         let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
         disc.add_thumbnail(release_id, image);
 
@@ -123,6 +122,14 @@ mod tests {
             thumbnail: Image::load_from_path(&album.thumbnail_path()).unwrap(),
         };
 
-        assert_eq!(details, expected);
+        assert_eq!(details.album, expected.album);
+        assert_eq!(details.date, expected.date);
+        assert_eq!(details.location, expected.location);
+        assert_eq!(details.barcode, expected.barcode);
+        assert_eq!(details.comment, expected.comment);
+        assert_eq!(
+            details.thumbnail.to_rgb8().unwrap().as_slice(),
+            expected.thumbnail.to_rgb8().unwrap().as_slice()
+        );
     }
 }
