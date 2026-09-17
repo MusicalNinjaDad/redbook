@@ -1,3 +1,6 @@
+#[cfg(feature = "gui")]
+mod album;
+
 mod slint;
 use slint::*;
 
