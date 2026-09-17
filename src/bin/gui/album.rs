@@ -197,17 +197,8 @@ mod tests {
             .map(|release| release.id.clone())
             .collect();
 
-        for release_id in releases.iter() {
-            let thumb = fs::read(
-                album
-                    .assets_path()
-                    .join("thumbs")
-                    .join(release_id)
-                    .with_extension("jpg"),
-            )
-            .unwrap();
-            let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
-            disc.add_thumbnail(release_id.clone(), image);
+        for (release_id, image) in album.expected_thumbnails() {
+            disc.add_thumbnail(release_id, image);
         }
 
         let albums = AlbumDetails::for_disc(&disc).unwrap();

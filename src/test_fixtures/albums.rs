@@ -1,9 +1,13 @@
 #![expect(missing_docs, reason = "needs update")]
 //! Test fixtures for album data
 
-use std::{fmt::Display, io, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 
-use crate::{Frame, Msf, TocEntry, Track, toc::TocString, win::toc::CDROM_TOC};
+use metaflac::block::{Picture, PictureType};
+
+use crate::{
+    Frame, Msf, TocEntry, Track, tagging::PictureExt, toc::TocString, win::toc::CDROM_TOC,
+};
 
 /// Test album identifier for parameterized tests
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -468,6 +472,21 @@ impl TestAlbum {
     /// Path to the thumbnail
     pub fn thumbnail_path(&self) -> PathBuf {
         self.assets_path().join("thumbnail.jpeg")
+    }
+
+    /// The cover thumbnails
+    pub fn expected_thumbnails(&self) -> HashMap<String, Picture> {
+        fs::read_dir(self.assets_path().join("thumbs"))
+            .unwrap()
+            .map(|file| {
+                let pic = file.unwrap().path();
+                let thumb = fs::read(&pic).unwrap();
+                let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
+                (
+                    pic.file_stem().unwrap().to_string_lossy().into_owned(),
+                    image,
+                )
+            }).collect()
     }
 
     /// The correct release number for the album
