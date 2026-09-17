@@ -1,6 +1,6 @@
 use musicbrainz_rs::entity::release::Release;
-use redbook::tagging::ArtistCreditsExt;
-use slint::ToSharedString;
+use redbook::{Disc, tagging::ArtistCreditsExt};
+use slint::{Image, ToSharedString};
 
 use crate::AlbumDetails;
 
@@ -37,6 +37,17 @@ impl From<&Release> for AlbumDetails {
     }
 }
 
+impl From<&Disc> for AlbumDetails {
+    fn from(disc: &Disc) -> Self {
+        let release = disc.release().unwrap();
+        let mut details = AlbumDetails::from(release);
+        let thumb = disc.get_thumbnail(&release.id).unwrap();
+        let image = Image::load_from_data(&thumb.to_bytes(), Some("jpg")).unwrap();
+        details.thumbnail = image;
+        details
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -53,7 +64,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn albumdetails() {
+    fn albumdetails_from_release() {
+        let album: TestAlbum = DefinitelyMaybe;
+
+        let toc = album.expected_toc();
+        let tracks = album.expected_tracks_minimal();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        disc.set_release_index(Some(album.release()));
+
+        let details = AlbumDetails::from(disc.release().unwrap());
+
+        let expected = AlbumDetails {
+            album: "Oasis: Definitely Maybe".into(),
+            date: "1994-08-30".into(),
+            location: "GB".into(),
+            barcode: "5017556601693".into(),
+            comment: "(Plant MFG pressing)".into(),
+            ..Default::default()
+        };
+
+        assert_eq!(details.album, expected.album);
+        assert_eq!(details.date, expected.date);
+        assert_eq!(details.location, expected.location);
+        assert_eq!(details.barcode, expected.barcode);
+        assert_eq!(details.comment, expected.comment);
+    }
+
+    #[test]
+    fn albumdetails_from_disc() {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
@@ -66,10 +108,11 @@ mod tests {
         disc.set_release_index(Some(album.release()));
         let release_id = disc.release().unwrap().id.clone();
         let thumb = fs::read(album.thumbnail_path()).unwrap();
+        dbg!(&thumb[0..10]);
         let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
         disc.add_thumbnail(release_id, image);
 
-        let details = AlbumDetails::from(disc.release().unwrap());
+        let details = AlbumDetails::from(&disc);
 
         let expected = AlbumDetails {
             album: "Oasis: Definitely Maybe".into(),
@@ -80,10 +123,6 @@ mod tests {
             thumbnail: Image::load_from_path(&album.thumbnail_path()).unwrap(),
         };
 
-        assert_eq!(details.album, expected.album);
-        assert_eq!(details.date, expected.date);
-        assert_eq!(details.location, expected.location);
-        assert_eq!(details.barcode, expected.barcode);
-        assert_eq!(details.comment, expected.comment);
+        assert_eq!(details, expected);
     }
 }
