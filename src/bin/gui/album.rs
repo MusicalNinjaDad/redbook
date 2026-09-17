@@ -2,7 +2,7 @@ use std::io::{self, ErrorKind};
 
 use musicbrainz_rs::entity::release::Release;
 use redbook::{Disc, tagging::ArtistCreditsExt};
-use slint::{Image, ToSharedString};
+use slint::{Image, ModelRc, ToSharedString};
 use tracing::debug_span;
 use tracing_result::Trace;
 
@@ -60,6 +60,32 @@ impl TryFrom<&Disc> for AlbumDetails {
             .or_warn("")?;
         details.thumbnail = image;
         Ok(details)
+    }
+}
+
+impl AlbumDetails {
+    fn for_disc(disc: &Disc) -> Option<ModelRc<Self>> {
+        let _debug_span = debug_span!("AlbumDetails::for_disc").entered();
+        let details: Vec<_> = disc
+            .all_releases()?
+            .iter()
+            .filter_map(|&release| {
+                let mut details = AlbumDetails::from(release);
+                try bikeshed io::Result<_> {
+                    let thumb = disc
+                        .get_thumbnail(&release.id)
+                        .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no thumbnail found"))
+                        .or_warn("")?;
+                    let image = Image::load_from_data(&thumb.data, Some("jpg"))
+                        .map_err(io::Error::other)
+                        .or_warn("")?;
+                    details.thumbnail = image;
+                }
+                .ok()?;
+                Some(details)
+            })
+            .collect();
+        Some(ModelRc::from(details.as_slice()))
     }
 }
 
@@ -179,6 +205,5 @@ mod tests {
             let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
             disc.add_thumbnail(release_id, image);
         }
-
     }
 }

@@ -1,3 +1,5 @@
+#![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+
 #[cfg(feature = "gui")]
 mod album;
 
