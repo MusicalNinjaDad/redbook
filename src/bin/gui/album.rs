@@ -30,12 +30,14 @@ impl From<&Release> for AlbumDetails {
             .clone()
             .unwrap_or_default()
             .to_shared_string();
+        let id = release.id.to_shared_string();
         Self {
             album,
             barcode,
             comment,
             date,
             location,
+            id,
             ..Default::default()
         }
     }
@@ -100,7 +102,7 @@ mod tests {
         tagging::PictureExt,
         test_fixtures::albums::TestAlbum::{self, *},
     };
-    use slint::Image;
+    use slint::{Image, Model};
 
     use super::*;
 
@@ -125,6 +127,7 @@ mod tests {
             location: "GB".into(),
             barcode: "5017556601693".into(),
             comment: "(Plant MFG pressing)".into(),
+            id: "9822581d-98bf-3f97-a94c-4b1350d090aa".into(),
             ..Default::default()
         };
 
@@ -161,6 +164,7 @@ mod tests {
             barcode: "5017556601693".into(),
             comment: "(Plant MFG pressing)".into(),
             thumbnail: Image::load_from_path(&album.thumbnail_path()).unwrap(),
+            id: "9822581d-98bf-3f97-a94c-4b1350d090aa".into(),
         };
 
         assert_eq!(details.album, expected.album);
@@ -193,17 +197,33 @@ mod tests {
             .map(|release| release.id.clone())
             .collect();
 
-        for release_id in releases {
+        for release_id in releases.iter() {
             let thumb = fs::read(
                 album
                     .assets_path()
                     .join("thumbs")
-                    .join(&release_id)
+                    .join(release_id)
                     .with_extension("jpg"),
             )
             .unwrap();
             let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
-            disc.add_thumbnail(release_id, image);
+            disc.add_thumbnail(release_id.clone(), image);
+        }
+
+        let albums = AlbumDetails::for_disc(&disc).unwrap();
+        assert_eq!(albums.row_count(), releases.len());
+        for details in albums.iter() {
+            assert!(releases.contains(&details.id.to_string()));
+            let release = *disc
+                .all_releases()
+                .unwrap()
+                .iter()
+                .find(|release| *release.id == *details.id)
+                .unwrap();
+            let album = [release.main_artist().unwrap(), release.title.clone()].join(": ");
+            assert_eq!(details.album, album);
+            assert_eq!(details.location, release.country.clone().unwrap_or_default());
+            assert_eq!(details.barcode, release.barcode.clone().unwrap_or_default());
         }
     }
 }
