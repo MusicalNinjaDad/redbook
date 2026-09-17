@@ -42,8 +42,10 @@ mod tests {
 
     use std::fs;
 
+    use metaflac::block::{Picture, PictureType};
     use redbook::{
         Disc,
+        tagging::PictureExt,
         test_fixtures::albums::TestAlbum::{self, *},
     };
     use slint::Image;
@@ -58,12 +60,14 @@ mod tests {
         let tracks = album.expected_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
-        let thumb = fs::read(album.thumbnail_path()).unwrap();
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_index(Some(album.release()));
-        disc.set_cover_art(thumb);
+        let release_id = disc.release().unwrap().id.clone();
+        let thumb = fs::read(album.thumbnail_path()).unwrap();
+        let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
+        disc.add_thumbnail(release_id, image);
 
         let details = AlbumDetails::from(disc.release().unwrap());
 

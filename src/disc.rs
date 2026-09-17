@@ -3,6 +3,7 @@
 //! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
 //! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 use std::{
+    collections::HashMap,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -86,6 +87,8 @@ pub struct Disc {
     disc_index: Option<usize>,
     /// Cached cover art if available
     coverart: Option<Picture>,
+    /// Cover art thumbnails for specific releases
+    thumbnails: HashMap<String, Picture>,
 }
 
 impl Disc {
@@ -163,6 +166,7 @@ impl Disc {
             release_index: None,
             disc_index: None,
             coverart: None,
+            thumbnails: HashMap::new(),
         })
     }
 
@@ -781,6 +785,12 @@ impl Disc {
     /// ```
     pub fn cover_art(&self) -> Option<&Picture> {
         self.coverart.as_ref()
+    }
+
+    /// Add a cover art thumbnail for a given release
+    pub fn add_thumbnail(&mut self, release_id: String, image: Picture) -> &mut Self {
+        self.thumbnails.insert(release_id, image);
+        self
     }
 
     /// Get the 0-indexed disc number within a multi-disc release, if available.
