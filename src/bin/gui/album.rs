@@ -42,7 +42,7 @@ mod tests {
 
     use std::fs;
 
-use redbook::{
+    use redbook::{
         Disc,
         test_fixtures::albums::TestAlbum::{self, *},
     };

@@ -740,7 +740,7 @@ impl Disc {
     }
 
     /// Set the cover art
-    /// 
+    ///
     /// # Note:
     /// - Use [clear_cover_art()][Self::clear_cover_art] to set to `None`
     pub fn set_cover_art<B: AsRef<[u8]>>(&mut self, jpeg: B) -> &mut Self {
