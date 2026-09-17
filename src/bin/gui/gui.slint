@@ -95,6 +95,7 @@ export component MainWindow inherits Window {
     FlexboxLayout {
         padding: 20px;
         spacing: 20px;
+        cross-axis-line-alignment: start;
         for album[index] in root.albums: Album {
             bkg: root.background;
             details: album;
