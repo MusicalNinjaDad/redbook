@@ -16,6 +16,7 @@ impl From<&Release> for AlbumDetails {
         let comment = release
             .disambiguation
             .as_ref()
+            .filter(|comment| !comment.is_empty())
             .map(|comment| format!("({comment})"))
             .unwrap_or_default()
             .to_shared_string();
