@@ -1,35 +1,63 @@
+export struct AlbumDetails {
+    album: string,
+    date: string,
+    location: string,
+    barcode: string,
+    comment: string,
+    thumbnail: image,
+}
+
 component Album {
     in property <brush> bkg <=> box.background;
-    in property <string> album <=> album.text;
-    in property <string> release <=> release.text;
-    in property <image> thumbnail <=> thumbnail.source;
+    in property <AlbumDetails> details;
+    property thumb <=> details.thumbnail;
     box := Rectangle {
         accessible-role: AccessibleRole.list-item;
-        accessible-description: album.text + release.text;
+        accessible-description: details.album + " " + details.comment + ". Released on " + details.date + " in " + details.location + ", barcode: " + details.barcode;
         border-radius: 4px;
         drop-shadow-offset-x: 0px;
         drop-shadow-offset-y: 0px;
         drop-shadow-color: darkgray;
         drop-shadow-blur: 8px;
+        min-width: 480px;
         HorizontalLayout {
             alignment: start;
             padding: 10px;
             thumbnail := Image {
                 horizontal-alignment: left;
-                width: 140px;
-                height: 140px;
+                width: 125px;
+                height: 125px;
+                source: thumb;
             }
 
-            VerticalLayout {
+            info := VerticalLayout {
                 spacing: 10px;
-                padding: 20px;
+                padding-top: 5px;
+                padding-left: 25px;
                 alignment: start;
-                album := Text {
+                name := Text {
+                    text: details.album;
                     font-weight: FontWeight.semi-bold;
                     font-size: 1.5rem;
                 }
 
-                release := Text { }
+                comment := Text {
+                    text: details.comment;
+                }
+
+                where_when := HorizontalLayout {
+                    Text {
+                        text: "Released: " + details.date;
+                    }
+
+                    Text {
+                        text: details.location;
+                    }
+                }
+
+                barcode := Text {
+                    text: "Barcode: " + details.barcode;
+                }
             }
         }
     }
@@ -41,8 +69,14 @@ export component MainWindow inherits Window {
         padding: 20px;
         Album {
             bkg: root.background;
-            album: "Oasis: Definitely Maybe";
-            release: "1994-08-30 - GB - 5017556601693  (Plant MFG pressing)";
+            details: {
+                album: "Oasis: Definitely Maybe",
+                date: "1994-08-30",
+                location: "GB",
+                barcode: "5017556601693",
+                comment: "(Plant MFG pressing)",
+                thumbnail: @image-url("https://coverartarchive.org/release/9822581d-98bf-3f97-a94c-4b1350d090aa/front-250"),
+            };
         }
     }
 }
