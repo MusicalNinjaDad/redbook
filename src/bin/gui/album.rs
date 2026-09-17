@@ -1,6 +1,10 @@
+use std::io::{self, ErrorKind};
+
 use musicbrainz_rs::entity::release::Release;
 use redbook::{Disc, tagging::ArtistCreditsExt};
 use slint::{Image, ToSharedString};
+use tracing::debug_span;
+use tracing_result::Trace;
 
 use crate::AlbumDetails;
 
@@ -37,14 +41,25 @@ impl From<&Release> for AlbumDetails {
     }
 }
 
-impl From<&Disc> for AlbumDetails {
-    fn from(disc: &Disc) -> Self {
-        let release = disc.release().unwrap();
+impl TryFrom<&Disc> for AlbumDetails {
+    type Error = io::Error;
+
+    fn try_from(disc: &Disc) -> Result<Self, Self::Error> {
+        let _debug_span = debug_span!("tryfrom_disc_for_albumdetails").entered();
+        let release = disc
+            .release()
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no release found"))
+            .or_warn("")?;
         let mut details = AlbumDetails::from(release);
-        let thumb = disc.get_thumbnail(&release.id).unwrap();
-        let image = Image::load_from_data(&thumb.data, Some("jpg")).unwrap();
+        let thumb = disc
+            .get_thumbnail(&release.id)
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no thumbnail found"))
+            .or_warn("")?;
+        let image = Image::load_from_data(&thumb.data, Some("jpg"))
+            .map_err(io::Error::other)
+            .or_warn("")?;
         details.thumbnail = image;
-        details
+        Ok(details)
     }
 }
 
@@ -111,7 +126,7 @@ mod tests {
         let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
         disc.add_thumbnail(release_id, image);
 
-        let details = AlbumDetails::from(&disc);
+        let details = AlbumDetails::try_from(&disc).unwrap();
 
         let expected = AlbumDetails {
             album: "Oasis: Definitely Maybe".into(),
