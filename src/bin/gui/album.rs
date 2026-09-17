@@ -147,4 +147,38 @@ mod tests {
             expected.thumbnail.to_rgb8().unwrap().as_slice()
         );
     }
+
+    #[test]
+    fn all_details_for_disc() {
+        let album: TestAlbum = DefinitelyMaybe;
+
+        let toc = album.expected_toc();
+        let tracks = album.expected_tracks_minimal();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+
+        let releases: Vec<_> = disc
+            .all_releases()
+            .unwrap()
+            .iter()
+            .map(|release| release.id.clone())
+            .collect();
+
+        for release_id in releases {
+            let thumb = fs::read(
+                album
+                    .assets_path()
+                    .join("thumbs")
+                    .join(&release_id)
+                    .with_extension("jpg"),
+            )
+            .unwrap();
+            let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
+            disc.add_thumbnail(release_id, image);
+        }
+
+    }
 }
