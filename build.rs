@@ -4,6 +4,9 @@ include!("./src/bin/rip/cli.rs");
 
 fn main() -> Result<()> {
     #[cfg(feature = "gui")]
+    println!("cargo::rerun-if-changed=./src/bin/gui/gui.slint");
+
+    #[cfg(feature = "gui")]
     slint_build::compile("./src/bin/gui/gui.slint")
         .map_err(|err| BuildError::Other(err.to_string()))?;
 
