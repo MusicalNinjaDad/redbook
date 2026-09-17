@@ -486,7 +486,8 @@ impl TestAlbum {
                     pic.file_stem().unwrap().to_string_lossy().into_owned(),
                     image,
                 )
-            }).collect()
+            })
+            .collect()
     }
 
     /// The correct release number for the album

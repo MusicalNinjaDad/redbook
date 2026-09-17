@@ -66,7 +66,7 @@ impl TryFrom<&Disc> for AlbumDetails {
 }
 
 impl AlbumDetails {
-    fn for_disc(disc: &Disc) -> Option<ModelRc<Self>> {
+    pub fn for_disc(disc: &Disc) -> Option<ModelRc<Self>> {
         let _debug_span = debug_span!("AlbumDetails::for_disc").entered();
         let details: Vec<_> = disc
             .all_releases()?
@@ -213,7 +213,10 @@ mod tests {
                 .unwrap();
             let album = [release.main_artist().unwrap(), release.title.clone()].join(": ");
             assert_eq!(details.album, album);
-            assert_eq!(details.location, release.country.clone().unwrap_or_default());
+            assert_eq!(
+                details.location,
+                release.country.clone().unwrap_or_default()
+            );
             assert_eq!(details.barcode, release.barcode.clone().unwrap_or_default());
         }
     }
