@@ -748,7 +748,7 @@ impl Disc {
     /// # Note:
     /// - Use [clear_cover_art()][Self::clear_cover_art] to set to `None`
     pub fn set_cover_art<B: AsRef<[u8]>>(&mut self, jpeg: B) -> &mut Self {
-        let _debug = debug_span!("set_cover_art", size = jpeg.as_ref().len());
+        let _debug = debug_span!("set_cover_art", size = jpeg.as_ref().len()).entered();
         tracing::debug!("setting cover art");
         let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
         self.coverart = Some(cover);
