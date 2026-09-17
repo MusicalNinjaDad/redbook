@@ -40,7 +40,9 @@ impl From<&Release> for AlbumDetails {
 #[cfg(test)]
 mod tests {
 
-    use redbook::{
+    use std::fs;
+
+use redbook::{
         Disc,
         test_fixtures::albums::TestAlbum::{self, *},
     };
@@ -55,15 +57,15 @@ mod tests {
         let toc = album.expected_toc();
         let tracks = album.expected_tracks_minimal();
         let leadout = album.expected_leadout();
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
-
         let musicbrainz = album.expected_musicbrainz();
+        let thumb = fs::read(album.thumbnail_path()).unwrap();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_index(Some(album.release()));
+        disc.set_cover_art(thumb);
 
         let details = AlbumDetails::from(disc.release().unwrap());
-
-        let thumbnail = Image::load_from_path(&album.thumbnail_path()).unwrap();
 
         let expected = AlbumDetails {
             album: "Oasis: Definitely Maybe".into(),
@@ -71,7 +73,7 @@ mod tests {
             location: "GB".into(),
             barcode: "5017556601693".into(),
             comment: "(Plant MFG pressing)".into(),
-            thumbnail,
+            thumbnail: Image::load_from_path(&album.thumbnail_path()).unwrap(),
         };
 
         assert_eq!(details.album, expected.album);

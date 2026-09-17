@@ -15,7 +15,7 @@ use musicbrainz_rs::{
     chrono::NaiveDate,
     entity::{discid::Discid, release::Release},
 };
-use tracing::field::Empty;
+use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
@@ -731,13 +731,30 @@ impl Disc {
             debug.record("size", image.len());
             tracing::info!("coverart_retrieved");
 
-            let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image.clone());
-            self.coverart = Some(cover);
+            self.set_cover_art(image);
         } else {
             let reason = response.text().ok();
             tracing::warn!(name: "coverart failed", reason = ?reason);
         }
         Ok(())
+    }
+
+    /// Set the cover art
+    /// 
+    /// # Note:
+    /// - Use [clear_cover_art()][Self::clear_cover_art] to set to `None`
+    pub fn set_cover_art<B: AsRef<[u8]>>(&mut self, jpeg: B) -> &mut Self {
+        let _debug = debug_span!("set_cover_art", size = jpeg.as_ref().len());
+        tracing::debug!("setting cover art");
+        let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
+        self.coverart = Some(cover);
+        self
+    }
+
+    /// Clear the cover art
+    pub fn clear_cover_art(&mut self) -> &mut Self {
+        self.coverart = None;
+        self
     }
 
     /// Get the cached cover art, if available.
