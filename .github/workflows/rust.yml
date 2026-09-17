@@ -37,6 +37,8 @@ jobs:
       run: rustup install && rustup update
     - uses: actions/checkout@v7
     - uses: Swatinem/rust-cache@v2.9.2
+    - name: install libfontconfig-dev
+      run: apt install libfontconfig-dev
     - name: Run tests
       run: cargo test --all-features
 
