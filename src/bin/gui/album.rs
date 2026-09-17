@@ -44,6 +44,7 @@ mod tests {
         Disc,
         test_fixtures::albums::TestAlbum::{self, *},
     };
+    use slint::Image;
 
     use super::*;
 
@@ -62,13 +63,15 @@ mod tests {
 
         let details = AlbumDetails::from(disc.release().unwrap());
 
+        let thumbnail = Image::load_from_path(&album.thumbnail_path()).unwrap();
+
         let expected = AlbumDetails {
             album: "Oasis: Definitely Maybe".into(),
             date: "1994-08-30".into(),
             location: "GB".into(),
             barcode: "5017556601693".into(),
             comment: "(Plant MFG pressing)".into(),
-            ..Default::default()
+            thumbnail,
         };
 
         assert_eq!(details.album, expected.album);

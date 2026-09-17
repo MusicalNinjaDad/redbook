@@ -465,6 +465,11 @@ impl TestAlbum {
         }
     }
 
+    /// Path to the thumbnail
+    pub fn thumbnail_path(&self) -> PathBuf {
+        self.assets_path().join("thumbnail.jpeg")
+    }
+
     /// The correct release number for the album
     pub fn release(&self) -> usize {
         match self {
