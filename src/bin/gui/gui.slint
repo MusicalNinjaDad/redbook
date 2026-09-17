@@ -65,18 +65,38 @@ component Album {
 
 export component MainWindow inherits Window {
     title: "rip";
+    in property <[AlbumDetails]> albums: [
+        {
+            album: "Oasis: Definitely Maybe",
+            date: "1994-08-30",
+            location: "GB",
+            barcode: "5017556601693",
+            comment: "(Plant MFG pressing)",
+            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
+        },
+        {
+            album: "Oasis: Definitely Maybe",
+            date: "1994-08-30",
+            location: "GB",
+            barcode: "5017556601693",
+            comment: "(Plant MFG pressing)",
+            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
+        },
+        {
+            album: "Oasis: Definitely Maybe",
+            date: "1994-08-30",
+            location: "GB",
+            barcode: "5017556601693",
+            comment: "(Plant MFG pressing)",
+            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
+        }
+    ];
     FlexboxLayout {
         padding: 20px;
-        Album {
+        spacing: 20px;
+        for album[index] in root.albums: Album {
             bkg: root.background;
-            details: {
-                album: "Oasis: Definitely Maybe",
-                date: "1994-08-30",
-                location: "GB",
-                barcode: "5017556601693",
-                comment: "(Plant MFG pressing)",
-                thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
-            };
+            details: album;
         }
     }
 }
