@@ -1,3 +1,4 @@
+import { ScrollView } from "std-widgets.slint";
 export struct AlbumDetails {
     album: string,
     date: string,
@@ -92,13 +93,16 @@ export component MainWindow inherits Window {
             thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
         }
     ];
-    FlexboxLayout {
-        padding: 20px;
-        spacing: 20px;
-        cross-axis-line-alignment: start;
-        for album[index] in root.albums: Album {
-            bkg: root.background;
-            details: album;
+    ScrollView {
+        min-width: 520px;
+        FlexboxLayout {
+            padding: 20px;
+            spacing: 20px;
+            cross-axis-line-alignment: start;
+            for album[index] in root.albums: Album {
+                bkg: root.background;
+                details: album;
+            }
         }
     }
 }
