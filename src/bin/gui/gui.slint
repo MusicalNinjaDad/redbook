@@ -16,14 +16,11 @@ global Sizes {
     out property <length> tile-height: thumbnail + (2 * spacing);
 }
 
-export global Selection {
-    callback update(album: AlbumDetails);
-}
-
-component Album {
+component AlbumTile {
     in property <brush> bkg <=> box.background;
     in property <AlbumDetails> details;
     property thumb <=> details.thumbnail;
+    callback clicked <=> touch.clicked;
     box := Rectangle {
         accessible-role: AccessibleRole.list-item;
         accessible-description: details.album + " " + details.comment + ". Released on " + details.date + " in " + details.location + ", barcode: " + details.barcode;
@@ -33,11 +30,7 @@ component Album {
         drop-shadow-blur: Sizes.spacing * 0.8;
         border-radius: self.drop-shadow-blur / 2;
         min-width: Sizes.tile-width;
-        TouchArea {
-            clicked => {
-                Selection.update(details);
-            }
-        }
+        touch := TouchArea { }
 
         HorizontalLayout {
             alignment: start;
@@ -115,6 +108,7 @@ export component MainWindow inherits Window {
             thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
         }
     ];
+    callback select_release(release: AlbumDetails);
     ScrollView {
         min-width: Sizes.tile-width + (2 * Sizes.spacing);
         min-height: Sizes.tile-height + (2 * Sizes.spacing);
@@ -123,9 +117,10 @@ export component MainWindow inherits Window {
             padding: Sizes.spacing * 2;
             spacing: Sizes.spacing * 2;
             cross-axis-line-alignment: start;
-            for album[index] in root.albums: Album {
+            for album[index] in root.albums: AlbumTile {
                 bkg: root.background;
                 details: album;
+                clicked => { root.select_release(album) }
             }
         }
     }

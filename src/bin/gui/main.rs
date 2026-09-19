@@ -36,7 +36,7 @@ fn main() -> io::Result<()> {
         app.set_albums(ModelRc::from(albums.as_slice()));
     };
 
-    app.global::<Selection>().on_update(select_release);
+    app.on_select_release(select_release);
     app.run().unwrap();
 
     Ok(())
