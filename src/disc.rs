@@ -799,6 +799,8 @@ impl Disc {
     }
 
     /// Get all tumbnails from Coverart Archive
+    /// 
+    /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self) -> io::Result<()> {
         let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();
         tracing::trace!("");
