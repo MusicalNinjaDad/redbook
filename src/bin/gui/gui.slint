@@ -17,8 +17,7 @@ global Sizes {
 }
 
 export global Selection {
-    in-out property <string> release;
-    callback update();
+    callback update(album: AlbumDetails);
 }
 
 component Album {
@@ -36,8 +35,7 @@ component Album {
         min-width: Sizes.tile-width;
         TouchArea {
             clicked => {
-                Selection.release = details.id;
-                Selection.update();
+                Selection.update(details);
             }
         }
 
