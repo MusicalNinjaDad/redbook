@@ -11,7 +11,7 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
 
 use slint::*;
 
-use ::slint::{Model, ModelRc};
+use ::slint::{Model, ModelRc, Weak};
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -31,8 +31,16 @@ fn main() -> io::Result<()> {
     app.set_releases(albums);
 
     let app_ = app.as_weak();
-    let select_release = move |release: ReleaseDetails| {
-        let app = app_.upgrade().unwrap();
+    app.on_select_release(select_release(app_, cd));
+
+    app.run().unwrap();
+
+    Ok(())
+}
+
+fn select_release(app: Weak<MainWindow>, mut cd: AudioCd) -> impl FnMut(ReleaseDetails) {
+    move |release: ReleaseDetails| {
+        let app = app.upgrade().unwrap();
         cd.disc_mut().set_release_by_id(Some(&release.id));
 
         let albums = [release];
@@ -42,21 +50,18 @@ fn main() -> io::Result<()> {
         app.set_tracks(ModelRc::from(tracks.as_slice()));
 
         let app_ = app.as_weak();
-        let rip = move || {
-            let app = app_.upgrade().unwrap();
-            let tracks = app.get_tracks();
-            for track in tracks.iter().filter(|track| track.rip) {
-                tracing::info!(ripping = ?track.title);
-            }
-        };
-        app.on_rip(rip);
-    };
+        app.on_rip(rip(app_));
+    }
+}
 
-    app.on_select_release(select_release);
-
-    app.run().unwrap();
-
-    Ok(())
+fn rip(app: Weak<MainWindow>) -> impl FnMut() {
+    move || {
+        let app = app.upgrade().unwrap();
+        let tracks = app.get_tracks();
+        for track in tracks.iter().filter(|track| track.rip) {
+            tracing::info!(ripping = ?track.title);
+        }
+    }
 }
 
 #[cfg(not(feature = "gui"))]
