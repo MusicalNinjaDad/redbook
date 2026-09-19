@@ -1,0 +1,19 @@
+{
+  "from": "44",
+  "new": "9",
+  "try_from": "53",
+  "index_of": "12",
+  "color_map_rgba": "15",
+  "borrow_mut": "37",
+  "color_quant": "59",
+  "Error": "52",
+  "NeuQuant": "8",
+  "map_pixel": "11",
+  "borrow": "33",
+  "type_id": "55",
+  "color_map_rgb": "17",
+  "try_into": "48",
+  "init": "10",
+  "lookup": "13",
+  "into": "41"
+}

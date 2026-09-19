@@ -1,0 +1,6 @@
+{
+  "zbus_macros": "7",
+  "interface": "5",
+  "DBusError": "6",
+  "proxy": "4"
+}

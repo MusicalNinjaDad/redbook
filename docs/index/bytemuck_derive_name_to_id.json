@@ -1,0 +1,12 @@
+{
+  "bytemuck_derive": "11",
+  "TransparentWrapper": "7",
+  "Zeroable": "3",
+  "ByteHash": "10",
+  "AnyBitPattern": "2",
+  "ByteEq": "9",
+  "CheckedBitPattern": "5",
+  "Pod": "1",
+  "Contiguous": "8",
+  "NoUninit": "4"
+}

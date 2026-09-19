@@ -1,0 +1,16 @@
+{
+  "set": "3",
+  "borrow_mut": "25",
+  "is_set": "6",
+  "scoped_tls": "50",
+  "Error": "40",
+  "borrow": "21",
+  "type_id": "43",
+  "ScopedKey": "2",
+  "with": "5",
+  "scoped_thread_local": "49",
+  "try_into": "36",
+  "into": "29",
+  "from": "32",
+  "try_from": "41"
+}

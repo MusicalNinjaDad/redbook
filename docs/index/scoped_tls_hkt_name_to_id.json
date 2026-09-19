@@ -1,0 +1,20 @@
+{
+  "Result": "13",
+  "reborrow_mut": "38",
+  "type_id": "138",
+  "scoped_thread_local": "163",
+  "is_set": "147",
+  "with": "146",
+  "into": "124",
+  "try_from": "136",
+  "Error": "129",
+  "set": "145",
+  "ScopedKey": "96",
+  "borrow_mut": "120",
+  "ScopedKeyMut": "144",
+  "try_into": "131",
+  "borrow": "117",
+  "ReborrowMut": "2",
+  "from": "127",
+  "scoped_tls_hkt": "164"
+}

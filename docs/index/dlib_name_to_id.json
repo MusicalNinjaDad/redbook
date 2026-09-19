@@ -1,0 +1,21 @@
+{
+  "CantOpen": "3",
+  "borrow_mut": "25",
+  "to_string": "47",
+  "DlError": "6",
+  "dlib": "66",
+  "Error": "40",
+  "borrow": "21",
+  "type_id": "43",
+  "ffi_dispatch_static": "65",
+  "0": "4",
+  "MissingSymbol": "5",
+  "fmt": "61",
+  "try_into": "36",
+  "ffi_dispatch": "64",
+  "into": "29",
+  "from": "32",
+  "source": "57",
+  "try_from": "41",
+  "external_library": "63"
+}

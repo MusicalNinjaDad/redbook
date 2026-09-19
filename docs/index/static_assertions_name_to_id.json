@@ -1,0 +1,22 @@
+{
+  "assert_eq_size": "11",
+  "assert_trait_super_all": "22",
+  "assert_fields": "14",
+  "const_assert": "25",
+  "assert_impl_any": "17",
+  "static_assertions": "28",
+  "assert_cfg": "9",
+  "assert_obj_safe": "20",
+  "assert_eq_size_ptr": "12",
+  "assert_type_eq_all": "23",
+  "assert_impl_one": "15",
+  "const_assert_eq": "26",
+  "assert_not_impl_all": "18",
+  "assert_eq_align": "10",
+  "assert_trait_sub_all": "21",
+  "assert_eq_size_val": "13",
+  "assert_type_ne_all": "24",
+  "assert_impl_all": "16",
+  "const_assert_ne": "27",
+  "assert_not_impl_any": "19"
+}

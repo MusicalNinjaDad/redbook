@@ -25,13 +25,13 @@ fn main() -> io::Result<()> {
     let disc = cd.disc_mut();
 
     let app_ = app.as_weak();
-    let update_musicbrainz = std::thread::spawn(move || {
-        disc.update_musicbrainz()?;
-        disc.update_thumbnails()?;
+    // let update_musicbrainz = std::thread::spawn(move || {
+    //     disc.update_musicbrainz()?;
+    //     disc.update_thumbnails()?;
 
-        let albums = ReleaseDetails::for_disc(disc).unwrap();
-        Ok(())
-    });
+    //     let albums = ReleaseDetails::for_disc(disc).unwrap();
+    //     Ok(())
+    // });
 
     let app_ = app.as_weak();
     app.on_select_release(select_release(app_, cd));

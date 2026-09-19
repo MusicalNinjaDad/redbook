@@ -1,0 +1,23 @@
+{
+  "into": "50",
+  "accesskit_windows": "119",
+  "try_into": "56",
+  "update_if_active": "92",
+  "borrow": "43",
+  "0": "5",
+  "new": "91",
+  "raise": "17",
+  "try_from": "61",
+  "handle_wm_getobject": "23",
+  "fmt": "67",
+  "Adapter": "10",
+  "Error": "60",
+  "QueuedEvents": "16",
+  "update_window_focus_state": "21",
+  "borrow_mut": "46",
+  "SubclassingAdapter": "90",
+  "from": "52",
+  "drop": "108",
+  "WindowHandle": "7",
+  "type_id": "63"
+}

@@ -1,0 +1,6 @@
+{
+  "generate_interfaces": "9",
+  "generate_server_code": "11",
+  "wayland_scanner": "12",
+  "generate_client_code": "10"
+}

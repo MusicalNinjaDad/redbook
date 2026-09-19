@@ -1,0 +1,18 @@
+{
+  "Adapter": "3",
+  "try_from": "50",
+  "set_root_window_bounds": "9",
+  "borrow_mut": "34",
+  "update_window_focus_state": "15",
+  "Error": "49",
+  "drop": "65",
+  "borrow": "30",
+  "type_id": "52",
+  "try_into": "45",
+  "accesskit_unix": "89",
+  "new": "4",
+  "update_if_active": "13",
+  "into": "38",
+  "fmt": "60",
+  "from": "41"
+}

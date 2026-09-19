@@ -1,0 +1,17 @@
+{
+  "key": "0",
+  "into": "28",
+  "from": "31",
+  "try_from": "40",
+  "disps": "2",
+  "borrow_mut": "24",
+  "generate_hash": "46",
+  "HashState": "5",
+  "Error": "39",
+  "borrow": "20",
+  "type_id": "42",
+  "map": "4",
+  "generate_hash_with_hash_fn": "48",
+  "phf_generator": "51",
+  "try_into": "35"
+}

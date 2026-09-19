@@ -1,0 +1,8 @@
+{
+  "UnsafeFromPrimitive": "9",
+  "FromPrimitive": "7",
+  "num_enum_derive": "11",
+  "Default": "10",
+  "IntoPrimitive": "6",
+  "TryFromPrimitive": "8"
+}

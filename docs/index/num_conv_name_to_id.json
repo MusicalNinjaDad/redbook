@@ -1,0 +1,19 @@
+{
+  "truncate": "94",
+  "checked_truncate": "14",
+  "WidenTargetSealed": "11",
+  "saturating_truncate": "13",
+  "widen": "56",
+  "ExtendTargetSealed": "9",
+  "extend": "18",
+  "Integer": "7",
+  "TruncateTarget": "95",
+  "WidenTarget": "57",
+  "ExtendTarget": "19",
+  "prelude": "6",
+  "Widen": "5",
+  "num_conv": "142",
+  "TruncateTargetSealed": "16",
+  "Truncate": "3",
+  "Extend": "1"
+}

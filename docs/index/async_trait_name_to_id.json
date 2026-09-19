@@ -1,0 +1,6 @@
+{
+  "async_trait": "12",
+  "Sync": "3",
+  "InferredBound": "4",
+  "Send": "2"
+}
