@@ -112,7 +112,7 @@ export component MainWindow inherits Window {
     ScrollView {
         min-width: Sizes.tile-width + (2 * Sizes.spacing);
         min-height: Sizes.tile-height + (2 * Sizes.spacing);
-        album_selector := FlexboxLayout {
+        if root.albums.length > 1: album_selector := FlexboxLayout {
             out property <string> selected_release;
             padding: Sizes.spacing * 2;
             spacing: Sizes.spacing * 2;
@@ -122,6 +122,10 @@ export component MainWindow inherits Window {
                 details: album;
                 clicked => { root.select_release(album) }
             }
+        }
+        if root.albums.length == 1: AlbumTile {
+            bkg: root.background;
+            details: albums[0];
         }
     }
 }
