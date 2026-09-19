@@ -1,4 +1,11 @@
-import { ScrollView, VerticalBox } from "std-widgets.slint";
+import {
+    ScrollView,
+    VerticalBox,
+    Switch,
+    HorizontalBox,
+    CheckBox,
+    Button,
+} from "std-widgets.slint";
 export struct ReleaseDetails {
     album: string,
     date: string,
@@ -111,11 +118,31 @@ component TrackListing inherits ScrollView {
             bkg: bkg;
             release: release;
         }
+
         VerticalBox {
             cross-axis-self-alignment: start;
-            for track in tracks: Text {
-                text: track.number + ": " + track.title;
+            rip_all := Switch {
+                text: "Rip all";
+                checked: true;
             }
+
+            for track in tracks: HorizontalBox {
+                CheckBox {
+                    checked: true;
+                    enabled: !rip_all.checked;
+                }
+
+                Text {
+                    text: track.number + ": " + track.title;
+                    font-weight: FontWeight.semi-bold;
+                    font-size: 1.25rem;
+                }
+            }
+        }
+
+        Button {
+            text: "Rip";
+            primary: true;
         }
     }
 }
