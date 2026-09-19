@@ -11,6 +11,8 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
 
 use slint::*;
 
+use ::slint::{Model, ModelRc};
+
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
     output::init_tracing()?;
@@ -27,7 +29,22 @@ fn main() -> io::Result<()> {
 
     let app = MainWindow::new().unwrap();
     app.set_albums(albums);
+    let app2 = app.as_weak();
+    let select_release = move || {
+        let app = app2.upgrade().unwrap();
+        let albums = app.get_albums();
+
+        let release = app.global::<Selection>().get_release();
+        let albums: Vec<_> = albums
+            .iter()
+            .filter(|details| details.id == release)
+            .collect();
+        app.set_albums(ModelRc::from(albums.as_slice()));
+    };
+
+    app.global::<Selection>().on_update(select_release);
     app.run().unwrap();
+
     Ok(())
 }
 

@@ -16,6 +16,11 @@ global Sizes {
     out property <length> tile-height: thumbnail + (2 * spacing);
 }
 
+export global Selection {
+    in-out property <string> release;
+    callback update();
+}
+
 component Album {
     in property <brush> bkg <=> box.background;
     in property <AlbumDetails> details;
@@ -29,6 +34,13 @@ component Album {
         drop-shadow-blur: Sizes.spacing * 0.8;
         border-radius: self.drop-shadow-blur / 2;
         min-width: Sizes.tile-width;
+        TouchArea {
+            clicked => {
+                Selection.release = details.id;
+                Selection.update();
+            }
+        }
+
         HorizontalLayout {
             alignment: start;
             padding: Sizes.spacing;
@@ -79,7 +91,7 @@ export component MainWindow inherits Window {
     property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
     preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
     preferred-height: (prefered-rows * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing);
-    in property <[AlbumDetails]> albums: [
+    in-out property <[AlbumDetails]> albums: [
         {
             album: "Oasis: Definitely Maybe",
             date: "1994-08-30",
@@ -108,7 +120,8 @@ export component MainWindow inherits Window {
     ScrollView {
         min-width: Sizes.tile-width + (2 * Sizes.spacing);
         min-height: Sizes.tile-height + (2 * Sizes.spacing);
-        FlexboxLayout {
+        album_selector := FlexboxLayout {
+            out property <string> selected_release;
             padding: Sizes.spacing * 2;
             spacing: Sizes.spacing * 2;
             cross-axis-line-alignment: start;
