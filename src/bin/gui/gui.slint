@@ -1,5 +1,5 @@
 import { ScrollView } from "std-widgets.slint";
-export struct AlbumDetails {
+export struct ReleaseDetails {
     album: string,
     date: string,
     location: string,
@@ -16,14 +16,14 @@ global Sizes {
     out property <length> tile-height: thumbnail + (2 * spacing);
 }
 
-component AlbumTile {
+component ReleaseTile {
     in property <brush> bkg <=> box.background;
-    in property <AlbumDetails> details;
-    property thumb <=> details.thumbnail;
+    in property <ReleaseDetails> release;
+    property thumb <=> release.thumbnail;
     callback clicked <=> touch.clicked;
     box := Rectangle {
         accessible-role: AccessibleRole.list-item;
-        accessible-description: details.album + " " + details.comment + ". Released on " + details.date + " in " + details.location + ", barcode: " + details.barcode;
+        accessible-description: release.album + " " + release.comment + ". Released on " + release.date + " in " + release.location + ", barcode: " + release.barcode;
         drop-shadow-offset-x: 0px;
         drop-shadow-offset-y: 0px;
         drop-shadow-color: darkgray;
@@ -48,27 +48,27 @@ component AlbumTile {
                 padding-left: Sizes.spacing * 2.5;
                 alignment: start;
                 name := Text {
-                    text: details.album;
+                    text: release.album;
                     font-weight: FontWeight.semi-bold;
                     font-size: 1.5rem;
                 }
 
                 comment := Text {
-                    text: details.comment;
+                    text: release.comment;
                 }
 
                 where_when := HorizontalLayout {
                     Text {
-                        text: "Released: " + details.date;
+                        text: "Released: " + release.date;
                     }
 
                     Text {
-                        text: details.location;
+                        text: release.location;
                     }
                 }
 
                 barcode := Text {
-                    text: "Barcode: " + details.barcode;
+                    text: "Barcode: " + release.barcode;
                 }
             }
         }
@@ -76,18 +76,18 @@ component AlbumTile {
 }
 
 component ReleaseSelector inherits ScrollView {
-    in property <[AlbumDetails]> albums;
+    in property <[ReleaseDetails]> releases;
     in property <brush> bkg;
-    callback select_release(release: AlbumDetails);
+    callback select_release(release: ReleaseDetails);
     min-width: Sizes.tile-width + (2 * Sizes.spacing);
     min-height: Sizes.tile-height + (2 * Sizes.spacing);
     album_selector := FlexboxLayout {
         padding: Sizes.spacing * 2;
         spacing: Sizes.spacing * 2;
         cross-axis-line-alignment: start;
-        for album[index] in albums: AlbumTile {
+        for album[index] in releases: ReleaseTile {
             bkg: bkg;
-            details: album;
+            release: album;
             clicked => { select_release(album) }
         }
     }
@@ -95,12 +95,12 @@ component ReleaseSelector inherits ScrollView {
 
 export component MainWindow inherits Window {
     title: "rip";
-    property <int> tiles: root.albums.length;
+    property <int> tiles: releases.length;
     property <int> prefered-cols: 2;
     property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
     preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
     preferred-height: (prefered-rows * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing);
-    in-out property <[AlbumDetails]> albums: [
+    in property <[ReleaseDetails]> releases: [
         {
             album: "Oasis: Definitely Maybe",
             date: "1994-08-30",
@@ -126,14 +126,14 @@ export component MainWindow inherits Window {
             thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
         }
     ];
-    callback select_release(release: AlbumDetails);
-    if albums.length > 1: ReleaseSelector {
-        albums: albums;
+    callback select_release(release: ReleaseDetails);
+    if releases.length > 1: ReleaseSelector {
+        releases: releases;
         bkg: root.background;
         select_release(release) => { select_release(release) }
     }
-    if albums.length == 1: AlbumTile {
+    if releases.length == 1: ReleaseTile {
         bkg: root.background;
-        details: albums[0];
+        release: releases[0];
     }
 }

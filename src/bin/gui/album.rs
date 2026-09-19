@@ -6,9 +6,9 @@ use slint::{Image, ModelRc, ToSharedString};
 use tracing::debug_span;
 use tracing_result::Trace;
 
-use crate::AlbumDetails;
+use crate::ReleaseDetails;
 
-impl From<&Release> for AlbumDetails {
+impl From<&Release> for ReleaseDetails {
     fn from(release: &Release) -> Self {
         let artist = release.main_artist().clone().unwrap_or_default();
         let title = release.title.clone();
@@ -44,7 +44,7 @@ impl From<&Release> for AlbumDetails {
     }
 }
 
-impl TryFrom<&Disc> for AlbumDetails {
+impl TryFrom<&Disc> for ReleaseDetails {
     type Error = io::Error;
 
     fn try_from(disc: &Disc) -> Result<Self, Self::Error> {
@@ -53,7 +53,7 @@ impl TryFrom<&Disc> for AlbumDetails {
             .release()
             .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no release found"))
             .or_warn("")?;
-        let mut details = AlbumDetails::from(release);
+        let mut details = ReleaseDetails::from(release);
         let thumb = disc
             .get_thumbnail(&release.id)
             .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no thumbnail found"))
@@ -66,14 +66,14 @@ impl TryFrom<&Disc> for AlbumDetails {
     }
 }
 
-impl AlbumDetails {
+impl ReleaseDetails {
     pub fn for_disc(disc: &Disc) -> Option<ModelRc<Self>> {
         let _debug_span = debug_span!("AlbumDetails::for_disc").entered();
         let details: Vec<_> = disc
             .all_releases()?
             .iter()
             .filter_map(|&release| {
-                let mut details = AlbumDetails::from(release);
+                let mut details = ReleaseDetails::from(release);
                 try bikeshed io::Result<_> {
                     let thumb = disc
                         .get_thumbnail(&release.id)
@@ -120,9 +120,9 @@ mod tests {
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_index(Some(album.release()));
 
-        let details = AlbumDetails::from(disc.release().unwrap());
+        let details = ReleaseDetails::from(disc.release().unwrap());
 
-        let expected = AlbumDetails {
+        let expected = ReleaseDetails {
             album: "Oasis: Definitely Maybe".into(),
             date: "1994-08-30".into(),
             location: "GB".into(),
@@ -156,9 +156,9 @@ mod tests {
         let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
         disc.add_thumbnail(release_id, image);
 
-        let details = AlbumDetails::try_from(&disc).unwrap();
+        let details = ReleaseDetails::try_from(&disc).unwrap();
 
-        let expected = AlbumDetails {
+        let expected = ReleaseDetails {
             album: "Oasis: Definitely Maybe".into(),
             date: "1994-08-30".into(),
             location: "GB".into(),
@@ -202,7 +202,7 @@ mod tests {
             disc.add_thumbnail(release_id, image);
         }
 
-        let albums = AlbumDetails::for_disc(&disc).unwrap();
+        let albums = ReleaseDetails::for_disc(&disc).unwrap();
         assert_eq!(albums.row_count(), releases.len());
         for details in albums.iter() {
             assert!(releases.contains(&details.id.to_string()));
