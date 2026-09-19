@@ -36,6 +36,9 @@ fn main() -> io::Result<()> {
 
         let albums = [release];
         app.set_releases(ModelRc::from(albums.as_slice()));
+
+        let tracks: Vec<TrackDetails> = cd.disc().tracks().map(TrackDetails::from).collect();
+        app.set_tracks(ModelRc::from(tracks.as_slice()));
     };
 
     app.on_select_release(select_release);

@@ -1,12 +1,12 @@
 use std::io::{self, ErrorKind};
 
 use musicbrainz_rs::entity::release::Release;
-use redbook::{Disc, tagging::ArtistCreditsExt};
+use redbook::{Disc, Track, tagging::ArtistCreditsExt};
 use slint::{Image, ModelRc, ToSharedString};
 use tracing::debug_span;
 use tracing_result::Trace;
 
-use crate::ReleaseDetails;
+use crate::{ReleaseDetails, TrackDetails};
 
 impl From<&Release> for ReleaseDetails {
     fn from(release: &Release) -> Self {
@@ -89,6 +89,15 @@ impl ReleaseDetails {
             })
             .collect();
         Some(ModelRc::from(details.as_slice()))
+    }
+}
+
+impl From<Track<'_>> for TrackDetails {
+    fn from(track: Track) -> Self {
+        Self {
+            number: track.track_number().into(),
+            title: track.title().unwrap_or_default().into(),
+        }
     }
 }
 
