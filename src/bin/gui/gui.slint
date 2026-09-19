@@ -19,6 +19,7 @@ export struct ReleaseDetails {
 export struct TrackDetails {
     number: int,
     title: string,
+    rip: bool = true,
 }
 
 global Sizes {
@@ -121,6 +122,7 @@ component TrackListing inherits ScrollView {
 
         VerticalBox {
             cross-axis-self-alignment: start;
+            // TODO: #63 Reset rip true for all tracks when setting rip all
             rip_all := Switch {
                 text: "Rip all";
                 checked: true;
@@ -128,7 +130,7 @@ component TrackListing inherits ScrollView {
 
             for track in tracks: HorizontalBox {
                 CheckBox {
-                    checked: true;
+                    checked <=> track.rip;
                     enabled: !rip_all.checked;
                 }
 
@@ -164,7 +166,7 @@ export component MainWindow inherits Window {
             thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
         }
     ];
-    in property <[TrackDetails]> tracks: [{ number: 1, title: "Rock 'n' Roll Star" }, { number: 2, title: "Shakermaker" }];
+    in-out property <[TrackDetails]> tracks: [{ number: 1, title: "Rock 'n' Roll Star" }, { number: 2, title: "Shakermaker" }];
     callback select_release(release: ReleaseDetails);
     if releases.length > 1: ReleaseSelector {
         releases: releases;
