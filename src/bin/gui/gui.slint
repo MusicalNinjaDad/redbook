@@ -1,4 +1,4 @@
-import { ScrollView } from "std-widgets.slint";
+import { ScrollView, VerticalBox } from "std-widgets.slint";
 export struct ReleaseDetails {
     album: string,
     date: string,
@@ -7,6 +7,11 @@ export struct ReleaseDetails {
     comment: string,
     thumbnail: image,
     id: string,
+}
+
+export struct TrackDetails {
+    number: int,
+    title: string,
 }
 
 global Sizes {
@@ -93,6 +98,28 @@ component ReleaseSelector inherits ScrollView {
     }
 }
 
+component TrackListing inherits ScrollView {
+    in property <brush> bkg;
+    in property <ReleaseDetails> release;
+    in property <[TrackDetails]> tracks;
+    VerticalLayout {
+        padding: Sizes.spacing * 2;
+        spacing: Sizes.spacing * 2;
+        alignment: start;
+        cross-axis-alignment: end;
+        ReleaseTile {
+            bkg: bkg;
+            release: release;
+        }
+        VerticalBox {
+            cross-axis-self-alignment: start;
+            for track in tracks: Text {
+                text: track.number + ": " + track.title;
+            }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     title: "rip";
     property <int> tiles: releases.length;
@@ -108,32 +135,18 @@ export component MainWindow inherits Window {
             barcode: "5017556601693",
             comment: "(Plant MFG pressing)",
             thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
-        },
-        {
-            album: "Oasis: Definitely Maybe",
-            date: "1994-08-30",
-            location: "GB",
-            barcode: "5017556601693",
-            comment: "(Plant MFG pressing)",
-            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
-        },
-        {
-            album: "Oasis: Definitely Maybe",
-            date: "1994-08-30",
-            location: "GB",
-            barcode: "5017556601693",
-            comment: "(Plant MFG pressing)",
-            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
         }
     ];
+    in property <[TrackDetails]> tracks: [{ number: 1, title: "Rock 'n' Roll Star" }, { number: 2, title: "Shakermaker" }];
     callback select_release(release: ReleaseDetails);
     if releases.length > 1: ReleaseSelector {
         releases: releases;
         bkg: root.background;
         select_release(release) => { select_release(release) }
     }
-    if releases.length == 1: ReleaseTile {
-        bkg: root.background;
+    if releases.length == 1: TrackListing {
         release: releases[0];
+        tracks: tracks;
+        bkg: root.background;
     }
 }
