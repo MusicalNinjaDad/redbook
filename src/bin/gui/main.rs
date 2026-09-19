@@ -11,7 +11,7 @@ use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
 
 use slint::*;
 
-use ::slint::ModelRc;
+use ::slint::{Model, ModelRc};
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -29,9 +29,9 @@ fn main() -> io::Result<()> {
 
     let app = MainWindow::new().unwrap();
     app.set_releases(albums);
-    let app2 = app.as_weak();
+    let app_ = app.as_weak();
     let select_release = move |release: ReleaseDetails| {
-        let app = app2.upgrade().unwrap();
+        let app = app_.upgrade().unwrap();
         cd.disc_mut().set_release_by_id(Some(&release.id));
 
         let albums = [release];
@@ -41,7 +41,18 @@ fn main() -> io::Result<()> {
         app.set_tracks(ModelRc::from(tracks.as_slice()));
     };
 
+    let app_ = app.as_weak();
+    let rip = move || {
+        let app = app_.upgrade().unwrap();
+        let tracks = app.get_tracks();
+        for track in tracks.iter().filter(|track| track.rip) {
+            tracing::info!(ripping = ?track.title);
+        }
+    };
+
     app.on_select_release(select_release);
+    app.on_rip(rip);
+    
     app.run().unwrap();
 
     Ok(())

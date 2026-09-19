@@ -110,6 +110,7 @@ component TrackListing inherits ScrollView {
     in property <brush> bkg;
     in property <ReleaseDetails> release;
     in property <[TrackDetails]> tracks;
+    callback rip();
     VerticalLayout {
         padding: Sizes.spacing * 2;
         spacing: Sizes.spacing * 2;
@@ -145,6 +146,7 @@ component TrackListing inherits ScrollView {
         Button {
             text: "Rip";
             primary: true;
+            clicked => { rip() }
         }
     }
 }
@@ -168,6 +170,7 @@ export component MainWindow inherits Window {
     ];
     in-out property <[TrackDetails]> tracks: [{ number: 1, title: "Rock 'n' Roll Star" }, { number: 2, title: "Shakermaker" }];
     callback select_release(release: ReleaseDetails);
+    callback rip();
     if releases.length > 1: ReleaseSelector {
         releases: releases;
         bkg: root.background;
@@ -177,5 +180,6 @@ export component MainWindow inherits Window {
         release: releases[0];
         tracks: tracks;
         bkg: root.background;
+        rip => { rip() }
     }
 }
