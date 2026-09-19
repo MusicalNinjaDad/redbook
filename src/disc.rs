@@ -462,6 +462,7 @@ impl Disc {
             })
         });
         self.reset_disc_index();
+        tracing::debug!(index = self.release_index, disc = self.disc_index);
         self
     }
 
