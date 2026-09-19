@@ -798,6 +798,74 @@ impl Disc {
         self.thumbnails.get(release_id)
     }
 
+    /// Get all tumbnails from Coverart Archive
+    pub fn update_thumbnails(&mut self) -> io::Result<()> {
+        let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();
+        tracing::trace!("");
+
+        let mut retrieved = 0;
+
+        let client = reqwest::blocking::Client::new();
+
+        let release_ids: Vec<_> = self
+            .musicbrainz
+            .as_ref()
+            .and_then(|mb| {
+                mb.releases
+                    .as_ref()
+                    .map(|releases| releases.iter().map(|release| release.id.clone()))
+            })
+            .ok_or_else(|| io::Error::other("No releases found"))
+            .or_warn("")?
+            .collect();
+
+        for id in release_ids {
+            let debug_loop = tracing::debug_span!(
+                "Disc::update_thumbnails",
+                url = Empty,
+                size = Empty,
+                status = Empty,
+                release = id,
+            )
+            .entered();
+
+            let url = format!("https://coverartarchive.org/release/{id}/front-250");
+            debug_loop.record("url", &url);
+
+            let response = client
+                .get(&url)
+                .header("User-Agent", "splurt/0.1.0")
+                .send()
+                .map_err(io::Error::other)
+                .or_debug("requesting cover art")?;
+
+            let status = response.status();
+            debug_loop.record("status", status.to_string());
+            tracing::trace!("");
+
+            if status.is_success() {
+                let image = response
+                    .bytes()
+                    .map_err(io::Error::other)
+                    .or_debug("unpacking response")?;
+
+                debug_loop.record("size", image.len());
+                tracing::debug!("thumbnail retrieved");
+                self.add_thumbnail(
+                    id,
+                    Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image),
+                );
+                retrieved += 1;
+                debug_fn.record("retrieved", retrieved);
+            } else {
+                let reason = response.text().ok();
+                tracing::warn!(name: "thumbnail failed", reason = ?reason);
+            }
+        }
+        tracing::debug!("finished getting thumbnails");
+        Ok(())
+    }
+
     /// Get the 0-indexed disc number within a multi-disc release, if available.
     ///
     /// # Notes
