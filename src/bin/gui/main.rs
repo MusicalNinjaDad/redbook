@@ -29,6 +29,7 @@ fn main() -> io::Result<()> {
 
     let app = MainWindow::new().unwrap();
     app.set_releases(albums);
+
     let app_ = app.as_weak();
     let select_release = move |release: ReleaseDetails| {
         let app = app_.upgrade().unwrap();
@@ -39,20 +40,20 @@ fn main() -> io::Result<()> {
 
         let tracks: Vec<TrackDetails> = cd.disc().tracks().map(TrackDetails::from).collect();
         app.set_tracks(ModelRc::from(tracks.as_slice()));
-    };
 
-    let app_ = app.as_weak();
-    let rip = move || {
-        let app = app_.upgrade().unwrap();
-        let tracks = app.get_tracks();
-        for track in tracks.iter().filter(|track| track.rip) {
-            tracing::info!(ripping = ?track.title);
-        }
+        let app_ = app.as_weak();
+        let rip = move || {
+            let app = app_.upgrade().unwrap();
+            let tracks = app.get_tracks();
+            for track in tracks.iter().filter(|track| track.rip) {
+                tracing::info!(ripping = ?track.title);
+            }
+        };
+        app.on_rip(rip);
     };
 
     app.on_select_release(select_release);
-    app.on_rip(rip);
-    
+
     app.run().unwrap();
 
     Ok(())
