@@ -75,6 +75,24 @@ component AlbumTile {
     }
 }
 
+component ReleaseSelector inherits ScrollView {
+    in property <[AlbumDetails]> albums;
+    in property <brush> bkg;
+    callback select_release(release: AlbumDetails);
+    min-width: Sizes.tile-width + (2 * Sizes.spacing);
+    min-height: Sizes.tile-height + (2 * Sizes.spacing);
+    album_selector := FlexboxLayout {
+        padding: Sizes.spacing * 2;
+        spacing: Sizes.spacing * 2;
+        cross-axis-line-alignment: start;
+        for album[index] in albums: AlbumTile {
+            bkg: bkg;
+            details: album;
+            clicked => { select_release(album) }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     title: "rip";
     property <int> tiles: root.albums.length;
@@ -109,23 +127,13 @@ export component MainWindow inherits Window {
         }
     ];
     callback select_release(release: AlbumDetails);
-    ScrollView {
-        min-width: Sizes.tile-width + (2 * Sizes.spacing);
-        min-height: Sizes.tile-height + (2 * Sizes.spacing);
-        if root.albums.length > 1: album_selector := FlexboxLayout {
-            out property <string> selected_release;
-            padding: Sizes.spacing * 2;
-            spacing: Sizes.spacing * 2;
-            cross-axis-line-alignment: start;
-            for album[index] in root.albums: AlbumTile {
-                bkg: root.background;
-                details: album;
-                clicked => { root.select_release(album) }
-            }
-        }
-        if root.albums.length == 1: AlbumTile {
-            bkg: root.background;
-            details: albums[0];
-        }
+    if albums.length > 1: ReleaseSelector {
+        albums: albums;
+        bkg: root.background;
+        select_release(release) => { select_release(release) }
+    }
+    if albums.length == 1: AlbumTile {
+        bkg: root.background;
+        details: albums[0];
     }
 }
