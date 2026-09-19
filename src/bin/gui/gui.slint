@@ -74,6 +74,11 @@ component Album {
 
 export component MainWindow inherits Window {
     title: "rip";
+    property <int> tiles: root.albums.length;
+    property <int> prefered-cols: 2;
+    property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
+    preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
+    preferred-height: (prefered-rows * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing);
     in property <[AlbumDetails]> albums: [
         {
             album: "Oasis: Definitely Maybe",
@@ -101,13 +106,8 @@ export component MainWindow inherits Window {
         }
     ];
     ScrollView {
-        property <int> tiles: root.albums.length;
-        property <int> prefered-cols: 2;
-        property <int> prefered-rows: tiles / prefered-cols;
         min-width: Sizes.tile-width + (2 * Sizes.spacing);
         min-height: Sizes.tile-height + (2 * Sizes.spacing);
-        preferred-width: (prefered-cols * Sizes.tile-width) + ((prefered-cols + 1) * Sizes.spacing);
-        preferred-height: (prefered-rows * Sizes.tile-height) + ((prefered-rows + 1) * Sizes.spacing);
         FlexboxLayout {
             padding: Sizes.spacing * 2;
             spacing: Sizes.spacing * 2;
