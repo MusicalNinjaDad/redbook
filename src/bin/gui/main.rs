@@ -16,25 +16,27 @@ use ::slint::{Model, ModelRc, Weak};
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
     output::init_tracing()?;
+    let app = MainWindow::new().unwrap();
+
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
     let mut cd = AudioCd::try_from(drive)?;
+    let disc = cd.disc_mut();
 
-    cd.disc_mut().update_musicbrainz()?;
-    cd.disc_mut().update_thumbnails()?;
+    let app_ = app.as_weak();
+    let update_musicbrainz = std::thread::spawn(move || {
+        disc.update_musicbrainz()?;
+        disc.update_thumbnails()?;
 
-    let disc = cd.disc();
-    let albums = ReleaseDetails::for_disc(disc).unwrap();
-
-    let app = MainWindow::new().unwrap();
-    app.set_releases(albums);
+        let albums = ReleaseDetails::for_disc(disc).unwrap();
+        Ok(())
+    });
 
     let app_ = app.as_weak();
     app.on_select_release(select_release(app_, cd));
 
     app.run().unwrap();
-
     Ok(())
 }
 

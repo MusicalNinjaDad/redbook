@@ -5,6 +5,7 @@ import {
     HorizontalBox,
     CheckBox,
     Button,
+    ProgressIndicator,
 } from "std-widgets.slint";
 export struct ReleaseDetails {
     album: string,
@@ -158,17 +159,8 @@ export component MainWindow inherits Window {
     property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
     preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
     preferred-height: (prefered-rows * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing);
-    in property <[ReleaseDetails]> releases: [
-        {
-            album: "Oasis: Definitely Maybe",
-            date: "1994-08-30",
-            location: "GB",
-            barcode: "5017556601693",
-            comment: "(Plant MFG pressing)",
-            thumbnail: @image-url("../../../tests/assets/definitely_maybe/thumbnail.jpeg"),
-        }
-    ];
-    in-out property <[TrackDetails]> tracks: [{ number: 1, title: "Rock 'n' Roll Star" }, { number: 2, title: "Shakermaker" }];
+    in property <[ReleaseDetails]> releases;
+    in-out property <[TrackDetails]> tracks;
     callback select_release(release: ReleaseDetails);
     callback rip();
     if releases.length > 1: ReleaseSelector {
@@ -181,5 +173,15 @@ export component MainWindow inherits Window {
         tracks: tracks;
         bkg: root.background;
         rip => { rip() }
+    }
+    if releases.length == 0: VerticalBox {
+        Text {
+            text: "Getting details from MusicBrainz ... ";
+        }
+        ProgressIndicator {
+            height: Sizes.spacing;
+
+            indeterminate: true;
+        }
     }
 }
