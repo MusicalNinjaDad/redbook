@@ -449,6 +449,22 @@ impl Disc {
         self
     }
 
+    /// Set the release, or reset to `None`.
+    ///
+    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    pub fn set_release_by_id(&mut self, release: Option<&str>) -> &mut Self {
+        let _debug = tracing::debug_span!("Disc::set_release_by_id", ?release).entered();
+        self.release_index = release.and_then(|release| {
+            self.musicbrainz.as_ref().and_then(|mb| {
+                mb.releases
+                    .as_ref()
+                    .and_then(|releases| releases.iter().position(|rel| rel.id == release))
+            })
+        });
+        self.reset_disc_index();
+        self
+    }
+
     /// Set the selected release by index, or reset to `None`.
     ///
     /// Providing an invalid index will make no change. Returns `self` for chaining.
@@ -799,7 +815,7 @@ impl Disc {
     }
 
     /// Get all tumbnails from Coverart Archive
-    /// 
+    ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self) -> io::Result<()> {
         let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();

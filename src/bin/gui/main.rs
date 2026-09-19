@@ -30,8 +30,10 @@ fn main() -> io::Result<()> {
     let app = MainWindow::new().unwrap();
     app.set_albums(albums);
     let app2 = app.as_weak();
-    let select_release = move |release| {
+    let select_release = move |release: AlbumDetails| {
         let app = app2.upgrade().unwrap();
+        cd.disc_mut().set_release_by_id(Some(&release.id));
+
         let albums = [release];
         app.set_albums(ModelRc::from(albums.as_slice()));
     };
