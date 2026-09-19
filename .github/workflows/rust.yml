@@ -38,7 +38,9 @@ jobs:
     - uses: actions/checkout@v7
     - uses: Swatinem/rust-cache@v2.9.2
     - name: install libfontconfig-dev
-      run: apt install libfontconfig-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install libfontconfig-dev
     - name: Run tests
       run: cargo test --all-features
 
