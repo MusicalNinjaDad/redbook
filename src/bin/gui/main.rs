@@ -2,6 +2,7 @@
 #[cfg(feature = "gui")]
 mod album;
 
+mod output;
 mod slint;
 
 use std::io;
@@ -12,6 +13,7 @@ use slint::*;
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
+    output::init_tracing()?;
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
