@@ -271,14 +271,14 @@ pub trait AudioCdExt {
 
     /// Unlock the AudioCd, making it once again !Send and allowing for the underlying Disc to be
     /// mutated.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// Returns `None` if any references (weak or strong) to the underlying disc are currently open.
     fn unlock(self) -> Option<impl AudioCdExtMut>;
 
     /// Attempt to get a mutable reference to the cached disc data.
-    /// 
+    ///
     /// Requires a mutable reference to self to ensure that this is thread-safe.
     fn get_disc_mut(&mut self) -> Option<&mut Disc>;
 }

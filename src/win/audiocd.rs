@@ -29,25 +29,6 @@ pub struct AudioCd {
     disc: Arc<Disc>,
 }
 
-impl !Send for AudioCd {}
-
-/// An AudioCd where metadata can no longer be mutated - ensuring safe Sync usage of
-/// [disc()][AudioCdExt::disc] and allowing, for example, separate threads to [rip][AudioCdExt::rip]
-/// and encode [to_flac][crate::RippedTrack::to_flac]
-///
-/// # Thread safety
-///
-/// `ReadOnlyAudioCd` is [`Send`] as an entire struct but not [`Sync`] as the underlying mechanisms
-/// to read data from the Cd are not synchronised.
-///
-/// [`Sync`] references to the metadata can be obtained via [`disc().clone()`][AudioCdExt::disc]
-/// and safely passed to other threads.
-#[derive(Debug, PartialEq)]
-pub struct ReadOnlyAudioCd {
-    drive: CdDrive,
-    disc: Arc<Disc>,
-}
-
 impl AudioCd {
     /// Opens drive, reads CD
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
@@ -169,49 +150,15 @@ impl AudioCdExt for AudioCd {
     }
 }
 
-impl AudioCdExt for ReadOnlyAudioCd {
-    fn read_chunk(
-        &self,
-        track: &Track,
-        frame_offset: usize,
-        frames_to_read: u32,
-        buf: &mut [u8],
-    ) -> io::Result<u32> {
-        self.drive
-            .read_chunk(track, frame_offset, frames_to_read, buf)
-    }
-
-    fn disc(&self) -> &Arc<crate::Disc> {
-        &self.disc
-    }
-
-    fn get_disc_mut(&mut self) -> Option<&mut Disc> {
-        Arc::get_mut(&mut self.disc)
-    }
-
-    #[expect(refining_impl_trait)]
-    fn unlock(self) -> Option<AudioCd> {
-        tracing::trace!(audiocd = ?self, "unlocking");
-        (Arc::strong_count(self.disc()) == 1).then_some(AudioCd {
-            drive: self.drive,
-            disc: self.disc,
-        })
-    }
-}
-
 impl AudioCdExtMut for AudioCd {
     fn disc_mut(&mut self) -> &mut Disc {
         Arc::make_mut(&mut self.disc)
     }
 
     #[expect(refining_impl_trait)]
-    fn lock(self) -> ReadOnlyAudioCd {
+    fn lock(self) -> Self {
         tracing::trace!(audiocd = ?self, "locking");
-
-        ReadOnlyAudioCd {
-            drive: self.drive,
-            disc: self.disc,
-        }
+        self
     }
 }
 

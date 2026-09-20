@@ -13,7 +13,7 @@ pub mod convert;
 pub mod drive;
 pub mod toc;
 
-pub use audiocd::{AudioCd, ReadOnlyAudioCd};
+pub use audiocd::AudioCd;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///
