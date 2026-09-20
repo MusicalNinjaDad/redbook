@@ -2,16 +2,18 @@
 #[cfg(feature = "gui")]
 mod album;
 
+#[cfg(feature = "gui")]
 mod output;
+#[cfg(feature = "gui")]
 mod slint;
-
-use std::{io, sync::Arc};
-
-use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, Disc, win::drive::all_drives};
-
-use slint::*;
-
+#[cfg(feature = "gui")]
 use ::slint::{Model, ModelRc, Weak};
+#[cfg(feature = "gui")]
+use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, Disc, win::drive::all_drives};
+#[cfg(feature = "gui")]
+use slint::*;
+#[cfg(feature = "gui")]
+use std::{io, sync::Arc};
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -50,6 +52,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "gui")]
 fn select_release(app: Weak<MainWindow>, mut disc: Arc<Disc>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
@@ -68,6 +71,7 @@ fn select_release(app: Weak<MainWindow>, mut disc: Arc<Disc>) -> impl FnMut(Rele
     }
 }
 
+#[cfg(feature = "gui")]
 fn rip(app: Weak<MainWindow>) -> impl FnMut() {
     move || {
         let app = app.clone().unwrap();
