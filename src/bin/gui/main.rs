@@ -38,10 +38,6 @@ fn main() -> io::Result<()> {
         let cd = cd.lock();
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
-            let cd = cd.unlock().expect(
-                "We used a dedicated block above to ensure the only reference to Disc was dropped",
-            );
-
             let releases = ReleaseDetails::for_disc(cd.disc()).unwrap();
             app.set_releases(releases);
             app.on_select_release(select_release(app_, cd));
@@ -53,13 +49,13 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn select_release<CD: AudioCdExtMut>(
-    app: Weak<MainWindow>,
-    mut cd: CD,
-) -> impl FnMut(ReleaseDetails) {
+fn select_release<CD: AudioCdExt + Send>(app: Weak<MainWindow>, mut cd: CD) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
-        cd.disc_mut().set_release_by_id(Some(&release.id));
+        {
+            let disc = cd.get_disc_mut().expect("We are the sole owners of cd");
+            disc.set_release_by_id(Some(&release.id));
+        }
 
         let albums = [release];
         app.set_releases(ModelRc::from(albums.as_slice()));
