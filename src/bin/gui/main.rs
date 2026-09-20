@@ -23,20 +23,15 @@ fn main() -> io::Result<()> {
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let cd = AudioCd::try_from(drive)?;
-    let cd = cd.lock();
+    let mut cd = AudioCd::try_from(drive)?;
 
     let app_ = app.as_weak();
     let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
-        let mut cd = cd
-            .unlock()
-            .expect("We haven't retrieved any references to Disc yet");
         {
             let disc = cd.disc_mut();
             disc.update_musicbrainz()?;
             disc.update_thumbnails()?;
         }
-        let cd = cd.lock();
 
         let disc = cd.disc().clone();
         ::slint::invoke_from_event_loop(move || {

@@ -36,40 +36,7 @@
 //!
 //! # Example
 //!
-//! ```rust, no_run
-//! use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-//! # use std::{io, path::PathBuf};
-//! # use metaflac::block::{Picture, VorbisComment};
-//! # let drive_path = PathBuf::new();
-//!
-//! // Open a handle to the drive and read table of contents from the CD
-//! let mut cd: AudioCd = AudioCd::new(drive_path)?;
-//!
-//! // Try to get data on this cd from musicbrainz. Continue on (network) errors.
-//! let _ = cd.disc_mut().update_musicbrainz();
-//!
-//! // There are often multiple releases with the same tracks - select the right one.
-//! cd.disc_mut().set_release_index(Some(2));
-//!
-//! // Try to get the cover art from CoverArtArchive based on the musicbrainz info.
-//! let _ = cd.disc_mut().update_cover_art();
-//!
-//! // Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
-//! let cd = cd.lock();
-//!
-//! // See bin/rip/main.rs for an example of how to use channels & separate threads to rip & encode.
-//!
-//! // rip the first track
-//! let track1 = cd.rip(1)?;
-//!
-//! // encode the first track to flac
-//! let track1_flac = track1.to_flac();
-//!
-//! // get the tags & embeddable cover art
-//! let tags: Option<VorbisComment> = cd.disc().tag_for(1);
-//! let cover: Option<&Picture> = cd.disc().cover_art();
-//! # Ok::<(), io::Error>(())
-//! ```
+//!  TODO New docs
 //!
 //! # Tracing
 //!

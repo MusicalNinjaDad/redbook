@@ -24,20 +24,7 @@ use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Tr
 ///
 /// # Examples
 ///
-/// ```rust, no_run
-/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-/// # use std::{io, path::PathBuf};
-/// # let drive_path = PathBuf::new();
-///
-/// // First obtain a mutable handle and lock it for thread-safe reading
-/// let mut cd = AudioCd::new(drive_path)?;
-/// let cd = cd.lock();
-///
-/// // Now you can use AudioCdExt methods
-/// let disc = cd.disc();
-/// let track_data = cd.read_track(1)?;
-/// # Ok::<(), io::Error>(())
-/// ```
+/// TODO New docs
 pub trait AudioCdExt {
     /// Reads raw audio data from a specific track and frame offset.
     ///
@@ -73,18 +60,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// let disc = cd.disc();
-    ///
-    /// // Access track information
-    /// let num_tracks = disc.tracks().len();
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     fn disc(&self) -> &Arc<Disc>;
 
     /// Reads all frames from a track and returns the raw audio data.
@@ -216,17 +192,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// if let Some(discid) = cd.musicbrainz() {
-    ///     println!("Disc ID: {}", discid.id);
-    /// }
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     fn musicbrainz(&self) -> Option<&Discid> {
         self.disc().musicbrainz()
     }
@@ -250,17 +216,7 @@ pub trait AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// let track = cd.rip(1)?;
-    ///
-    /// println!("Ripped track {} ({} bytes)", track.track_number, track.raw_data.len());
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
         let raw_data = self.read_track(track_number)?;
         Ok(RippedTrack {
@@ -268,14 +224,6 @@ pub trait AudioCdExt {
             raw_data,
         })
     }
-
-    /// Unlock the AudioCd, making it once again !Send and allowing for the underlying Disc to be
-    /// mutated.
-    ///
-    /// # Note
-    ///
-    /// Returns `None` if any references (weak or strong) to the underlying disc are currently open.
-    fn unlock(self) -> Option<impl AudioCdExtMut>;
 
     /// Attempt to get a mutable reference to the cached disc data.
     ///
@@ -298,30 +246,7 @@ pub trait AudioCdExt {
 ///
 /// # Examples
 ///
-/// ```rust, no_run
-/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-/// # use std::{io, path::PathBuf};
-/// # let drive_path = PathBuf::new();
-///
-/// // Obtain a mutable handle for setup
-/// let mut cd = AudioCd::new(drive_path)?;
-///
-/// // Update metadata from MusicBrainz
-/// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
-///
-/// // Select a specific release
-/// cd.disc_mut().set_release_index(Some(2));
-///
-/// // Fetch cover art
-/// let _ignore_network_errors = cd.disc_mut().update_cover_art();
-///
-/// // Lock for thread-safe reading
-/// let cd = cd.lock();
-///
-/// // Now use AudioCdExt methods
-/// let track = cd.rip(1)?;
-/// # Ok::<(), io::Error>(())
-/// ```
+///  TODO New docs
 pub trait AudioCdExtMut: AudioCdExt {
     /// Returns a mutable reference to the cached [`Disc`] data.
     ///
@@ -340,62 +265,9 @@ pub trait AudioCdExtMut: AudioCdExt {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let mut cd = AudioCd::new(drive_path)?;
-    ///
-    /// // Update MusicBrainz data
-    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
-    ///
-    /// // Access the mutable disc to make changes
-    /// let disc = cd.disc_mut();
-    /// // ... modify disc as needed
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     fn disc_mut(&mut self) -> &mut Disc;
 
-    /// Consumes self and returns an immutable, thread-safe handle.
-    ///
-    /// This method transforms the mutable handle into an immutable one that
-    /// implements [`AudioCdExt`] and [`Send`], allowing it to be safely shared
-    /// across threads.
-    ///
-    /// # Returns
-    ///
-    /// An immutable handle that can be safely shared across threads.
-    ///
-    /// # Notes
-    ///
-    /// - After calling this method, you can no longer mutate the disc metadata
-    /// - The returned handle is suitable for spawning threads to rip and encode tracks in parallel
-    ///
-    /// # Examples
-    ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let mut cd = AudioCd::new(drive_path)?;
-    ///
-    /// // Perform setup
-    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
-    ///
-    /// // Lock for thread-safe access
-    /// let cd = cd.lock();
-    /// let disc = cd.disc().clone();
-    ///
-    /// // Now safe to use cd & disc in multiple threads
-    /// let ripper_thread = std::thread::spawn(move || {
-    ///     cd.rip(1)
-    /// });
-    /// let metadata_thread = std::thread::spawn(move || {
-    ///     let _ = disc.musicbrainz();
-    /// });
-    /// # Ok::<(), io::Error>(())
-    /// ```
-    fn lock(self) -> impl AudioCdExt + Send;
+    /// TODO New docs
+    fn lock(&mut self);
 }

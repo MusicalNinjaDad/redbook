@@ -233,7 +233,7 @@ fn main() -> Exit<()> {
     #[expect(unused_must_use, reason = "don't abort if unable to save cover art")]
     cd.disc().save_cover_art(&output_dir);
 
-    let cd = cd.lock();
+    cd.lock();
     let disc = cd.disc().clone();
 
     let (ripped_tracks_tx, ripped_tracks_rx) = mpsc::channel::<RippedTrack>();

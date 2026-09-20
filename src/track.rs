@@ -23,21 +23,7 @@ use crate::{Frame, TocEntry};
 ///
 /// # Examples
 ///
-/// ```rust, no_run
-/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-/// # use std::{io, path::PathBuf};
-/// # let drive_path = PathBuf::new();
-///
-/// let cd = AudioCd::new(drive_path)?.lock();
-/// let disc = cd.disc();
-///
-/// // Access track information
-/// if let Some(track) = disc.track(1) {
-///     println!("Track {}: {}", track.track_number(), track.title().unwrap_or("Unknown".into()));
-///     println!("Filename: {}", track.filename());
-/// }
-/// # Ok::<(), io::Error>(())
-/// ```
+///  TODO New docs
 pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
     pub toc_entry: TocEntry,
@@ -75,19 +61,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// let disc = cd.disc();
-    ///
-    /// if let Some(track) = disc.track(1) {
-    ///     assert_eq!(track.track_number(), 1);
-    /// }
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn track_number(&self) -> u8 {
         self.toc_entry.track
     }
@@ -101,23 +75,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let mut cd = AudioCd::new(drive_path)?;
-    /// // Load MusicBrainz data first
-    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
-    /// let cd = cd.lock();
-    ///
-    /// if let Some(track) = cd.disc().track(1) {
-    ///     if let Some(title) = track.title() {
-    ///         println!("Track 1: {}", title);
-    ///     }
-    /// }
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn title(&self) -> Option<String> {
         self.meta.map(|track| track.title.clone())
     }
@@ -138,19 +96,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    ///
-    /// if let Some(track) = cd.disc().track(5) {
-    ///     // Will be "05 " followed by the title
-    ///     println!("Filename: {}", track.filename());
-    /// }
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn filename(&self) -> String {
         let track_num = self
             .meta()
@@ -179,24 +125,7 @@ impl<'meta> Track<'meta> {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let mut cd = AudioCd::new(drive_path)?;
-    /// // Load MusicBrainz data first
-    /// let _ignore_network_errors = cd.disc_mut().update_musicbrainz();
-    /// let cd = cd.lock();
-    ///
-    /// if let Some(track) = cd.disc().track(1) {
-    ///     if let Some(meta) = track.meta() {
-    ///         // Access full MusicBrainz metadata
-    ///         println!("Artist: {:?}", meta.artist_credit);
-    ///     }
-    /// }
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn meta(&self) -> Option<&'meta musicbrainz_rs::entity::release::Track> {
         self.meta
     }
@@ -214,21 +143,7 @@ impl<'meta> Track<'meta> {
 ///
 /// # Examples
 ///
-/// ```rust, no_run
-/// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-/// # use std::{io, path::PathBuf};
-/// # let drive_path = PathBuf::new();
-///
-/// let cd = AudioCd::new(drive_path)?.lock();
-/// let track = cd.rip(1)?;
-///
-/// // Encode to FLAC
-/// let flac_data = track.to_flac();
-///
-/// // Or encode to WAV
-/// let wav_data = track.to_wav();
-/// # Ok::<(), io::Error>(())
-/// ```
+///  TODO New docs
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
     /// The 1-indexed track number on the original CD.
@@ -252,19 +167,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// let track = cd.rip(1)?;
-    /// let flac_sink = track.to_flac();
-    ///
-    /// // Get the FLAC data as bytes
-    /// let flac_bytes = flac_sink.into_inner();
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn to_flac(&self) -> MemSink<u8> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
@@ -307,25 +210,7 @@ impl RippedTrack {
     ///
     /// # Examples
     ///
-    /// ```rust, no_run
-    /// use redbook::{AudioCd, AudioCdExt, AudioCdExtMut};
-    /// use std::fs::File;
-    /// use std::io::Write;
-    /// # use std::{io, path::PathBuf};
-    /// # let drive_path = PathBuf::new();
-    ///
-    /// let cd = AudioCd::new(drive_path)?.lock();
-    /// let track = cd.rip(1)?;
-    /// let wav_data = track.to_wav();
-    ///
-    /// // Write to a file
-    /// # let _ignore_io_errors = {
-    /// let mut file = File::create("track1.wav")?;
-    /// file.write_all(&wav_data)?;
-    /// # io::Result::Ok(())
-    /// # };
-    /// # Ok::<(), io::Error>(())
-    /// ```
+    ///  TODO New docs
     pub fn to_wav(&self) -> Vec<u8> {
         let pcm = &self.raw_data;
 

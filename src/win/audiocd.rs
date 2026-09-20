@@ -4,7 +4,10 @@ use std::{
     fs,
     io::{self, ErrorKind},
     path::Path,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use tracing_result::Trace;
@@ -23,10 +26,11 @@ use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
 ///
 /// It is recommended that you call [lock()][Self::lock] to obtain a [ReadOnlyAudioCd] before
 /// spawning any threads.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct AudioCd {
     drive: CdDrive,
     disc: Arc<Disc>,
+    locked: AtomicBool,
 }
 
 impl AudioCd {
@@ -120,7 +124,11 @@ impl TryFrom<CdDrive> for AudioCd {
 
         let disc = Arc::new(Disc::new(toc, tracks, Frame::new(leadout as usize))?);
 
-        Ok(Self { drive, disc })
+        Ok(Self {
+            drive,
+            disc,
+            locked: AtomicBool::new(false),
+        })
     }
 }
 
@@ -143,11 +151,6 @@ impl AudioCdExt for AudioCd {
     fn get_disc_mut(&mut self) -> Option<&mut Disc> {
         Arc::get_mut(&mut self.disc)
     }
-
-    #[expect(refining_impl_trait)]
-    fn unlock(self) -> Option<AudioCd> {
-        Some(self)
-    }
 }
 
 impl AudioCdExtMut for AudioCd {
@@ -155,10 +158,9 @@ impl AudioCdExtMut for AudioCd {
         Arc::make_mut(&mut self.disc)
     }
 
-    #[expect(refining_impl_trait)]
-    fn lock(self) -> Self {
+    fn lock(&mut self) {
         tracing::trace!(audiocd = ?self, "locking");
-        self
+        self.locked.store(true, Ordering::Release);
     }
 }
 
