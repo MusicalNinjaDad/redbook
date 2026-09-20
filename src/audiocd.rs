@@ -309,7 +309,7 @@ pub trait AudioCdExt {
 /// let track = cd.rip(1)?;
 /// # Ok::<(), io::Error>(())
 /// ```
-pub trait AudioCdExtMut {
+pub trait AudioCdExtMut: AudioCdExt {
     /// Returns a mutable reference to the cached [`Disc`] data.
     ///
     /// This allows modification of disc metadata, such as loading MusicBrainz
