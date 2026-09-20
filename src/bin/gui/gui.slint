@@ -159,6 +159,7 @@ export component MainWindow inherits Window {
     property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
     preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
     preferred-height: (prefered-rows * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing);
+    maximized: true;
     in property <[ReleaseDetails]> releases;
     in-out property <[TrackDetails]> tracks;
     callback select_release(release: ReleaseDetails);
