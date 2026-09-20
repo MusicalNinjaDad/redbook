@@ -7,7 +7,10 @@ mod slint;
 
 use std::io;
 
-use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
+use redbook::{
+    AudioCd, AudioCdExt, AudioCdExtMut,
+    win::drive::all_drives,
+};
 
 use slint::*;
 
@@ -21,28 +24,41 @@ fn main() -> io::Result<()> {
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let mut cd = AudioCd::try_from(drive)?;
-    let disc = cd.disc_mut();
+    let cd = AudioCd::try_from(drive)?;
+    let cd = cd.lock();
 
     let app_ = app.as_weak();
-    // let update_musicbrainz = std::thread::spawn(move || {
-    //     disc.update_musicbrainz()?;
-    //     disc.update_thumbnails()?;
+    let _worker_thread: std::thread::JoinHandle<io::Result<()>> =
+        std::thread::spawn(move || {
+            let mut cd = cd.unlock();
+            {
+                let disc = cd.disc_mut();
+                disc.update_musicbrainz()?;
+                disc.update_thumbnails()?;
+            }
 
-    //     let albums = ReleaseDetails::for_disc(disc).unwrap();
-    //     Ok(())
-    // });
+            let cd = cd.lock();
+            ::slint::invoke_from_event_loop(move || {
+                let app = app_.clone().unwrap();
+                let cd = cd.unlock();
 
-    let app_ = app.as_weak();
-    app.on_select_release(select_release(app_, cd));
+                let releases = ReleaseDetails::for_disc(cd.disc()).unwrap();
+                app.set_releases(releases);
+                app.on_select_release(select_release(app_, cd));
+            })
+            .map_err(io::Error::other)
+        });
 
     app.run().unwrap();
     Ok(())
 }
 
-fn select_release(app: Weak<MainWindow>, mut cd: AudioCd) -> impl FnMut(ReleaseDetails) {
+fn select_release<CD: AudioCdExtMut>(
+    app: Weak<MainWindow>,
+    mut cd: CD,
+) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
-        let app = app.upgrade().unwrap();
+        let app = app.clone().unwrap();
         cd.disc_mut().set_release_by_id(Some(&release.id));
 
         let albums = [release];
@@ -58,7 +74,7 @@ fn select_release(app: Weak<MainWindow>, mut cd: AudioCd) -> impl FnMut(ReleaseD
 
 fn rip(app: Weak<MainWindow>) -> impl FnMut() {
     move || {
-        let app = app.upgrade().unwrap();
+        let app = app.clone().unwrap();
         let tracks = app.get_tracks();
         for track in tracks.iter().filter(|track| track.rip) {
             tracing::info!(ripping = ?track.title);
