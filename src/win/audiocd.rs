@@ -160,8 +160,8 @@ impl AudioCdExt for AudioCd {
     }
 
     #[expect(refining_impl_trait)]
-    fn unlock(self) -> AudioCd {
-        self
+    fn unlock(self) -> Option<AudioCd> {
+        Some(self)
     }
 }
 
@@ -182,20 +182,12 @@ impl AudioCdExt for ReadOnlyAudioCd {
     }
 
     #[expect(refining_impl_trait)]
-    fn unlock(self) -> AudioCd {
+    fn unlock(self) -> Option<AudioCd> {
         tracing::trace!(audiocd = ?self, "unlocking");
-        {
-            let disc = self.disc();
-            assert_eq!(
-                Arc::strong_count(disc),
-                1,
-                "Other strong references to the underlying Disc exist. Unable to safely unlock."
-            );
-        }
-        AudioCd {
+        (Arc::strong_count(self.disc()) == 1).then_some(AudioCd {
             drive: self.drive,
             disc: self.disc,
-        }
+        })
     }
 }
 

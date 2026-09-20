@@ -272,11 +272,10 @@ pub trait AudioCdExt {
     /// Unlock the AudioCd, making it once again !Send and allowing for the underlying Disc to be
     /// mutated.
     /// 
-    /// # Panics
+    /// # Note
     /// 
-    /// If any references (regardless of type) to the underlying disc are currently open. See
-    /// [Arc::get_mut] for specifics.
-    fn unlock(self) -> impl AudioCdExtMut;
+    /// Returns `None` if any references (weak or strong) to the underlying disc are currently open.
+    fn unlock(self) -> Option<impl AudioCdExtMut>;
 }
 
 /// Trait providing mutable access to audio CD functionality.

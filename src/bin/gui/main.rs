@@ -7,10 +7,7 @@ mod slint;
 
 use std::io;
 
-use redbook::{
-    AudioCd, AudioCdExt, AudioCdExtMut,
-    win::drive::all_drives,
-};
+use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
 
 use slint::*;
 
@@ -28,26 +25,29 @@ fn main() -> io::Result<()> {
     let cd = cd.lock();
 
     let app_ = app.as_weak();
-    let _worker_thread: std::thread::JoinHandle<io::Result<()>> =
-        std::thread::spawn(move || {
-            let mut cd = cd.unlock();
-            {
-                let disc = cd.disc_mut();
-                disc.update_musicbrainz()?;
-                disc.update_thumbnails()?;
-            }
+    let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
+        let mut cd = cd
+            .unlock()
+            .expect("We haven't retrieved any references to Disc yet");
+        {
+            let disc = cd.disc_mut();
+            disc.update_musicbrainz()?;
+            disc.update_thumbnails()?;
+        }
 
-            let cd = cd.lock();
-            ::slint::invoke_from_event_loop(move || {
-                let app = app_.clone().unwrap();
-                let cd = cd.unlock();
+        let cd = cd.lock();
+        ::slint::invoke_from_event_loop(move || {
+            let app = app_.clone().unwrap();
+            let cd = cd.unlock().expect(
+                "We used a dedicated block above to ensure the only reference to Disc was dropped",
+            );
 
-                let releases = ReleaseDetails::for_disc(cd.disc()).unwrap();
-                app.set_releases(releases);
-                app.on_select_release(select_release(app_, cd));
-            })
-            .map_err(io::Error::other)
-        });
+            let releases = ReleaseDetails::for_disc(cd.disc()).unwrap();
+            app.set_releases(releases);
+            app.on_select_release(select_release(app_, cd));
+        })
+        .map_err(io::Error::other)
+    });
 
     app.run().unwrap();
     Ok(())
