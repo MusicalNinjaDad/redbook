@@ -42,6 +42,7 @@ impl !Send for AudioCd {}
 ///
 /// [`Sync`] references to the metadata can be obtained via [`disc().clone()`][AudioCdExt::disc]
 /// and safely passed to other threads.
+#[derive(Debug, PartialEq)]
 pub struct ReadOnlyAudioCd {
     drive: CdDrive,
     disc: Arc<Disc>,
@@ -157,6 +158,11 @@ impl AudioCdExt for AudioCd {
         self.drive
             .read_chunk(track, frame_offset, frames_to_read, buf)
     }
+
+    #[expect(refining_impl_trait)]
+    fn unlock(self) -> AudioCd {
+        self
+    }
 }
 
 impl AudioCdExt for ReadOnlyAudioCd {
@@ -173,6 +179,23 @@ impl AudioCdExt for ReadOnlyAudioCd {
 
     fn disc(&self) -> &Arc<crate::Disc> {
         &self.disc
+    }
+
+    #[expect(refining_impl_trait)]
+    fn unlock(self) -> AudioCd {
+        tracing::trace!(audiocd = ?self, "unlocking");
+        {
+            let disc = self.disc();
+            assert_eq!(
+                Arc::strong_count(disc),
+                2,
+                "Other strong references to the underlying Disc exist. Unable to safely unlock."
+            );
+        }
+        AudioCd {
+            drive: self.drive,
+            disc: self.disc,
+        }
     }
 }
 
