@@ -159,6 +159,10 @@ impl AudioCdExt for AudioCd {
             .read_chunk(track, frame_offset, frames_to_read, buf)
     }
 
+    fn get_disc_mut(&mut self) -> Option<&mut Disc> {
+        Arc::get_mut(&mut self.disc)
+    }
+
     #[expect(refining_impl_trait)]
     fn unlock(self) -> Option<AudioCd> {
         Some(self)
@@ -179,6 +183,10 @@ impl AudioCdExt for ReadOnlyAudioCd {
 
     fn disc(&self) -> &Arc<crate::Disc> {
         &self.disc
+    }
+
+    fn get_disc_mut(&mut self) -> Option<&mut Disc> {
+        Arc::get_mut(&mut self.disc)
     }
 
     #[expect(refining_impl_trait)]
