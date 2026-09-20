@@ -188,7 +188,7 @@ impl AudioCdExt for ReadOnlyAudioCd {
             let disc = self.disc();
             assert_eq!(
                 Arc::strong_count(disc),
-                2,
+                1,
                 "Other strong references to the underlying Disc exist. Unable to safely unlock."
             );
         }
