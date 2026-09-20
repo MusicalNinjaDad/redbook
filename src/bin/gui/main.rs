@@ -5,9 +5,9 @@ mod album;
 mod output;
 mod slint;
 
-use std::io;
+use std::{io, sync::Arc};
 
-use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, win::drive::all_drives};
+use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, Disc, win::drive::all_drives};
 
 use slint::*;
 
@@ -34,13 +34,14 @@ fn main() -> io::Result<()> {
             disc.update_musicbrainz()?;
             disc.update_thumbnails()?;
         }
-
         let cd = cd.lock();
+
+        let disc = cd.disc().clone();
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
-            let releases = ReleaseDetails::for_disc(cd.disc()).unwrap();
+            let releases = ReleaseDetails::for_disc(&disc).unwrap();
             app.set_releases(releases);
-            app.on_select_release(select_release(app_, cd));
+            app.on_select_release(select_release(app_, disc));
         })
         .map_err(io::Error::other)
     });
@@ -49,18 +50,17 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn select_release<CD: AudioCdExt + Send>(app: Weak<MainWindow>, mut cd: CD) -> impl FnMut(ReleaseDetails) {
+fn select_release(app: Weak<MainWindow>, mut disc: Arc<Disc>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
-        {
-            let disc = cd.get_disc_mut().expect("We are the sole owners of cd");
-            disc.set_release_by_id(Some(&release.id));
-        }
+        Arc::get_mut(&mut disc)
+            .expect("We've been provided with the ONLY reference to disc")
+            .set_release_by_id(Some(&release.id));
 
         let albums = [release];
         app.set_releases(ModelRc::from(albums.as_slice()));
 
-        let tracks: Vec<TrackDetails> = cd.disc().tracks().map(TrackDetails::from).collect();
+        let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
         app.set_tracks(ModelRc::from(tracks.as_slice()));
 
         let app_ = app.as_weak();
