@@ -9,9 +9,6 @@ license = "MIT"
 edition.workspace = true
 version.workspace = true
 
-[features]
-gui = ["dep:slint", "dep:slint-build"]
-
 [dependencies]
 build_safely.workspace = true # for doc link
 cdtoc.workspace = true
@@ -24,7 +21,6 @@ metaflac.workspace = true
 musicbrainz_rs.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
-slint = {workspace = true, optional = true}
 tabular.workspace = true
 try_v2.workspace = true
 tracing.workspace = true 
@@ -48,7 +44,6 @@ clap.workspace = true
 clap_builder.workspace = true
 clap_complete.workspace = true
 clap_mangen.workspace = true
-slint-build = {workspace = true, optional = true}
 
 [lints]
 workspace = true
