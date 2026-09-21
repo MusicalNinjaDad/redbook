@@ -9,6 +9,10 @@ license = "MIT"
 edition.workspace = true
 version.workspace = true
 
+[[bin]]
+name = "rip"
+path = "src/main.rs"
+
 [dependencies]
 metaflac.workspace = true
 musicbrainz_rs.workspace = true
