@@ -64,7 +64,9 @@ fn main() -> io::Result<()> {
 
     let ripper = std::thread::spawn(move || {
         while let Ok(tracks) = to_rip_rx.recv() {
-            let disc_lock = cd.lock().expect("TODO #68 error handling & tracing on poison");
+            let disc_lock = cd
+                .lock()
+                .expect("TODO #68 error handling & tracing on poison");
             let disc = disc_lock.disc();
             for track_number in tracks {
                 let track = disc.track(track_number);
