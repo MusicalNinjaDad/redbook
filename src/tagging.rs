@@ -1,7 +1,7 @@
 #![expect(missing_docs, reason = "needs update")]
 //! Tagging utilities for FLAC metadata
 
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::entity::{
@@ -112,19 +112,17 @@ impl PictureExt for Picture {
 
 pub trait VorbisTagExt {
     /// 0n Full - title
-    fn filename(&self) -> io::Result<PathBuf>;
+    fn filename(&self) -> PathBuf;
 
     /// Title one - Title two
     fn full_title(&self) -> String;
 }
 
 impl VorbisTagExt for VorbisComment {
-    fn filename(&self) -> io::Result<PathBuf> {
-        let _debug =
-            tracing::debug_span!("VorbisTagExt::filename", track_number = ?self.track()).entered();
+    fn filename(&self) -> PathBuf {
         let track_number = format!("{:02}", self.track().unwrap_or_default());
         let title = self.full_title();
-        Ok(PathBuf::from([track_number, title].join(" ")))
+        PathBuf::from([track_number, title].join(" "))
     }
 
     fn full_title(&self) -> String {
