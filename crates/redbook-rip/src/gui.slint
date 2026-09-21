@@ -6,6 +6,7 @@ import {
     CheckBox,
     Button,
     ProgressIndicator,
+    AboutSlint,
 } from "std-widgets.slint";
 export struct ReleaseDetails {
     album: string,
@@ -182,6 +183,12 @@ export component MainWindow inherits Window {
             font-size: 2rem;
             text: "Getting details from MusicBrainz ... ";
         }
+
+        AboutSlint {
+            cross-axis-self-alignment: end;
+            max-height: 25px;
+         }
+
         ProgressIndicator {
             height: Sizes.spacing;
             indeterminate: true;
