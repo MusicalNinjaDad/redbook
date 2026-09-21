@@ -1,6 +1,8 @@
 #![expect(missing_docs, reason = "needs update")]
 //! Tagging utilities for FLAC metadata
 
+use std::{io, path::PathBuf};
+
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::entity::{
     artist_credit::ArtistCredit,
@@ -109,11 +111,35 @@ impl PictureExt for Picture {
 }
 
 pub trait VorbisTagExt {
+    /// 0n Full - title
+    fn filename(&self) -> io::Result<PathBuf>;
+
+    /// Title one - Title two
+    fn full_title(&self) -> String;
+}
+
+impl VorbisTagExt for VorbisComment {
+    fn filename(&self) -> io::Result<PathBuf> {
+        let _debug =
+            tracing::debug_span!("VorbisTagExt::filename", track_number = ?self.track()).entered();
+        let track_number = format!("{:02}", self.track().unwrap_or_default());
+        let title = self.full_title();
+        Ok(PathBuf::from([track_number, title].join(" ")))
+    }
+
+    fn full_title(&self) -> String {
+        self.title()
+            .map(|titles| titles.join(" - "))
+            .unwrap_or_default()
+    }
+}
+
+pub trait ExtendVorbisTag {
     const KEY: &'static str;
     fn extend_vorbis(&self, vorbis: &mut VorbisComment);
 }
 
-impl VorbisTagExt for ReleaseStatus {
+impl ExtendVorbisTag for ReleaseStatus {
     const KEY: &'static str = "RELEASESTATUS";
 
     fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
@@ -129,7 +155,7 @@ impl VorbisTagExt for ReleaseStatus {
     }
 }
 
-impl VorbisTagExt for ReleaseScript {
+impl ExtendVorbisTag for ReleaseScript {
     const KEY: &'static str = "SCRIPT";
 
     fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
