@@ -27,7 +27,9 @@ use metaflac::{
 };
 #[cfg(target_family = "windows")]
 use redbook::{
-    AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack, tagging::PictureExt, win::drive::all_drives,
+    AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack,
+    tagging::{PictureExt, VorbisTagExt},
+    win::drive::all_drives,
 };
 use try_v2::Try;
 
@@ -261,13 +263,13 @@ fn main() -> Exit<()> {
         }
     });
 
+    // TODO #66 fix tracing in encoder thread
     let encoder = thread::spawn(move || {
         let enc = try {
             while let Ok(ripped) = ripped_tracks_rx.recv() {
-                let track_number = ripped.track_number;
-                let track = disc.track(track_number).unwrap();
-                let track_name = track.title().unwrap_or_default();
-
+                let tag = &ripped.tag;
+                let track_number = tag.track().unwrap_or_default();
+                let track_name = tag.full_title();
                 tracing::debug!(
                     target: "encode",
                     track = track_number,
@@ -276,22 +278,24 @@ fn main() -> Exit<()> {
                 );
                 let start = std::time::Instant::now();
 
-                let flac_path = output_dir.join(track.filename()).with_extension("flac");
-                let flac = ripped.to_flac();
+                let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path)?;
+
+                let flac = ripped.to_flac();
                 flac_file.write_all(flac.as_slice())?;
-                println!(
-                    "Track {} ripped to {}",
-                    track.track_number(),
-                    flac_path.display()
+
+                tracing::info!(
+                    "File saved: {path} ({size} bytes)",
+                    path = flac_path.display(),
+                    size = flac.as_slice().len()
                 );
                 let bytes_written = flac.as_slice().len();
 
-                let mut tag = Tag::read_from_path(&flac_path).unwrap();
-                if let Some(tags) = disc.tag_for(track_number) {
-                    let vorbis = tag.vorbis_comments_mut();
-                    vorbis.comments.extend(tags.comments);
-                }
+                let tag = ripped.tag;
+                let mut file_tag = Tag::read_from_path(&flac_path)
+                    // TODO #67 error handling reading empty tag from file during encoding
+                    .unwrap();
+                file_tag.vorbis_comments_mut().comments.extend(tag.comments);
 
                 if let Some(cover) =
                     disc.cover_art()
@@ -300,10 +304,10 @@ fn main() -> Exit<()> {
                             Picture::from_jpeg(PictureType::CoverFront, "Front Cover", data)
                         }))
                 {
-                    tag.push_block(Block::Picture(cover));
+                    file_tag.push_block(Block::Picture(cover));
                 }
 
-                tag.write_to_path(&flac_path).unwrap();
+                file_tag.write_to_path(&flac_path).unwrap();
 
                 let duration = start.elapsed();
                 tracing::debug!(

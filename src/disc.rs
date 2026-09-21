@@ -21,7 +21,7 @@ use tracing_result::Trace;
 
 use crate::{
     Frame, Msf, Track,
-    tagging::{ArtistCreditsExt, PictureExt, ExtendVorbisTag},
+    tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
 #[derive(Debug, Clone, PartialEq)]
