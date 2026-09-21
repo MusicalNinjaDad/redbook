@@ -1,0 +1,19 @@
+{
+  "borrow_mut": "22",
+  "default": "44",
+  "finish": "47",
+  "Error": "37",
+  "FnvHashMap": "53",
+  "borrow": "18",
+  "type_id": "40",
+  "with_key": "2",
+  "try_into": "33",
+  "FnvHashSet": "55",
+  "FnvHasher": "1",
+  "into": "26",
+  "write": "48",
+  "from": "29",
+  "FnvBuildHasher": "51",
+  "fnv": "57",
+  "try_from": "38"
+}

@@ -1,0 +1,23 @@
+{
+  "Error": "38",
+  "borrow": "25",
+  "Executor": "6",
+  "fmt": "58",
+  "spawn_many": "12",
+  "spawn": "9",
+  "from": "36",
+  "run": "78",
+  "borrow_mut": "29",
+  "is_empty": "8",
+  "async_executor": "98",
+  "tick": "77",
+  "default": "96",
+  "type_id": "47",
+  "new": "7",
+  "try_tick": "76",
+  "try_into": "40",
+  "LocalExecutor": "71",
+  "into": "33",
+  "try_from": "45",
+  "drop": "63"
+}

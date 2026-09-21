@@ -1,0 +1,49 @@
+[package]
+name = "redbook"
+description = "CDDA CD digital audio as per RedBook"
+categories = ["command-line-utilities", "multimedia::audio", "hardware-support"]
+keywords.workspace = true
+authors.workspace = true
+repository.workspace = true
+license = "MIT"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+build_safely.workspace = true # for doc link
+cdtoc.workspace = true
+clap.workspace = true
+errno.workspace = true
+exit_safely.workspace = true
+flacenc.workspace = true
+humanize-duration.workspace = true
+metaflac.workspace = true
+musicbrainz_rs.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+tabular.workspace = true
+try_v2.workspace = true
+tracing.workspace = true 
+tracing-result.workspace = true
+tracing-subscriber.workspace = true
+windows-link.workspace = true
+zune-jpeg.workspace = true
+
+[dev-dependencies]
+glob.workspace = true
+proc-macro2.workspace = true
+rstest.workspace = true
+similar-asserts.workspace = true
+syn.workspace = true
+tempfile.workspace = true
+windows-bindgen.workspace = true
+
+[build-dependencies]
+build_safely.workspace = true
+clap.workspace = true
+clap_builder.workspace = true
+clap_complete.workspace = true
+clap_mangen.workspace = true
+
+[lints]
+workspace = true

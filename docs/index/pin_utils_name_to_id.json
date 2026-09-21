@@ -1,0 +1,6 @@
+{
+  "unsafe_unpinned": "9",
+  "unsafe_pinned": "7",
+  "pin_utils": "10",
+  "pin_mut": "4"
+}

@@ -1,0 +1,30 @@
+[package]
+name = "redbook-rip"
+description = "CD ripper"
+categories = ["multimedia::audio", "hardware-support"]
+keywords.workspace = true
+authors.workspace = true
+repository.workspace = true
+license = "MIT"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "rip"
+path = "src/main.rs"
+
+[dependencies]
+metaflac.workspace = true
+musicbrainz_rs.workspace = true
+redbook.workspace = true
+slint.workspace = true
+tracing.workspace = true 
+tracing-result.workspace = true
+tracing-subscriber.workspace = true
+
+[build-dependencies]
+build_safely.workspace = true
+slint-build.workspace = true
+
+[lints]
+workspace = true

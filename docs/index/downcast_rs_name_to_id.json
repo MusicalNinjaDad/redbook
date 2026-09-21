@@ -1,0 +1,11 @@
+{
+  "into_any": "8",
+  "as_any_mut": "6",
+  "into_any_rc": "9",
+  "DowncastSync": "17",
+  "impl_downcast": "20",
+  "Downcast": "7",
+  "into_any_arc": "13",
+  "as_any": "5",
+  "downcast_rs": "21"
+}

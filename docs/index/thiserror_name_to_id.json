@@ -1,0 +1,14 @@
+{
+  "0": "3",
+  "try_into": "34",
+  "into": "27",
+  "from": "30",
+  "try_from": "39",
+  "borrow": "20",
+  "borrow_mut": "23",
+  "fmt": "45",
+  "Var": "4",
+  "Error": "38",
+  "thiserror": "60",
+  "type_id": "41"
+}

@@ -1,0 +1,9 @@
+{
+  "test_internal": "9",
+  "select_internal": "7",
+  "join_internal": "5",
+  "futures_macro": "11",
+  "stream_select_internal": "10",
+  "try_join_internal": "6",
+  "select_biased_internal": "8"
+}

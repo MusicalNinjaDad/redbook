@@ -1,0 +1,15 @@
+{
+  "xcb_connection_t": "0",
+  "as_raw_xcb_connection": "45",
+  "type_id": "37",
+  "ValidConnection": "62",
+  "try_into": "30",
+  "AsRawXcbConnection": "42",
+  "into": "23",
+  "try_from": "35",
+  "Error": "34",
+  "borrow": "15",
+  "new": "64",
+  "from": "26",
+  "borrow_mut": "19"
+}

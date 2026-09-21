@@ -1,0 +1,10 @@
+{
+  "memoffset": "11",
+  "offset_of": "7",
+  "span_of": "10",
+  "raw_field_union": "6",
+  "offset_of_union": "9",
+  "raw_field_tuple": "5",
+  "offset_of_tuple": "8",
+  "raw_field": "4"
+}

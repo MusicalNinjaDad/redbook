@@ -1,0 +1,22 @@
+{
+  "FxHashMap": "0",
+  "FxHasher": "3",
+  "borrow_mut": "25",
+  "default": "47",
+  "write": "50",
+  "write_u32": "53",
+  "Error": "40",
+  "finish": "56",
+  "rustc_hash": "59",
+  "borrow": "21",
+  "type_id": "43",
+  "write_u16": "52",
+  "write_usize": "55",
+  "try_into": "36",
+  "FxHashSet": "4",
+  "into": "29",
+  "write_u8": "51",
+  "from": "32",
+  "write_u64": "54",
+  "try_from": "41"
+}
