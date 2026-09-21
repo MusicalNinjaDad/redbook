@@ -1,5 +1,20 @@
 # redbook changelog
 
+## [v0.3.0]
+
+### Breaking changes
+
+Most significant:
+
+- `AudioCd` no longer stores `Disc` in an `Arc`
+- `AudioCdExtMut` removed: `disc_mut` is now part of `AudioCdExt`
+- `RippedTrack` now includes a full `VorbisComment` along with the raw audio
+
+### New features
+
+- Improved flexibility for downstream users to manage mutli-threading
+- GUI app
+
 ## [v0.2.1]
 
 ### Bugfixes
