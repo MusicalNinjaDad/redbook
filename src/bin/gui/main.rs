@@ -9,11 +9,14 @@ mod slint;
 #[cfg(feature = "gui")]
 use ::slint::{Model, ModelRc, Weak};
 #[cfg(feature = "gui")]
-use redbook::{AudioCd, AudioCdExt, Disc, win::drive::all_drives};
+use redbook::{AudioCd, AudioCdExt, win::drive::all_drives};
 #[cfg(feature = "gui")]
 use slint::*;
 #[cfg(feature = "gui")]
-use std::io;
+use std::{
+    io,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -23,22 +26,29 @@ fn main() -> io::Result<()> {
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let mut cd = AudioCd::try_from(drive)?;
+    let cd = AudioCd::try_from(drive)?;
+    let cd = Arc::new(Mutex::from(cd));
 
     let app_ = app.as_weak();
     let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
         {
-            let disc = cd.disc_mut();
+            let mut disc_lock = cd.lock().expect("TODO tracing on poison");
+            let disc = disc_lock.disc_mut();
             disc.update_musicbrainz()?;
             disc.update_thumbnails()?;
         }
 
-        let disc = cd.disc().clone();
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
-            let releases = ReleaseDetails::for_disc(&disc).unwrap();
+            let releases = {
+                let disc_lock = cd
+                    .lock()
+                    .expect("TODO tracing on poison & don't block event loop waiting for lock");
+                let disc = disc_lock.disc();
+                ReleaseDetails::for_disc(disc).unwrap()
+            };
             app.set_releases(releases);
-            app.on_select_release(select_release(app_, disc));
+            app.on_select_release(select_release(app_, cd));
         })
         .map_err(io::Error::other)
     });
@@ -48,16 +58,21 @@ fn main() -> io::Result<()> {
 }
 
 #[cfg(feature = "gui")]
-fn select_release(app: Weak<MainWindow>, mut disc: Disc) -> impl FnMut(ReleaseDetails) {
+fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
-        disc.set_release_by_id(Some(&release.id));
+        {
+            let mut disc_lock = cd.lock().expect("TODO error handling on posion");
+            let disc = disc_lock.disc_mut();
 
-        let albums = [release];
-        app.set_releases(ModelRc::from(albums.as_slice()));
+            disc.set_release_by_id(Some(&release.id));
 
-        let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
-        app.set_tracks(ModelRc::from(tracks.as_slice()));
+            let albums = [release];
+            app.set_releases(ModelRc::from(albums.as_slice()));
+
+            let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
+            app.set_tracks(ModelRc::from(tracks.as_slice()));
+        }
 
         let app_ = app.as_weak();
         app.on_rip(rip(app_));
