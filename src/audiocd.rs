@@ -233,29 +233,6 @@ pub trait AudioCdExt {
         })
     }
 
-    /// Attempt to get a mutable reference to the cached disc data.
-    ///
-    /// Requires a mutable reference to self to ensure that this is thread-safe.
-    fn get_disc_mut(&mut self) -> Option<&mut Disc>;
-}
-
-/// Trait providing mutable access to audio CD functionality.
-///
-/// This trait is implemented by types that provide mutable access to CD audio data
-/// and metadata, such as [`AudioCd`][crate::AudioCd]. It allows updating metadata and then
-/// locking the handle for thread-safe read operations.
-///
-/// # Notes
-///
-/// - Use this trait for initial setup: loading MusicBrainz data, selecting releases,
-///   and fetching cover art.
-/// - After setup, call [`lock`](AudioCdExtMut::lock) to obtain a thread-safe
-///   immutable handle implementing [`AudioCdExt`].
-///
-/// # Examples
-///
-///  TODO New docs
-pub trait AudioCdExtMut: AudioCdExt {
     /// Returns a mutable reference to the cached [`Disc`] data.
     ///
     /// This allows modification of disc metadata, such as loading MusicBrainz
@@ -275,7 +252,4 @@ pub trait AudioCdExtMut: AudioCdExt {
     ///
     ///  TODO New docs
     fn disc_mut(&mut self) -> &mut Disc;
-
-    /// TODO New docs
-    fn lock(&mut self);
 }

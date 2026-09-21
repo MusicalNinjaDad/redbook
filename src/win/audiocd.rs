@@ -4,16 +4,13 @@ use std::{
     fs,
     io::{self, ErrorKind},
     path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::Arc,
 };
 
 use tracing_result::Trace;
 
 use super::{drive::CdDrive, toc::CdaFile};
-use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
+use crate::{AudioCdExt, Disc, Frame, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -30,7 +27,6 @@ use crate::{AudioCdExt, AudioCdExtMut, Disc, Frame, TocEntry, Track};
 pub struct AudioCd {
     drive: CdDrive,
     disc: Arc<Disc>,
-    locked: AtomicBool,
 }
 
 impl AudioCd {
@@ -124,17 +120,17 @@ impl TryFrom<CdDrive> for AudioCd {
 
         let disc = Arc::new(Disc::new(toc, tracks, Frame::new(leadout as usize))?);
 
-        Ok(Self {
-            drive,
-            disc,
-            locked: AtomicBool::new(false),
-        })
+        Ok(Self { drive, disc })
     }
 }
 
 impl AudioCdExt for AudioCd {
     fn disc(&self) -> &Arc<crate::Disc> {
         &self.disc
+    }
+
+    fn disc_mut(&mut self) -> &mut Disc {
+        Arc::make_mut(&mut self.disc)
     }
 
     fn read_chunk(
@@ -146,21 +142,6 @@ impl AudioCdExt for AudioCd {
     ) -> io::Result<u32> {
         self.drive
             .read_chunk(track, frame_offset, frames_to_read, buf)
-    }
-
-    fn get_disc_mut(&mut self) -> Option<&mut Disc> {
-        Arc::get_mut(&mut self.disc)
-    }
-}
-
-impl AudioCdExtMut for AudioCd {
-    fn disc_mut(&mut self) -> &mut Disc {
-        Arc::make_mut(&mut self.disc)
-    }
-
-    fn lock(&mut self) {
-        tracing::trace!(audiocd = ?self, "locking");
-        self.locked.store(true, Ordering::Release);
     }
 }
 
