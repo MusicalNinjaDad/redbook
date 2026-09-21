@@ -3,6 +3,7 @@
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]
 #![feature(try_trait_v2_residual)]
+#![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![cfg_attr(
     not(target_family = "windows"),
     expect(unused_imports, reason = "stubs")
@@ -31,6 +32,8 @@ use redbook::{
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
+#[cfg(target_family = "windows")]
+use tracing_result::Trace;
 use try_v2::Try;
 
 #[derive(Debug, Clone, Copy)]
@@ -250,7 +253,8 @@ fn main() -> Exit<()> {
                 tracing::info!(target: SPAN_TARGET, "rip_track_start");
 
                 let start = std::time::Instant::now();
-                let ripped = cd.rip(track_number).ok()?;
+                let ripped =
+                    try bikeshed io::Result<_> { cd.rip(track_number).or_warn("")? }.ok()?;
                 let duration = start.elapsed().human(Truncate::Millis).to_string();
 
                 tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
@@ -260,33 +264,32 @@ fn main() -> Exit<()> {
         }
     });
 
-    // TODO #66 fix tracing in encoder thread
     let encoder = thread::spawn(move || {
-        let enc = try {
+        let enc = try bikeshed io::Result<_> {
             while let Ok(ripped) = ripped_tracks_rx.recv() {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
-                tracing::debug!(
-                    target: "encode",
-                    track = track_number,
-                    name = %track_name,
-                    "encode_start"
-                );
+                let _debug_span =
+                    tracing::debug_span!("encode", track = track_number, name = %track_name)
+                        .entered();
+                tracing::debug!("encode_start");
+
                 let start = std::time::Instant::now();
 
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
-                let mut flac_file = File::create_new(&flac_path)?;
+                let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
                 let flac = ripped.to_flac();
-                flac_file.write_all(flac.as_slice())?;
+                flac_file
+                    .write_all(flac.as_slice())
+                    .or_warn("writing flac file")?;
 
                 tracing::info!(
                     "File saved: {path} ({size} bytes)",
                     path = flac_path.display(),
                     size = flac.as_slice().len()
                 );
-                let bytes_written = flac.as_slice().len();
 
                 let RippedTrack { tags, coverart, .. } = ripped;
                 let mut file_tag = Tag::read_from_path(&flac_path)
@@ -308,9 +311,6 @@ fn main() -> Exit<()> {
 
                 let duration = start.elapsed();
                 tracing::debug!(
-                    target: "encode",
-                    track = track_number,
-                    bytes = bytes_written,
                     duration_secs = ?duration.as_secs_f64(),
                     "encode_done"
                 );
