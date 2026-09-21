@@ -265,8 +265,13 @@ fn main() -> Exit<()> {
     });
 
     let encoder = thread::spawn(move || {
-        let enc = try bikeshed io::Result<_> {
-            while let Ok(ripped) = ripped_tracks_rx.recv() {
+        while let Ok(ripped) = ripped_tracks_rx.recv() {
+            #[expect(unused_must_use, reason = "lopp on error")]
+            #[expect(
+                clippy::unnecessary_operation,
+                reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
+            )]
+            try bikeshed io::Result<_> {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
@@ -314,10 +319,8 @@ fn main() -> Exit<()> {
                     duration_secs = ?duration.as_secs_f64(),
                     "encode_done"
                 );
-            }
-        };
-        drop(ripped_tracks_rx);
-        enc
+            };
+        }
     });
 
     ripper
@@ -325,7 +328,7 @@ fn main() -> Exit<()> {
         .map_err(|panicked| Exit::Error(format!("ripping panicked: {panicked:?}")))?;
     encoder
         .join()
-        .map_err(|panicked| Exit::Error(format!("encoding panicked: {panicked:?}")))??;
+        .map_err(|panicked| Exit::Error(format!("encoding panicked: {panicked:?}")))?;
 
     Exit::Ok(())
 }
