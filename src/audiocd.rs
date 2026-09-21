@@ -218,11 +218,14 @@ pub trait AudioCdExt {
     ///
     ///  TODO New docs
     fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
+        let _debug = tracing::debug_span!("AudioCdExt::rip", track_number).entered();
+        let tag = self
+            .disc()
+            .tag_for(track_number)
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "track not found"))
+            .or_warn("")?;
         let raw_data = self.read_track(track_number)?;
-        Ok(RippedTrack {
-            track_number,
-            raw_data,
-        })
+        Ok(RippedTrack { tag, raw_data })
     }
 
     /// Attempt to get a mutable reference to the cached disc data.

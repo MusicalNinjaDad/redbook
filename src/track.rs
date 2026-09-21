@@ -1,6 +1,7 @@
 //! Provides [`Track`] & associated types
 
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use metaflac::block::VorbisComment;
 
 use crate::{Frame, TocEntry};
 
@@ -146,8 +147,8 @@ impl<'meta> Track<'meta> {
 ///  TODO New docs
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
-    /// The 1-indexed track number on the original CD.
-    pub track_number: usize,
+    /// Track details
+    pub tag: VorbisComment,
     /// Raw CD audio data (2352 bytes per frame).
     pub raw_data: Vec<u8>,
 }
