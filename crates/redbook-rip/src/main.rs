@@ -1,29 +1,28 @@
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![feature(try_blocks)]
-#[cfg(feature = "gui")]
+
 mod album;
 
-#[cfg(feature = "gui")]
 mod output;
-#[cfg(feature = "gui")]
+
 mod slint;
-#[cfg(feature = "gui")]
+
 use ::slint::{Model, ModelRc, Weak};
-#[cfg(feature = "gui")]
+
 use metaflac::{
     Block, Tag,
     block::{Picture, PictureType},
 };
-#[cfg(feature = "gui")]
+
 use redbook::{
     AudioCd, AudioCdExt, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
-#[cfg(feature = "gui")]
+
 use slint::*;
-#[cfg(feature = "gui")]
+
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -34,10 +33,9 @@ use std::{
     },
     thread,
 };
-#[cfg(feature = "gui")]
+
 use tracing_result::Trace;
 
-#[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
@@ -182,7 +180,6 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "gui")]
 fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
@@ -201,7 +198,6 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
     }
 }
 
-#[cfg(feature = "gui")]
 fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
     move || {
         let app = app.clone().unwrap();
@@ -217,7 +213,6 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
     }
 }
 
-#[cfg(feature = "gui")]
 trait FilenameSanitize {
     /// Returns a sanitized version of the string suitable for use as a filename.
     ///
@@ -240,7 +235,6 @@ trait FilenameSanitize {
     fn sanitize_filename(&self) -> String;
 }
 
-#[cfg(feature = "gui")]
 impl FilenameSanitize for str {
     fn sanitize_filename(&self) -> String {
         self.chars()
@@ -249,7 +243,6 @@ impl FilenameSanitize for str {
     }
 }
 
-#[cfg(feature = "gui")]
 pub trait FilenameChar {
     /// Returns `true` if the character is valid for a filename on Windows.
     ///
@@ -269,7 +262,6 @@ pub trait FilenameChar {
     fn is_valid_filename_char(&self) -> bool;
 }
 
-#[cfg(feature = "gui")]
 impl FilenameChar for char {
     fn is_valid_filename_char(&self) -> bool {
         self.is_ascii()
@@ -278,6 +270,3 @@ impl FilenameChar for char {
             && !matches!(self, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
     }
 }
-
-#[cfg(not(feature = "gui"))]
-fn main() {}
