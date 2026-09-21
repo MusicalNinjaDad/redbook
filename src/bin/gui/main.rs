@@ -40,7 +40,7 @@ fn main() -> io::Result<()> {
     let setup: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
         let cd = cd_;
         {
-            let mut disc_lock = cd.lock().expect("TODO tracing on poison");
+            let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
             let disc = disc_lock.disc_mut();
             disc.update_musicbrainz()?;
             disc.update_thumbnails()?;
@@ -51,7 +51,7 @@ fn main() -> io::Result<()> {
             let releases = {
                 let disc_lock = cd
                     .lock()
-                    .expect("TODO tracing on poison & don't block event loop waiting for lock");
+                    .expect("TODO #69 don't block event loop waiting for lock");
                 let disc = disc_lock.disc();
                 ReleaseDetails::for_disc(disc).unwrap()
             };
@@ -64,7 +64,7 @@ fn main() -> io::Result<()> {
 
     let ripper = std::thread::spawn(move || {
         while let Ok(tracks) = to_rip_rx.recv() {
-            let disc_lock = cd.lock().expect("TODO error handling & tracing on poison");
+            let disc_lock = cd.lock().expect("TODO #68 error handling & tracing on poison");
             let disc = disc_lock.disc();
             for track_number in tracks {
                 let track = disc.track(track_number);
@@ -75,8 +75,8 @@ fn main() -> io::Result<()> {
 
     app.run().unwrap();
 
-    setup.join().expect("TODO panic handling")?;
-    ripper.join().expect("TODO panic handling");
+    setup.join().expect("TODO #71 panic handling")?;
+    ripper.join().expect("TODO #71 panic handling");
 
     Ok(())
 }
@@ -86,7 +86,7 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
         {
-            let mut disc_lock = cd.lock().expect("TODO error handling on posion");
+            let mut disc_lock = cd.lock().expect("TODO #68 error handling on posion");
             let disc = disc_lock.disc_mut();
 
             disc.set_release_by_id(Some(&release.id));
@@ -112,7 +112,7 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
             .collect();
         channel
             .send(tracks)
-            .expect("TODO error handling on broken channel");
+            .expect("TODO #70 error handling on broken channel");
     }
 }
 
