@@ -236,7 +236,6 @@ fn main() -> Exit<()> {
     cd.disc().save_cover_art(&output_dir);
 
     cd.lock();
-    let disc = cd.disc().clone();
 
     let (ripped_tracks_tx, ripped_tracks_rx) = mpsc::channel::<RippedTrack>();
 
@@ -267,7 +266,7 @@ fn main() -> Exit<()> {
     let encoder = thread::spawn(move || {
         let enc = try {
             while let Ok(ripped) = ripped_tracks_rx.recv() {
-                let tag = &ripped.tag;
+                let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
                 tracing::debug!(
@@ -291,18 +290,18 @@ fn main() -> Exit<()> {
                 );
                 let bytes_written = flac.as_slice().len();
 
-                let tag = ripped.tag;
+                let RippedTrack { tags, coverart, .. } = ripped;
                 let mut file_tag = Tag::read_from_path(&flac_path)
                     // TODO #67 error handling reading empty tag from file during encoding
                     .unwrap();
-                file_tag.vorbis_comments_mut().comments.extend(tag.comments);
+                file_tag
+                    .vorbis_comments_mut()
+                    .comments
+                    .extend(tags.comments);
 
-                if let Some(cover) =
-                    disc.cover_art()
-                        .cloned()
-                        .or(fs::read(output_dir.join("front.jpeg")).ok().map(|data| {
-                            Picture::from_jpeg(PictureType::CoverFront, "Front Cover", data)
-                        }))
+                if let Some(cover) = coverart.or(fs::read(output_dir.join("front.jpeg"))
+                    .ok()
+                    .map(|data| Picture::from_jpeg(PictureType::CoverFront, "Front Cover", data)))
                 {
                     file_tag.push_block(Block::Picture(cover));
                 }

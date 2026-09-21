@@ -1,7 +1,7 @@
 //! Provides [`Track`] & associated types
 
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
-use metaflac::block::VorbisComment;
+use metaflac::block::{Picture, VorbisComment};
 
 use crate::{Frame, TocEntry};
 
@@ -148,7 +148,9 @@ impl<'meta> Track<'meta> {
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
     /// Track details
-    pub tag: VorbisComment,
+    pub tags: VorbisComment,
+    /// Cover art
+    pub coverart: Option<Picture>,
     /// Raw CD audio data (2352 bytes per frame).
     pub raw_data: Vec<u8>,
 }
