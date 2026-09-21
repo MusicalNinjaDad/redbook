@@ -31,11 +31,16 @@ impl TryFrom<&PathBuf> for TestAlbum {
     type Error = io::Error;
 
     fn try_from(path: &PathBuf) -> io::Result<Self> {
-        // TODO: handle testing on windows -> other path format?
-        match path.display().to_string().as_str() {
-            "tests/assets/definitely_maybe" => Ok(TestAlbum::DefinitelyMaybe),
-            "tests/assets/the_wall/disc1" => Ok(TestAlbum::TheWallDisc1),
-            "tests/assets/the_wall/disc2" => Ok(TestAlbum::TheWallDisc2),
+        match path.absolute()? {
+            p if p == TestAlbum::DefinitelyMaybe.assets_path().absolute()? => {
+                Ok(TestAlbum::DefinitelyMaybe)
+            }
+            p if p == TestAlbum::TheWallDisc1.assets_path().absolute()? => {
+                Ok(TestAlbum::TheWallDisc1)
+            }
+            p if p == TestAlbum::TheWallDisc2.assets_path().absolute()? => {
+                Ok(TestAlbum::TheWallDisc2)
+            }
             _ => Err(io::Error::new(io::ErrorKind::NotFound, "unknown album")),
         }
     }
@@ -44,30 +49,23 @@ impl TryFrom<&PathBuf> for TestAlbum {
 impl TestAlbum {
     /// Path to the CDROM_TOC.hex file for this album
     pub fn cdrom_toc_path(&self) -> PathBuf {
-        match self {
-            TestAlbum::DefinitelyMaybe => {
-                PathBuf::from("tests/assets/definitely_maybe/CDROM_TOC.hex")
-            }
-            TestAlbum::TheWallDisc1 => PathBuf::from("tests/assets/the_wall/disc1/CDROM_TOC.hex"),
-            TestAlbum::TheWallDisc2 => PathBuf::from("tests/assets/the_wall/disc2/CDROM_TOC.hex"),
-        }
+        self.assets_path().join("CDROM_TOC.hex")
     }
 
     /// Path to the TOC.hex file for this album
     pub fn toc_path(&self) -> PathBuf {
-        match self {
-            TestAlbum::DefinitelyMaybe => PathBuf::from("tests/assets/definitely_maybe/TOC.hex"),
-            TestAlbum::TheWallDisc1 => PathBuf::from("tests/assets/the_wall/disc1/TOC.hex"),
-            TestAlbum::TheWallDisc2 => PathBuf::from("tests/assets/the_wall/disc2/TOC.hex"),
-        }
+        self.assets_path().join("TOC.hex")
     }
 
     /// Path to the assets directory for this album
     pub fn assets_path(&self) -> PathBuf {
+        // To allow other crates to use these fixtures
+        let redbook_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let assets = redbook_root.join("tests").join("assets");
         match self {
-            TestAlbum::DefinitelyMaybe => PathBuf::from("tests/assets/definitely_maybe"),
-            TestAlbum::TheWallDisc1 => PathBuf::from("tests/assets/the_wall/disc1"),
-            TestAlbum::TheWallDisc2 => PathBuf::from("tests/assets/the_wall/disc2"),
+            TestAlbum::DefinitelyMaybe => assets.join("definitely_maybe"),
+            TestAlbum::TheWallDisc1 => assets.join("the_wall").join("disc1"),
+            TestAlbum::TheWallDisc2 => assets.join("the_wall").join("disc2"),
         }
     }
 
