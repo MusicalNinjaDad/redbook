@@ -67,6 +67,7 @@ jobs:
         run: |
           cp LICENSE rip/
           cp third-party-licenses.html rip/
+          cp third-party-licenses-gui.html rip/
           cp README.md rip/
           cp target/x86_64-pc-windows-msvc/release/*.exe rip/
           zip -r rip.zip rip/*
