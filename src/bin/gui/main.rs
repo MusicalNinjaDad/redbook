@@ -9,11 +9,11 @@ mod slint;
 #[cfg(feature = "gui")]
 use ::slint::{Model, ModelRc, Weak};
 #[cfg(feature = "gui")]
-use redbook::{AudioCd, AudioCdExt, AudioCdExtMut, Disc, win::drive::all_drives};
+use redbook::{AudioCd, AudioCdExt, Disc, win::drive::all_drives};
 #[cfg(feature = "gui")]
 use slint::*;
 #[cfg(feature = "gui")]
-use std::{io, sync::Arc};
+use std::io;
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -48,12 +48,10 @@ fn main() -> io::Result<()> {
 }
 
 #[cfg(feature = "gui")]
-fn select_release(app: Weak<MainWindow>, mut disc: Arc<Disc>) -> impl FnMut(ReleaseDetails) {
+fn select_release(app: Weak<MainWindow>, mut disc: Disc) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
         let app = app.clone().unwrap();
-        Arc::get_mut(&mut disc)
-            .expect("We've been provided with the ONLY reference to disc")
-            .set_release_by_id(Some(&release.id));
+        disc.set_release_by_id(Some(&release.id));
 
         let albums = [release];
         app.set_releases(ModelRc::from(albums.as_slice()));
