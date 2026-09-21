@@ -27,7 +27,7 @@ use metaflac::{
 };
 #[cfg(target_family = "windows")]
 use redbook::{
-    AudioCd, AudioCdExt, AudioCdExtMut, RippedTrack,
+    AudioCd, AudioCdExt, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
@@ -234,8 +234,6 @@ fn main() -> Exit<()> {
     cd.disc_mut().update_cover_art();
     #[expect(unused_must_use, reason = "don't abort if unable to save cover art")]
     cd.disc().save_cover_art(&output_dir);
-
-    cd.lock();
 
     let (ripped_tracks_tx, ripped_tracks_rx) = mpsc::channel::<RippedTrack>();
 
