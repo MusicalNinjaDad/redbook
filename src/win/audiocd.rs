@@ -4,7 +4,6 @@ use std::{
     fs,
     io::{self, ErrorKind},
     path::Path,
-    sync::Arc,
 };
 
 use tracing_result::Trace;
@@ -26,7 +25,7 @@ use crate::{AudioCdExt, Disc, Frame, TocEntry, Track};
 #[derive(Debug)]
 pub struct AudioCd {
     drive: CdDrive,
-    disc: Arc<Disc>,
+    disc: Disc,
 }
 
 impl AudioCd {
@@ -118,19 +117,19 @@ impl TryFrom<CdDrive> for AudioCd {
 
         let leadout = toc.leadout();
 
-        let disc = Arc::new(Disc::new(toc, tracks, Frame::new(leadout as usize))?);
+        let disc = Disc::new(toc, tracks, Frame::new(leadout as usize))?;
 
         Ok(Self { drive, disc })
     }
 }
 
 impl AudioCdExt for AudioCd {
-    fn disc(&self) -> &Arc<crate::Disc> {
+    fn disc(&self) -> &Disc {
         &self.disc
     }
 
     fn disc_mut(&mut self) -> &mut Disc {
-        Arc::make_mut(&mut self.disc)
+        &mut self.disc
     }
 
     fn read_chunk(

@@ -2,7 +2,6 @@ use std::{
     convert::TryFrom,
     io::{self, ErrorKind},
     ops::Rem,
-    sync::Arc,
 };
 
 use musicbrainz_rs::entity::discid::Discid;
@@ -61,7 +60,7 @@ pub trait AudioCdExt {
     /// # Examples
     ///
     ///  TODO New docs
-    fn disc(&self) -> &Arc<Disc>;
+    fn disc(&self) -> &Disc;
 
     /// Reads all frames from a track and returns the raw audio data.
     ///
