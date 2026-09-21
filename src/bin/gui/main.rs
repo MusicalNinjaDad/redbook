@@ -1,5 +1,6 @@
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![feature(try_blocks)]
 #[cfg(feature = "gui")]
 mod album;
 
@@ -10,7 +11,7 @@ mod slint;
 #[cfg(feature = "gui")]
 use ::slint::{Model, ModelRc, Weak};
 #[cfg(feature = "gui")]
-use redbook::{AudioCd, AudioCdExt, win::drive::all_drives};
+use redbook::{AudioCd, AudioCdExt, RippedTrack, win::drive::all_drives};
 #[cfg(feature = "gui")]
 use slint::*;
 #[cfg(feature = "gui")]
@@ -22,6 +23,8 @@ use std::{
     },
     thread,
 };
+#[cfg(feature = "gui")]
+use tracing_result::Trace;
 
 #[cfg(feature = "gui")]
 fn main() -> io::Result<()> {
@@ -35,6 +38,7 @@ fn main() -> io::Result<()> {
     let cd = Arc::new(Mutex::from(cd));
 
     let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
+    let (ripped_tx, ripped_rx) = mpsc::channel::<RippedTrack>();
 
     let app_ = app.as_weak();
     let cd_ = cd.clone();
@@ -63,23 +67,31 @@ fn main() -> io::Result<()> {
         .map_err(io::Error::other)
     });
 
-    let ripper = thread::spawn(move || {
+    let ripper = thread::spawn(move || try {
         while let Ok(tracks) = to_rip_rx.recv() {
-            let disc_lock = cd
+            let cd_lock = cd
                 .lock()
                 .expect("TODO #68 error handling & tracing on poison");
-            let disc = disc_lock.disc();
+            let disc = cd_lock.disc();
             for track_number in tracks {
                 let track = disc.track(track_number);
                 tracing::info!(ripping = ?track);
+                let ripped = cd_lock.rip(track_number).or_error("ripping")?;
+                ripped_tx
+                    .send(ripped)
+                    .map_err(io::Error::other)
+                    .or_error("sending")?;
             }
         }
     });
 
+    let encoder = thread::spawn(move || todo!());
+
     app.run().unwrap();
 
     setup.join().expect("TODO #71 panic handling")?;
-    ripper.join().expect("TODO #71 panic handling");
+    ripper.join().expect("TODO #71 panic handling")?;
+    encoder.join().expect("TODO #71 panic handling");
 
     Ok(())
 }
