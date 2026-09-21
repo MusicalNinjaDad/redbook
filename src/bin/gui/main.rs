@@ -20,6 +20,7 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Sender},
     },
+    thread,
 };
 
 #[cfg(feature = "gui")]
@@ -37,7 +38,7 @@ fn main() -> io::Result<()> {
 
     let app_ = app.as_weak();
     let cd_ = cd.clone();
-    let setup: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
+    let setup = thread::spawn(move || {
         let cd = cd_;
         {
             let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
@@ -62,7 +63,7 @@ fn main() -> io::Result<()> {
         .map_err(io::Error::other)
     });
 
-    let ripper = std::thread::spawn(move || {
+    let ripper = thread::spawn(move || {
         while let Ok(tracks) = to_rip_rx.recv() {
             let disc_lock = cd
                 .lock()
