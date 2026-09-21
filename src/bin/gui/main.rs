@@ -37,7 +37,7 @@ fn main() -> io::Result<()> {
 
     let app_ = app.as_weak();
     let cd_ = cd.clone();
-    let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
+    let setup: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
         let cd = cd_;
         {
             let mut disc_lock = cd.lock().expect("TODO tracing on poison");
@@ -62,7 +62,7 @@ fn main() -> io::Result<()> {
         .map_err(io::Error::other)
     });
 
-    let _ripper = std::thread::spawn(move || {
+    let ripper = std::thread::spawn(move || {
         while let Ok(tracks) = to_rip_rx.recv() {
             let disc_lock = cd.lock().expect("TODO error handling & tracing on poison");
             let disc = disc_lock.disc();
@@ -74,6 +74,10 @@ fn main() -> io::Result<()> {
     });
 
     app.run().unwrap();
+
+    setup.join().expect("TODO panic handling")?;
+    ripper.join().expect("TODO panic handling");
+
     Ok(())
 }
 
