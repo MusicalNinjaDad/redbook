@@ -2,77 +2,53 @@
 name = "redbook"
 description = "CDDA CD digital audio as per RedBook"
 categories = ["command-line-utilities", "multimedia::audio", "hardware-support"]
-keywords = ["ccda", "windows", "flac"]
-authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
-repository = "https://github.com/MusicalNinjaDad/redbook"
+keywords.workspace = true
+authors.workspace = true
+repository.workspace = true
 license = "MIT"
-edition = "2024"
-version = "0.2.1"
-exclude = [
-    "/.vibe/plans",
-    "/.vibe/.tmp",
-    "/docs/**/*.json",
-    "/graphify-out/cache",
-]
+edition.workspace = true
+version.workspace = true
 
 [features]
 gui = ["dep:slint", "dep:slint-build"]
 
 [dependencies]
-build_safely =  "0.6.0" # for doc link
-cdtoc = "0.14.0"
-clap = { version = "4.6.5", features = ["derive"] }
-errno = "0.3.14"
-exit_safely = "0.3.1"
-flacenc = { version = "0.5.1" }
-humanize-duration = "0.0.7"
-metaflac = "0.2.8"
-musicbrainz_rs = { version = "0.14.0", features = ["sync", "native_tls"] }
-reqwest = { version = "0.13.4", default-features = false, features = [
-    "blocking",
-    "native-tls",
-    "json",
-] }
-serde_json = "1.0"
-slint = {version = "1.18.0", optional = true}
-tabular = "0.2.0"
-try_v2 = "0.11.0"
-tracing = "0.1"
-tracing-result = "0.0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-windows-link = "0.100.0"
-zune-jpeg = "0.5.15"
+build_safely.workspace = true # for doc link
+cdtoc.workspace = true
+clap.workspace = true
+errno.workspace = true
+exit_safely.workspace = true
+flacenc.workspace = true
+humanize-duration.workspace = true
+metaflac.workspace = true
+musicbrainz_rs.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+slint = {workspace = true, optional = true}
+tabular.workspace = true
+try_v2.workspace = true
+tracing.workspace = true 
+tracing-result.workspace = true
+tracing-subscriber.workspace = true
+windows-link.workspace = true
+zune-jpeg.workspace = true
 
 [dev-dependencies]
-glob = "0.3.4"
-proc-macro2 = "1.0.107"
-rstest = "0.26.1"
-similar-asserts = "2.0.0"
-syn = {version = "3.0.5", features = ["full", "extra-traits"]}
-tempfile = "3.27.0"
-windows-bindgen = "0.100.0"
+glob.workspace = true
+proc-macro2.workspace = true
+rstest.workspace = true
+similar-asserts.workspace = true
+syn.workspace = true
+tempfile.workspace = true
+windows-bindgen.workspace = true
 
 [build-dependencies]
-build_safely = "0.6.0"
-clap = { version = "4.6.5", features = ["derive"] }
-clap_builder = "4.6.5"
-clap_complete = "4.6.8"
-clap_mangen = "0.3.0"
-slint-build = {version = "1.18.0", optional = true}
+build_safely.workspace = true
+clap.workspace = true
+clap_builder.workspace = true
+clap_complete.workspace = true
+clap_mangen.workspace = true
+slint-build = {workspace = true, optional = true}
 
 [lints]
-# Explicitness
-clippy.allow_attributes = "deny" # use expect instead
-clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
-clippy.let_underscore_untyped = "deny"
-clippy.unused_result_ok = "deny"
-clippy.used_underscore_binding = "deny"
-
-# Safety
-clippy.missing_safety_doc = "deny" # conflicts with clap derive: allow(clippy::style)
-clippy.multiple_unsafe_ops_per_block = "deny" # sometimes valuable to inline calls
-clippy.transmute_ptr_to_ptr = "deny" # conflicts with clap derive: allow(clippy::pedantic)
-clippy.undocumented_unsafe_blocks = "deny" # auto-generated bindings
-rust.unsafe_op_in_unsafe_fn = "forbid"
-rust.unsafe_attr_outside_unsafe = "forbid"
-rust.unused_unsafe = "deny"
+workspace = true
