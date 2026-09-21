@@ -445,6 +445,7 @@ impl Disc {
                     .and_then(|releases| releases.iter().position(|rel| rel.id == release.id))
             })
         });
+        tracing::debug!(set_to_index = ?self.release_index);
         self.reset_disc_index();
         self
     }

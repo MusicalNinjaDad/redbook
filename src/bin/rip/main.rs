@@ -127,7 +127,7 @@ fn main() -> Exit<()> {
                             println!("oops ... try again {input} is not a number");
                         })?;
 
-                        let &release = release_menu.releases.get(choice).ok_or_else(|| {
+                        let &release = release_menu.releases.get(choice - 1).ok_or_else(|| {
                             println!("oops ... I can't find release number {choice}");
                         })?;
 
