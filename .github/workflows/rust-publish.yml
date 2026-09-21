@@ -26,7 +26,7 @@ jobs:
     - id: version
       name: get version
       run: |
-        v="$(jaq -cr .package.version Cargo.toml)"
+        v="$(jaq -cr .workspace.package.version Cargo.toml)"
         echo "version: $v"
         
         echo "version=$v" >> $GITHUB_OUTPUT
