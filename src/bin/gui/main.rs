@@ -1,3 +1,4 @@
+#![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #[cfg(feature = "gui")]
 mod album;
@@ -15,7 +16,10 @@ use slint::*;
 #[cfg(feature = "gui")]
 use std::{
     io,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Sender},
+    },
 };
 
 #[cfg(feature = "gui")]
@@ -28,6 +32,8 @@ fn main() -> io::Result<()> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
     let cd = AudioCd::try_from(drive)?;
     let cd = Arc::new(Mutex::from(cd));
+
+    let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
 
     let app_ = app.as_weak();
     let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
@@ -48,9 +54,18 @@ fn main() -> io::Result<()> {
                 ReleaseDetails::for_disc(disc).unwrap()
             };
             app.set_releases(releases);
-            app.on_select_release(select_release(app_, cd));
+            app.on_select_release(select_release(app_.clone(), cd));
+            app.on_rip(rip(app_, to_rip_tx));
         })
         .map_err(io::Error::other)
+    });
+
+    let _ripper = std::thread::spawn(move || {
+        while let Ok(tracks) = to_rip_rx.recv() {
+            for track_number in tracks {
+                tracing::info!(ripping = track_number);
+            }
+        }
     });
 
     app.run().unwrap();
@@ -73,20 +88,22 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
             let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
             app.set_tracks(ModelRc::from(tracks.as_slice()));
         }
-
-        let app_ = app.as_weak();
-        app.on_rip(rip(app_));
     }
 }
 
 #[cfg(feature = "gui")]
-fn rip(app: Weak<MainWindow>) -> impl FnMut() {
+fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
     move || {
         let app = app.clone().unwrap();
-        let tracks = app.get_tracks();
-        for track in tracks.iter().filter(|track| track.rip) {
-            tracing::info!(ripping = ?track.title);
-        }
+        let tracks = app
+            .get_tracks()
+            .filter(|track| track.rip)
+            .map(|track| track.number.strict_cast())
+            .iter()
+            .collect();
+        channel
+            .send(tracks)
+            .expect("TODO error handling on broken channel");
     }
 }
 
