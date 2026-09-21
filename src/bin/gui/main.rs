@@ -36,7 +36,9 @@ fn main() -> io::Result<()> {
     let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
 
     let app_ = app.as_weak();
+    let cd_ = cd.clone();
     let _worker_thread: std::thread::JoinHandle<io::Result<()>> = std::thread::spawn(move || {
+        let cd = cd_;
         {
             let mut disc_lock = cd.lock().expect("TODO tracing on poison");
             let disc = disc_lock.disc_mut();
@@ -62,8 +64,11 @@ fn main() -> io::Result<()> {
 
     let _ripper = std::thread::spawn(move || {
         while let Ok(tracks) = to_rip_rx.recv() {
+            let disc_lock = cd.lock().expect("TODO error handling & tracing on poison");
+            let disc = disc_lock.disc();
             for track_number in tracks {
-                tracing::info!(ripping = track_number);
+                let track = disc.track(track_number);
+                tracing::info!(ripping = ?track);
             }
         }
     });
