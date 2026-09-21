@@ -170,14 +170,14 @@ fn main() -> io::Result<()> {
     drop(app);
     tracing::debug!("app dropped, expecting threads to close now ...");
 
+    setup.join().expect("TODO #71 panic handling")?;
+    tracing::debug!("setup closed");
+
     ripper.join().expect("TODO #71 panic handling")?;
     tracing::debug!("ripper closed");
 
     encoder.join().expect("TODO #71 panic handling");
     tracing::debug!("encoder closed");
-
-    setup.join().expect("TODO #71 panic handling")?;
-    tracing::debug!("setup closed");
 
     Ok(())
 }
