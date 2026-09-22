@@ -122,7 +122,7 @@ impl VorbisTagExt for VorbisComment {
     fn filename(&self) -> PathBuf {
         let track_number = format!("{:02}", self.track().unwrap_or_default());
         let title = self.full_title();
-        PathBuf::from([track_number, title].join(" "))
+        PathBuf::from(sanitise(&[track_number, title].join(" ")))
     }
 
     fn full_title(&self) -> String {
