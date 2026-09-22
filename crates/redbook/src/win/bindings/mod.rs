@@ -16,6 +16,7 @@ mod bindgen;
 
 mod mocks;
 
+// TODO: #79 switch from `target_family = "windows"` to simply `cfg(windows)`
 #[cfg(all(target_family = "windows", not(any(test, doc))))]
 pub(crate) use bindgen::{
     CloseHandle, CreateFile2, DeviceIoControl, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
