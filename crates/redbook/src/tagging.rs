@@ -114,6 +114,9 @@ pub trait VorbisTagExt {
     /// 0n Full - title
     fn filename(&self) -> PathBuf;
 
+    /// Album - Artists/Album title [Disc n]
+    fn directory(&self) -> PathBuf;
+
     /// Title one - Title two
     fn full_title(&self) -> String;
 }
@@ -123,6 +126,12 @@ impl VorbisTagExt for VorbisComment {
         let track_number = format!("{:02}", self.track().unwrap_or_default());
         let title = self.full_title();
         PathBuf::from(sanitise(&[track_number, title].join(" ")))
+    }
+
+    fn directory(&self) -> PathBuf {
+        let artist = self.album_artist().map(|artists| artists.join(" ")).unwrap_or_else(|| "Unknown artist".to_string());
+        let title = self.album().map(|titles| titles.join(" ")).unwrap_or_else(|| "Unknown album".to_string());
+        PathBuf::from(sanitise(&artist)).join(sanitise(&title))
     }
 
     fn full_title(&self) -> String {
