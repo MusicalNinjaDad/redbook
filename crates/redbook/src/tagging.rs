@@ -129,8 +129,14 @@ impl VorbisTagExt for VorbisComment {
     }
 
     fn directory(&self) -> PathBuf {
-        let artist = self.album_artist().map(|artists| artists.join(" ")).unwrap_or_else(|| "Unknown artist".to_string());
-        let title = self.album().map(|titles| titles.join(" ")).unwrap_or_else(|| "Unknown album".to_string());
+        let artist = self
+            .album_artist()
+            .map(|artists| artists.join(" "))
+            .unwrap_or_else(|| "Unknown artist".to_string());
+        let title = self
+            .album()
+            .map(|titles| titles.join(" "))
+            .unwrap_or_else(|| "Unknown album".to_string());
         PathBuf::from(sanitise(&artist)).join(sanitise(&title))
     }
 
