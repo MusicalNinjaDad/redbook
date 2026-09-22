@@ -26,7 +26,6 @@ use slint::*;
 use std::{
     fs::{self, File},
     io::{self, Write},
-    path::PathBuf,
     sync::{
         Arc, Mutex,
         mpsc::{self, Sender},
@@ -105,14 +104,6 @@ fn main() -> io::Result<()> {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
-                let artist = tag
-                    .album_artist()
-                    .and_then(|artists| artists.first().cloned())
-                    .unwrap_or_else(|| "Unknown".to_string());
-                let disc_title = tag
-                    .album()
-                    .and_then(|titles| titles.first().cloned())
-                    .unwrap_or_else(|| "Unknown".to_string());
                 let _debug_span =
                     tracing::debug_span!("encode", track = track_number, name = %track_name)
                         .entered();
@@ -120,8 +111,7 @@ fn main() -> io::Result<()> {
 
                 let start = std::time::Instant::now();
 
-                let output_dir =
-                    PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
+                let output_dir = tag.directory();
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
                 // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
@@ -212,63 +202,5 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
         channel
             .send(tracks)
             .expect("TODO #70 error handling on broken channel");
-    }
-}
-
-trait FilenameSanitize {
-    /// Returns a sanitized version of the string suitable for use as a filename.
-    ///
-    /// The sanitization process:
-    /// 1. Removes all non-ASCII characters
-    /// 2. Removes all ASCII control characters (code points 0-31 and 127)
-    /// 3. Removes all Windows reserved characters: `< > : " / \ | ? *`
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// assert_eq!(
-    ///     "Rocket Man: The Definitive Hits".sanitize_filename(),
-    ///     "Rocket Man The Definitive Hits"
-    /// );
-    /// assert_eq!("file?name*.txt".sanitize_filename(), "filename.txt");
-    /// assert_eq!("café".sanitize_filename(), "caf");
-    /// assert_eq!("\x00\x01".sanitize_filename(), "");
-    /// ```
-    fn sanitize_filename(&self) -> String;
-}
-
-impl FilenameSanitize for str {
-    fn sanitize_filename(&self) -> String {
-        self.chars()
-            .filter(|c| c.is_valid_filename_char())
-            .collect()
-    }
-}
-
-pub trait FilenameChar {
-    /// Returns `true` if the character is valid for a filename on Windows.
-    ///
-    /// A character is considered valid if:
-    /// - It is an ASCII character (`char::is_ascii()` returns `true`)
-    /// - Its Unicode code point is between 32 and 126 inclusive
-    /// - It is not one of the reserved filename characters: `< > : " / \ | ? *`
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// assert!('a'.is_valid_filename_char());
-    /// assert!(!'<'.is_valid_filename_char());
-    /// assert!(!'\x00'.is_valid_filename_char());
-    /// assert!(!'é'.is_valid_filename_char());
-    /// ```
-    fn is_valid_filename_char(&self) -> bool;
-}
-
-impl FilenameChar for char {
-    fn is_valid_filename_char(&self) -> bool {
-        self.is_ascii()
-            && *self >= ' '
-            && *self <= '~'
-            && !matches!(self, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
     }
 }
