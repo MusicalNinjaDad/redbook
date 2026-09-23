@@ -1,6 +1,6 @@
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
-#![feature(try_blocks)]
+#![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 
 mod album;
 
