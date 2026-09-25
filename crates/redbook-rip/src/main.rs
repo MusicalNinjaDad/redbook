@@ -170,13 +170,16 @@ fn main() -> io::Result<()> {
     enc_controller.cancel();
     tracing::debug!("app dropped, expecting threads to close now ...");
 
-    setup.join().expect("TODO #71 panic handling")?;
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    setup.join();
     tracing::debug!("setup closed");
 
-    ripper.join().expect("TODO #71 panic handling")?;
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    ripper.join();
     tracing::debug!("ripper closed");
 
-    encoder.join().expect("TODO #71 panic handling");
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    encoder.join();
     tracing::debug!("encoder closed");
 
     Ok(())
