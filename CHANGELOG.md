@@ -1,5 +1,20 @@
 # redbook changelog
 
+## [WIP]
+
+### New features
+
+- add `VorbisTagExt::directory()` to generate `Artist/Album`-style paths from tags
+- `VorbisTagExt::filename()` & `VorbisTagExt::directory()` produce sanitised paths suitable for target OS
+
+### Bugfixes
+
+- Create output folder if missing (rip.exe)
+
+### Technical
+
+- update deps to `build_safely` v0.6.2 (for `try_blocks`) & `tracing_result` v0.0.2 (for `.ok()`)
+
 ## [v0.3.0]
 
 ### Breaking changes
