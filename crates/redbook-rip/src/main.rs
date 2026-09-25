@@ -8,7 +8,7 @@ mod output;
 
 mod slint;
 
-use ::slint::{Model, ModelRc, Weak};
+use ::slint::{Model, ModelRc, VecModel, Weak};
 
 use metaflac::{
     Block, Tag,
@@ -27,6 +27,7 @@ use thread_safely::Controller;
 use std::{
     fs::{self, File},
     io::{self, Write},
+    rc::Rc,
     sync::{
         Arc, Mutex,
         mpsc::{self, Sender},
@@ -164,6 +165,28 @@ fn main() -> io::Result<()> {
         }
     });
 
+    let app_ = app.as_weak();
+    let rip_rx = rip_controller.receiver();
+    let rip_progress = thread::spawn(move || {
+        while let Ok(RipProgress {
+            track_number,
+            bytes_processed,
+            total_bytes,
+        }) = rip_rx.recv()
+        {
+            let progress = bytes_processed as f32 / total_bytes as f32;
+            app_.clone()
+                .upgrade_in_event_loop(move |app| {
+                    let tracks = app.get_tracks();
+                    let mut track = tracks.row_data(track_number - 1).unwrap();
+                    assert_eq!(track_number as i32, track.number);
+                    track.rip_progress = progress;
+                    tracks.set_row_data(track_number - 1, track);
+                })
+                .unwrap();
+        }
+    });
+
     app.run().unwrap();
     drop(app);
     rip_controller.cancel();
@@ -182,8 +205,14 @@ fn main() -> io::Result<()> {
     encoder.join();
     tracing::debug!("encoder closed");
 
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    rip_progress.join();
+    tracing::debug!("progress updates closed");
+
     Ok(())
 }
+
+type TracksModel = VecModel<TrackDetails>;
 
 fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
@@ -198,7 +227,7 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
             app.set_releases(ModelRc::from(albums.as_slice()));
 
             let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
-            app.set_tracks(ModelRc::from(tracks.as_slice()));
+            app.set_tracks(ModelRc::from(Rc::new(TracksModel::from(tracks))));
         }
     }
 }

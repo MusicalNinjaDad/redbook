@@ -15,10 +15,11 @@ use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Tr
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A status update which is provided in the `reply` channel of a [thread_safely::Context] during
 /// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
+#[expect(missing_docs, reason = "well named fields")]
 pub struct RipProgress {
-    track_number: usize,
-    bytes_processed: usize,
-    total_bytes: usize,
+    pub track_number: usize,
+    pub bytes_processed: usize,
+    pub total_bytes: usize,
 }
 
 /// Trait providing access to audio CD functionality.

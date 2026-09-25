@@ -15,6 +15,7 @@ name = "rip"
 path = "src/main.rs"
 
 [dependencies]
+crossbeam.workspace = true
 metaflac.workspace = true
 musicbrainz_rs.workspace = true
 redbook.workspace = true
