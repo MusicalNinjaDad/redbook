@@ -27,7 +27,6 @@ use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntry, Track};
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,
-    thread_context: Context<RipProgress>,
 }
 
 impl AudioCd {
@@ -42,9 +41,11 @@ impl AudioCd {
     /// Opens drive, reads CD, and stores a thread [Context][thread_safely::Context] to allow for
     /// cancellation and status updates during long-running reads.
     pub fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
-        let mut cd = Self::new(path)?;
-        cd.thread_context = cx;
-        Ok(cd)
+        let _err_span =
+            tracing::error_span!("AudioCd::with_context", path = %path.as_ref().display())
+                .entered();
+        let drive = CdDrive::open_with_context(path, cx)?;
+        Self::try_from(drive)
     }
 }
 
@@ -129,11 +130,7 @@ impl TryFrom<CdDrive> for AudioCd {
 
         let disc = Disc::new(toc, tracks, Frame::new(leadout as usize))?;
 
-        Ok(Self {
-            drive,
-            disc,
-            thread_context: Default::default(),
-        })
+        Ok(Self { drive, disc })
     }
 }
 

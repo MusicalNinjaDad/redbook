@@ -16,12 +16,13 @@ use metaflac::{
 };
 
 use redbook::{
-    AudioCd, AudioCdExt, RippedTrack,
+    AudioCd, AudioCdExt, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
 
 use slint::*;
+use thread_safely::Controller;
 
 use std::{
     fs::{self, File},
@@ -39,7 +40,9 @@ fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
 
-    let drive = all_drives()?
+    let (_controller, context) = Controller::<RipProgress>::new();
+
+    let drive = all_drives(context)?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
     let cd = AudioCd::try_from(drive)?;
