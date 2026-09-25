@@ -1,5 +1,8 @@
 use std::{
-    convert::TryFrom, io::{self, ErrorKind}, ops::Rem, path::Path,
+    convert::TryFrom,
+    io::{self, ErrorKind},
+    ops::Rem,
+    path::Path,
 };
 
 use musicbrainz_rs::entity::discid::Discid;
@@ -14,8 +17,8 @@ use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Tr
 /// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
 pub struct RipProgress {
     track_number: usize,
-    chunks_processed: usize,
-    total_chunks: usize,
+    bytes_processed: usize,
+    total_bytes: usize,
 }
 
 /// Trait providing access to audio CD functionality.
@@ -147,6 +150,15 @@ pub trait AudioCdExt: Sized {
         trace.record("bytes_read", bytes_read_so_far);
 
         for (i, buf) in bufs.iter_mut().enumerate() {
+            self.cx().cancelled()?;
+            self.cx()
+                .reply(RipProgress {
+                    track_number,
+                    bytes_processed: bytes_read_so_far.strict_cast(),
+                    total_bytes: track_size,
+                })
+                .map_err(io::Error::other)
+                .or_error("sending progress update")?;
             let frames_to_read: u32 = MAX_CHUNK_FRAMES.try_into().unwrap();
 
             debug_assert_eq!(
@@ -183,11 +195,29 @@ pub trait AudioCdExt: Sized {
         debug_assert_eq!(frames_to_read * FRAME_SIZE, last_buf.len());
 
         if !last_buf.is_empty() {
+            self.cx().cancelled()?;
+            self.cx()
+                .reply(RipProgress {
+                    track_number,
+                    bytes_processed: bytes_read_so_far.strict_cast(),
+                    total_bytes: track_size,
+                })
+                .map_err(io::Error::other)
+                .or_error("sending progress update")?;
             let bytes_read =
                 self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
             bytes_read_so_far += i64::from(bytes_read);
             trace.record("bytes_read", bytes_read_so_far);
         }
+
+        self.cx()
+            .reply(RipProgress {
+                track_number,
+                bytes_processed: bytes_read_so_far.strict_cast(),
+                total_bytes: track_size,
+            })
+            .map_err(io::Error::other)
+            .or_error("sending progress update")?;
 
         Ok(data)
     }
