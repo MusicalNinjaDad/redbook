@@ -16,12 +16,13 @@ use metaflac::{
 };
 
 use redbook::{
-    AudioCd, AudioCdExt, RippedTrack,
+    AudioCd, AudioCdExt, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
 
 use slint::*;
+use thread_safely::Controller;
 
 use std::{
     fs::{self, File},
@@ -38,11 +39,14 @@ use tracing_result::Trace;
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
+    let (rip_controller, rip_context) = Controller::<RipProgress>::new();
+    let (enc_controller, enc_context) = Controller::<u32>::new();
 
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let cd = AudioCd::try_from(drive)?;
+    let mut cd = AudioCd::try_from(drive)?;
+    cd.add_context(rip_context);
     let cd = Arc::new(Mutex::from(cd));
 
     let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
@@ -101,6 +105,11 @@ fn main() -> io::Result<()> {
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
             try bikeshed io::Result<_> {
+                enc_context.cancelled()?;
+                enc_context
+                    .reply(ripped.tags.track().unwrap_or_default())
+                    .map_err(io::Error::other)
+                    .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
@@ -157,6 +166,8 @@ fn main() -> io::Result<()> {
 
     app.run().unwrap();
     drop(app);
+    rip_controller.cancel();
+    enc_controller.cancel();
     tracing::debug!("app dropped, expecting threads to close now ...");
 
     setup.join().expect("TODO #71 panic handling")?;
