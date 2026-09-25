@@ -37,11 +37,17 @@ use std::{
 
 use tracing_result::Trace;
 
+#[derive(Debug, Clone)]
+struct EncodingProgress {
+    doing: Option<u32>,
+    done: Vec<u32>,
+}
+
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
-    let (enc_controller, enc_context) = Controller::<u32>::new();
+    let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
 
     let drive = all_drives()?
         .next()
@@ -99,6 +105,10 @@ fn main() -> io::Result<()> {
     });
 
     let encoder = thread::spawn(move || {
+        let mut progress = EncodingProgress {
+            doing: None,
+            done: Vec::new(),
+        };
         while let Ok(ripped) = ripped_rx.recv() {
             #[expect(unused_must_use, reason = "loop on error")]
             #[expect(
@@ -107,8 +117,9 @@ fn main() -> io::Result<()> {
             )]
             try bikeshed io::Result<_> {
                 enc_context.cancelled()?;
+                progress.doing = Some(ripped.tags.track().unwrap_or_default());
                 enc_context
-                    .reply(ripped.tags.track().unwrap_or_default())
+                    .reply(progress.clone())
                     .map_err(io::Error::other)
                     .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
@@ -161,7 +172,13 @@ fn main() -> io::Result<()> {
                     duration_secs = ?duration.as_secs_f64(),
                     "encode_done"
                 );
+                progress.done.push(track_number);
             };
+            progress.doing = None;
+            enc_context
+                .reply(progress.clone())
+                .map_err(io::Error::other)
+                .or_warn("providing encoding status update");
         }
     });
 
@@ -187,6 +204,30 @@ fn main() -> io::Result<()> {
         }
     });
 
+    let app_ = app.as_weak();
+    let enc_rx = enc_controller.receiver();
+    let enc_progress = thread::spawn(move || {
+        while let Ok(EncodingProgress { doing, done }) = enc_rx.recv() {
+            app_.clone()
+                .upgrade_in_event_loop(move |app| {
+                    let tracks = app.get_tracks();
+                    for (row, track) in tracks.iter().enumerate() {
+                        if done.contains(&(track.number as u32)) {
+                            let mut track = track.clone();
+                            track.rip_progress = 1.0;
+                            track.encoding = false;
+                            tracks.set_row_data(row, track);
+                        } else if Some(track.number as u32) == doing {
+                            let mut track = track.clone();
+                            track.encoding = true;
+                            tracks.set_row_data(row, track);
+                        }
+                    }
+                })
+                .unwrap();
+        }
+    });
+
     app.run().unwrap();
     drop(app);
     rip_controller.cancel();
@@ -207,7 +248,11 @@ fn main() -> io::Result<()> {
 
     #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
     rip_progress.join();
-    tracing::debug!("progress updates closed");
+    tracing::debug!("rip progress updates closed");
+
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    enc_progress.join();
+    tracing::debug!("enc progress updates closed");
 
     Ok(())
 }
