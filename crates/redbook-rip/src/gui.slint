@@ -22,6 +22,8 @@ export struct TrackDetails {
     number: int,
     title: string,
     rip: bool = true,
+    rip-progress: float = 0,
+    encoding: bool = false,
 }
 
 global Sizes {
@@ -142,6 +144,12 @@ component TrackListing inherits ScrollView {
                     font-weight: FontWeight.semi-bold;
                     font-size: 1.25rem;
                 }
+
+                ProgressIndicator {
+                    preferred-width: Sizes.tile-width;
+                    indeterminate: track.encoding;
+                    progress: track.rip-progress;
+                }
             }
         }
 
@@ -186,7 +194,7 @@ export component MainWindow inherits Window {
         AboutSlint {
             cross-axis-self-alignment: end;
             max-height: 25px;
-         }
+        }
 
         ProgressIndicator {
             height: Sizes.spacing;
