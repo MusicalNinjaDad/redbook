@@ -9,6 +9,7 @@ mod output;
 mod slint;
 
 use ::slint::{Model, ModelRc, VecModel, Weak};
+use crossbeam::select;
 
 use metaflac::{
     Block, Tag,
@@ -48,6 +49,7 @@ fn main() -> io::Result<()> {
     let app = MainWindow::new().unwrap();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
     let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
+    let enc_context2 = enc_context.clone();
 
     let drive = all_drives()?
         .next()
@@ -184,47 +186,14 @@ fn main() -> io::Result<()> {
 
     let app_ = app.as_weak();
     let rip_rx = rip_controller.receiver();
-    let rip_progress = thread::spawn(move || {
-        while let Ok(RipProgress {
-            track_number,
-            bytes_processed,
-            total_bytes,
-        }) = rip_rx.recv()
-        {
-            let progress = bytes_processed as f32 / total_bytes as f32;
-            app_.clone()
-                .upgrade_in_event_loop(move |app| {
-                    let tracks = app.get_tracks();
-                    let mut track = tracks.row_data(track_number - 1).unwrap();
-                    assert_eq!(track_number as i32, track.number);
-                    track.rip_progress = progress;
-                    tracks.set_row_data(track_number - 1, track);
-                })
-                .unwrap();
-        }
-    });
-
-    let app_ = app.as_weak();
     let enc_rx = enc_controller.receiver();
-    let enc_progress = thread::spawn(move || {
-        while let Ok(EncodingProgress { doing, done }) = enc_rx.recv() {
-            app_.clone()
-                .upgrade_in_event_loop(move |app| {
-                    let tracks = app.get_tracks();
-                    for (row, track) in tracks.iter().enumerate() {
-                        if done.contains(&(track.number as u32)) {
-                            let mut track = track.clone();
-                            track.rip_progress = 1.0;
-                            track.encoding = false;
-                            tracks.set_row_data(row, track);
-                        } else if Some(track.number as u32) == doing {
-                            let mut track = track.clone();
-                            track.encoding = true;
-                            tracks.set_row_data(row, track);
-                        }
-                    }
-                })
-                .unwrap();
+    let progress_updates = thread::spawn(move || try {
+        loop {
+            enc_context2.cancelled()?;
+            select! {
+                recv(rip_rx) -> progress => update_rip_progress(app_.clone(), progress.unwrap()),
+                recv(enc_rx) -> progress => update_encoding_progress(app_.clone(), progress.unwrap()),
+            };
         }
     });
 
@@ -247,12 +216,8 @@ fn main() -> io::Result<()> {
     tracing::debug!("encoder closed");
 
     #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
-    rip_progress.join();
-    tracing::debug!("rip progress updates closed");
-
-    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
-    enc_progress.join();
-    tracing::debug!("enc progress updates closed");
+    progress_updates.join();
+    tracing::debug!("progress updates closed");
 
     Ok(())
 }
@@ -290,4 +255,41 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
             .send(tracks)
             .expect("TODO #70 error handling on broken channel");
     }
+}
+
+fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
+    let RipProgress {
+        track_number,
+        bytes_processed,
+        total_bytes,
+    } = progress;
+    let progress = bytes_processed as f32 / total_bytes as f32;
+    app.upgrade_in_event_loop(move |app| {
+        let tracks = app.get_tracks();
+        let mut track = tracks.row_data(track_number - 1).unwrap();
+        assert_eq!(track_number as i32, track.number);
+        track.rip_progress = progress;
+        tracks.set_row_data(track_number - 1, track);
+    })
+    .unwrap();
+}
+
+fn update_encoding_progress(app: Weak<MainWindow>, progress: EncodingProgress) {
+    let EncodingProgress { doing, done } = progress;
+    app.upgrade_in_event_loop(move |app| {
+        let tracks = app.get_tracks();
+        for (row, track) in tracks.iter().enumerate() {
+            if done.contains(&(track.number as u32)) {
+                let mut track = track.clone();
+                track.rip_progress = 1.0;
+                track.encoding = false;
+                tracks.set_row_data(row, track);
+            } else if Some(track.number as u32) == doing {
+                let mut track = track.clone();
+                track.encoding = true;
+                tracks.set_row_data(row, track);
+            }
+        }
+    })
+    .unwrap();
 }
