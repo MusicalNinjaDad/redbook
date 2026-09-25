@@ -1,10 +1,9 @@
 use std::{
-    convert::TryFrom,
-    io::{self, ErrorKind},
-    ops::Rem,
+    convert::TryFrom, io::{self, ErrorKind}, ops::Rem, path::Path,
 };
 
 use musicbrainz_rs::entity::discid::Discid;
+use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
@@ -28,7 +27,22 @@ pub struct RipProgress {
 /// # Examples
 ///
 /// TODO New docs
-pub trait AudioCdExt {
+pub trait AudioCdExt: Sized {
+    /// Default constructor, opens the drive, reads the CD TOC
+    fn new<P: AsRef<Path>>(path: P) -> io::Result<Self>;
+
+    /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
+    /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
+    /// updates.
+    fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
+
+    /// Add a thread [Context] to an existing `AudioCd`
+    fn add_context(&mut self, cx: Context<RipProgress>);
+
+    /// Retrieve the thread [Context]. If no context was provided via [with_context]
+    /// or [add_context] then this will be a dummy, default context.
+    fn cx(&self) -> Context<RipProgress>;
+
     /// Reads raw audio data from a specific track and frame offset.
     ///
     /// # Arguments

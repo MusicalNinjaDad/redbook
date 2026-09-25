@@ -30,29 +30,6 @@ pub struct AudioCd {
     thread_context: Context<RipProgress>,
 }
 
-impl AudioCd {
-    /// Opens drive, reads CD
-    pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let _err_span =
-            tracing::error_span!("AudioCd::new", path = %path.as_ref().display()).entered();
-        let drive = CdDrive::open(path)?;
-        Self::try_from(drive)
-    }
-
-    /// Opens drive, reads CD, and stores a thread [Context][thread_safely::Context] to allow for
-    /// cancellation and status updates during long-running reads.
-    pub fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
-        let mut cd = Self::new(path)?;
-        cd.add_context(cx);
-        Ok(cd)
-    }
-
-    /// Add a thread [Context] to an existing `AudioCd`
-    pub fn add_context(&mut self, cx: Context<RipProgress>) {
-        self.thread_context = cx;
-    }
-}
-
 /// This will use a default thread [Context].
 ///
 /// To store a context first create the `AudioCd`, then add it:
@@ -154,6 +131,27 @@ impl TryFrom<CdDrive> for AudioCd {
 }
 
 impl AudioCdExt for AudioCd {
+    fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let _err_span =
+            tracing::error_span!("AudioCd::new", path = %path.as_ref().display()).entered();
+        let drive = CdDrive::open(path)?;
+        Self::try_from(drive)
+    }
+
+    fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
+        let mut cd = Self::new(path)?;
+        cd.add_context(cx);
+        Ok(cd)
+    }
+
+    fn add_context(&mut self, cx: Context<RipProgress>) {
+        self.thread_context = cx;
+    }
+
+    fn cx(&self) -> Context<RipProgress> {
+        self.thread_context.clone()
+    }
+
     fn disc(&self) -> &Disc {
         &self.disc
     }
