@@ -74,7 +74,7 @@ impl ReleaseDetails {
             .iter()
             .filter_map(|&release| {
                 let mut details = ReleaseDetails::from(release);
-                try bikeshed io::Result<_> {
+                try {
                     let thumb = disc
                         .get_thumbnail(&release.id)
                         .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no thumbnail found"))

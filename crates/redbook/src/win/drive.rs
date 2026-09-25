@@ -428,8 +428,7 @@ impl Iterator for CdDrives {
 
         // SAFETY:
         // Buffer required to be large enough
-        try bikeshed io::Result<()> { DeviceDetails::check_size(requiredsize).or_error("")? }
-            .ok()?;
+        DeviceDetails::check_size(requiredsize).or_error("").ok()?;
 
         // SAFETY:
         // 1. cbSize is fixed to correct value via construction:

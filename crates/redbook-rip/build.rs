@@ -1,4 +1,4 @@
-use build_safely::{BuildError, prelude::*};
+use build_safely::prelude::*;
 
 fn main() -> Result<()> {
     println!("cargo::rerun-if-changed=./src/gui.slint");
@@ -12,6 +12,7 @@ fn main() -> Result<()> {
     let allowed_features = cargo_allowed_features()?;
 
     ac.emit_unstable_feature(integer_casts, &allowed_features);
+    ac.emit_unstable_feature(try_blocks, &allowed_features);
     ac.emit_unstable_feature(try_blocks_heterogeneous, &allowed_features);
 
     Ok(())
