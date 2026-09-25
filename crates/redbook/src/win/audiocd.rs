@@ -43,11 +43,27 @@ impl AudioCd {
     /// cancellation and status updates during long-running reads.
     pub fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
         let mut cd = Self::new(path)?;
-        cd.thread_context = cx;
+        cd.add_context(cx);
         Ok(cd)
+    }
+
+    /// Add a thread [Context] to an existing `AudioCd`
+    pub fn add_context(&mut self, cx: Context<RipProgress>) {
+        self.thread_context = cx;
     }
 }
 
+/// This will use a default thread [Context].
+///
+/// To store a context first create the `AudioCd`, then add it:
+/// ```no_run
+/// # use redbook::{RipProgress, win::{AudioCd, drive::CdDrive}};
+/// # let drive: CdDrive = CdDrive::open("")?;
+/// # let cx: thread_safely::Context<RipProgress> = Default::default();
+/// let mut cd = AudioCd::try_from(drive)?;
+/// cd.add_context(cx);
+/// # std::io::Result::Ok(())
+/// ```
 impl TryFrom<CdDrive> for AudioCd {
     type Error = io::Error;
 
