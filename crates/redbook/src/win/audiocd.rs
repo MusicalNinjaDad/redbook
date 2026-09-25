@@ -6,10 +6,11 @@ use std::{
     path::Path,
 };
 
+use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::{drive::CdDrive, toc::CdaFile};
-use crate::{AudioCdExt, Disc, Frame, TocEntry, Track};
+use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -26,6 +27,7 @@ use crate::{AudioCdExt, Disc, Frame, TocEntry, Track};
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,
+    thread_context: Context<RipProgress>,
 }
 
 impl AudioCd {
@@ -35,6 +37,14 @@ impl AudioCd {
             tracing::error_span!("AudioCd::new", path = %path.as_ref().display()).entered();
         let drive = CdDrive::open(path)?;
         Self::try_from(drive)
+    }
+
+    /// Opens drive, reads CD, and stores a thread [Context][thread_safely::Context] to allow for
+    /// cancellation and status updates during long-running reads.
+    pub fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
+        let mut cd = Self::new(path)?;
+        cd.thread_context = cx;
+        Ok(cd)
     }
 }
 
@@ -119,7 +129,11 @@ impl TryFrom<CdDrive> for AudioCd {
 
         let disc = Disc::new(toc, tracks, Frame::new(leadout as usize))?;
 
-        Ok(Self { drive, disc })
+        Ok(Self {
+            drive,
+            disc,
+            thread_context: Default::default(),
+        })
     }
 }
 

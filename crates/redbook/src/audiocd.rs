@@ -10,6 +10,15 @@ use tracing_result::Trace;
 
 use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Track};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A status update which is provided in the `reply` channel of a [thread_safely::Context] during
+/// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
+pub struct RipProgress {
+    track_number: usize,
+    chunks_processed: usize,
+    total_chunks: usize,
+}
+
 /// Trait providing read-only access to audio CD functionality.
 ///
 /// This trait is implemented by types that provide read access to CD audio data,
