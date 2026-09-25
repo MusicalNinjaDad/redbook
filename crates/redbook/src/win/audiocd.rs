@@ -34,7 +34,7 @@ pub struct AudioCd {
 ///
 /// To store a context first create the `AudioCd`, then add it:
 /// ```no_run
-/// # use redbook::{RipProgress, win::{AudioCd, drive::CdDrive}};
+/// # use redbook::{AudioCdExt, RipProgress, win::{AudioCd, drive::CdDrive}};
 /// # let drive: CdDrive = CdDrive::open("")?;
 /// # let cx: thread_safely::Context<RipProgress> = Default::default();
 /// let mut cd = AudioCd::try_from(drive)?;
