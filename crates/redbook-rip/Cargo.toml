@@ -19,6 +19,7 @@ metaflac.workspace = true
 musicbrainz_rs.workspace = true
 redbook.workspace = true
 slint.workspace = true
+thread_safely.workspace = true
 tracing.workspace = true 
 tracing-result.workspace = true
 tracing-subscriber.workspace = true
