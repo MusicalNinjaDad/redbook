@@ -7,7 +7,6 @@ use std::{
     ptr::{null, null_mut},
 };
 
-use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
@@ -23,7 +22,6 @@ use super::{
     convert::{Guid, Sector, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
-use crate::RipProgress;
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
@@ -49,7 +47,6 @@ pub struct CdDrive {
     path: PathBuf,
     handle: DriveHandle,
     toc: CDROM_TOC,
-    thread_cx: Context<RipProgress>,
 }
 
 #[expect(
@@ -106,23 +103,7 @@ impl CdDrive {
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let mut handle = DriveHandle::open(windrive).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
-        Ok(Self {
-            path,
-            handle,
-            toc,
-            thread_cx: Default::default(),
-        })
-    }
-
-    /// See [open]. Additionally, stores a thread [Context] to allow for cancellation and
-    /// status updates during long-running tasks.
-    pub fn open_with_context<P: AsRef<Path>>(
-        path: P,
-        cx: Context<RipProgress>,
-    ) -> io::Result<Self> {
-        let mut drive = Self::open(path)?;
-        drive.thread_cx = cx;
-        Ok(drive)
+        Ok(Self { path, handle, toc })
     }
 
     /// The path of the drive
@@ -277,27 +258,19 @@ impl CdDrive {
     }
 }
 
-impl TryFrom<(DeviceDetails, Context<RipProgress>)> for CdDrive {
+impl TryFrom<DeviceDetails> for CdDrive {
     type Error = io::Error;
 
-    fn try_from((device, cx): (DeviceDetails, Context<RipProgress>)) -> Result<Self, Self::Error> {
+    fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let mut handle = DriveHandle::open(device.path()).or_error("")?;
         let toc = CDROM_TOC::read_from(&mut handle)?;
         let path = handle.fs_path()?;
-        Ok(Self {
-            path,
-            handle,
-            toc,
-            thread_cx: cx,
-        })
+        Ok(Self { path, handle, toc })
     }
 }
 
 /// Get all the available drives, which have an AudioCd present
-///
-/// Unlike constructing a single drive, you must always provide a thread [Context], although it
-/// is fine to use `Default::default()`.
-pub fn all_drives(cx: Context<RipProgress>) -> io::Result<CdDrives> {
+pub fn all_drives() -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
     #[expect(unsafe_code, reason = "ffi call")]
@@ -335,11 +308,7 @@ pub fn all_drives(cx: Context<RipProgress>) -> io::Result<CdDrives> {
         .or_warn("invalid handle")?;
 
     tracing::debug!("got device infoset");
-    Ok(CdDrives {
-        deviceinfoset,
-        thread_cx: cx,
-        ..
-    })
+    Ok(CdDrives { deviceinfoset, .. })
 }
 
 /// Iterator over all the available drives, which have an AudioCd present
@@ -351,8 +320,6 @@ pub struct CdDrives {
     /// Index of next element to retrieve from deviceinfoset.
     /// `u32` as this is what the ffi calls use.
     current_index: u32 = 0,
-    /// The thread [Context] used for all the drives
-    thread_cx: Context<RipProgress>,
 }
 
 impl Iterator for CdDrives {
@@ -521,7 +488,7 @@ impl Iterator for CdDrives {
             _ => debug.record("path", deviceinterfacedetaildata.to_string()),
         };
 
-        match CdDrive::try_from((deviceinterfacedetaildata, self.thread_cx.clone())) {
+        match CdDrive::try_from(deviceinterfacedetaildata) {
             Ok(cddrive) => Some(cddrive),
             Err(error) if error.raw_os_error() == Some(21) => {
                 // OS error 21 (device not ready) = no disc in drive
@@ -781,7 +748,7 @@ mod miri {
 
     #[test]
     fn all() {
-        let drives = all_drives(Default::default()).unwrap();
+        let drives = all_drives().unwrap();
         let albums: Vec<_> = drives.map(|drive| drive.toc().as_toc().unwrap()).collect();
         let expected = [
             DefinitelyMaybe.expected_toc(),
