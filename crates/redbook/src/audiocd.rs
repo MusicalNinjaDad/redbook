@@ -19,16 +19,11 @@ pub struct RipProgress {
     total_chunks: usize,
 }
 
-/// Trait providing read-only access to audio CD functionality.
+/// Trait providing access to audio CD functionality.
 ///
-/// This trait is implemented by types that provide read access to CD audio data,
+/// This trait is implemented by OS specific types that provide access to CD audio data,
 /// such as [`AudioCd`][crate::AudioCd]. It allows reading raw audio data from tracks and accessing
 /// metadata about the disc.
-///
-/// # Notes
-/// - This trait is designed to be used after calling [`lock`](AudioCdExtMut::lock) on
-///   a mutable handle, ensuring thread-safe access to the CD.
-/// - All methods are safe and do not require unsafe code.
 ///
 /// # Examples
 ///
