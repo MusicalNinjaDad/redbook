@@ -95,7 +95,7 @@ fn main() -> io::Result<()> {
 
     let encoder = thread::spawn(move || {
         while let Ok(ripped) = ripped_rx.recv() {
-            #[expect(unused_must_use, reason = "lopp on error")]
+            #[expect(unused_must_use, reason = "loop on error")]
             #[expect(
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
