@@ -48,6 +48,7 @@ struct EncodingProgress {
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
+    let (setup_controller, setup_context) = Controller::<!>::new();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
     let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
     let enc_context2 = enc_context.clone();
@@ -66,13 +67,15 @@ fn main() -> io::Result<()> {
     let cd_ = cd.clone();
     let setup = thread::spawn(move || {
         let cd = cd_;
-        {
+        try bikeshed io::Result<()> {
             let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
             let disc = disc_lock.disc_mut();
+            setup_context.cancelled()?;
             disc.update_musicbrainz()?;
-            disc.update_thumbnails()?;
-        }
+            disc.update_thumbnails(setup_context.clone())?;
+        }?;
 
+        setup_context.cancelled()?;
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
             let releases = {
@@ -198,6 +201,7 @@ fn main() -> io::Result<()> {
 
     app.run().unwrap();
     drop(app);
+    setup_controller.cancel();
     rip_controller.cancel();
     enc_controller.cancel();
     tracing::debug!("app dropped, expecting threads to close now ...");

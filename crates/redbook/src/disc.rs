@@ -16,6 +16,7 @@ use musicbrainz_rs::{
     chrono::NaiveDate,
     entity::{discid::Discid, release::Release},
 };
+use thread_safely::Context;
 use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
@@ -819,7 +820,7 @@ impl Disc {
     /// Get all tumbnails from Coverart Archive
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
-    pub fn update_thumbnails(&mut self) -> io::Result<()> {
+    pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {
         let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();
         tracing::trace!("");
 
@@ -838,8 +839,8 @@ impl Disc {
             .ok_or_else(|| io::Error::other("No releases found"))
             .or_warn("")?
             .collect();
-
         for id in release_ids {
+            cx.cancelled()?;
             let debug_loop = tracing::debug_span!(
                 "Disc::update_thumbnails",
                 url = Empty,
