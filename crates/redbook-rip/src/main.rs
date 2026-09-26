@@ -48,10 +48,9 @@ struct EncodingProgress {
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
-    let (setup_controller, setup_context) = Controller::<!>::new();
+    let (controller, context) = Controller::<!>::new();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
     let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
-    let enc_context2 = enc_context.clone();
 
     let drive = all_drives()?
         .next()
@@ -65,17 +64,19 @@ fn main() -> io::Result<()> {
 
     let app_ = app.as_weak();
     let cd_ = cd.clone();
+    let context_ = context.clone();
     let setup = thread::spawn(move || {
         let cd = cd_;
+        let context = context_;
         try bikeshed io::Result<()> {
             let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
             let disc = disc_lock.disc_mut();
-            setup_context.cancelled()?;
+            context.cancelled()?;
             disc.update_musicbrainz()?;
-            disc.update_thumbnails(setup_context.clone())?;
+            disc.update_thumbnails(context.clone())?;
         }?;
 
-        setup_context.cancelled()?;
+        context.cancelled()?;
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
             let releases = {
@@ -193,7 +194,7 @@ fn main() -> io::Result<()> {
                 recv(rip_rx) -> progress => update_rip_progress(app_.clone(), progress.unwrap()),
                 recv(enc_rx) -> progress => update_encoding_progress(app_.clone(), progress.unwrap()),
                 default(Duration::from_millis(100)) => {
-                    enc_context2.cancelled()?;
+                    context.cancelled()?;
                 }
             };
         }
@@ -201,7 +202,7 @@ fn main() -> io::Result<()> {
 
     app.run().unwrap();
     drop(app);
-    setup_controller.cancel();
+    controller.cancel();
     rip_controller.cancel();
     enc_controller.cancel();
     tracing::debug!("app dropped, expecting threads to close now ...");
