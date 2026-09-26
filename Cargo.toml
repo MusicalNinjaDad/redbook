@@ -7,10 +7,10 @@ keywords = ["ccda", "windows", "flac"]
 authors = ["Mike Foster <https://github.com/MusicalNinjaDad>"]
 repository = "https://github.com/MusicalNinjaDad/redbook"
 edition = "2024"
-version = "0.3.0"
+version = "0.4.0"
 
 [workspace.dependencies]
-redbook = {version = "0.3.0", path = "crates/redbook"}
+redbook = {version = "0.4.0", path = "crates/redbook"}
 
 build_safely =  "0.6.1"
 cdtoc = "0.14.0"

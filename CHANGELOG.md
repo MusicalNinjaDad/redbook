@@ -1,11 +1,16 @@
 # redbook changelog
 
-## [WIP]
+## [0.4.0]
 
 ### New features
 
 - add `VorbisTagExt::directory()` to generate `Artist/Album`-style paths from tags
 - `VorbisTagExt::filename()` & `VorbisTagExt::directory()` produce sanitised paths suitable for target OS
+- allow for cancellation of long-running IO in multi-threaded applications via `thread_safely::Context`
+
+### Breaking changes
+
+- `Disc::update_thumbnails()` requires a `Context` to be passed
 
 ### Bugfixes
 
