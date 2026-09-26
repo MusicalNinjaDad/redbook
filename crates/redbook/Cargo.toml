@@ -9,6 +9,9 @@ license = "MIT"
 edition.workspace = true
 version.workspace = true
 
+[features]
+simd-nightly = ["flacenc/simd-nightly"] # currently broken in published version on flacenc - but working if you patch to github
+
 [dependencies]
 build_safely.workspace = true # for doc link
 cdtoc.workspace = true

@@ -21,7 +21,7 @@ clap_mangen = "0.3.0"
 crossbeam = "0.8.5"
 errno = "0.3.14"
 exit_safely = "0.3.1"
-flacenc = { version = "0.5.1", features = ["simd-nightly"], git = "https://github.com/yotarok/flacenc-rs" }
+flacenc = "0.5.1"
 glob = "0.3.4"
 humanize-duration = "0.0.7"
 metaflac = "0.2.8"
@@ -64,3 +64,6 @@ clippy.undocumented_unsafe_blocks = "deny" # auto-generated bindings
 rust.unsafe_op_in_unsafe_fn = "forbid"
 rust.unsafe_attr_outside_unsafe = "forbid"
 rust.unused_unsafe = "deny"
+
+[patch.crates-io]
+flacenc = { git = "https://github.com/yotarok/flacenc-rs" }
