@@ -186,10 +186,12 @@ fn main() -> io::Result<()> {
     let enc_rx = enc_controller.receiver();
     let progress_updates = thread::spawn(move || try {
         loop {
-            enc_context2.cancelled()?;
             select! {
                 recv(rip_rx) -> progress => update_rip_progress(app_.clone(), progress.unwrap()),
                 recv(enc_rx) -> progress => update_encoding_progress(app_.clone(), progress.unwrap()),
+                default(Duration::from_millis(100)) => {
+                    enc_context2.cancelled()?;
+                }
             };
         }
     });
