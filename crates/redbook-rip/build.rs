@@ -1,17 +1,22 @@
+use std::path::PathBuf;
+
 use build_safely::prelude::*;
 
 fn main() -> Result<()> {
     println!("cargo::rerun-if-changed=./src/gui.slint");
 
+    let target_os = get_var("CARGO_CFG_TARGET_OS")?;
+
     // Embed the application icon into the `rip` binary on Windows.
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        let icon = std::path::Path::new("assets/icon.ico");
-        if icon.exists() {
-            winresource::WindowsResource::new()
+    if &target_os.to_ascii_lowercase() == "windows" {
+        let icon = PathBuf::from("./assets/icon.ico");
+        match icon.exists() {
+            true => winresource::WindowsResource::new()
                 .set_icon(icon.to_str().unwrap())
-                .compile()?;
-        } else {
-            println!("cargo::warning=assets/icon.ico not found - building without an embedded icon (generate it from assets/icon.svg, see assets/README.md)");
+                .compile()?,
+            false => println!(
+                "cargo::warning=assets/icon.ico not found - building without an embedded icon (generate it from assets/icon.svg, see assets/README.md)"
+            ),
         }
     }
 

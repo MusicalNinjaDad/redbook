@@ -168,6 +168,7 @@ export component MainWindow inherits Window {
     property <int> prefered-rows: (tiles + 1) / prefered-cols; // rounds down
     preferred-width: (prefered-cols * Sizes.tile-width) + (2 * (prefered-cols + 1) * Sizes.spacing);
     preferred-height: (5 * Sizes.tile-height) + (2 * (prefered-rows + 1) * Sizes.spacing); // TODO: #64 Well-calculated default size
+    icon: @image-url("../assets/icon.svg");
     in property <[ReleaseDetails]> releases;
     in-out property <[TrackDetails]> tracks;
     callback select_release(release: ReleaseDetails);
