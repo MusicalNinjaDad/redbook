@@ -9,7 +9,10 @@ mod output;
 mod slint;
 
 use ::slint::{Model, ModelRc, VecModel, Weak};
-use crossbeam::select;
+use crossbeam::{
+    channel::{Sender, unbounded},
+    select,
+};
 
 use metaflac::{
     Block, Tag,
@@ -29,11 +32,9 @@ use std::{
     fs::{self, File},
     io::{self, Write},
     rc::Rc,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Sender},
-    },
+    sync::{Arc, Mutex},
     thread,
+    time::Duration,
 };
 
 use tracing_result::Trace;
@@ -55,11 +56,11 @@ fn main() -> io::Result<()> {
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
     let mut cd = AudioCd::try_from(drive)?;
-    cd.add_context(rip_context);
+    cd.add_context(rip_context.clone());
     let cd = Arc::new(Mutex::from(cd));
 
-    let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
-    let (ripped_tx, ripped_rx) = mpsc::channel::<RippedTrack>();
+    let (to_rip_tx, to_rip_rx) = unbounded::<Vec<usize>>();
+    let (ripped_tx, ripped_rx) = unbounded::<RippedTrack>();
 
     let app_ = app.as_weak();
     let cd_ = cd.clone();
@@ -88,21 +89,16 @@ fn main() -> io::Result<()> {
         .map_err(io::Error::other)
     });
 
-    let ripper = thread::spawn(move || try {
-        while let Ok(tracks) = to_rip_rx.recv() {
-            let cd_lock = cd
-                .lock()
-                .expect("TODO #68 error handling & tracing on poison");
-            let disc = cd_lock.disc();
-            for track_number in tracks {
-                let track = disc.track(track_number);
-                tracing::info!(ripping = ?track);
-                let ripped = cd_lock.rip(track_number).or_error("ripping")?;
-                ripped_tx
-                    .send(ripped)
-                    .map_err(io::Error::other)
-                    .or_error("sending")?;
-            }
+    let ripper = thread::spawn(move || try bikeshed io::Result<()> {
+        loop {
+            select! {
+                recv(to_rip_rx) -> tracks => {
+                    rip_tracks(cd.clone(), tracks.map_err(io::Error::other)?, ripped_tx.clone())?;
+                }
+                default(Duration::from_millis(100)) => {
+                    rip_context.cancelled()?;
+                }
+            };
         }
     });
 
@@ -111,6 +107,7 @@ fn main() -> io::Result<()> {
             doing: None,
             done: Vec::new(),
         };
+        // cancelling ripper drops ripped_tx, so we don't need to loop on a select here ...
         while let Ok(ripped) = ripped_rx.recv() {
             #[expect(unused_must_use, reason = "loop on error")]
             #[expect(
@@ -255,6 +252,27 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
             .send(tracks)
             .expect("TODO #70 error handling on broken channel");
     }
+}
+
+fn rip_tracks(
+    cd: Arc<Mutex<AudioCd>>,
+    tracks: Vec<usize>,
+    ripped_tracks: Sender<RippedTrack>,
+) -> io::Result<()> {
+    let cd_lock = cd
+        .lock()
+        .expect("TODO #68 error handling & tracing on poison");
+    let disc = cd_lock.disc();
+    for track_number in tracks {
+        let track = disc.track(track_number);
+        tracing::info!(ripping = ?track);
+        let ripped = cd_lock.rip(track_number).or_error("ripping")?;
+        ripped_tracks
+            .send(ripped)
+            .map_err(io::Error::other)
+            .or_error("sending")?;
+    }
+    Ok(())
 }
 
 fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
