@@ -56,6 +56,10 @@ jobs:
     - name: Update rust
       run: rustup install && rustup update
     - uses: Swatinem/rust-cache@v2.9.2
+    - name: install llvm & clang for build.rs with target windows
+      run: |
+        sudo apt-get update
+        sudo apt-get install clang llvm
     - name: clippy
       run: cargo clippy --all-features --all-targets --target x86_64-pc-windows-msvc -- --deny warnings
 

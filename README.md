@@ -111,6 +111,9 @@ Currently this library only supports things I want to use personally. That means
 
 ## Apps
 
-- rip.exe - rip a CD to flac
-- toc.exe - dump the TOC as windows reads it
-- tag.exe - read tags from a flac file
+- rip.exe     - rip a CD to flac
+- rip_cli.exe - pure cli ripper
+- toc.exe     - dump the TOC as windows reads it
+- tag.exe     - read tags from a flac file
+
+GUI apps are made with [![Made with Slint](crates/redbook-rip/assets/MadeWithSlint-logo-whitebg.png)](https://slint.dev/)
