@@ -98,6 +98,8 @@ impl From<Track<'_>> for TrackDetails {
             number: track.track_number().into(),
             title: track.title().unwrap_or_default().into(),
             rip: true,
+            rip_progress: 0.0,
+            encoding: false,
         }
     }
 }

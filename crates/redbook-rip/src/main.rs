@@ -8,7 +8,8 @@ mod output;
 
 mod slint;
 
-use ::slint::{Model, ModelRc, Weak};
+use ::slint::{Model, ModelRc, VecModel, Weak};
+use crossbeam::select;
 
 use metaflac::{
     Block, Tag,
@@ -16,16 +17,18 @@ use metaflac::{
 };
 
 use redbook::{
-    AudioCd, AudioCdExt, RippedTrack,
+    AudioCd, AudioCdExt, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
 
 use slint::*;
+use thread_safely::Controller;
 
 use std::{
     fs::{self, File},
     io::{self, Write},
+    rc::Rc,
     sync::{
         Arc, Mutex,
         mpsc::{self, Sender},
@@ -35,14 +38,24 @@ use std::{
 
 use tracing_result::Trace;
 
+#[derive(Debug, Clone)]
+struct EncodingProgress {
+    doing: Option<u32>,
+    done: Vec<u32>,
+}
+
 fn main() -> io::Result<()> {
     output::init_tracing()?;
     let app = MainWindow::new().unwrap();
+    let (rip_controller, rip_context) = Controller::<RipProgress>::new();
+    let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
+    let enc_context2 = enc_context.clone();
 
     let drive = all_drives()?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let cd = AudioCd::try_from(drive)?;
+    let mut cd = AudioCd::try_from(drive)?;
+    cd.add_context(rip_context);
     let cd = Arc::new(Mutex::from(cd));
 
     let (to_rip_tx, to_rip_rx) = mpsc::channel::<Vec<usize>>();
@@ -94,13 +107,23 @@ fn main() -> io::Result<()> {
     });
 
     let encoder = thread::spawn(move || {
+        let mut progress = EncodingProgress {
+            doing: None,
+            done: Vec::new(),
+        };
         while let Ok(ripped) = ripped_rx.recv() {
-            #[expect(unused_must_use, reason = "lopp on error")]
+            #[expect(unused_must_use, reason = "loop on error")]
             #[expect(
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
             try bikeshed io::Result<_> {
+                enc_context.cancelled()?;
+                progress.doing = Some(ripped.tags.track().unwrap_or_default());
+                enc_context
+                    .reply(progress.clone())
+                    .map_err(io::Error::other)
+                    .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
@@ -151,25 +174,55 @@ fn main() -> io::Result<()> {
                     duration_secs = ?duration.as_secs_f64(),
                     "encode_done"
                 );
+                progress.done.push(track_number);
+            };
+            progress.doing = None;
+            enc_context
+                .reply(progress.clone())
+                .map_err(io::Error::other)
+                .or_warn("providing encoding status update");
+        }
+    });
+
+    let app_ = app.as_weak();
+    let rip_rx = rip_controller.receiver();
+    let enc_rx = enc_controller.receiver();
+    let progress_updates = thread::spawn(move || try {
+        loop {
+            enc_context2.cancelled()?;
+            select! {
+                recv(rip_rx) -> progress => update_rip_progress(app_.clone(), progress.unwrap()),
+                recv(enc_rx) -> progress => update_encoding_progress(app_.clone(), progress.unwrap()),
             };
         }
     });
 
     app.run().unwrap();
     drop(app);
+    rip_controller.cancel();
+    enc_controller.cancel();
     tracing::debug!("app dropped, expecting threads to close now ...");
 
-    setup.join().expect("TODO #71 panic handling")?;
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    setup.join();
     tracing::debug!("setup closed");
 
-    ripper.join().expect("TODO #71 panic handling")?;
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    ripper.join();
     tracing::debug!("ripper closed");
 
-    encoder.join().expect("TODO #71 panic handling");
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    encoder.join();
     tracing::debug!("encoder closed");
+
+    #[expect(unused_must_use, reason = "closing down, ensure we close all threads")]
+    progress_updates.join();
+    tracing::debug!("progress updates closed");
 
     Ok(())
 }
+
+type TracksModel = VecModel<TrackDetails>;
 
 fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(ReleaseDetails) {
     move |release: ReleaseDetails| {
@@ -184,7 +237,7 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
             app.set_releases(ModelRc::from(albums.as_slice()));
 
             let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
-            app.set_tracks(ModelRc::from(tracks.as_slice()));
+            app.set_tracks(ModelRc::from(Rc::new(TracksModel::from(tracks))));
         }
     }
 }
@@ -202,4 +255,41 @@ fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {
             .send(tracks)
             .expect("TODO #70 error handling on broken channel");
     }
+}
+
+fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
+    let RipProgress {
+        track_number,
+        bytes_processed,
+        total_bytes,
+    } = progress;
+    let progress = bytes_processed as f32 / total_bytes as f32;
+    app.upgrade_in_event_loop(move |app| {
+        let tracks = app.get_tracks();
+        let mut track = tracks.row_data(track_number - 1).unwrap();
+        assert_eq!(track_number as i32, track.number);
+        track.rip_progress = progress;
+        tracks.set_row_data(track_number - 1, track);
+    })
+    .unwrap();
+}
+
+fn update_encoding_progress(app: Weak<MainWindow>, progress: EncodingProgress) {
+    let EncodingProgress { doing, done } = progress;
+    app.upgrade_in_event_loop(move |app| {
+        let tracks = app.get_tracks();
+        for (row, track) in tracks.iter().enumerate() {
+            if done.contains(&(track.number as u32)) {
+                let mut track = track.clone();
+                track.rip_progress = 1.0;
+                track.encoding = false;
+                tracks.set_row_data(row, track);
+            } else if Some(track.number as u32) == doing {
+                let mut track = track.clone();
+                track.encoding = true;
+                tracks.set_row_data(row, track);
+            }
+        }
+    })
+    .unwrap();
 }

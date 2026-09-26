@@ -2,29 +2,51 @@ use std::{
     convert::TryFrom,
     io::{self, ErrorKind},
     ops::Rem,
+    path::Path,
 };
 
 use musicbrainz_rs::entity::discid::Discid;
+use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{Disc, FRAME_SIZE, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RippedTrack, Track};
 
-/// Trait providing read-only access to audio CD functionality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A status update which is provided in the `reply` channel of a [thread_safely::Context] during
+/// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
+#[expect(missing_docs, reason = "well named fields")]
+pub struct RipProgress {
+    pub track_number: usize,
+    pub bytes_processed: usize,
+    pub total_bytes: usize,
+}
+
+/// Trait providing access to audio CD functionality.
 ///
-/// This trait is implemented by types that provide read access to CD audio data,
+/// This trait is implemented by OS specific types that provide access to CD audio data,
 /// such as [`AudioCd`][crate::AudioCd]. It allows reading raw audio data from tracks and accessing
 /// metadata about the disc.
-///
-/// # Notes
-/// - This trait is designed to be used after calling [`lock`](AudioCdExtMut::lock) on
-///   a mutable handle, ensuring thread-safe access to the CD.
-/// - All methods are safe and do not require unsafe code.
 ///
 /// # Examples
 ///
 /// TODO New docs
-pub trait AudioCdExt {
+pub trait AudioCdExt: Sized {
+    /// Default constructor, opens the drive, reads the CD TOC
+    fn new<P: AsRef<Path>>(path: P) -> io::Result<Self>;
+
+    /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
+    /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
+    /// updates.
+    fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
+
+    /// Add a thread [Context] to an existing `AudioCd`
+    fn add_context(&mut self, cx: Context<RipProgress>);
+
+    /// Retrieve the thread [Context]. If no context was provided via [with_context]
+    /// or [add_context] then this will be a dummy, default context.
+    fn cx(&self) -> Context<RipProgress>;
+
     /// Reads raw audio data from a specific track and frame offset.
     ///
     /// # Arguments
@@ -129,6 +151,15 @@ pub trait AudioCdExt {
         trace.record("bytes_read", bytes_read_so_far);
 
         for (i, buf) in bufs.iter_mut().enumerate() {
+            self.cx().cancelled()?;
+            self.cx()
+                .reply(RipProgress {
+                    track_number,
+                    bytes_processed: bytes_read_so_far.strict_cast(),
+                    total_bytes: track_size,
+                })
+                .map_err(io::Error::other)
+                .or_error("sending progress update")?;
             let frames_to_read: u32 = MAX_CHUNK_FRAMES.try_into().unwrap();
 
             debug_assert_eq!(
@@ -165,11 +196,29 @@ pub trait AudioCdExt {
         debug_assert_eq!(frames_to_read * FRAME_SIZE, last_buf.len());
 
         if !last_buf.is_empty() {
+            self.cx().cancelled()?;
+            self.cx()
+                .reply(RipProgress {
+                    track_number,
+                    bytes_processed: bytes_read_so_far.strict_cast(),
+                    total_bytes: track_size,
+                })
+                .map_err(io::Error::other)
+                .or_error("sending progress update")?;
             let bytes_read =
                 self.read_chunk(&track, frame_offset, frames_to_read as u32, last_buf)?;
             bytes_read_so_far += i64::from(bytes_read);
             trace.record("bytes_read", bytes_read_so_far);
         }
+
+        self.cx()
+            .reply(RipProgress {
+                track_number,
+                bytes_processed: bytes_read_so_far.strict_cast(),
+                total_bytes: track_size,
+            })
+            .map_err(io::Error::other)
+            .or_error("sending progress update")?;
 
         Ok(data)
     }
