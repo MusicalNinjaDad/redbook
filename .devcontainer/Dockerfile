@@ -23,3 +23,9 @@ RUN cargo binstall -y \
         libinput \
         wayland-devel \
         xorg-x11-server-Xwayland
+
+# Windows exe metadata
+RUN cargo binstall -y svg_to_ico \
+    && sudo dnf install \
+        clang \
+        llvm
