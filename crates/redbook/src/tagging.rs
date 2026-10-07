@@ -150,7 +150,7 @@ impl PictureExt for Picture {
         let debug_span =
             tracing::debug_span!("saving cover art", ?directory, path = Empty).entered();
         let filename = match self.picture_type {
-            PictureType::CoverFront => "front",
+            PictureType::CoverFront => "cover",
             _ => todo!("save other picture types"),
         };
         let extension = match self
