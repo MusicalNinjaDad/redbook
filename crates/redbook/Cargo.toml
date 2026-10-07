@@ -10,10 +10,12 @@ edition.workspace = true
 version.workspace = true
 
 [features]
-simd-nightly = ["flacenc/simd-nightly"] # currently broken in published version on flacenc - but working if you patch to github
+simd-nightly = [
+    "flacenc/simd-nightly",
+] # currently broken in published version on flacenc - but working if you patch to github
 
 [dependencies]
-build_safely.workspace = true # for doc link
+build_safely.workspace = true       # for doc link
 cdtoc.workspace = true
 clap.workspace = true
 errno.workspace = true
@@ -21,6 +23,7 @@ exit_safely.workspace = true
 flacenc.workspace = true
 humanize-duration.workspace = true
 metaflac.workspace = true
+mime.workspace = true
 musicbrainz_rs.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
@@ -28,7 +31,7 @@ tabular.workspace = true
 thread_safely.workspace = true
 tracing-result.workspace = true
 tracing-subscriber.workspace = true
-tracing.workspace = true 
+tracing.workspace = true
 try_v2.workspace = true
 windows-link.workspace = true
 zune-jpeg.workspace = true
