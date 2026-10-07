@@ -25,7 +25,6 @@ flacenc = "0.5.1"
 glob = "0.3.4"
 humanize-duration = "0.0.7"
 metaflac = "0.2.8"
-mime = "0.3.17"
 musicbrainz_rs = { version = "0.14.0", features = ["sync", "native_tls"] }
 proc-macro2 = "1.0.107"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "native-tls", "json"] }
