@@ -2,7 +2,7 @@
 //! Tagging utilities for FLAC metadata
 
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -15,6 +15,7 @@ use musicbrainz_rs::entity::{
     release::{Release, ReleaseStatus, Track},
     release_scripts::ReleaseScript,
 };
+use tracing::field::Empty;
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
@@ -89,7 +90,7 @@ pub trait PictureExt {
         data: B,
     ) -> Self;
 
-    fn save<P: AsRef<Path>>(&self, directory: P) -> io::Result<()>;
+    fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -145,7 +146,9 @@ impl PictureExt for Picture {
         }
     }
 
-    fn save<P: AsRef<Path>>(&self, directory: P) -> io::Result<()> {
+    fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()> {
+        let debug_span =
+            tracing::debug_span!("saving cover art", ?directory, path = Empty).entered();
         let filename = match self.picture_type {
             PictureType::CoverFront => "front",
             _ => todo!("save other picture types"),
@@ -158,7 +161,10 @@ impl PictureExt for Picture {
             ImageMimeTypes::Jpeg => "jpg",
         };
         let path = directory.as_ref().join(filename).with_extension(extension);
-        fs::write(path, &self.data)
+        debug_span.record("path", path.display().to_string());
+        tracing::debug!("saving ...");
+        fs::write(path, &self.data).or_warn("failed to save")?;
+        Ok(())
     }
 }
 
