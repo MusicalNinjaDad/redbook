@@ -138,6 +138,12 @@ fn main() -> io::Result<()> {
                 let output_dir = tag.directory();
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
+
+                if let Some(ref cover) = ripped.coverart {
+                    #[expect(unused_must_use, reason = "TODO: don't fail only if file already exists")]
+                    cover.save(&output_dir);
+                };
+
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
