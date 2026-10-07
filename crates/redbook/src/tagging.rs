@@ -99,7 +99,7 @@ impl PictureExt for Picture {
 
         Picture {
             picture_type,
-            mime_type: mime::IMAGE_JPEG.to_string(),
+            mime_type: "image/jpeg".to_string(),
             description: description.to_string(),
             width,
             height,
