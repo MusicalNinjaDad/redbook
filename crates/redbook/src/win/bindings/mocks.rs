@@ -132,6 +132,7 @@ pub unsafe fn CreateFile2(
         DefinitelyMaybe => DEFINITELY_MAYBE,
         TheWallDisc1 => THE_WALL_1,
         TheWallDisc2 => THE_WALL_2,
+        BatOutOfHellRevamped => todo!("mock CD"),
     }
 }
 
