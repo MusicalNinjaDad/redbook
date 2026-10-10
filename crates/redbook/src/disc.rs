@@ -1301,6 +1301,9 @@ mod tests {
 
         assert_eq!(disc.release_index, Some(0));
         assert_eq!(disc.disc_index, Some(0));
-        assert_eq!(disc.tracks[0].title().unwrap(), "Bat Out of Hell");
+        assert_eq!(
+            disc.tracks().next().unwrap().title().unwrap(),
+            "Bat Out of Hell"
+        );
     }
 }
