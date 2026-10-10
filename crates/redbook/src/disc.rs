@@ -608,11 +608,11 @@ impl Disc {
     /// ```
     pub fn set_musicbrainz(&mut self, discid: Discid) -> &mut Self {
         self.musicbrainz = Some(discid);
-        self.release_index = match self
+        let releases = self
             .musicbrainz
             .as_ref()
-            .and_then(|mb| mb.releases.as_ref())
-        {
+            .and_then(|mb| mb.releases.as_ref());
+        self.release_index = match releases {
             None => Some(0),
             Some(releases) if releases.is_empty() => Some(0),
             Some(releases) if releases.len() == 1 => Some(0),
