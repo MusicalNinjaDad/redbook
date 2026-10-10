@@ -80,10 +80,13 @@ fn main() -> io::Result<()> {
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
             let releases = {
-                let disc_lock = cd
+                let mut disc_lock = cd
                     .lock()
                     .expect("TODO #69 don't block event loop waiting for lock");
-                let disc = disc_lock.disc();
+                let disc = disc_lock.disc_mut();
+                if disc.release().is_some() {
+                    update_release_details(&app, disc);
+                }
                 ReleaseDetails::for_disc(disc).unwrap()
             };
             app.set_releases(releases);
