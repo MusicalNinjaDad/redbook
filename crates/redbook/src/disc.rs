@@ -512,6 +512,30 @@ impl Disc {
         self
     }
 
+    /// Reset the release index based on the musicbrainz data.
+    ///
+    /// Automatically sets to `Some(0)` for single release discs or where no release data is
+    /// available, otherwise sets `None` to signify that a selection needs to be made
+    fn reset_release_index(&mut self) -> Option<usize> {
+        let _debug = tracing::debug_span!(
+            "Disc::reset_release_index",
+            release_count = self.all_releases().map(|releases| releases.len())
+        )
+        .entered();
+
+        self.release_index = match self.all_releases() {
+            None => Some(0),
+            Some(releases) if releases.is_empty() => Some(0),
+            Some(releases) if releases.len() == 1 => Some(0),
+            _ => None,
+        };
+
+        tracing::debug!(release_index = self.release_index);
+
+        self.reset_disc_index();
+        self.release_index
+    }
+
     /// Reset the disc index based on the selected release's media.
     ///
     /// Automatically sets to `Some(0)` for single-disc releases, or `None` for multi-disc
@@ -608,17 +632,7 @@ impl Disc {
     /// ```
     pub fn set_musicbrainz(&mut self, discid: Discid) -> &mut Self {
         self.musicbrainz = Some(discid);
-        let releases = self
-            .musicbrainz
-            .as_ref()
-            .and_then(|mb| mb.releases.as_ref());
-        self.release_index = match releases {
-            None => Some(0),
-            Some(releases) if releases.is_empty() => Some(0),
-            Some(releases) if releases.len() == 1 => Some(0),
-            _ => None,
-        };
-        tracing::debug!(release_index = self.release_index);
+        self.reset_release_index();
         self
     }
 
