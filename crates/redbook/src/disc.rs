@@ -1273,4 +1273,18 @@ mod tests {
         disc.set_release_index(Some(0));
         assert!(disc.release_index.is_none());
     }
+
+    #[test]
+    fn set_single_release() {
+        let album = BatOutOfHellRevamped;
+        let tracks = vec![];
+        let toc = album.expected_toc();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+
+        assert_eq!(disc.release_index, Some(0));
+    }
 }
