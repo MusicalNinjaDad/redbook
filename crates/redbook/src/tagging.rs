@@ -91,6 +91,8 @@ pub trait PictureExt {
     ) -> Self;
 
     fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()>;
+
+    fn filename(&self) -> io::Result<PathBuf>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -149,6 +151,15 @@ impl PictureExt for Picture {
     fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()> {
         let debug_span =
             tracing::debug_span!("saving cover art", ?directory, path = Empty).entered();
+        let path = directory.as_ref().join(self.filename()?);
+        debug_span.record("path", path.display().to_string());
+        tracing::debug!("saving ...");
+        fs::write(path, &self.data).or_warn("failed to save")?;
+        Ok(())
+    }
+
+    fn filename(&self) -> io::Result<PathBuf> {
+        let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
         let filename = match self.picture_type {
             PictureType::CoverFront => "cover",
             _ => todo!("save other picture types"),
@@ -160,11 +171,9 @@ impl PictureExt for Picture {
         {
             ImageMimeTypes::Jpeg => "jpg",
         };
-        let path = directory.as_ref().join(filename).with_extension(extension);
-        debug_span.record("path", path.display().to_string());
-        tracing::debug!("saving ...");
-        fs::write(path, &self.data).or_warn("failed to save")?;
-        Ok(())
+        let path = PathBuf::from(filename).with_extension(extension);
+        tracing::debug!(path = %path.display());
+        Ok(path)
     }
 }
 
