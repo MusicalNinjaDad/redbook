@@ -250,6 +250,7 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
 
             disc.set_release_by_id(Some(&release.id));
 
+            #[expect(unused_must_use, reason = "don't fail if unable to save cover art")]
             try { disc.update_cover_art().or_warn("updating cover art")? };
 
             let albums = [release];
