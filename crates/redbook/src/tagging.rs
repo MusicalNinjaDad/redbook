@@ -157,7 +157,7 @@ impl PictureExt for Picture {
         {
             ImageMimeTypes::Jpeg => "jpg",
         };
-        let path = PathBuf::from(filename).with_extension(extension);
+        let path = PathBuf::from(sanitise(filename)).with_extension(sanitise(extension));
         tracing::debug!(path = %path.display());
         Ok(path)
     }
