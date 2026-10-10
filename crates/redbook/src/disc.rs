@@ -1277,7 +1277,7 @@ mod tests {
     #[test]
     fn set_single_release() {
         let album = BatOutOfHellRevamped;
-        let tracks = vec![];
+        let tracks = album.expected_tracks_minimal();
         let toc = album.expected_toc();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
@@ -1286,5 +1286,7 @@ mod tests {
         disc.set_musicbrainz(musicbrainz);
 
         assert_eq!(disc.release_index, Some(0));
+        assert_eq!(disc.disc_index, Some(0));
+        assert_eq!(disc.tracks[0].title().unwrap(), "Bat Out of Hell");
     }
 }
