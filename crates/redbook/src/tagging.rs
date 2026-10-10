@@ -148,7 +148,7 @@ impl PictureExt for Picture {
         let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
         let filename = match self.picture_type {
             PictureType::CoverFront => "cover",
-            _ => todo!("save other picture types"),
+            _ => todo!("TODO #100: handle other picture types"),
         };
         let extension = match self
             .mime_type
