@@ -3,9 +3,8 @@
 
 use std::{
     fmt::{Debug, Display},
-    fs,
     io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
 };
 
@@ -15,7 +14,6 @@ use musicbrainz_rs::entity::{
     release::{Release, ReleaseStatus, Track},
     release_scripts::ReleaseScript,
 };
-use tracing::field::Empty;
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
@@ -90,8 +88,6 @@ pub trait PictureExt {
         data: B,
     ) -> Self;
 
-    fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()>;
-
     fn filename(&self) -> io::Result<PathBuf>;
 }
 
@@ -146,16 +142,6 @@ impl PictureExt for Picture {
             num_colors: 0,
             data: data.as_ref().to_vec(),
         }
-    }
-
-    fn save<P: AsRef<Path> + Debug>(&self, directory: P) -> io::Result<()> {
-        let debug_span =
-            tracing::debug_span!("saving cover art", ?directory, path = Empty).entered();
-        let path = directory.as_ref().join(self.filename()?);
-        debug_span.record("path", path.display().to_string());
-        tracing::debug!("saving ...");
-        fs::write(path, &self.data).or_warn("failed to save")?;
-        Ok(())
     }
 
     fn filename(&self) -> io::Result<PathBuf> {

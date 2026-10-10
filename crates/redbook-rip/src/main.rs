@@ -140,8 +140,12 @@ fn main() -> io::Result<()> {
                 fs::create_dir_all(&output_dir)?;
 
                 if let Some(ref cover) = ripped.coverart {
-                    #[expect(unused_must_use, reason = "TODO: don't fail only if file already exists")]
-                    cover.save(&output_dir);
+                    try bikeshed io::Result<_> {
+                        let filename = cover.filename()?;
+                        let coverart_path = output_dir.join(filename);
+                        tracing::debug!(path = %coverart_path.display(), "saving cover art");
+                        fs::write(coverart_path, &cover.data).or_warn("")?;
+                    };
                 };
 
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
