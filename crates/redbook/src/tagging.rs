@@ -1,7 +1,12 @@
 #![expect(missing_docs, reason = "needs update")]
 //! Tagging utilities for FLAC metadata
 
-use std::path::PathBuf;
+use std::{
+    fmt::{Debug, Display},
+    io::{self, ErrorKind},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::entity::{
@@ -9,6 +14,7 @@ use musicbrainz_rs::entity::{
     release::{Release, ReleaseStatus, Track},
     release_scripts::ReleaseScript,
 };
+use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
 pub trait ArtistCreditsExt {
@@ -81,6 +87,35 @@ pub trait PictureExt {
         description: S,
         data: B,
     ) -> Self;
+
+    fn filename(&self) -> io::Result<PathBuf>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ImageMimeTypes {
+    Jpeg,
+}
+
+impl Display for ImageMimeTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "image/")?;
+        match self {
+            ImageMimeTypes::Jpeg => write!(f, "jpeg"),
+        }
+    }
+}
+
+impl FromStr for ImageMimeTypes {
+    type Err = io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mimetype = match s {
+            "image/jpeg" => ImageMimeTypes::Jpeg,
+            _ => Err(io::Error::new(ErrorKind::InvalidData, "unknown mime type"))
+                .or_warn("parsing artwork mime type")?,
+        };
+        Ok(mimetype)
+    }
 }
 
 impl PictureExt for Picture {
@@ -99,7 +134,7 @@ impl PictureExt for Picture {
 
         Picture {
             picture_type,
-            mime_type: "image/jpeg".to_string(),
+            mime_type: ImageMimeTypes::Jpeg.to_string(),
             description: description.to_string(),
             width,
             height,
@@ -107,6 +142,24 @@ impl PictureExt for Picture {
             num_colors: 0,
             data: data.as_ref().to_vec(),
         }
+    }
+
+    fn filename(&self) -> io::Result<PathBuf> {
+        let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
+        let filename = match self.picture_type {
+            PictureType::CoverFront => "cover",
+            _ => todo!("TODO #100: handle other picture types"),
+        };
+        let extension = match self
+            .mime_type
+            .parse::<ImageMimeTypes>()
+            .or_warn("identifying image mime type")?
+        {
+            ImageMimeTypes::Jpeg => "jpg",
+        };
+        let path = PathBuf::from(sanitise(filename)).with_extension(sanitise(extension));
+        tracing::debug!(path = %path.display());
+        Ok(path)
     }
 }
 

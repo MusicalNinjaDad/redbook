@@ -138,6 +138,19 @@ fn main() -> io::Result<()> {
                 let output_dir = tag.directory();
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
+
+                tracing::debug!(?ripped.coverart);
+
+                if let Some(ref cover) = ripped.coverart {
+                    try bikeshed io::Result<_> {
+                        tracing::debug!("saving cover art");
+                        let filename = cover.filename()?;
+                        let coverart_path = output_dir.join(filename);
+                        tracing::debug!(path = %coverart_path.display());
+                        fs::write(coverart_path, &cover.data).or_warn("")?;
+                    };
+                };
+
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
@@ -236,6 +249,8 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
             let disc = disc_lock.disc_mut();
 
             disc.set_release_by_id(Some(&release.id));
+
+            try { disc.update_cover_art().or_warn("updating cover art")? };
 
             let albums = [release];
             app.set_releases(ModelRc::from(albums.as_slice()));
