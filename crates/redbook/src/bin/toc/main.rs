@@ -15,10 +15,7 @@ fn main() -> io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let drive = args.get(1).map(PathBuf::from);
     let mut cd = match drive {
-        Some(drive) => {
-            dbg!(&drive);
-            AudioCd::new(drive)?
-        }
+        Some(drive) => AudioCd::new(drive)?,
         None => {
             let drive = all_drives()?
                 .next()

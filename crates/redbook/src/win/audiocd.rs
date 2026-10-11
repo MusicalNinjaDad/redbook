@@ -92,8 +92,6 @@ impl TryFrom<CdDrive> for AudioCd {
             ))
             .or_warn("identifying last track")?;
 
-        dbg!(drive.toc_as_hex());
-
         for track in tracks.iter() {
             let track_number = track.toc_entry.track as usize;
 
@@ -107,14 +105,6 @@ impl TryFrom<CdDrive> for AudioCd {
                     format!("track {track_number} missing in TOC"),
                 ))
                 .or_warn("")?;
-            dbg!(track.toc_entry);
-            dbg!(data.Address);
-            dbg!(data.Reserved);
-            dbg!(data.Reserved1);
-            dbg!(data.TrackNumber);
-            #[expect(clippy::used_underscore_binding)]
-            let bitfield = data._bitfield;
-            dbg!(bitfield);
             (TocEntry::from(data) == track.toc_entry)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
@@ -145,7 +135,6 @@ impl AudioCdExt for AudioCd {
         let _err_span =
             tracing::error_span!("AudioCd::new", path = %path.as_ref().display()).entered();
         let drive = CdDrive::open(path)?;
-        dbg!(&drive);
         Self::try_from(drive)
     }
 

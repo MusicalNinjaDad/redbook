@@ -63,7 +63,6 @@ fn main() -> Exit<()> {
 
     let mut cd = match ripper.drive {
         Some(drive) => {
-            dbg!(&drive);
             info.record("drive", drive.display().to_string());
             AudioCd::new(drive)?
         }
@@ -74,7 +73,6 @@ fn main() -> Exit<()> {
             AudioCd::try_from(drive)?
         }
     };
-    dbg!(&cd);
 
     #[expect(unused_must_use, reason = "do not abort if musicbrainz not available")]
     cd.disc_mut().update_musicbrainz();
