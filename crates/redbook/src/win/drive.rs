@@ -96,13 +96,39 @@ impl CdDrive {
     ///   this occurs in your binary even on error.
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
+        dbg!(&path);
         let path_str = path.display().to_string();
+        dbg!(&path_str);
 
         let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
 
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
+        dbg!(&windrive);
         let mut handle = DriveHandle::open(windrive).or_error("")?;
+        dbg!(&handle);
         let toc = CDROM_TOC::read_from(&mut handle)?;
+        dbg!(toc.as_toc());
+        dbg!(toc.leadout());
+        dbg!(toc.FirstTrack);
+        dbg!(toc.LastTrack);
+        dbg!(toc.Length);
+        // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
+        const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
+        
+        // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
+        // This length value does not include the length of the Length member itself.
+        let len = u16::from_be_bytes(toc.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&toc.Length));
+        dbg!(len);
+        assert!(len <= TOC_SIZE);
+
+        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
+        let toc_bytes = unsafe {
+            // SAFETY: correct size validated above
+            std::slice::from_raw_parts(&toc as *const _ as *const _, len)
+        };
+        dbg!(hex_dump(toc_bytes));
         Ok(Self { path, handle, toc })
     }
 
@@ -133,14 +159,23 @@ impl CdDrive {
 
     /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> &[u8] {
-        // SAFETY check: stored value is the expected size
         let toc: CDROM_TOC = self.toc;
+
+        // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
         const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
+        
+        // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
+        // This length value does not include the length of the Length member itself.
+        let len = u16::from_be_bytes(toc.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&toc.Length));
+        dbg!(len);
+        assert!(len <= TOC_SIZE);
 
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         unsafe {
             // SAFETY: correct size validated above
-            std::slice::from_raw_parts(&toc as *const _ as *const _, TOC_SIZE)
+            std::slice::from_raw_parts(&toc as *const _ as *const _, len)
         }
     }
 
