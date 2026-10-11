@@ -316,14 +316,15 @@ impl From<CdaFile> for Track<'static> {
 #[forbid(unsafe_code)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::albums::TestAlbum;
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
     use rstest::rstest;
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         assert_eq!(toc.FirstTrack, album.expected_first_track());
@@ -331,9 +332,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn leadout(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let leadout = toc.leadout().unwrap();
@@ -341,9 +343,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn audio(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
@@ -351,9 +354,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn parse_cdas(#[case] album: TestAlbum) {
         let expected_tracks = album.expected_tracks_minimal();
         let cdas = album.assets_path().join("*.cda");
@@ -372,9 +376,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn compare_toc(#[case] album: TestAlbum) {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();

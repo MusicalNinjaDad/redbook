@@ -184,6 +184,7 @@ mod miri {
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();
