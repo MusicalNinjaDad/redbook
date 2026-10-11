@@ -25,6 +25,7 @@ const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
 const THE_WALL_2: HANDLE = 3 as _;
 const ALL_ALBUMS: HDEVINFO = 4 as _;
+const BAT_OUT_OF_HELL_REVAMPED: HDEVINFO = 5 as _;
 
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
@@ -132,7 +133,7 @@ pub unsafe fn CreateFile2(
         DefinitelyMaybe => DEFINITELY_MAYBE,
         TheWallDisc1 => THE_WALL_1,
         TheWallDisc2 => THE_WALL_2,
-        BatOutOfHellRevamped => todo!("mock CD"),
+        BatOutOfHellRevamped => BAT_OUT_OF_HELL_REVAMPED,
     }
 }
 
@@ -254,6 +255,7 @@ pub unsafe fn DeviceIoControl(
                 DEFINITELY_MAYBE => DefinitelyMaybe.load_cdrom_toc(),
                 THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
                 THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
+                BAT_OUT_OF_HELL_REVAMPED => BatOutOfHellRevamped.load_cdrom_toc(),
                 _ => panic!("unknown album"),
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));

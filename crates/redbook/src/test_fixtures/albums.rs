@@ -43,6 +43,9 @@ impl TryFrom<&PathBuf> for TestAlbum {
             p if p == TestAlbum::TheWallDisc2.assets_path().absolute()? => {
                 Ok(TestAlbum::TheWallDisc2)
             }
+            p if p == TestAlbum::BatOutOfHellRevamped.assets_path().absolute()? => {
+                Ok(TestAlbum::BatOutOfHellRevamped)
+            }
             _ => Err(io::Error::new(io::ErrorKind::NotFound, "unknown album")),
         }
     }
