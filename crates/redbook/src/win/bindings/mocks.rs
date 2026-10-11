@@ -35,6 +35,7 @@ impl TryFrom<HANDLE> for TestAlbum {
             DEFINITELY_MAYBE => Ok(DefinitelyMaybe),
             THE_WALL_1 => Ok(TheWallDisc1),
             THE_WALL_2 => Ok(TheWallDisc2),
+            BAT_OUT_OF_HELL_REVAMPED => Ok(BatOutOfHellRevamped),
             _ => Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "invalid album handle",
