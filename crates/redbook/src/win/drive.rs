@@ -70,7 +70,7 @@ impl Debug for CdDrive {
         f.debug_struct("CdDrive")
             .field("path", &self.path)
             .field("handle", &self.handle)
-            .field("toc", &self.toc_as_raw_bytes())
+            .field("toc", &self.toc_as_hex())
             .finish()
     }
 }
