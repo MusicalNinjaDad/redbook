@@ -10,6 +10,7 @@ use std::{fs, io, path::Path};
 
 use std::ptr::null_mut;
 
+use bitflags::bitflags;
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
@@ -183,6 +184,33 @@ impl CDROM_TOC {
             .map(TocEntry::from)
             .map(|entry| entry.start)
             .ok_or(TocError::SectorOrder)
+    }
+}
+
+bitflags! {
+    /// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
+    /// 
+    /// # Interpretation
+    /// | Value |  | Definition |
+    /// |------:|--|:-----------|
+    /// | 00x0b |  | 2 audio channels without pre-emphasis |
+    /// | 00x1b |  | 2 audio channels with pre-emphasis of 50/15 µs |
+    /// | 10x0b |  | audio channels without pre-emphasis (reserved in CD-R/RW) |
+    /// | 10x1b |  | audio channels with pre-emphasis of 50/15 µs (reserved in CD-R/RW) |
+    /// | 01x0b |  | Data track, recorded uninterrupted |
+    /// | 01x1b |  | Data track, recorded incremental |
+    /// | 11xxb |  | Reserved |
+    /// | xx0xb |  | digital copy prohibited |
+    /// | xx1xb |  | digital copy permitted |
+    pub struct Control: u8 {
+        /// pre-emphasis of 50/15 µs
+        const PRE_EMPHASIS = 0b0001;
+        /// digital copy-permitted
+        const COPY_PERMITTED = 0b0010;
+        /// data track
+        const DATA_TRACK = 0b0100;
+        /// non-stereo audio
+        const NON_STEREO_AUDIO = 0b1000;
     }
 }
 
@@ -408,7 +436,9 @@ mod tests {
             eprintln!("bitfield: {bitfield:08b}");
             dbg!(track.Address);
             dbg!(u32::from_be_bytes(track.Address));
-            dbg!(Msf::from(Frame::new(u32::from_be_bytes(track.Address).strict_cast())));
+            dbg!(Msf::from(Frame::new(
+                u32::from_be_bytes(track.Address).strict_cast()
+            )));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
         assert_eq!(toc.LastTrack, album.expected_last_track());
