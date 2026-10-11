@@ -73,6 +73,32 @@ impl CDROM_TOC {
         Ok(toc)
     }
 
+    /// Returns the full size, in bytes of the data-carrying part of the struct.
+    ///
+    /// While `Self.Length` indicates the length, in bytes, of the table of contents data, it does
+    /// not include the length of the Length member itself. This function returns the total size,
+    /// including the Length member.
+    pub fn size(&self) -> usize {
+        u16::from_be_bytes(self.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&self.Length))
+    }
+
+    /// Returns the number of actual entries in the TrackData array. This is calculated based
+    /// upon the total size of the struct.
+    pub fn track_entries(&self) -> usize {
+        let entries_size = self
+            .size()
+            .strict_sub(size_of_val(&self.Length))
+            .strict_sub(size_of_val(&self.FirstTrack))
+            .strict_sub(size_of_val(&self.LastTrack));
+        entries_size
+            .div_exact(size_of::<TRACK_DATA>().strict_cast())
+            .expect(
+                "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
+            )
+    }
+
     /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
     /// and will pad with \0 allowing round-tripping with
     /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
@@ -370,8 +396,20 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
+        for track in toc.TrackData.iter().take(toc.track_entries()) {
+            dbg!(track.TrackNumber);
+            dbg!(track.Reserved);
+            dbg!(track.Reserved1);
+            #[expect(clippy::used_underscore_binding)]
+            let bitfield = track._bitfield;
+            eprintln!("bitfield: {bitfield:08b}");
+            dbg!(track.Address);
+            dbg!(u32::from_be_bytes(track.Address));
+            dbg!(Msf::from(Frame::new(u32::from_be_bytes(track.Address).strict_cast())));
+        }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
         assert_eq!(toc.LastTrack, album.expected_last_track());
     }
@@ -381,6 +419,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn leadout(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let leadout = toc.leadout().unwrap();
