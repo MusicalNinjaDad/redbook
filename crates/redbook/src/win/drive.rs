@@ -70,7 +70,7 @@ impl Debug for CdDrive {
         f.debug_struct("CdDrive")
             .field("path", &self.path)
             .field("handle", &self.handle)
-            .field("toc", &self.toc_as_raw_bytes())
+            .field("toc", &self.toc_as_hex())
             .finish()
     }
 }
@@ -131,22 +131,35 @@ impl CdDrive {
         unsafe { self.handle.as_handle() }
     }
 
-    /// Obtain an array of raw bytes representing the [`CDROM_TOC`]
-    pub fn toc_as_raw_bytes(&self) -> &[u8] {
-        // SAFETY check: stored value is the expected size
+    /// Obtain the raw bytes representing the [`CDROM_TOC`]
+    pub fn toc_as_raw_bytes(&self) -> Vec<u8> {
         let toc: CDROM_TOC = self.toc;
+
+        // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
         const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
 
+        // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
+        // This length value does not include the length of the Length member itself.
+        let len = u16::from_be_bytes(toc.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&toc.Length));
+        assert!(len <= TOC_SIZE);
+
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
-        unsafe {
-            // SAFETY: correct size validated above
-            std::slice::from_raw_parts(&toc as *const _ as *const _, TOC_SIZE)
-        }
+        let bytes: &[u8] = unsafe {
+            // SAFETY:
+            // - correct size validated above, we are not reading past the end of valid data
+            // - CDROM_TOC is Copy, slice points to current stack. Only valid for duration of
+            //   current function. Return type is owned copy of this data as a Vec<u8>.
+            std::slice::from_raw_parts(&toc as *const _ as *const _, len)
+        };
+
+        Vec::from(bytes)
     }
 
     /// Obtain a hex representation of the raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_hex(&self) -> String {
-        hex_dump(self.toc_as_raw_bytes())
+        hex_dump(&self.toc_as_raw_bytes())
     }
 
     /// Obtain a reference to the TOC as a [`CDROM_TOC`]

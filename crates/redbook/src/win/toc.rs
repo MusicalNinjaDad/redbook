@@ -73,19 +73,64 @@ impl CDROM_TOC {
         Ok(toc)
     }
 
-    /// Parse raw bytes as a [`CDROM_TOC`] structure
+    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
+    /// and will pad with \0 allowing round-tripping with
+    /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    pub fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+    pub fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
+        // SAFETY: ffi spec has not changed
+        assert_eq!(size_of::<CDROM_TOC>(), TOC_SIZE);
+
+        match bytes.len() {
+            TOC_SIZE => {
+                // full dump. Either with padding or 100 tracks.
+            }
+            ..4 => panic!("insufficient bytes for a CDROM_TOC with 0 tracks"),
+            4..TOC_SIZE => {
+                // SAFETY: toc.Length is the first field: [u8;2] & indicates the length, in bytes,
+                // of the table of contents data. This length value does not include the length of
+                // the Length member itself (2 bytes).
+                let len = u16::from_be_bytes(bytes[0..=1].try_into().unwrap())
+                    .strict_cast::<usize>()
+                    .strict_add(2);
+                assert_eq!(bytes.len(), len);
+            }
+            _ => panic!("too many bytes for a CDROM_TOC"),
+        };
+
+        // SAFETY: bytes will fit in a CDROM_TOC
+        assert!(bytes.len() <= TOC_SIZE);
+
+        // Pad with null bytes to allow round-tripping
+        bytes.resize(TOC_SIZE, 0);
+
         #[expect(unsafe_code, reason = "construction from raw bytes")]
-        unsafe {
+        let toc: CDROM_TOC = unsafe {
             // SAFETY: correct size & alignment
             assert_eq!(size_of::<CDROM_TOC>(), bytes.len());
             assert_eq!(0, bytes.as_ptr().align_offset(align_of::<CDROM_TOC>()));
 
             *(bytes.as_ptr() as *const _)
+        };
+
+        let last_track = toc.LastTrack.strict_cast();
+        for (i, track) in toc.TrackData.iter().enumerate() {
+            let track_number = i + 1;
+            if (1..=last_track).contains(&track_number) {
+                assert_eq!(track_number, track.TrackNumber.strict_cast::<usize>())
+            } else if track_number == last_track + 1 {
+                // Leadout
+                assert_eq!(0xaa, track.TrackNumber.strict_cast::<usize>())
+            } else {
+                assert_eq!(0, track.Reserved);
+                assert_eq!(0, track.Reserved1);
+                assert_eq!(0, track.TrackNumber);
+                assert_eq!([0; 4], track.Address);
+            }
         }
+        toc
     }
 
     pub fn as_toc(&self) -> Result<Toc, TocError> {
@@ -316,14 +361,15 @@ impl From<CdaFile> for Track<'static> {
 #[forbid(unsafe_code)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::albums::TestAlbum;
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
     use rstest::rstest;
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         assert_eq!(toc.FirstTrack, album.expected_first_track());
@@ -331,9 +377,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn leadout(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let leadout = toc.leadout().unwrap();
@@ -341,9 +388,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn audio(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
@@ -351,9 +399,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn parse_cdas(#[case] album: TestAlbum) {
         let expected_tracks = album.expected_tracks_minimal();
         let cdas = album.assets_path().join("*.cda");
@@ -372,9 +421,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TestAlbum::DefinitelyMaybe)]
-    #[case(TestAlbum::TheWallDisc1)]
-    #[case(TestAlbum::TheWallDisc2)]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
     fn compare_toc(#[case] album: TestAlbum) {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();

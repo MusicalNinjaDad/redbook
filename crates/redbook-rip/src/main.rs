@@ -20,7 +20,7 @@ use metaflac::{
 };
 
 use redbook::{
-    AudioCd, AudioCdExt, RipProgress, RippedTrack,
+    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
@@ -80,10 +80,13 @@ fn main() -> io::Result<()> {
         ::slint::invoke_from_event_loop(move || {
             let app = app_.clone().unwrap();
             let releases = {
-                let disc_lock = cd
+                let mut disc_lock = cd
                     .lock()
                     .expect("TODO #69 don't block event loop waiting for lock");
-                let disc = disc_lock.disc();
+                let disc = disc_lock.disc_mut();
+                if disc.release().is_some() {
+                    update_release_details(&app, disc);
+                }
                 ReleaseDetails::for_disc(disc).unwrap()
             };
             app.set_releases(releases);
@@ -250,15 +253,22 @@ fn select_release(app: Weak<MainWindow>, cd: Arc<Mutex<AudioCd>>) -> impl FnMut(
 
             disc.set_release_by_id(Some(&release.id));
 
-            try { disc.update_cover_art().or_warn("updating cover art")? };
+            update_release_details(&app, disc);
 
             let albums = [release];
             app.set_releases(ModelRc::from(albums.as_slice()));
-
-            let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
-            app.set_tracks(ModelRc::from(Rc::new(TracksModel::from(tracks))));
         }
     }
+}
+
+fn update_release_details(app: &MainWindow, disc: &mut Disc) {
+    #[expect(unused_must_use, reason = "don't fail if unable to save cover art")]
+    try {
+        disc.update_cover_art().or_warn("updating cover art")?
+    };
+
+    let tracks: Vec<TrackDetails> = disc.tracks().map(TrackDetails::from).collect();
+    app.set_tracks(ModelRc::from(Rc::new(TracksModel::from(tracks))));
 }
 
 fn rip(app: Weak<MainWindow>, channel: Sender<Vec<usize>>) -> impl FnMut() {

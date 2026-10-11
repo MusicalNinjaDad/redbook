@@ -15,6 +15,7 @@ pub enum TestAlbum {
     DefinitelyMaybe,
     TheWallDisc1,
     TheWallDisc2,
+    BatOutOfHellRevamped,
 }
 
 impl Display for TestAlbum {
@@ -23,6 +24,7 @@ impl Display for TestAlbum {
             TestAlbum::DefinitelyMaybe => write!(f, "DefinitelyMaybe"),
             TestAlbum::TheWallDisc1 => write!(f, "TheWallDisc1"),
             TestAlbum::TheWallDisc2 => write!(f, "TheWallDisc2"),
+            TestAlbum::BatOutOfHellRevamped => write!(f, "BatOutOfHellRevamped"),
         }
     }
 }
@@ -40,6 +42,9 @@ impl TryFrom<&PathBuf> for TestAlbum {
             }
             p if p == TestAlbum::TheWallDisc2.assets_path().absolute()? => {
                 Ok(TestAlbum::TheWallDisc2)
+            }
+            p if p == TestAlbum::BatOutOfHellRevamped.assets_path().absolute()? => {
+                Ok(TestAlbum::BatOutOfHellRevamped)
             }
             _ => Err(io::Error::new(io::ErrorKind::NotFound, "unknown album")),
         }
@@ -66,6 +71,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => assets.join("definitely_maybe"),
             TestAlbum::TheWallDisc1 => assets.join("the_wall").join("disc1"),
             TestAlbum::TheWallDisc2 => assets.join("the_wall").join("disc2"),
+            TestAlbum::BatOutOfHellRevamped => assets.join("bat_out_of_hell_revamped"),
         }
     }
 
@@ -90,6 +96,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => 1,
             TestAlbum::TheWallDisc1 => 1,
             TestAlbum::TheWallDisc2 => 1,
+            TestAlbum::BatOutOfHellRevamped => 1,
         }
     }
 
@@ -99,6 +106,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => 11,
             TestAlbum::TheWallDisc1 => 13,
             TestAlbum::TheWallDisc2 => 13,
+            TestAlbum::BatOutOfHellRevamped => 8,
         }
     }
 
@@ -108,6 +116,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => Frame::from(Msf::new(0x34, 0x05, 0x1c)),
             TestAlbum::TheWallDisc1 => Frame::from(Msf::new(0x27, 0x0E, 0x0A)),
             TestAlbum::TheWallDisc2 => Frame::from(Msf::new(0x29, 0x3a, 0x19)),
+            TestAlbum::BatOutOfHellRevamped => Frame::from(Msf::new(0x32, 0x39, 0x07)),
         }
     }
 
@@ -424,6 +433,80 @@ impl TestAlbum {
                     ..Default::default()
                 },
             ],
+            TestAlbum::BatOutOfHellRevamped => vec![
+                Track {
+                    toc_entry: TocEntry {
+                        track: 1,
+                        start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                    },
+                    duration: Frame::from(Msf::new(0x09, 0x34, 0x16))
+                        - Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 2,
+                        start: Frame::from(Msf::new(0x09, 0x34, 0x16)),
+                    },
+                    duration: Frame::from(Msf::new(0x0e, 0x38, 0x34))
+                        - Frame::from(Msf::new(0x09, 0x34, 0x16)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 3,
+                        start: Frame::from(Msf::new(0x0e, 0x38, 0x34)),
+                    },
+                    duration: Frame::from(Msf::new(0x13, 0x25, 0x19))
+                        - Frame::from(Msf::new(0x0e, 0x38, 0x34)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 4,
+                        start: Frame::from(Msf::new(0x13, 0x25, 0x19)),
+                    },
+                    duration: Frame::from(Msf::new(0x17, 0x39, 0x00))
+                        - Frame::from(Msf::new(0x13, 0x25, 0x19)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 5,
+                        start: Frame::from(Msf::new(0x17, 0x39, 0x00)),
+                    },
+                    duration: Frame::from(Msf::new(0x1D, 0x16, 0x0A))
+                        - Frame::from(Msf::new(0x17, 0x39, 0x00)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 6,
+                        start: Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
+                    },
+                    duration: Frame::from(Msf::new(0x25, 0x32, 0x05))
+                        - Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 7,
+                        start: Frame::from(Msf::new(0x25, 0x32, 0x05)),
+                    },
+                    duration: Frame::from(Msf::new(0x2e, 0x21, 0x19))
+                        - Frame::from(Msf::new(0x25, 0x32, 0x05)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 8,
+                        start: Frame::from(Msf::new(0x2e, 0x21, 0x19)),
+                    },
+                    duration: Frame::from(Msf::new(0x32, 0x39, 0x07))
+                        - Frame::from(Msf::new(0x2e, 0x21, 0x19)),
+                    ..Default::default()
+                },
+            ],
         }
     }
 
@@ -442,6 +525,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => vec![4, 5, 1, 2, 0, 3],
             TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
+            TestAlbum::BatOutOfHellRevamped => vec![0],
         }
     }
 
@@ -506,6 +590,7 @@ impl TestAlbum {
                 .iter()
                 .position(|release| release.id == "b13b64f6-85fc-3c1c-8aae-e5adb94d7181")
                 .unwrap(),
+            TestAlbum::BatOutOfHellRevamped => 0,
         }
     }
 
@@ -541,6 +626,7 @@ impl TestAlbum {
                         .position(|media| media.position == Some(2))
                 })
                 .unwrap(),
+            TestAlbum::BatOutOfHellRevamped => Some(0),
         }
     }
 }
