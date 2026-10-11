@@ -16,6 +16,7 @@ pub enum TestAlbum {
     TheWallDisc1,
     TheWallDisc2,
     BatOutOfHellRevamped,
+    TheBoyWhoKnewTooMuch,
 }
 
 impl Display for TestAlbum {
@@ -25,6 +26,7 @@ impl Display for TestAlbum {
             TestAlbum::TheWallDisc1 => write!(f, "TheWallDisc1"),
             TestAlbum::TheWallDisc2 => write!(f, "TheWallDisc2"),
             TestAlbum::BatOutOfHellRevamped => write!(f, "BatOutOfHellRevamped"),
+            TestAlbum::TheBoyWhoKnewTooMuch => write!(f, "TheBoyWhoKnewTooMuch"),
         }
     }
 }
@@ -45,6 +47,9 @@ impl TryFrom<&PathBuf> for TestAlbum {
             }
             p if p == TestAlbum::BatOutOfHellRevamped.assets_path().absolute()? => {
                 Ok(TestAlbum::BatOutOfHellRevamped)
+            }
+            p if p == TestAlbum::TheBoyWhoKnewTooMuch.assets_path().absolute()? => {
+                Ok(TestAlbum::TheBoyWhoKnewTooMuch)
             }
             _ => Err(io::Error::new(io::ErrorKind::NotFound, "unknown album")),
         }
@@ -72,6 +77,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => assets.join("the_wall").join("disc1"),
             TestAlbum::TheWallDisc2 => assets.join("the_wall").join("disc2"),
             TestAlbum::BatOutOfHellRevamped => assets.join("bat_out_of_hell_revamped"),
+            TestAlbum::TheBoyWhoKnewTooMuch => assets.join("the_boy_who_knew_too_much"),
         }
     }
 
@@ -97,6 +103,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => 1,
             TestAlbum::TheWallDisc2 => 1,
             TestAlbum::BatOutOfHellRevamped => 1,
+            TestAlbum::TheBoyWhoKnewTooMuch => 1,
         }
     }
 
@@ -107,6 +114,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => 13,
             TestAlbum::TheWallDisc2 => 13,
             TestAlbum::BatOutOfHellRevamped => 8,
+            TestAlbum::TheBoyWhoKnewTooMuch => 12,
         }
     }
 
@@ -117,6 +125,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => Frame::from(Msf::new(0x27, 0x0E, 0x0A)),
             TestAlbum::TheWallDisc2 => Frame::from(Msf::new(0x29, 0x3a, 0x19)),
             TestAlbum::BatOutOfHellRevamped => Frame::from(Msf::new(0x32, 0x39, 0x07)),
+            TestAlbum::TheBoyWhoKnewTooMuch => Frame::new(185251),
         }
     }
 
@@ -507,6 +516,7 @@ impl TestAlbum {
                     ..Default::default()
                 },
             ],
+            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected tracks"),
         }
     }
 
@@ -526,6 +536,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::BatOutOfHellRevamped => vec![0],
+            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected release order"),
         }
     }
 
@@ -591,6 +602,7 @@ impl TestAlbum {
                 .position(|release| release.id == "b13b64f6-85fc-3c1c-8aae-e5adb94d7181")
                 .unwrap(),
             TestAlbum::BatOutOfHellRevamped => 0,
+            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected release index"),
         }
     }
 
@@ -627,6 +639,7 @@ impl TestAlbum {
                 })
                 .unwrap(),
             TestAlbum::BatOutOfHellRevamped => Some(0),
+            TestAlbum::TheBoyWhoKnewTooMuch => Some(0),
         }
     }
 }
