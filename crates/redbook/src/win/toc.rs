@@ -6,6 +6,7 @@
 //! - windows ffi [`CDROM_TOC`]
 //! - windows [`CdaFile`]s
 
+use std::fmt::Display;
 use std::{fs, io, path::Path};
 
 use std::ptr::null_mut;
@@ -189,7 +190,7 @@ impl CDROM_TOC {
 
 bitflags! {
     /// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
-    /// 
+    ///
     /// # Interpretation
     /// | Value |  | Definition |
     /// |------:|--|:-----------|
@@ -211,6 +212,20 @@ bitflags! {
         const DATA_TRACK = 0b0100;
         /// non-stereo audio
         const NON_STEREO_AUDIO = 0b1000;
+    }
+}
+
+impl Display for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        bitflags::parser::to_writer_strict(self, f)
+    }
+}
+
+impl TRACK_DATA {
+    pub fn control(&self) -> Control {
+        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+        let control_code = self._bitfield;
+        Control::from_bits_truncate(control_code)
     }
 }
 
@@ -434,6 +449,7 @@ mod tests {
             #[expect(clippy::used_underscore_binding)]
             let bitfield = track._bitfield;
             eprintln!("bitfield: {bitfield:08b}");
+            eprintln!("control: {}", track.control());
             dbg!(track.Address);
             dbg!(u32::from_be_bytes(track.Address));
             dbg!(Msf::from(Frame::new(
