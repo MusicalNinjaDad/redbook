@@ -73,11 +73,22 @@ impl CDROM_TOC {
         Ok(toc)
     }
 
-    /// Parse raw bytes as a [`CDROM_TOC`] structure
+    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
+    /// and will pad with \0 allowing round-tripping with
+    /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    pub fn from_raw_bytes(bytes: Vec<u8>) -> CDROM_TOC {
+    pub fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
+        // SAFETY: ffi spec has not changed
+        assert_eq!(size_of::<CDROM_TOC>(), TOC_SIZE);
+
+        // SAFETY: bytes will fit in a CDROM_TOC
+        assert!(bytes.len() <= TOC_SIZE);
+
+        // Pad with null bytes to allow round-tripping
+        bytes.resize(TOC_SIZE, 0);
+
         #[expect(unsafe_code, reason = "construction from raw bytes")]
         unsafe {
             // SAFETY: correct size & alignment
