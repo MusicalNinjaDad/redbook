@@ -10,7 +10,10 @@ use tracing_result::Trace;
 
 use crate::LEADIN;
 
-/// Entry in a CD TOC (Table of Contents).
+/// 0b0010 format track identifier for Leadout
+pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
+
+/// Entry in a CD TOC (Table of Contents) for an audio track.
 ///
 /// Represents a single entry from the CD's Table of Contents, containing the
 /// track number and its absolute start position on the disc.
@@ -18,7 +21,8 @@ use crate::LEADIN;
 /// # Notes
 ///
 /// - The start position includes the lead-in area (150 frames)
-/// - Used for low-level disc navigation and track positioning
+/// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
+///   maintained. Conversion functions should be designed discard or fail on data tracks.
 ///
 /// # Examples
 ///
