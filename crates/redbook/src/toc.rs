@@ -88,15 +88,7 @@ impl TocEntry {
             })
             .or_warn("")?;
 
-        let session_number = iter.next().unwrap();
-        (session_number == 1)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "multi-session discs are not supported",
-                )
-            })
-            .or_warn("")?;
+        let _session_number = iter.next().unwrap();
 
         let acr_control = iter.next().unwrap();
         (acr_control & 0b11110000 == 0b00010000)
