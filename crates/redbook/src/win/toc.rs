@@ -80,7 +80,7 @@ impl CDROM_TOC {
     /// While `Self.Length` indicates the length, in bytes, of the table of contents data, it does
     /// not include the length of the Length member itself. This function returns the total size,
     /// including the Length member.
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         u16::from_be_bytes(self.Length)
             .strict_cast::<usize>()
             .strict_add(size_of_val(&self.Length))
