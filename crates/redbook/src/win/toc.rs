@@ -101,6 +101,15 @@ impl CDROM_TOC {
             )
     }
 
+    /// Returns the track number of the last audio track, or `None` if no audio tracks are present.
+    pub fn last_audio_track(&self) -> Option<usize> {
+        self.TrackData
+            .iter()
+            .take(self.LastTrack.strict_cast())
+            .rfind(|track| !track.control().contains(Control::DATA_TRACK))
+            .map(|track| track.TrackNumber.strict_cast())
+    }
+
     /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
     /// and will pad with \0 allowing round-tripping with
     /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
@@ -457,7 +466,10 @@ mod tests {
             )));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
-        assert_eq!(toc.LastTrack, album.expected_last_audio_track());
+        assert_eq!(
+            toc.last_audio_track().unwrap(),
+            album.expected_last_audio_track().strict_cast::<usize>()
+        );
     }
 
     #[rstest]
