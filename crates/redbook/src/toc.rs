@@ -70,7 +70,7 @@ impl TocEntry {
     /// - 0xA0: first track number = Start Mins
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
-    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
+    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Option<Self>> {
         let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
         let mut iter = data.iter().copied();
@@ -126,7 +126,7 @@ impl TocEntry {
             iter.next().unwrap(),
         );
         let start = Frame::from(start);
-        Ok(Self { track, start })
+        Ok(Some(Self { track, start }))
     }
 }
 
