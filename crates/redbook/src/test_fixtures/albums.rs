@@ -108,7 +108,7 @@ impl TestAlbum {
     }
 
     /// Expected last track number for this album
-    pub fn expected_last_track(&self) -> u8 {
+    pub fn expected_last_audio_track(&self) -> u8 {
         match self {
             TestAlbum::DefinitelyMaybe => 11,
             TestAlbum::TheWallDisc1 => 13,

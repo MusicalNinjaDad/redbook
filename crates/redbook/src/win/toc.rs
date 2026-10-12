@@ -457,7 +457,7 @@ mod tests {
             )));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
-        assert_eq!(toc.LastTrack, album.expected_last_track());
+        assert_eq!(toc.LastTrack, album.expected_last_audio_track());
     }
 
     #[rstest]
