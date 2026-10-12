@@ -102,6 +102,12 @@ impl TocEntry {
             .or_warn("")?;
         let control = Control::from_bits_truncate(adr_control);
 
+        // TODO data ADR1 vs MS control ADR 5
+        if control.is_data() {
+            tracing::debug!("data track");
+            return Ok(None);
+        }
+
         let tno = iter.next().unwrap();
         (tno == 0)
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid TNO"))
