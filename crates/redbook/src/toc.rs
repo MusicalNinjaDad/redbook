@@ -93,6 +93,7 @@ impl TocEntry {
         let adr_control = iter.next().unwrap();
         let control = Control::from_bits_truncate(adr_control);
 
+        // TODO - we do need data track details - as TOCStrings include them!
         if (adr_control & 0b11110000 != 0b00010000) || control.is_data() {
             tracing::debug!("data track");
             return Ok(None);
