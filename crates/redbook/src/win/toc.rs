@@ -522,6 +522,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn compare_toc(#[case] album: TestAlbum) {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();
