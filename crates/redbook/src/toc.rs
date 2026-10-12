@@ -8,7 +8,7 @@ use std::{
 
 use tracing_result::Trace;
 
-use crate::LEADIN;
+use crate::{LEADIN, win::toc::Control};
 
 /// 0b0010 format track identifier for Leadout
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
@@ -90,15 +90,17 @@ impl TocEntry {
 
         let _session_number = iter.next().unwrap();
 
-        let acr_control = iter.next().unwrap();
-        (acr_control & 0b11110000 == 0b00010000)
+        let adr_control = iter.next().unwrap();
+        // ADR 5 = multi-session info as per Table 237 (section 5.23.4 MMC-3 10g)
+        (adr_control & 0b11010000 == 0b00010000)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("invalid ADR value: expected 0001xxxx, got {:#08b}", data[2]),
+                    format!("invalid ADR value: expected 00x1xxxx, got {:#08b}", data[2]),
                 )
             })
             .or_warn("")?;
+        let control = Control::from_bits_truncate(adr_control);
 
         let tno = iter.next().unwrap();
         (tno == 0)

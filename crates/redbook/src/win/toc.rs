@@ -224,6 +224,18 @@ bitflags! {
     }
 }
 
+impl Control {
+    /// represents a data track
+    pub fn is_data(&self) -> bool {
+        self.contains(Control::DATA_TRACK)
+    }
+
+    /// represents an audio track
+    pub fn is_audio(&self) -> bool {
+        !self.is_data()
+    }
+}
+
 impl Display for Control {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         bitflags::parser::to_writer_strict(self, f)
