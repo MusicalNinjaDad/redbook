@@ -543,7 +543,7 @@ impl TocString {
 
         let mut entries: Vec<_> = entries
             .iter()
-            .map(|entry| TocEntry::from_scsi_readtoc_0010b(entry.as_slice()))
+            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(entry.as_slice()).transpose())
             .try_collect()?;
 
         entries.sort_by_key(|entry| entry.track);
