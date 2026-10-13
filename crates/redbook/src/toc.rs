@@ -28,7 +28,7 @@ pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
 ///   maintained. Conversion functions should be designed discard or fail on data tracks.
 ///
 /// # TODO
-/// 
+///
 /// - Example
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TocEntry {

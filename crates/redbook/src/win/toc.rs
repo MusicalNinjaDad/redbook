@@ -485,7 +485,7 @@ mod tests {
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
     fn parse_cdas(#[case] album: TestAlbum) {
-        let expected_tracks = album.expected_tracks_minimal();
+        let expected_tracks = album.expected_audio_tracks_minimal();
         let cdas = album.assets_path().join("*.cda");
         let cdas: Vec<_> = glob(&cdas.to_string_lossy()).unwrap().collect();
 

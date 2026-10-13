@@ -124,7 +124,7 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -156,7 +156,7 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -196,7 +196,7 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 

@@ -6,7 +6,8 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt, win::toc::CDROM_TOC,
+    Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt,
+    win::toc::CDROM_TOC,
 };
 
 /// Test album identifier for parameterized tests
@@ -131,14 +132,14 @@ impl TestAlbum {
 
     /// Get just the TocEntry values for comparison with iter_audio()
     pub fn expected_toc_entries(&self) -> Vec<TocEntry> {
-        self.expected_tracks_minimal()
+        self.expected_audio_tracks_minimal()
             .into_iter()
             .map(|track| track.toc_entry)
             .collect()
     }
 
     /// Expected tracks as Track objects (without metadata)
-    pub fn expected_tracks_minimal(&self) -> Vec<Track<'static>> {
+    pub fn expected_audio_tracks_minimal(&self) -> Vec<Track<'static>> {
         match self {
             TestAlbum::DefinitelyMaybe => vec![
                 Track {
@@ -561,7 +562,128 @@ impl TestAlbum {
                     ..Default::default()
                 },
             ],
-            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected tracks"),
+            TestAlbum::TheBoyWhoKnewTooMuch => vec![
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x01,
+                        start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x04, 0x00, 0x07))
+                        - Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x02,
+                        start: Frame::from(Msf::new(0x04, 0x00, 0x07)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x07, 0x22, 0x2B))
+                        - Frame::from(Msf::new(0x04, 0x00, 0x07)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x03,
+                        start: Frame::from(Msf::new(0x07, 0x22, 0x2B)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x0B, 0x12, 0x18))
+                        - Frame::from(Msf::new(0x07, 0x22, 0x2B)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x04,
+                        start: Frame::from(Msf::new(0x0B, 0x12, 0x18)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x0F, 0x02, 0x1E))
+                        - Frame::from(Msf::new(0x0B, 0x12, 0x18)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x05,
+                        start: Frame::from(Msf::new(0x0F, 0x02, 0x1E)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x13, 0x12, 0x44))
+                        - Frame::from(Msf::new(0x0F, 0x02, 0x1E)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x06,
+                        start: Frame::from(Msf::new(0x13, 0x12, 0x44)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x16, 0x09, 0x0D))
+                        - Frame::from(Msf::new(0x13, 0x12, 0x44)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x07,
+                        start: Frame::from(Msf::new(0x16, 0x09, 0x0D)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x19, 0x0B, 0x07))
+                        - Frame::from(Msf::new(0x16, 0x09, 0x0D)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x08,
+                        start: Frame::from(Msf::new(0x19, 0x0B, 0x07)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x1C, 0x1F, 0x06))
+                        - Frame::from(Msf::new(0x19, 0x0B, 0x07)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x09,
+                        start: Frame::from(Msf::new(0x1C, 0x1F, 0x06)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x1F, 0x34, 0x15))
+                        - Frame::from(Msf::new(0x1C, 0x1F, 0x06)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x0A,
+                        start: Frame::from(Msf::new(0x1F, 0x34, 0x15)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x22, 0x33, 0x02))
+                        - Frame::from(Msf::new(0x1F, 0x34, 0x15)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x0B,
+                        start: Frame::from(Msf::new(0x22, 0x33, 0x02)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x25, 0x31, 0x05))
+                        - Frame::from(Msf::new(0x22, 0x33, 0x02)),
+                    ..Default::default()
+                },
+                Track {
+                    toc_entry: TocEntry {
+                        track: 0x0C,
+                        start: Frame::from(Msf::new(0x25, 0x31, 0x05)),
+                        control: Default::default(),
+                    },
+                    duration: Frame::from(Msf::new(0x29, 0x0C, 0x01))
+                        - Frame::from(Msf::new(0x25, 0x31, 0x05)),
+                    ..Default::default()
+                },
+            ],
         }
     }
 

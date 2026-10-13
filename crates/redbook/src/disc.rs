@@ -64,7 +64,7 @@ use crate::{
 pub struct Disc {
     /// The table of contents for the CD.
     toc: Toc,
-    /// The list of tracks on the CD.
+    /// The list of audio tracks on the CD.
     tracks: Vec<Track<'static>>,
     /// The leadout frame position.
     leadout: Frame,
@@ -1187,21 +1187,23 @@ mod tests {
 
     // TODO - validate with minimal track info
 
+    #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn new(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
 
         let disc = Disc::new(toc, tracks, leadout).unwrap();
         assert_eq!(disc.toc, album.expected_toc());
         assert_eq!(
             disc.tracks().collect::<Vec<_>>(),
-            album.expected_tracks_minimal()
+            album.expected_audio_tracks_minimal()
         );
         assert_eq!(disc.leadout, album.expected_leadout());
     }
@@ -1214,7 +1216,7 @@ mod tests {
     #[cfg_attr(miri, ignore = "no unsafe used & super slow on miri")]
     fn identify_disc_index(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1232,7 +1234,7 @@ mod tests {
     fn all_releases(#[case] album: TestAlbum) {
         let expected_order = album.expected_releases_in_order();
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1252,7 +1254,7 @@ mod tests {
         let expected_order = album.expected_release_order();
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1268,7 +1270,7 @@ mod tests {
     fn set_release_invalid() {
         let album = DefinitelyMaybe;
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1283,7 +1285,7 @@ mod tests {
     fn set_release_no_musicbrainz() {
         let album = DefinitelyMaybe;
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -1295,7 +1297,7 @@ mod tests {
     #[test]
     fn set_single_release() {
         let album = BatOutOfHellRevamped;
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let toc = album.expected_toc();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
