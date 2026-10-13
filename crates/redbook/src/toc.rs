@@ -1,14 +1,16 @@
 //! Support for Tables of Contents & Frame-based time
 
 use std::{
+    fmt::Display,
     io::{self, ErrorKind},
     ops::{Add, Rem, Sub},
     time::Duration,
 };
 
+use bitflags::bitflags;
 use tracing_result::Trace;
 
-use crate::{LEADIN, win::toc::Control};
+use crate::LEADIN;
 
 /// 0b0010 format track identifier for Leadout
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
@@ -44,6 +46,54 @@ pub struct TocEntry {
     pub track: u8,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     pub start: Frame,
+}
+
+/// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
+///
+/// # Interpretation
+/// | Value |  | Definition |
+/// |------:|--|:-----------|
+/// | 00x0b |  | 2 audio channels without pre-emphasis |
+/// | 00x1b |  | 2 audio channels with pre-emphasis of 50/15 µs |
+/// | 10x0b |  | audio channels without pre-emphasis (reserved in CD-R/RW) |
+/// | 10x1b |  | audio channels with pre-emphasis of 50/15 µs (reserved in CD-R/RW) |
+/// | 01x0b |  | Data track, recorded uninterrupted |
+/// | 01x1b |  | Data track, recorded incremental |
+/// | 11xxb |  | Reserved |
+/// | xx0xb |  | digital copy prohibited |
+/// | xx1xb |  | digital copy permitted |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Control(u8);
+
+bitflags! {
+        impl Control: u8 {
+        /// pre-emphasis of 50/15 µs
+        const PRE_EMPHASIS = 0b0001;
+        /// digital copy-permitted
+        const COPY_PERMITTED = 0b0010;
+        /// data track
+        const DATA_TRACK = 0b0100;
+        /// non-stereo audio
+        const NON_STEREO_AUDIO = 0b1000;
+    }
+}
+
+impl Control {
+    /// represents a data track
+    pub fn is_data(&self) -> bool {
+        self.contains(Control::DATA_TRACK)
+    }
+
+    /// represents an audio track
+    pub fn is_audio(&self) -> bool {
+        !self.is_data()
+    }
+}
+
+impl Display for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        bitflags::parser::to_writer_strict(self, f)
+    }
 }
 
 impl TocEntry {
