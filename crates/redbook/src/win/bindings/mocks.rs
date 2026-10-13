@@ -260,6 +260,7 @@ pub unsafe fn DeviceIoControl(
                 THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
                 THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
                 BAT_OUT_OF_HELL_REVAMPED => BatOutOfHellRevamped.load_cdrom_toc(),
+                THE_BOY_WHO_KNEW_TOO_MUCH => TheBoyWhoKnewTooMuch.load_cdrom_toc(),
                 _ => panic!("unknown album"),
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
