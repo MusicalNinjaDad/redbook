@@ -1213,6 +1213,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     #[cfg_attr(miri, ignore = "no unsafe used & super slow on miri")]
     fn identify_disc_index(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
@@ -1231,6 +1232,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn all_releases(#[case] album: TestAlbum) {
         let expected_order = album.expected_releases_in_order();
         let toc = album.expected_toc();
@@ -1249,6 +1251,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn set_release_by_ref(#[case] album: TestAlbum) {
         let ordered_releases = album.expected_releases_in_order();
         let expected_order = album.expected_release_order();

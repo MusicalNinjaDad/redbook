@@ -703,7 +703,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::BatOutOfHellRevamped => vec![0],
-            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected release order"),
+            TestAlbum::TheBoyWhoKnewTooMuch => vec![2, 1, 0, 4, 3],
         }
     }
 
@@ -769,7 +769,13 @@ impl TestAlbum {
                 .position(|release| release.id == "b13b64f6-85fc-3c1c-8aae-e5adb94d7181")
                 .unwrap(),
             TestAlbum::BatOutOfHellRevamped => 0,
-            TestAlbum::TheBoyWhoKnewTooMuch => todo!("expected release index"),
+            TestAlbum::TheBoyWhoKnewTooMuch => self
+                .expected_musicbrainz()
+                .releases
+                .unwrap()
+                .iter()
+                .position(|release| release.id == "a06f94a2-0317-4fe7-b56c-18df3f5ac012")
+                .unwrap(),
         }
     }
 
