@@ -563,7 +563,7 @@ impl PartialEq<Frame> for Msf {
 /// See [dbpoweramp forum][defn] for more details.
 ///
 /// [defn]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
-pub struct TocString(String);
+struct TocString(String);
 
 impl TocString {
     /// Validates track count and well-ordered tracks
@@ -647,6 +647,19 @@ impl TryFrom<TocEntries> for Toc {
             .map(|entry| entry.start.as_usize().strict_cast::<u32>())
             .unwrap();
         Toc::from_parts(audio, data, leadout).map_err(io::Error::other)
+    }
+}
+
+impl TryFrom<ReadTocDescriptors> for Toc {
+    type Error = io::Error;
+
+    fn try_from(entries: ReadTocDescriptors) -> Result<Self, Self::Error> {
+        entries
+            .0
+            .iter()
+            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(entry).transpose())
+            .try_collect::<TocEntries>()?
+            .try_into()
     }
 }
 

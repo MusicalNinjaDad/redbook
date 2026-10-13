@@ -6,7 +6,7 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, Msf, TocEntry, Track, tagging::PictureExt, toc::TocString, win::toc::CDROM_TOC,
+    Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt, win::toc::CDROM_TOC,
 };
 
 /// Test album identifier for parameterized tests
@@ -85,8 +85,8 @@ impl TestAlbum {
     pub fn expected_toc(&self) -> cdtoc::Toc {
         let path = self.toc_path();
         let toc_dump = super::load_hex_file(&path);
-        let toc_string = TocString::from_scsi_readtoc_0010b(toc_dump).unwrap();
-        cdtoc::Toc::from(toc_string)
+        let entries = ReadTocDescriptors::new(toc_dump).unwrap();
+        cdtoc::Toc::try_from(entries).unwrap()
     }
 
     /// Load and parse the CDROM_TOC.hex file
