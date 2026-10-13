@@ -1026,10 +1026,6 @@ impl Disc {
 
         vorbis.set_track(track.track_number() as u32);
 
-        if let Some(id) = track.windows_identifier {
-            vorbis.set("WINDOWS_IDENTIFIER", vec![id.to_string()])
-        }
-
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);
             vorbis.set("MUSICBRAINZ_ALBUMID", vec![release.id.clone()]);

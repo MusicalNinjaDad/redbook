@@ -30,8 +30,6 @@ pub struct Track<'meta> {
     pub toc_entry: TocEntry,
     /// Duration of this track in frames.
     pub duration: Frame,
-    /// Windows-specific track identifier (from CDROM_TOC).
-    pub windows_identifier: Option<u32>,
     /// Optional reference to MusicBrainz track metadata.
     pub(crate) meta: Option<&'meta musicbrainz_rs::entity::release::Track>,
 }
@@ -42,7 +40,6 @@ impl Track<'static> {
         track_number: u8,
         start: Frame,
         duration: Frame,
-        windows_identifier: Option<u32>,
     ) -> Self {
         let toc_entry = TocEntry {
             track: track_number,
@@ -52,7 +49,6 @@ impl Track<'static> {
         Self {
             toc_entry,
             duration,
-            windows_identifier,
             meta: None,
         }
     }

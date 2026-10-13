@@ -250,7 +250,7 @@ pub struct CdaFile {
     /// The first track has the number 1
     track_number: u16,
     /// Identifier calculated by Windows for cdplayer.exe
-    windows_identifier: u32,
+    _windows_identifier: u32,
     /// *Absolute* start position: minutes, seconds, frames. Including
     /// the 2s lead-in. (Track 1 is usually at 0,2,0)
     ///
@@ -396,7 +396,7 @@ impl CdaFile {
 
         Ok(Self {
             track_number,
-            windows_identifier,
+            _windows_identifier: windows_identifier,
             start,
             duration,
         })
@@ -412,7 +412,6 @@ impl From<CdaFile> for Track<'static> {
                 control: Default::default(),
             },
             duration: cda.duration.into(),
-            windows_identifier: Some(cda.windows_identifier),
             ..Default::default()
         }
     }
