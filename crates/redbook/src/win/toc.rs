@@ -180,7 +180,7 @@ impl CDROM_TOC {
     pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
-            .filter(|track| (1..0xA0).contains(&track.TrackNumber))
+            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
             .map(TocEntry::from)
     }
 
