@@ -576,6 +576,9 @@ impl TocString {
     ///
     /// See [TocEntry::from_scsi_readtoc_0010b] for details of the specific format.
     pub fn from_scsi_readtoc_0010b(bytes: Vec<u8>) -> io::Result<Self> {
+        let full_span =
+            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
+
         let (entries, rem) = bytes.as_chunks::<11>();
         rem.is_empty()
             .ok_or_else(|| {
@@ -593,10 +596,19 @@ impl TocString {
 
         entries.sort_by_key(|entry| entry.track);
 
+        full_span.exit();
+        let full_span =
+            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
+
         let leadout = entries
             .pop()
             .filter(|leadout| leadout.track == 0xA2)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no leadout"))?;
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no leadout"))
+            .or_warn("")?;
+
+        full_span.exit();
+        let full_span =
+            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
 
         // track number stored in minutes field in TOC
         let Msf {
@@ -604,18 +616,28 @@ impl TocString {
         } = entries
             .pop()
             .filter(|last| last.track == 0xA1)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no last track specified"))?
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no last track specified"))
+            .or_warn("")?
             .start
             .into();
+
+        full_span.exit();
+        let full_span =
+            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
 
         let Msf {
             min: first_track, ..
         } = entries
             .pop()
             .filter(|last| last.track == 0xA0)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no first track specified"))?
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no first track specified"))
+            .or_warn("")?
             .start
             .into();
+
+        full_span.exit();
+        let _full_span =
+            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
 
         let tracks = entries.len();
 
