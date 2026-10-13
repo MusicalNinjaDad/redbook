@@ -64,53 +64,69 @@ impl TryFrom<CdDrive> for AudioCd {
             })
             .try_collect()
             .or_error("parse cda")?;
-        tracks.sort_by_key(|track| track.toc_entry.start);
 
         let wintoc = drive.toc();
-        (wintoc.FirstTrack
-            == tracks
-                .first()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                .or_warn("identifying first track")?
-                .toc_entry
-                .track as u8)
-            .ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                "Mismatch between TOC and cda files: different first track number",
-            ))
-            .or_warn("identifying first track")?;
-        (wintoc.LastTrack
-            == tracks
-                .last()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                .or_warn("identifying last track")?
-                .toc_entry
-                .track as u8)
-            .ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                "Mismatch between TOC and cda files: different last track number",
-            ))
-            .or_warn("identifying last track")?;
 
-        for track in tracks.iter() {
-            let track_number = track.toc_entry.track as usize;
-
-            let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
-
-            let data = wintoc
-                .TrackData
-                .get(track_number - 1)
+        if !tracks.is_empty() {
+            tracks.sort_by_key(|track| track.toc_entry.start);
+            (wintoc.FirstTrack
+                == tracks
+                    .first()
+                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                    .or_warn("identifying first track")?
+                    .toc_entry
+                    .track as u8)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("track {track_number} missing in TOC"),
+                    "Mismatch between TOC and cda files: different first track number",
                 ))
-                .or_warn("")?;
-            (TocEntry::from(data) == track.toc_entry)
+                .or_warn("identifying first track")?;
+            (wintoc.LastTrack
+                == tracks
+                    .last()
+                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                    .or_warn("identifying last track")?
+                    .toc_entry
+                    .track as u8)
                 .ok_or(io::Error::new(
                     ErrorKind::InvalidData,
-                    format!("Mismatch between TOC and cda files for track {track_number}"),
+                    "Mismatch between TOC and cda files: different last track number",
                 ))
-                .or_warn("")?;
+                .or_warn("identifying last track")?;
+
+            for track in tracks.iter() {
+                let track_number = track.toc_entry.track as usize;
+
+                let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+
+                let data = wintoc
+                    .TrackData
+                    .get(track_number - 1)
+                    .ok_or(io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!("track {track_number} missing in TOC"),
+                    ))
+                    .or_warn("")?;
+                (TocEntry::from(data) == track.toc_entry)
+                    .ok_or(io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!("Mismatch between TOC and cda files for track {track_number}"),
+                    ))
+                    .or_warn("")?;
+            }
+        } else {
+            for i in 0..wintoc.LastTrack.strict_cast::<usize>() {
+                let toc_entry = TocEntry::from(&wintoc.TrackData[i]);
+                if toc_entry.is_audio_track() {
+                    let next_track = TocEntry::from(&wintoc.TrackData[i + 1]);
+                    let mut duration = next_track.start - toc_entry.start;
+                    if next_track.is_data_track() {
+                        duration -= Frame::new(11400);
+                    }
+                    let track = Track::new(toc_entry.track, toc_entry.start, duration);
+                    tracks.push(track);
+                }
+            }
         }
 
         let toc = wintoc
@@ -196,6 +212,9 @@ mod miri {
         assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
         let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
         assert_eq!(album.expected_toc_entries(), toc_entries);
-        assert_eq!(cd.disc().tracks().collect::<Vec<_>>(), album.expected_audio_tracks_minimal());
+        assert_eq!(
+            cd.disc().tracks().collect::<Vec<_>>(),
+            album.expected_audio_tracks_minimal()
+        );
     }
 }

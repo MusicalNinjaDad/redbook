@@ -3,7 +3,7 @@
 use std::{
     fmt::Display,
     io::{self, ErrorKind},
-    ops::{Add, Rem, Sub},
+    ops::{Add, AddAssign, Rem, Sub, SubAssign},
     time::Duration,
 };
 
@@ -319,6 +319,16 @@ const impl Add<Frame> for Frame {
     }
 }
 
+impl<N> AddAssign<N> for Frame
+where
+    Frame: Add<N, Output = Frame>,
+{
+    fn add_assign(&mut self, rhs: N) {
+        let f = *self + rhs;
+        self.0 = f.0
+    }
+}
+
 const impl Sub<Frame> for Frame {
     type Output = Self;
 
@@ -335,6 +345,16 @@ where
 
     fn sub(self, rhs: N) -> Self::Output {
         Self(self.0 - rhs)
+    }
+}
+
+impl<N> SubAssign<N> for Frame
+where
+    Frame: Sub<N, Output = Frame>,
+{
+    fn sub_assign(&mut self, rhs: N) {
+        let f = *self - rhs;
+        self.0 = f.0
     }
 }
 

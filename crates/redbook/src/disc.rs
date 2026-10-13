@@ -142,20 +142,25 @@ impl Disc {
         }
 
         for track in tracks.iter() {
+            let track_span = tracing::info_span!("validating", ?track, cdtoc = Empty).entered();
+            
             let track_number = track.toc_entry.track as usize;
             let toc_track = toc
                 .audio_track(track_number)
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))?;
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
+                .or_warn("track number")?;
+            track_span.record("cdtoc", format_args!("{toc_track:?}"));
 
             let (min, sec, frame) = toc_track.msf();
             if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
+                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch")).or_warn("start")?;
             }
 
             let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
             let min = (((d * 24) + h as u64) * 60) + min as u64;
             if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
+                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
+                    .or_warn("duration")?;
             }
         }
 
