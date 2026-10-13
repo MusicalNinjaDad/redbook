@@ -175,6 +175,16 @@ impl TocEntry {
             control,
         }))
     }
+
+    /// Is an audio track (based on control code & track number)
+    pub fn is_audio_track(&self) -> bool {
+        self.control.is_audio() && self.track <= 0x63
+    }
+
+    /// Is an audio track (based on control code & track number)
+    pub fn is_data_track(&self) -> bool {
+        self.control.is_data() && self.track <= 0x63
+    }
 }
 
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
@@ -648,14 +658,14 @@ impl FromIterator<TocEntry> for TocEntries {
         entries.sort_by_key(|entry| entry.start);
 
         let data = entries
-            .extract_if(.., |entry| entry.control.is_data())
+            .extract_if(.., |entry| entry.is_data_track())
             .collect();
         let leadouts = entries
             // TODO: 0b0001 & 0b0010 use different IDs for Leadout!
             .extract_if(.., |entry| entry.track == LEADOUT_TRACK_NUMBER)
             .collect();
         let audio = {
-            entries.retain_mut(|entry| entry.control.is_audio() && entry.track <= 0x63);
+            entries.retain_mut(|entry| entry.is_audio_track());
             entries
         };
         TocEntries {
