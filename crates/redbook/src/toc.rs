@@ -9,6 +9,7 @@ use std::{
 
 use bitflags::bitflags;
 use cdtoc::Toc;
+use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::LEADIN;
@@ -577,10 +578,24 @@ impl TocString {
     ///
     /// See [TocEntry::from_scsi_readtoc_0010b] for details of the specific format.
     pub fn from_scsi_readtoc_0010b(bytes: Vec<u8>) -> io::Result<Self> {
-        let _span = tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
+        let span = tracing::error_span!(
+            "TocString::from_scsi_readtoc_0010b",
+            ?bytes,
+            descriptors = Empty,
+            entries = Empty,
+            toc = Empty
+        )
+        .entered();
+
         let descriptors = ReadTocDescriptors::new(bytes).or_warn("")?;
+        span.record("descriptors", format_args!("{descriptors:?}"));
+
         let entries = TocEntries::try_from_0b0010_descriptors(descriptors).or_warn("")?;
+        span.record("entries", format_args!("{entries:?}"));
+
         let toc = Toc::try_from(entries).or_warn("")?;
+        span.record("toc", format_args!("{toc}"));
+
         let toc_string = toc.to_string();
         Self::new(toc_string)
     }
@@ -592,6 +607,7 @@ impl From<TocString> for cdtoc::Toc {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct TocEntries {
     /// Audio tracks, sorted by start position
     audio: Vec<TocEntry>,
@@ -662,6 +678,7 @@ impl TocEntries {
     }
 }
 /// TOC Track Descriptors as returned by READ_TOC format 0b0010 (See MMC-3 10g 5.23.4)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReadTocDescriptors(Vec<[u8; 11]>);
 
 impl ReadTocDescriptors {
