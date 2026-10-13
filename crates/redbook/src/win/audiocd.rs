@@ -10,7 +10,7 @@ use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::{drive::CdDrive, toc::CdaFile};
-use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntry, Track};
+use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntries, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -115,6 +115,12 @@ impl TryFrom<CdDrive> for AudioCd {
                     .or_warn("")?;
             }
         } else {
+            let entries: TocEntries = wintoc
+                .TrackData
+                .iter()
+                .take(wintoc.track_entries())
+                .map(TocEntry::from)
+                .collect();
             for i in 0..wintoc.LastTrack.strict_cast::<usize>() {
                 let toc_entry = TocEntry::from(&wintoc.TrackData[i]);
                 if toc_entry.is_audio_track() {
