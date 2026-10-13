@@ -8,6 +8,7 @@ use std::{
 };
 
 use bitflags::bitflags;
+use cdtoc::Toc;
 use tracing_result::Trace;
 
 use crate::LEADIN;
@@ -676,6 +677,97 @@ impl TocString {
 impl From<TocString> for cdtoc::Toc {
     fn from(toc: TocString) -> Self {
         cdtoc::Toc::from_cdtoc(toc.0).expect("known good TocString format")
+    }
+}
+
+struct TocEntries {
+    /// Audio tracks, sorted by start position
+    audio: Vec<TocEntry>,
+    /// Data tracks, sorted by start position
+    data: Vec<TocEntry>,
+    /// Leadouts, sorted by start position
+    leadouts: Vec<TocEntry>,
+}
+
+impl TryFrom<TocEntries> for Toc {
+    type Error = io::Error;
+
+    fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
+        // TODO: Don't panic!
+        let audio = entries
+            .audio
+            .iter()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .collect();
+        let data = entries
+            .data
+            .last()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
+        let leadout = entries
+            .leadouts
+            .last()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .unwrap();
+        Toc::from_parts(audio, data, leadout).map_err(io::Error::other)
+    }
+}
+
+impl FromIterator<TocEntry> for TocEntries {
+    fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
+        let mut entries: Vec<_> = iter.into_iter().collect();
+
+        // INVARIANT: all fields are expected to be sorted by start position
+        entries.sort_by_key(|entry| entry.start);
+
+        let data = entries
+            .extract_if(.., |entry| entry.control.is_data())
+            .collect();
+        let leadouts = entries
+            // TODO: 0b0001 & 0b0010 use different IDs for Leadout!
+            .extract_if(.., |entry| entry.track == LEADOUT_TRACK_NUMBER)
+            .collect();
+        let audio = {
+            entries.retain_mut(|entry| entry.control.is_audio() && entry.track <= 0x63);
+            entries
+        };
+        TocEntries {
+            audio,
+            data,
+            leadouts,
+        }
+    }
+}
+
+impl TocEntries {
+    /// Parse a set of TOC Track Descriptors as returned by READ_TOC format 0b0010
+    /// (See MMC-3 10g 5.23.4)
+    pub fn try_from_0b0010_descriptors(entries: ReadTocDescriptors) -> io::Result<Self> {
+        entries
+            .0
+            .into_iter()
+            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(&entry).transpose())
+            .try_collect()
+    }
+}
+/// TOC Track Descriptors as returned by READ_TOC format 0b0010 (See MMC-3 10g 5.23.4)
+pub struct ReadTocDescriptors(Vec<[u8; 11]>);
+
+impl ReadTocDescriptors {
+    /// Errors if not a multiple of 11 bytes
+    pub fn new(bytes: Vec<u8>) -> io::Result<Self> {
+        let _span = tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
+
+        let (entries, rem) = bytes.as_chunks::<11>();
+        rem.is_empty()
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    "invalid 0010b output: not multiple of 11 bytes",
+                )
+            })
+            .or_warn("")?;
+        let descriptors = entries.to_vec();
+        Ok(Self(descriptors))
     }
 }
 
