@@ -702,7 +702,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::TheWallDisc2 => vec![1, 3, 0, 7, 6, 5, 2, 4],
             TestAlbum::BatOutOfHellRevamped => vec![0],
-            TestAlbum::TheBoyWhoKnewTooMuch => vec![2, 1, 0, 4, 3],
+            TestAlbum::TheBoyWhoKnewTooMuch => vec![3],
         }
     }
 
