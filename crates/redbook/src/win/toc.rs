@@ -173,14 +173,25 @@ impl CDROM_TOC {
             .iter_audio()
             .map(|entry| entry.start.as_usize() as u32)
             .collect();
+        let data = self
+            .data()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
         let leadout = self.leadout()?.as_usize() as u32;
-        Toc::from_parts(audio, None, leadout)
+        Toc::from_parts(audio, data, leadout)
     }
 
     pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
+            .map(TocEntry::from)
+    }
+
+    /// Returns the *first* data track, if present
+    pub fn data(&self) -> Option<TocEntry> {
+        self.TrackData
+            .iter()
+            .find(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
             .map(TocEntry::from)
     }
 
