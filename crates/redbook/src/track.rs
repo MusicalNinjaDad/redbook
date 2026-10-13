@@ -36,11 +36,7 @@ pub struct Track<'meta> {
 
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
-    pub fn new(
-        track_number: u8,
-        start: Frame,
-        duration: Frame,
-    ) -> Self {
+    pub fn new(track_number: u8, start: Frame, duration: Frame) -> Self {
         let toc_entry = TocEntry {
             track: track_number,
             start,

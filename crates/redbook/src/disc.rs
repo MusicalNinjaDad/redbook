@@ -143,7 +143,7 @@ impl Disc {
 
         for track in tracks.iter() {
             let track_span = tracing::info_span!("validating", ?track, cdtoc = Empty).entered();
-            
+
             let track_number = track.toc_entry.track as usize;
             let toc_track = toc
                 .audio_track(track_number)
