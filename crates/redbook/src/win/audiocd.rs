@@ -115,25 +115,21 @@ impl TryFrom<CdDrive> for AudioCd {
                     .or_warn("")?;
             }
         } else {
-            let entries: Vec<_> = wintoc
+            let toc_tracks = wintoc
                 .TrackData
                 .iter()
                 .take(wintoc.track_entries())
                 .map(TocEntry::from)
-                .collect();
-            let toc_tracks: Vec<_> = entries
-                .iter()
-                .copied()
-                .zip(entries.iter().copied().skip(1))
-                .filter(|(toc_entry, _)| toc_entry.is_audio_track())
-                .map(|(toc_entry, next_track)| {
-                    let mut duration = next_track.start - toc_entry.start;
-                    if next_track.is_data_track() {
-                        duration -= Frame::new(11400);
-                    }
-                    Track::new(toc_entry.track, toc_entry.start, duration)
+                .map_windows(|[track, next]| {
+                    track.is_audio_track().then(|| {
+                        let mut duration = next.start - track.start;
+                        if next.is_data_track() {
+                            duration -= Frame::new(11400)
+                        }
+                        Track::new(track.track, track.start, duration)
+                    })
                 })
-                .collect();
+                .flatten();
             tracks.extend(toc_tracks);
         }
 
