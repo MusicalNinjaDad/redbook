@@ -423,6 +423,10 @@ impl Disc {
             .releases
             .as_ref()?
             .iter()
+            .filter(|release| match self.toc.has_data() {
+                true => release.has_data(),
+                false => release.has_audio_only(),
+            })
             .collect();
         releases.sort_by_key(|release| {
             release
@@ -1175,6 +1179,26 @@ impl<'m> ExactSizeIterator for Tracks<'m> {
 
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+trait MediaType {
+    fn has_data(&self) -> bool;
+    fn has_audio_only(&self) -> bool;
+}
+
+impl MediaType for Release {
+    fn has_data(&self) -> bool {
+        self.media
+            .as_ref()
+            .and_then(|all_media| all_media.iter().find(|media| media.data_tracks.is_some()))
+            .is_some()
+    }
+    fn has_audio_only(&self) -> bool {
+        self.media
+            .as_ref()
+            .and_then(|all_media| all_media.iter().find(|media| media.data_tracks.is_none()))
+            .is_some()
     }
 }
 
