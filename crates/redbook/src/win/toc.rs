@@ -471,6 +471,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     // TODO: Semantics
     fn audio(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
