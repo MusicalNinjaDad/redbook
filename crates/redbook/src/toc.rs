@@ -9,7 +9,6 @@ use std::{
 
 use bitflags::bitflags;
 use cdtoc::Toc;
-use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::LEADIN;
@@ -557,66 +556,6 @@ impl PartialEq<Frame> for Msf {
     }
 }
 
-/// A text-representation of a TOC as
-/// `[audio trackcount]+[first audio track address]+[second audio track address]+...+[leadout address]`.
-///
-/// See [dbpoweramp forum][defn] for more details.
-///
-/// [defn]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
-struct TocString(String);
-
-impl TocString {
-    /// Validates track count and well-ordered tracks
-    pub fn new(toc: String) -> io::Result<Self> {
-        let mut parts = toc.split("+");
-        let track_count = parts
-            .next()
-            .and_then(|n| usize::from_str_radix(n, 16).ok())
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no valid track count"))?;
-        let addresses: Vec<_> = parts
-            .map(|n| usize::from_str_radix(n, 16).map_err(io::Error::other))
-            .try_collect()?;
-        (addresses.len() == track_count + 1)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "incorrect number of tracks"))?;
-        addresses
-            .is_sorted()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "tracks not in order"))?;
-        Ok(Self(toc))
-    }
-
-    /// Converts a hex dump of raw TOC data provided by SCSI command READ TOC 0010b.
-    ///
-    /// See [TocEntry::from_scsi_readtoc_0010b] for details of the specific format.
-    pub fn from_scsi_readtoc_0010b(bytes: Vec<u8>) -> io::Result<Self> {
-        let span = tracing::error_span!(
-            "TocString::from_scsi_readtoc_0010b",
-            ?bytes,
-            descriptors = Empty,
-            entries = Empty,
-            toc = Empty
-        )
-        .entered();
-
-        let descriptors = ReadTocDescriptors::new(bytes).or_warn("")?;
-        span.record("descriptors", format_args!("{descriptors:?}"));
-
-        let entries = TocEntries::try_from_0b0010_descriptors(descriptors).or_warn("")?;
-        span.record("entries", format_args!("{entries:?}"));
-
-        let toc = Toc::try_from(entries).or_warn("")?;
-        span.record("toc", format_args!("{toc}"));
-
-        let toc_string = toc.to_string();
-        Self::new(toc_string)
-    }
-}
-
-impl From<TocString> for cdtoc::Toc {
-    fn from(toc: TocString) -> Self {
-        cdtoc::Toc::from_cdtoc(toc.0).expect("known good TocString format")
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct TocEntries {
     /// Audio tracks, sorted by start position
@@ -654,12 +593,7 @@ impl TryFrom<ReadTocDescriptors> for Toc {
     type Error = io::Error;
 
     fn try_from(entries: ReadTocDescriptors) -> Result<Self, Self::Error> {
-        entries
-            .0
-            .iter()
-            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(entry).transpose())
-            .try_collect::<TocEntries>()?
-            .try_into()
+        TocEntries::try_from(entries)?.try_into()
     }
 }
 
@@ -689,10 +623,10 @@ impl FromIterator<TocEntry> for TocEntries {
     }
 }
 
-impl TocEntries {
-    /// Parse a set of TOC Track Descriptors as returned by READ_TOC format 0b0010
-    /// (See MMC-3 10g 5.23.4)
-    pub fn try_from_0b0010_descriptors(descriptors: ReadTocDescriptors) -> io::Result<Self> {
+impl TryFrom<ReadTocDescriptors> for TocEntries {
+    type Error = io::Error;
+
+    fn try_from(descriptors: ReadTocDescriptors) -> Result<Self, Self::Error> {
         descriptors
             .0
             .into_iter()
@@ -700,6 +634,7 @@ impl TocEntries {
             .try_collect()
     }
 }
+
 /// TOC Track Descriptors as returned by READ_TOC format 0b0010 (See MMC-3 10g 5.23.4)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReadTocDescriptors(Vec<[u8; 11]>);
