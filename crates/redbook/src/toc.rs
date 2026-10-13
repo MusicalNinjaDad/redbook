@@ -577,100 +577,12 @@ impl TocString {
     ///
     /// See [TocEntry::from_scsi_readtoc_0010b] for details of the specific format.
     pub fn from_scsi_readtoc_0010b(bytes: Vec<u8>) -> io::Result<Self> {
-        let full_span =
-            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
-
-        let (entries, rem) = bytes.as_chunks::<11>();
-        rem.is_empty()
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "invalid 0010b output: not multiple of 11 bytes",
-                )
-            })
-            .or_warn("")?;
-
-        let mut entries: Vec<_> = entries
-            .iter()
-            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(entry.as_slice()).transpose())
-            .try_collect()?;
-
-        entries.sort_by_key(|entry| entry.track);
-
-        full_span.exit();
-        let full_span =
-            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
-
-        let leadout = entries
-            .pop()
-            .filter(|leadout| leadout.track == 0xA2)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no leadout"))
-            .or_warn("")?;
-
-        full_span.exit();
-        let full_span =
-            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
-
-        // track number stored in minutes field in TOC
-        let Msf {
-            min: last_track, ..
-        } = entries
-            .pop()
-            .filter(|last| last.track == 0xA1)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no last track specified"))
-            .or_warn("")?
-            .start
-            .into();
-
-        full_span.exit();
-        let full_span =
-            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
-
-        let Msf {
-            min: first_track, ..
-        } = entries
-            .pop()
-            .filter(|last| last.track == 0xA0)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no first track specified"))
-            .or_warn("")?
-            .start
-            .into();
-
-        full_span.exit();
-        let _full_span =
-            tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?entries).entered();
-
-        let tracks = entries.len();
-
-        (first_track
-            == entries
-                .first()
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
-                .or_warn("")?
-                .track)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track number mismatch"))
-            .or_warn("")?;
-
-        (last_track
-            == entries
-                .last()
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
-                .or_warn("")?
-                .track)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "last track number mismatch"))
-            .or_warn("")?;
-
-        let timings = entries
-            .iter()
-            .map(|entry| format!("{frames:02x}+", frames = entry.start.as_usize()))
-            .collect::<String>();
-        let toc = [
-            &format!("{tracks:02x}"),
-            timings.trim_end_matches("+"),
-            &format!("{:02x}", leadout.start.as_usize()),
-        ]
-        .join("+");
-        Self::new(toc)
+        let _span = tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
+        let descriptors = ReadTocDescriptors::new(bytes).or_warn("")?;
+        let entries = TocEntries::try_from_0b0010_descriptors(descriptors).or_warn("")?;
+        let toc = Toc::try_from(entries).or_warn("")?;
+        let toc_string = toc.to_string();
+        Self::new(toc_string)
     }
 }
 
@@ -741,8 +653,8 @@ impl FromIterator<TocEntry> for TocEntries {
 impl TocEntries {
     /// Parse a set of TOC Track Descriptors as returned by READ_TOC format 0b0010
     /// (See MMC-3 10g 5.23.4)
-    pub fn try_from_0b0010_descriptors(entries: ReadTocDescriptors) -> io::Result<Self> {
-        entries
+    pub fn try_from_0b0010_descriptors(descriptors: ReadTocDescriptors) -> io::Result<Self> {
+        descriptors
             .0
             .into_iter()
             .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(&entry).transpose())
