@@ -54,7 +54,7 @@ use crate::{
 /// disc.update_musicbrainz()?;
 ///
 /// // Select a specific release & attempt to get the cover art from CoverArtArchive
-/// disc.set_release_index(Some(2)).update_cover_art()?;
+/// disc.set_release_by_id(Some("release_id_12938utzqgrbf8")).update_cover_art()?;
 ///
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
@@ -209,8 +209,8 @@ impl Disc {
     /// // usually discs have multiple releases, and you need to select one
     /// if disc.release().is_none() {
     ///     // ... some logic to identify the correct release
-    ///     let correct_release = Some(2);
-    ///     disc.set_release_index(correct_release);
+    ///     let correct_release = Some("release_id_13iukhi8i9dsazbn32reg");
+    ///     disc.set_release_by_id(correct_release);
     /// }
     ///
     /// let release = disc.release();
@@ -485,32 +485,14 @@ impl Disc {
         self
     }
 
-    /// Set the selected release by index, or reset to `None`.
-    ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
-    ///
-    /// # Examples
-    ///
-    /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
-    /// use cdtoc::Toc;
-    ///
-    /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
-    /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
-    /// ];
-    /// let leadout = Frame::new(0x2d2b);
-    /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
-    /// disc.update_musicbrainz()?;
-    ///
-    /// // Select the second release (if available)
-    /// disc.set_release_index(Some(1));
-    ///
-    /// // Or reset the selection
-    /// disc.set_release_index(None);
-    /// # Ok::<(), std::io::Error>(())
-    /// ```
-    pub fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "everyone should be using set_release or set_release_by_id for sanity"
+        )
+    )]
+    fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_index", index = ?index).entered();
         self.release_index = match index {
             Some(index)
@@ -688,7 +670,7 @@ impl Disc {
     /// // Check if release was auto-selected
     /// if disc.release().is_none() {
     ///     // Multiple releases found, need to select one
-    ///     disc.set_release_index(Some(0));
+    ///     disc.set_release_by_id(Some("release_id_askdjhasdkhasd123"));
     /// }
     ///
     /// // Check if disc index was auto-selected

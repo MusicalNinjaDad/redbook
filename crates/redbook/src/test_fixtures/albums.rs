@@ -749,32 +749,25 @@ impl TestAlbum {
             .collect()
     }
 
+    /// The correct release_id for the album
+    pub fn release_id(&self) -> Option<&str> {
+        match self {
+            TestAlbum::DefinitelyMaybe => Some("9822581d-98bf-3f97-a94c-4b1350d090aa"),
+            TestAlbum::TheWallDisc1 => Some("b13b64f6-85fc-3c1c-8aae-e5adb94d7181"),
+            TestAlbum::TheWallDisc2 => Some("b13b64f6-85fc-3c1c-8aae-e5adb94d7181"),
+            TestAlbum::BatOutOfHellRevamped => Some("ffe90874-5010-454b-9877-6c974f602d96"),
+            TestAlbum::TheBoyWhoKnewTooMuch => Some("a06f94a2-0317-4fe7-b56c-18df3f5ac012"),
+        }
+    }
+
     /// The correct release number for the album
     pub fn release(&self) -> usize {
         match self {
             TestAlbum::DefinitelyMaybe => 2,
-            TestAlbum::TheWallDisc1 => self
-                .expected_musicbrainz()
-                .releases
-                .unwrap()
-                .iter()
-                .position(|release| release.id == "b13b64f6-85fc-3c1c-8aae-e5adb94d7181")
-                .unwrap(),
-            TestAlbum::TheWallDisc2 => self
-                .expected_musicbrainz()
-                .releases
-                .unwrap()
-                .iter()
-                .position(|release| release.id == "b13b64f6-85fc-3c1c-8aae-e5adb94d7181")
-                .unwrap(),
+            TestAlbum::TheWallDisc1 => 2,
+            TestAlbum::TheWallDisc2 => 2,
             TestAlbum::BatOutOfHellRevamped => 0,
-            TestAlbum::TheBoyWhoKnewTooMuch => self
-                .expected_musicbrainz()
-                .releases
-                .unwrap()
-                .iter()
-                .position(|release| release.id == "a06f94a2-0317-4fe7-b56c-18df3f5ac012")
-                .unwrap(),
+            TestAlbum::TheBoyWhoKnewTooMuch => 3,
         }
     }
 
