@@ -1316,4 +1316,19 @@ mod tests {
             "Bat Out of Hell"
         );
     }
+
+    #[test_log::test]
+    /// This Disc only has one possible release which includes a data track
+    fn only_extended_cd() {
+        let album = TheBoyWhoKnewTooMuch;
+        let tracks = album.expected_audio_tracks_minimal();
+        let toc = album.expected_toc();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        assert_eq!(disc.release_index, Some(3));
+        assert_eq!(disc.disc_index, Some(0));
+    }
 }
