@@ -10,7 +10,7 @@ use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::{drive::CdDrive, toc::CdaFile};
-use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntries, TocEntry, Track};
+use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntry, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -115,24 +115,26 @@ impl TryFrom<CdDrive> for AudioCd {
                     .or_warn("")?;
             }
         } else {
-            let entries: TocEntries = wintoc
+            let entries: Vec<_> = wintoc
                 .TrackData
                 .iter()
                 .take(wintoc.track_entries())
                 .map(TocEntry::from)
                 .collect();
-            for i in 0..wintoc.LastTrack.strict_cast::<usize>() {
-                let toc_entry = TocEntry::from(&wintoc.TrackData[i]);
-                if toc_entry.is_audio_track() {
-                    let next_track = TocEntry::from(&wintoc.TrackData[i + 1]);
+            let toc_tracks: Vec<_> = entries
+                .iter()
+                .copied()
+                .zip(entries.iter().copied().skip(1))
+                .filter(|(toc_entry, _)| toc_entry.is_audio_track())
+                .map(|(toc_entry, next_track)| {
                     let mut duration = next_track.start - toc_entry.start;
                     if next_track.is_data_track() {
                         duration -= Frame::new(11400);
                     }
-                    let track = Track::new(toc_entry.track, toc_entry.start, duration);
-                    tracks.push(track);
-                }
-            }
+                    Track::new(toc_entry.track, toc_entry.start, duration)
+                })
+                .collect();
+            tracks.extend(toc_tracks);
         }
 
         let toc = wintoc

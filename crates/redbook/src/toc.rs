@@ -11,7 +11,7 @@ use bitflags::bitflags;
 use cdtoc::Toc;
 use tracing_result::Trace;
 
-use crate::{LEADIN, Track};
+use crate::LEADIN;
 
 /// 0b0010 format track identifier for Leadout
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
@@ -567,21 +567,13 @@ impl PartialEq<Frame> for Msf {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted
-pub struct TocEntries {
+struct TocEntries {
     /// Audio tracks, sorted by start position
     audio: Vec<TocEntry>,
     /// Data tracks, sorted by start position
     data: Vec<TocEntry>,
     /// Leadouts, sorted by start position
     leadouts: Vec<TocEntry>,
-}
-
-impl TocEntries {
-    /// Consume the `TocEntries` and provide a `Vec<Track<'static>>` with calculated
-    /// durations.
-    pub fn into_vec_track(self) -> Vec<Track<'static>> {
-        todo!()
-    }
 }
 
 impl TryFrom<TocEntries> for Toc {
