@@ -460,6 +460,14 @@ impl Disc {
         self
     }
 
+    fn release_index_for(&self, release: &Release) -> Option<usize> {
+        self.musicbrainz.as_ref().and_then(|mb| {
+            mb.releases
+                .as_ref()
+                .and_then(|releases| releases.iter().position(|rel| rel.id == release.id))
+        })
+    }
+
     /// Set the release, or reset to `None`.
     ///
     /// Providing an invalid index will make no change. Returns `self` for chaining.
@@ -532,11 +540,13 @@ impl Disc {
         )
         .entered();
 
-        self.release_index = match self.all_releases() {
-            None => Some(0),
-            Some(releases) if releases.is_empty() => Some(0),
-            Some(releases) if releases.len() == 1 => Some(0),
-            _ => None,
+        match self.all_releases() {
+            None => self.release_index = Some(0),
+            Some(releases) if releases.is_empty() => self.release_index = Some(0),
+            Some(releases) if releases.len() == 1 => {
+                self.release_index = self.release_index_for(releases.first().unwrap())
+            }
+            _ => self.release_index = None,
         };
 
         tracing::debug!(release_index = self.release_index);
