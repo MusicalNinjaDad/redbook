@@ -46,6 +46,8 @@ pub struct TocEntry {
     pub track: u8,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     pub start: Frame,
+    /// The control code, identifying track type
+    pub control: Control,
 }
 
 /// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
@@ -167,7 +169,11 @@ impl TocEntry {
             iter.next().unwrap(),
         );
         let start = Frame::from(start);
-        Ok(Some(Self { track, start }))
+        Ok(Some(Self {
+            track,
+            start,
+            control,
+        }))
     }
 }
 

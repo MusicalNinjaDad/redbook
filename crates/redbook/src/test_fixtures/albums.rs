@@ -145,6 +145,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 1,
                         start: Frame::from(Msf::new(0x00, 0x02, 0x21)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(24242),
                     ..Default::default()
@@ -153,6 +154,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 2,
                         start: Frame::from(Msf::new(0x05, 0x19, 0x32)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(23138),
                     ..Default::default()
@@ -161,6 +163,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 3,
                         start: Frame::from(Msf::new(0x0A, 0x22, 0x0D)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(20762),
                     ..Default::default()
@@ -169,6 +172,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 4,
                         start: Frame::from(Msf::new(0x0F, 0x0B, 0x00)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(20168),
                     ..Default::default()
@@ -177,6 +181,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 5,
                         start: Frame::from(Msf::new(0x13, 0x27, 0x44)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(28272),
                     ..Default::default()
@@ -185,6 +190,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 6,
                         start: Frame::from(Msf::new(0x19, 0x38, 0x41)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(21280),
                     ..Default::default()
@@ -193,6 +199,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 7,
                         start: Frame::from(Msf::new(0x1E, 0x28, 0x2D)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(19338),
                     ..Default::default()
@@ -201,6 +208,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 8,
                         start: Frame::from(Msf::new(0x22, 0x3A, 0x21)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(21700),
                     ..Default::default()
@@ -209,6 +217,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 9,
                         start: Frame::from(Msf::new(0x27, 0x2F, 0x3A)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(11425),
                     ..Default::default()
@@ -217,6 +226,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 10,
                         start: Frame::from(Msf::new(0x2A, 0x14, 0x08)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(29455),
                     ..Default::default()
@@ -225,6 +235,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 11,
                         start: Frame::from(Msf::new(0x30, 0x34, 0x3F)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(14440),
                     ..Default::default()
@@ -235,6 +246,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 1,
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(14967),
                     ..Default::default()
@@ -243,6 +255,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 2,
                         start: Frame::from(Msf::new(0x03, 0x15, 0x2A)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(11240),
                     ..Default::default()
@@ -251,6 +264,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 3,
                         start: Frame::from(Msf::new(0x05, 0x33, 0x20)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(14248),
                     ..Default::default()
@@ -259,6 +273,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 4,
                         start: Frame::from(Msf::new(0x09, 0x01, 0x1E)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(8287),
                     ..Default::default()
@@ -267,6 +282,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 5,
                         start: Frame::from(Msf::new(0x0A, 0x33, 0x43)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(17960),
                     ..Default::default()
@@ -275,6 +291,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 6,
                         start: Frame::from(Msf::new(0x0E, 0x33, 0x1B)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(25040),
                     ..Default::default()
@@ -283,6 +300,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 7,
                         start: Frame::from(Msf::new(0x14, 0x19, 0x11)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(12568),
                     ..Default::default()
@@ -291,6 +309,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 8,
                         start: Frame::from(Msf::new(0x17, 0x0C, 0x3C)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(9625),
                     ..Default::default()
@@ -299,6 +318,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 9,
                         start: Frame::from(Msf::new(0x19, 0x15, 0x0A)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(15832),
                     ..Default::default()
@@ -307,6 +327,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 10,
                         start: Frame::from(Msf::new(0x1C, 0x34, 0x11)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(16240),
                     ..Default::default()
@@ -315,6 +336,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 11,
                         start: Frame::from(Msf::new(0x20, 0x1C, 0x39)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(19230),
                     ..Default::default()
@@ -323,6 +345,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 12,
                         start: Frame::from(Msf::new(0x24, 0x2D, 0x0C)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(5603),
                     ..Default::default()
@@ -331,6 +354,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 13,
                         start: Frame::from(Msf::new(0x25, 0x3B, 0x41)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(5570),
                     ..Default::default()
@@ -341,6 +365,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 1,
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(21115),
                     ..Default::default()
@@ -349,6 +374,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 2,
                         start: Frame::from(Msf::new(0x04, 0x2B, 0x28)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(12020),
                     ..Default::default()
@@ -357,6 +383,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 3,
                         start: Frame::from(Msf::new(0x07, 0x17, 0x3C)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(15340),
                     ..Default::default()
@@ -365,6 +392,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 4,
                         start: Frame::from(Msf::new(0x0A, 0x30, 0x19)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(6980),
                     ..Default::default()
@@ -373,6 +401,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 5,
                         start: Frame::from(Msf::new(0x0C, 0x15, 0x1E)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(6537),
                     ..Default::default()
@@ -381,6 +410,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 6,
                         start: Frame::from(Msf::new(0x0D, 0x30, 0x2A)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(28628),
                     ..Default::default()
@@ -389,6 +419,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 7,
                         start: Frame::from(Msf::new(0x14, 0x0A, 0x14)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(7210),
                     ..Default::default()
@@ -397,6 +428,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 8,
                         start: Frame::from(Msf::new(0x15, 0x2E, 0x1E)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(19255),
                     ..Default::default()
@@ -405,6 +437,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 9,
                         start: Frame::from(Msf::new(0x1A, 0x03, 0x0A)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(19780),
                     ..Default::default()
@@ -413,6 +446,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 10,
                         start: Frame::from(Msf::new(0x1E, 0x1A, 0x41)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(17877),
                     ..Default::default()
@@ -421,6 +455,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 11,
                         start: Frame::from(Msf::new(0x22, 0x19, 0x11)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(2268),
                     ..Default::default()
@@ -429,6 +464,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 12,
                         start: Frame::from(Msf::new(0x22, 0x37, 0x23)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(23980),
                     ..Default::default()
@@ -437,6 +473,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 13,
                         start: Frame::from(Msf::new(0x28, 0x0F, 0x0F)),
+                        control: Default::default(),
                     },
                     duration: Frame::new(7735),
                     ..Default::default()
@@ -447,6 +484,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 1,
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x09, 0x34, 0x16))
                         - Frame::from(Msf::new(0x00, 0x02, 0x00)),
@@ -456,6 +494,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 2,
                         start: Frame::from(Msf::new(0x09, 0x34, 0x16)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x0e, 0x38, 0x34))
                         - Frame::from(Msf::new(0x09, 0x34, 0x16)),
@@ -465,6 +504,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 3,
                         start: Frame::from(Msf::new(0x0e, 0x38, 0x34)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x13, 0x25, 0x19))
                         - Frame::from(Msf::new(0x0e, 0x38, 0x34)),
@@ -474,6 +514,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 4,
                         start: Frame::from(Msf::new(0x13, 0x25, 0x19)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x17, 0x39, 0x00))
                         - Frame::from(Msf::new(0x13, 0x25, 0x19)),
@@ -483,6 +524,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 5,
                         start: Frame::from(Msf::new(0x17, 0x39, 0x00)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x1D, 0x16, 0x0A))
                         - Frame::from(Msf::new(0x17, 0x39, 0x00)),
@@ -492,6 +534,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 6,
                         start: Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x25, 0x32, 0x05))
                         - Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
@@ -501,6 +544,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 7,
                         start: Frame::from(Msf::new(0x25, 0x32, 0x05)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x2e, 0x21, 0x19))
                         - Frame::from(Msf::new(0x25, 0x32, 0x05)),
@@ -510,6 +554,7 @@ impl TestAlbum {
                     toc_entry: TocEntry {
                         track: 8,
                         start: Frame::from(Msf::new(0x2e, 0x21, 0x19)),
+                        control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x32, 0x39, 0x07))
                         - Frame::from(Msf::new(0x2e, 0x21, 0x19)),

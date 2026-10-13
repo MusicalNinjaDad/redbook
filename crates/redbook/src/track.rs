@@ -47,6 +47,7 @@ impl Track<'static> {
         let toc_entry = TocEntry {
             track: track_number,
             start,
+            control: Default::default(),
         };
         Self {
             toc_entry,

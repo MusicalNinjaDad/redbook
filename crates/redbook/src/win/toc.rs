@@ -222,7 +222,13 @@ impl From<&TRACK_DATA> for TocEntry {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::new(relative as usize) + LEADIN;
         let track = track_data.TrackNumber;
-        Self { track, start }
+        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+        let control = Control::from_bits_truncate(track_data._bitfield);
+        Self {
+            track,
+            start,
+            control,
+        }
     }
 }
 
@@ -392,6 +398,7 @@ impl From<CdaFile> for Track<'static> {
             toc_entry: TocEntry {
                 track: cda.track_number as u8,
                 start: cda.start.into(),
+                control: Default::default(),
             },
             duration: cda.duration.into(),
             windows_identifier: Some(cda.windows_identifier),
