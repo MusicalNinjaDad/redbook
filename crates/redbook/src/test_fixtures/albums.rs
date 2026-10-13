@@ -679,8 +679,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x25, 0x31, 0x05)),
                         control: Default::default(),
                     },
-                    duration: Frame::from(Msf::new(0x29, 0x0C, 0x01))
-                        - Frame::from(Msf::new(0x25, 0x31, 0x05)),
+                    duration: Frame::new(15221),
                     ..Default::default()
                 },
             ],
