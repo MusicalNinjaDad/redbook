@@ -123,7 +123,7 @@ impl TocEntry {
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
     pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Option<Self>> {
-        let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
+        let _error = tracing::error_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
         let mut iter = data.iter().copied();
 
@@ -143,13 +143,11 @@ impl TocEntry {
         let _session_number = iter.next().unwrap();
 
         let adr_control = iter.next().unwrap();
-        let control = Control::from_bits_truncate(adr_control);
-
-        // TODO - we do need data track details - as TOCStrings include them!
-        if (adr_control & 0b11110000 != 0b00010000) || control.is_data() {
-            tracing::debug!("data track");
+        let adr = (adr_control & 0b11110000) >> 4;
+        if adr != 1 {
             return Ok(None);
         }
+        let control = Control::from_bits_truncate(adr_control);
 
         let tno = iter.next().unwrap();
         (tno == 0)
