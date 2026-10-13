@@ -27,20 +27,9 @@ pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
 /// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
 ///   maintained. Conversion functions should be designed discard or fail on data tracks.
 ///
-/// # Examples
-///
-/// ```rust, no_run
-/// use redbook::TocEntry;
-/// use redbook::Frame;
-///
-/// // Create a TOC entry for track 1 starting at frame 150 (beginning of lead-in)
-/// let entry = TocEntry {
-///     track: 1,
-///     start: Frame::new(150),
-/// };
-///
-/// assert_eq!(entry.track, 1);
-/// ```
+/// # TODO
+/// 
+/// - Example
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TocEntry {
     /// The 1-indexed track number.
