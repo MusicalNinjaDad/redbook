@@ -489,6 +489,7 @@ mod tests {
         }
     }
 
+    #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]

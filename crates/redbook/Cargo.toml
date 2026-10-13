@@ -44,6 +44,9 @@ similar-asserts.workspace = true
 syn.workspace = true
 tempfile.workspace = true
 windows-bindgen.workspace = true
+test-log = { version = "0.2.21", default-features = false, features = [
+    "trace",
+] }
 
 [build-dependencies]
 build_safely.workspace = true
