@@ -69,4 +69,4 @@ rust.unused_unsafe = "deny"
 
 [patch.crates-io]
 flacenc = { git = "https://github.com/yotarok/flacenc-rs" }
-musicbrainz_rs = { git = "https://github.com/MusicalNinjaDad/musicbrainz_rs", branch = "data_tracks" }
+musicbrainz_rs = { git = "https://github.com/RustyNova016/musicbrainz_rs" }
