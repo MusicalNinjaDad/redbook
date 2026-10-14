@@ -836,7 +836,8 @@ impl Disc {
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {
-        let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();
+        let _main_span = tracing::error_span!("Disc::update_thumbnails").entered();
+        let debug_span = tracing::debug_span!("", retrieved = 0).entered();
         tracing::trace!("");
 
         let mut retrieved = 0;
@@ -844,15 +845,11 @@ impl Disc {
         let client = reqwest::blocking::Client::new();
 
         let release_ids: Vec<_> = self
-            .musicbrainz
+            .all_releases()
             .as_ref()
-            .and_then(|mb| {
-                mb.releases
-                    .as_ref()
-                    .map(|releases| releases.iter().map(|release| release.id.clone()))
-            })
+            .map(|releases| releases.iter().map(|release| release.id.clone()))
             .ok_or_else(|| io::Error::other("No releases found"))
-            .or_warn("")?
+            .or_warn("no releases found")?
             .collect();
         for id in release_ids {
             cx.cancelled()?;
@@ -892,7 +889,7 @@ impl Disc {
                     Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image),
                 );
                 retrieved += 1;
-                debug_fn.record("retrieved", retrieved);
+                debug_span.record("retrieved", retrieved);
             } else {
                 let reason = response.text().ok();
                 tracing::warn!(name: "thumbnail failed", reason = ?reason);
