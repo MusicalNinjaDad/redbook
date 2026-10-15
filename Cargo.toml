@@ -37,6 +37,9 @@ slint-build = "1.18.0"
 syn = {version = "3.0.9", features = ["full", "extra-traits"]}
 tabular = "0.2.0"
 tempfile = "3.27.0"
+test-log = { version = "0.2.21", default-features = false, features = [
+    "trace",
+] }
 thread_safely = "0.1.1"
 tracing = "0.1"
 tracing-result = "0.1.0"
