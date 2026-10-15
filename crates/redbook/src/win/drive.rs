@@ -555,7 +555,6 @@ const _: () = {
     );
 };
 
-// TODO: const assert alignment etc.
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///

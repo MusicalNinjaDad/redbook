@@ -203,6 +203,7 @@ impl TocEntry {
 ///
 /// # TODO
 /// - impl Display
+/// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
@@ -580,7 +581,7 @@ impl TryFrom<TocEntries> for Toc {
     type Error = io::Error;
 
     fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
-        // TODO: Don't panic!
+        // TODO: Don't panic! (via #106)
         let audio = entries
             .audio
             .iter()

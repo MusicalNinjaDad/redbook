@@ -215,7 +215,7 @@ mod miri {
         let handle = unsafe { cd.drive.handle() };
         assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
         let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
-        assert_eq!(album.expected_toc_entries(), toc_entries);
+        assert_eq!(album.expected_audio_toc_entries(), toc_entries);
         assert_eq!(
             cd.disc().tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()

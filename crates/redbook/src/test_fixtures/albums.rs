@@ -131,7 +131,7 @@ impl TestAlbum {
     }
 
     /// Get just the TocEntry values for comparison with iter_audio()
-    pub fn expected_toc_entries(&self) -> Vec<TocEntry> {
+    pub fn expected_audio_toc_entries(&self) -> Vec<TocEntry> {
         self.expected_audio_tracks_minimal()
             .into_iter()
             .map(|track| track.toc_entry)

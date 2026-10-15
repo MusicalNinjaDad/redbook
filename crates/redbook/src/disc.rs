@@ -120,12 +120,6 @@ impl Disc {
     ///
     /// For a more complete example showing how to set metadata retrieval after initialisation,
     /// see the [`Disc`] struct documentation.
-    ///
-    /// # TODO
-    ///
-    /// - Add `new_unchecked()` and/or handle mixed-mode CDs as per [TOC string definition][definition]
-    ///
-    /// [definition]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc#post16082
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,

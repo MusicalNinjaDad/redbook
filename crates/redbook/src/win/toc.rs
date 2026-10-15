@@ -472,11 +472,10 @@ mod tests {
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
     #[case(TheBoyWhoKnewTooMuch)]
-    // TODO: Semantics
     fn audio(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
-        assert_eq!(audio_tracks, album.expected_toc_entries());
+        assert_eq!(audio_tracks, album.expected_audio_toc_entries());
     }
 
     #[rstest]
