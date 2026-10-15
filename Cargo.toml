@@ -13,15 +13,15 @@ version = "0.4.0"
 redbook = {version = "0.4.0", path = "crates/redbook"}
 
 bitflags = "2.13.2"
-build_safely =  "0.6.1"
-cdtoc = "0.14.0"
+build_safely =  "0.6.2"
+cdtoc = "0.14.1"
 clap = { version = "4.6.7", features = ["derive"] }
 clap_builder = "4.6.7"
 clap_complete = "4.6.11"
 clap_mangen = "0.3.0"
 crossbeam = "0.8.5"
 errno = "0.3.14"
-exit_safely = "0.3.1"
+exit_safely = "0.4.0"
 flacenc = "0.5.1"
 glob = "0.3.4"
 humanize-duration = "0.0.7"
@@ -34,26 +34,34 @@ serde_json = "1.0"
 similar-asserts = "2.0.0"
 slint  = "1.18.0"
 slint-build = "1.18.0"
-syn = {version = "3.0.6", features = ["full", "extra-traits"]}
+syn = {version = "3.0.9", features = ["full", "extra-traits"]}
 tabular = "0.2.0"
 tempfile = "3.27.0"
-thread_safely = "0.1.0"
+test-log = { version = "0.2.21", default-features = false, features = [
+    "trace",
+] }
+thread_safely = "0.1.1"
 tracing = "0.1"
-tracing-result = "0.0.3"
+tracing-result = "0.1.0"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-try_v2 = "0.11.0"
+try_v2 = "0.11.1"
 windows-bindgen = "0.100.0"
 windows-link = "0.100.0"
 windows-registry = "0.100.0"
-winresource = "0.1.31"
+winresource = "0.1.34"
 zune-jpeg = "0.5.15"
 
 [workspace.metadata.ninja-xtask]
 env = { "LD_LIBRARY_PATH" = false }
 
 [workspace.lints]
+# Tidy
+clippy.arbitrary_source_item_ordering = "warn"
+clippy.items_after_test_module = "deny"
+
 # Explicitness
 clippy.allow_attributes = "deny" # use expect instead
+clippy.allow_attributes_without_reason = "deny" # always say why
 clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
 clippy.let_underscore_untyped = "deny"
 clippy.unused_result_ok = "deny"

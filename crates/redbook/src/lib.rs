@@ -6,16 +6,16 @@
 #![cfg_attr(unstable_const_ops, feature(const_ops))]
 #![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
+#![cfg_attr(unstable_exact_div, feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_integer_cast_extras, feature(integer_cast_extras))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
+#![cfg_attr(unstable_iter_map_windows, feature(iter_map_windows))]
 #![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
-#![feature(exact_div)]
-#![feature(iter_map_windows)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -82,40 +82,55 @@
 
 #[forbid(unsafe_code)]
 mod audiocd;
-pub use audiocd::*;
 
 #[forbid(unsafe_code)]
 mod disc;
-pub use disc::*;
+
+#[forbid(unsafe_code)]
+#[doc(hidden)]
+pub mod hex;
 
 #[forbid(unsafe_code)]
 pub mod tagging;
 
 #[forbid(unsafe_code)]
-mod track;
-pub use track::*;
+#[doc(hidden)]
+pub mod test_fixtures;
 
 #[forbid(unsafe_code)]
 mod toc;
-pub use toc::*;
+
+#[forbid(unsafe_code)]
+mod track;
 
 // provides abstractions over direct hardware access
 pub mod win;
+
+pub use audiocd::*;
+pub use disc::*;
+pub use toc::*;
+pub use track::*;
 #[doc(inline)]
 pub use win::AudioCd;
-
-#[forbid(unsafe_code)]
-#[doc(hidden)]
-pub mod hex;
-#[forbid(unsafe_code)]
-#[doc(hidden)]
-pub mod test_fixtures;
 
 /// Size of a single CDDA audio frame in bytes.
 ///
 /// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
 /// of raw audio data.
 pub const FRAME_SIZE: usize = 2352;
+
+/// Standard CD lead-in duration in frames.
+///
+/// According to the RedBook standard, CD audio has a 2-second lead-in area
+/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
+///
+/// This is used as an offset when calculating absolute frame positions on the disc.
+pub const LEADIN: Frame = Frame::new(150);
+
+/// Maximum number of bytes that can be read in a single chunk.
+///
+/// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
+const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES * FRAME_SIZE;
 
 /// Maximum number of frames that can be read in a single chunk.
 ///
@@ -127,16 +142,3 @@ pub const FRAME_SIZE: usize = 2352;
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
 const MAX_CHUNK_FRAMES: usize = 64 * 1024 / FRAME_SIZE;
-
-/// Maximum number of bytes that can be read in a single chunk.
-///
-/// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
-const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES * FRAME_SIZE;
-
-/// Standard CD lead-in duration in frames.
-///
-/// According to the RedBook standard, CD audio has a 2-second lead-in area
-/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
-///
-/// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::new(150);

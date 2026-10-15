@@ -210,7 +210,7 @@ mod miri {
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();
-        #[expect(unsafe_code)]
+        #[expect(unsafe_code, reason = "get mocked handle")]
         // SAFETY: not a real handle and no threads involved
         let handle = unsafe { cd.drive.handle() };
         assert_eq!(album, TestAlbum::try_from(*handle).unwrap());

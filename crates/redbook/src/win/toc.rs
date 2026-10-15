@@ -22,11 +22,11 @@ use super::{
     drive::DriveHandle,
 };
 
-/// size of ffi struct [`CDROM_TOC`]
-pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
-
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
+
+/// size of ffi struct [`CDROM_TOC`]
+pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
 impl CDROM_TOC {
     /// Load from disc
@@ -437,7 +437,7 @@ mod tests {
             dbg!(track.TrackNumber);
             dbg!(track.Reserved);
             dbg!(track.Reserved1);
-            #[expect(clippy::used_underscore_binding)]
+            #[expect(clippy::used_underscore_binding, reason = "ffi field naming")]
             let bitfield = track._bitfield;
             eprintln!("bitfield: {bitfield:08b}");
             eprintln!("control: {}", track.control());

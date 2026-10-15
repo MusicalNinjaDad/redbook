@@ -2,32 +2,8 @@
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 #![cfg_attr(not(windows), expect(unused))]
-
-mod album;
-
-mod output;
-
-mod slint;
-
-use ::slint::{Model, ModelRc, VecModel, Weak};
-use crossbeam::{
-    channel::{Sender, unbounded},
-    select,
-};
-
-use metaflac::{
-    Block, Tag,
-    block::{Picture, PictureType},
-};
-
-use redbook::{
-    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
-    tagging::{PictureExt, VorbisTagExt},
-    win::drive::all_drives,
-};
-
-use slint::*;
-use thread_safely::Controller;
+#![allow(clippy::arbitrary_source_item_ordering)]
+#![allow(clippy::allow_attributes_without_reason)]
 
 use std::{
     fs::{self, File},
@@ -39,7 +15,29 @@ use std::{
     time::Duration,
 };
 
+use ::slint::{Model, ModelRc, VecModel, Weak};
+use crossbeam::{
+    channel::{Sender, unbounded},
+    select,
+};
+use metaflac::{
+    Block, Tag,
+    block::{Picture, PictureType},
+};
+use redbook::{
+    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
+    tagging::{PictureExt, VorbisTagExt},
+    win::drive::all_drives,
+};
+use thread_safely::Controller;
 use tracing_result::Trace;
+
+mod album;
+
+mod output;
+
+mod slint;
+use slint::*;
 
 #[derive(Debug, Clone)]
 struct EncodingProgress {
@@ -199,11 +197,14 @@ fn main() -> io::Result<()> {
                 );
                 progress.done.push(track_number);
             };
-            progress.doing = None;
-            enc_context
-                .reply(progress.clone())
-                .map_err(io::Error::other)
-                .or_warn("providing encoding status update");
+
+            #[expect(unused_must_use, reason = "don't fail on error updating status in GUI")]
+            try {
+                progress.doing = None;
+                enc_context
+                    .reply(progress.clone())
+                    .or_warn("error providing encoding status update")?
+            };
         }
     });
 

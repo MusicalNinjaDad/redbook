@@ -11,9 +11,16 @@
     reason = "until we split and have an extra use for auto-generated stuff that we don't use"
 )]
 
-#[expect(missing_docs)]
+#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
+#[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
+#[expect(missing_docs, reason = "generated code")]
 mod bindgen;
 
+#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
+#[allow(
+    clippy::arbitrary_source_item_ordering,
+    reason = "consts ordered by value"
+)]
 mod mocks;
 
 // TODO: #79 switch from `target_family = "windows"` to simply `cfg(windows)`

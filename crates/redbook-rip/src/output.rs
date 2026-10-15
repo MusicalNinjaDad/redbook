@@ -1,4 +1,5 @@
 use std::io;
+
 use tracing_subscriber::{filter::LevelFilter, fmt::layer, prelude::*, registry};
 
 pub fn init_tracing() -> io::Result<()> {
