@@ -25,8 +25,8 @@ const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
 const THE_WALL_2: HANDLE = 3 as _;
 const ALL_ALBUMS: HDEVINFO = 4 as _;
-const BAT_OUT_OF_HELL_REVAMPED: HDEVINFO = 5 as _;
-const THE_BOY_WHO_KNEW_TOO_MUCH: HDEVINFO = 6 as _;
+const BAT_OUT_OF_HELL_REVAMPED: HANDLE = 5 as _;
+const THE_BOY_WHO_KNEW_TOO_MUCH: HANDLE = 6 as _;
 
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
