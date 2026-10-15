@@ -1,5 +1,5 @@
 {
-  "darling": "50",
-  "uses_type_params": "48",
-  "uses_lifetimes": "49"
+  "uses_type_params": "47",
+  "uses_lifetimes": "48",
+  "darling": "49"
 }
