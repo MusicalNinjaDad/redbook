@@ -1,6 +1,7 @@
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
+#![cfg_attr(not(windows), expect(unused))]
 
 mod album;
 
@@ -31,6 +32,7 @@ use thread_safely::Controller;
 use std::{
     fs::{self, File},
     io::{self, Write},
+    path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
     thread,
@@ -45,8 +47,12 @@ struct EncodingProgress {
     done: Vec<u32>,
 }
 
+#[cfg(windows)]
 fn main() -> io::Result<()> {
     output::init_tracing()?;
+
+    let music_dir = get_music_location()?;
+
     let app = MainWindow::new().unwrap();
     let (controller, context) = Controller::<!>::new();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
@@ -138,7 +144,7 @@ fn main() -> io::Result<()> {
 
                 let start = std::time::Instant::now();
 
-                let output_dir = tag.directory();
+                let output_dir = music_dir.join(tag.directory());
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
 
@@ -343,3 +349,19 @@ fn update_encoding_progress(app: Weak<MainWindow>, progress: EncodingProgress) {
     })
     .unwrap();
 }
+
+#[cfg(windows)]
+fn get_music_location() -> io::Result<PathBuf> {
+    let my_music = windows_registry::CURRENT_USER
+        .open(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+        .map_err(io::Error::other)
+        .or_warn("getting shell folders registry key")?
+        .get_string("My Music")
+        .map_err(io::Error::other)
+        .or_warn("getting My Music entry")?;
+    tracing::info!(my_music);
+    Ok(PathBuf::from(my_music))
+}
+
+#[cfg(not(windows))]
+fn main() {}
