@@ -27,10 +27,12 @@ use redbook::{
 
 use slint::*;
 use thread_safely::Controller;
+use windows_registry::CURRENT_USER;
 
 use std::{
     fs::{self, File},
     io::{self, Write},
+    path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
     thread,
@@ -47,6 +49,9 @@ struct EncodingProgress {
 
 fn main() -> io::Result<()> {
     output::init_tracing()?;
+
+    let music_dir = get_music_location()?;
+
     let app = MainWindow::new().unwrap();
     let (controller, context) = Controller::<!>::new();
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
@@ -138,7 +143,7 @@ fn main() -> io::Result<()> {
 
                 let start = std::time::Instant::now();
 
-                let output_dir = tag.directory();
+                let output_dir = music_dir.join(tag.directory());
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
 
@@ -342,4 +347,16 @@ fn update_encoding_progress(app: Weak<MainWindow>, progress: EncodingProgress) {
         }
     })
     .unwrap();
+}
+
+fn get_music_location() -> io::Result<PathBuf> {
+    let my_music = CURRENT_USER
+        .open(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+        .map_err(io::Error::other)
+        .or_warn("getting shell folders registry key")?
+        .get_string("My Music")
+        .map_err(io::Error::other)
+        .or_warn("getting My Music entry")?;
+    tracing::info!(my_music);
+    Ok(PathBuf::from(my_music))
 }
