@@ -25,7 +25,7 @@ thread_safely.workspace = true
 tracing.workspace = true
 tracing-result.workspace = true
 tracing-subscriber.workspace = true
-windows-registry = "0.100.0"
+windows-registry.workspace = true
 
 [build-dependencies]
 build_safely.workspace = true

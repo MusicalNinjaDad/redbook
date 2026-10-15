@@ -1,6 +1,7 @@
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
+#![cfg_attr(not(windows), expect(unused))]
 
 mod album;
 
@@ -27,7 +28,6 @@ use redbook::{
 
 use slint::*;
 use thread_safely::Controller;
-use windows_registry::CURRENT_USER;
 
 use std::{
     fs::{self, File},
@@ -47,6 +47,7 @@ struct EncodingProgress {
     done: Vec<u32>,
 }
 
+#[cfg(windows)]
 fn main() -> io::Result<()> {
     output::init_tracing()?;
 
@@ -349,8 +350,9 @@ fn update_encoding_progress(app: Weak<MainWindow>, progress: EncodingProgress) {
     .unwrap();
 }
 
+#[cfg(windows)]
 fn get_music_location() -> io::Result<PathBuf> {
-    let my_music = CURRENT_USER
+    let my_music = windows_registry::CURRENT_USER
         .open(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
         .map_err(io::Error::other)
         .or_warn("getting shell folders registry key")?
@@ -360,3 +362,6 @@ fn get_music_location() -> io::Result<PathBuf> {
     tracing::info!(my_music);
     Ok(PathBuf::from(my_music))
 }
+
+#[cfg(not(windows))]
+fn main() {}
