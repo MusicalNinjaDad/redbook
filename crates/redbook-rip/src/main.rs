@@ -3,32 +3,6 @@
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 #![cfg_attr(not(windows), expect(unused))]
 
-mod album;
-
-mod output;
-
-mod slint;
-
-use ::slint::{Model, ModelRc, VecModel, Weak};
-use crossbeam::{
-    channel::{Sender, unbounded},
-    select,
-};
-
-use metaflac::{
-    Block, Tag,
-    block::{Picture, PictureType},
-};
-
-use redbook::{
-    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
-    tagging::{PictureExt, VorbisTagExt},
-    win::drive::all_drives,
-};
-
-use slint::*;
-use thread_safely::Controller;
-
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -39,7 +13,29 @@ use std::{
     time::Duration,
 };
 
+use ::slint::{Model, ModelRc, VecModel, Weak};
+use crossbeam::{
+    channel::{Sender, unbounded},
+    select,
+};
+use metaflac::{
+    Block, Tag,
+    block::{Picture, PictureType},
+};
+use redbook::{
+    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
+    tagging::{PictureExt, VorbisTagExt},
+    win::drive::all_drives,
+};
+use thread_safely::Controller;
 use tracing_result::Trace;
+
+mod album;
+
+mod output;
+
+mod slint;
+use slint::*;
 
 #[derive(Debug, Clone)]
 struct EncodingProgress {
@@ -199,7 +195,7 @@ fn main() -> io::Result<()> {
                 );
                 progress.done.push(track_number);
             };
-            
+
             #[expect(unused_must_use, reason = "don't fail on error updating status in GUI")]
             try {
                 progress.doing = None;
