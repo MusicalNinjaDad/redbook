@@ -1,0 +1,55 @@
+module-item-order-groupings = [
+    [
+        "top_matter",
+        [
+            "extern_crate",
+            "mod",
+            "foreign_mod",
+        ],
+    ],
+    [
+        "use",
+        [
+            "use",
+        ],
+    ],
+    [
+        "aliases",
+        [
+            "static",
+            "const",
+            "trait_alias",
+            "ty_alias",
+        ],
+    ],
+    [
+        "types",
+        [
+            "enum",
+            "struct",
+            "union",
+            "trait",
+            "impl",
+        ],
+    ],
+    [
+        "free_functionality",
+        [
+            "fn",
+            "global_asm",
+            "macro",
+        ],
+    ],
+    [
+        "test",
+        [
+            "test_binder_constraints",
+        ],
+    ],
+]
+
+module-items-ordered-within-groupings = ["top_matter", "aliases"]
+
+source-item-ordering = ["module"]
+
+trait-impl-item-order = "trait_item_ordering"

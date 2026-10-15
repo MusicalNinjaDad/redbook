@@ -55,6 +55,10 @@ zune-jpeg = "0.5.15"
 env = { "LD_LIBRARY_PATH" = false }
 
 [workspace.lints]
+# Tidy
+clippy.arbitrary_source_item_ordering = "warn"
+clippy.items_after_test_module = "deny"
+
 # Explicitness
 clippy.allow_attributes = "deny" # use expect instead
 clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
