@@ -200,6 +200,35 @@ impl VorbisTagExt for VorbisComment {
     }
 }
 
+pub trait ExtendVorbisTag {
+    const KEY: &'static str;
+    fn extend_vorbis(&self, vorbis: &mut VorbisComment);
+}
+
+impl ExtendVorbisTag for ReleaseStatus {
+    const KEY: &'static str = "RELEASESTATUS";
+
+    fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
+        let value = match self {
+            ReleaseStatus::Official => "Official",
+            ReleaseStatus::Promotion => "Promotion",
+            ReleaseStatus::Bootleg => "Bootleg",
+            ReleaseStatus::PseudoRelease => "Pseudo-Release",
+            ReleaseStatus::UnrecognizedReleaseStatus => "Other",
+            _ => "Other",
+        };
+        vorbis.set(Self::KEY, vec![value]);
+    }
+}
+
+impl ExtendVorbisTag for ReleaseScript {
+    const KEY: &'static str = "SCRIPT";
+
+    fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
+        vorbis.set(Self::KEY, vec![self.code()])
+    }
+}
+
 /// Returns a sanitised version of the string suitable for use as a filename.
 ///
 /// We strip out invalid / dangerous characters, based on the target, and additionally remove any
@@ -253,35 +282,6 @@ fn sanitise(pathsegment: &str) -> String {
         .filter(is_valid)
         .skip_while(invalid_at_start)
         .collect()
-}
-
-pub trait ExtendVorbisTag {
-    const KEY: &'static str;
-    fn extend_vorbis(&self, vorbis: &mut VorbisComment);
-}
-
-impl ExtendVorbisTag for ReleaseStatus {
-    const KEY: &'static str = "RELEASESTATUS";
-
-    fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
-        let value = match self {
-            ReleaseStatus::Official => "Official",
-            ReleaseStatus::Promotion => "Promotion",
-            ReleaseStatus::Bootleg => "Bootleg",
-            ReleaseStatus::PseudoRelease => "Pseudo-Release",
-            ReleaseStatus::UnrecognizedReleaseStatus => "Other",
-            _ => "Other",
-        };
-        vorbis.set(Self::KEY, vec![value]);
-    }
-}
-
-impl ExtendVorbisTag for ReleaseScript {
-    const KEY: &'static str = "SCRIPT";
-
-    fn extend_vorbis(&self, vorbis: &mut VorbisComment) {
-        vorbis.set(Self::KEY, vec![self.code()])
-    }
 }
 
 #[cfg(test)]
