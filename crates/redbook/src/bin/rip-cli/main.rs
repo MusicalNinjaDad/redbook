@@ -1,5 +1,6 @@
 #![allow(stable_features)]
 #![allow(clippy::arbitrary_source_item_ordering)]
+#![allow(clippy::allow_attributes_without_reason)]
 #![feature(never_type)]
 #![feature(try_blocks)]
 #![feature(try_trait_v2)]

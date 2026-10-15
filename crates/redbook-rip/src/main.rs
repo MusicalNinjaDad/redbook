@@ -3,6 +3,7 @@
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 #![cfg_attr(not(windows), expect(unused))]
 #![allow(clippy::arbitrary_source_item_ordering)]
+#![allow(clippy::allow_attributes_without_reason)]
 
 use std::{
     fs::{self, File},

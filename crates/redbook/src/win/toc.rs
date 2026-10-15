@@ -437,7 +437,7 @@ mod tests {
             dbg!(track.TrackNumber);
             dbg!(track.Reserved);
             dbg!(track.Reserved1);
-            #[expect(clippy::used_underscore_binding)]
+            #[expect(clippy::used_underscore_binding, reason = "ffi field naming")]
             let bitfield = track._bitfield;
             eprintln!("bitfield: {bitfield:08b}");
             eprintln!("control: {}", track.control());

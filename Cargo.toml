@@ -61,6 +61,7 @@ clippy.items_after_test_module = "deny"
 
 # Explicitness
 clippy.allow_attributes = "deny" # use expect instead
+clippy.allow_attributes_without_reason = "deny" # always say why
 clippy.let_underscore_must_use = "deny" # use expect(unused_must_use, reason = "") instead
 clippy.let_underscore_untyped = "deny"
 clippy.unused_result_ok = "deny"
