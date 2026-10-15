@@ -199,11 +199,14 @@ fn main() -> io::Result<()> {
                 );
                 progress.done.push(track_number);
             };
-            progress.doing = None;
-            enc_context
-                .reply(progress.clone())
-                .map_err(io::Error::other)
-                .or_warn("providing encoding status update");
+            
+            #[expect(unused_must_use, reason = "don't fail on error updating status in GUI")]
+            try {
+                progress.doing = None;
+                enc_context
+                    .reply(progress.clone())
+                    .or_warn("error providing encoding status update")?
+            };
         }
     });
 
