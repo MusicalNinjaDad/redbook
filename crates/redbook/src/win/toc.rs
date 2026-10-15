@@ -15,7 +15,7 @@ use tracing_result::Trace;
 
 pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
-use crate::{Frame, LEADIN, Msf, TocEntry, Track};
+use crate::{Control, Frame, LEADIN, Msf, TocEntry, Track};
 
 use super::{
     bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX},
@@ -71,6 +71,41 @@ impl CDROM_TOC {
             .ok_or_else(io::Error::last_os_error)
             .or_error("")?;
         Ok(toc)
+    }
+
+    /// Returns the full size, in bytes of the data-carrying part of the struct.
+    ///
+    /// While `Self.Length` indicates the length, in bytes, of the table of contents data, it does
+    /// not include the length of the Length member itself. This function returns the total size,
+    /// including the Length member.
+    fn size(&self) -> usize {
+        u16::from_be_bytes(self.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&self.Length))
+    }
+
+    /// Returns the number of actual entries in the TrackData array. This is calculated based
+    /// upon the total size of the struct.
+    pub fn track_entries(&self) -> usize {
+        let entries_size = self
+            .size()
+            .strict_sub(size_of_val(&self.Length))
+            .strict_sub(size_of_val(&self.FirstTrack))
+            .strict_sub(size_of_val(&self.LastTrack));
+        entries_size
+            .div_exact(size_of::<TRACK_DATA>().strict_cast())
+            .expect(
+                "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
+            )
+    }
+
+    /// Returns the track number of the last audio track, or `None` if no audio tracks are present.
+    pub fn last_audio_track(&self) -> Option<usize> {
+        self.TrackData
+            .iter()
+            .take(self.LastTrack.strict_cast())
+            .rfind(|track| !track.control().contains(Control::DATA_TRACK))
+            .map(|track| track.TrackNumber.strict_cast())
     }
 
     /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
@@ -138,14 +173,25 @@ impl CDROM_TOC {
             .iter_audio()
             .map(|entry| entry.start.as_usize() as u32)
             .collect();
+        let data = self
+            .data()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
         let leadout = self.leadout()?.as_usize() as u32;
-        Toc::from_parts(audio, None, leadout)
+        Toc::from_parts(audio, data, leadout)
     }
 
     pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
-            .filter(|track| (1..0xA0).contains(&track.TrackNumber))
+            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
+            .map(TocEntry::from)
+    }
+
+    /// Returns the *first* data track, if present
+    pub fn data(&self) -> Option<TocEntry> {
+        self.TrackData
+            .iter()
+            .find(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
             .map(TocEntry::from)
     }
 
@@ -157,6 +203,14 @@ impl CDROM_TOC {
             .map(TocEntry::from)
             .map(|entry| entry.start)
             .ok_or(TocError::SectorOrder)
+    }
+}
+
+impl TRACK_DATA {
+    pub fn control(&self) -> Control {
+        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+        let control_code = self._bitfield;
+        Control::from_bits_truncate(control_code)
     }
 }
 
@@ -179,7 +233,13 @@ impl From<&TRACK_DATA> for TocEntry {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::new(relative as usize) + LEADIN;
         let track = track_data.TrackNumber;
-        Self { track, start }
+        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+        let control = Control::from_bits_truncate(track_data._bitfield);
+        Self {
+            track,
+            start,
+            control,
+        }
     }
 }
 
@@ -190,7 +250,7 @@ pub struct CdaFile {
     /// The first track has the number 1
     track_number: u16,
     /// Identifier calculated by Windows for cdplayer.exe
-    windows_identifier: u32,
+    _windows_identifier: u32,
     /// *Absolute* start position: minutes, seconds, frames. Including
     /// the 2s lead-in. (Track 1 is usually at 0,2,0)
     ///
@@ -336,7 +396,7 @@ impl CdaFile {
 
         Ok(Self {
             track_number,
-            windows_identifier,
+            _windows_identifier: windows_identifier,
             start,
             duration,
         })
@@ -349,9 +409,9 @@ impl From<CdaFile> for Track<'static> {
             toc_entry: TocEntry {
                 track: cda.track_number as u8,
                 start: cda.start.into(),
+                control: Default::default(),
             },
             duration: cda.duration.into(),
-            windows_identifier: Some(cda.windows_identifier),
             ..Default::default()
         }
     }
@@ -370,10 +430,28 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
+        for track in toc.TrackData.iter().take(toc.track_entries()) {
+            dbg!(track.TrackNumber);
+            dbg!(track.Reserved);
+            dbg!(track.Reserved1);
+            #[expect(clippy::used_underscore_binding)]
+            let bitfield = track._bitfield;
+            eprintln!("bitfield: {bitfield:08b}");
+            eprintln!("control: {}", track.control());
+            dbg!(track.Address);
+            dbg!(u32::from_be_bytes(track.Address));
+            dbg!(Msf::from(Frame::new(
+                u32::from_be_bytes(track.Address).strict_cast()
+            )));
+        }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
-        assert_eq!(toc.LastTrack, album.expected_last_track());
+        assert_eq!(
+            toc.last_audio_track().unwrap(),
+            album.expected_last_audio_track().strict_cast::<usize>()
+        );
     }
 
     #[rstest]
@@ -381,6 +459,7 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn leadout(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let leadout = toc.leadout().unwrap();
@@ -392,10 +471,11 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn audio(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
         let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
-        assert_eq!(audio_tracks, album.expected_toc_entries());
+        assert_eq!(audio_tracks, album.expected_audio_toc_entries());
     }
 
     #[rstest]
@@ -404,7 +484,7 @@ mod tests {
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
     fn parse_cdas(#[case] album: TestAlbum) {
-        let expected_tracks = album.expected_tracks_minimal();
+        let expected_tracks = album.expected_audio_tracks_minimal();
         let cdas = album.assets_path().join("*.cda");
         let cdas: Vec<_> = glob(&cdas.to_string_lossy()).unwrap().collect();
 
@@ -420,11 +500,13 @@ mod tests {
         }
     }
 
+    #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn compare_toc(#[case] album: TestAlbum) {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();

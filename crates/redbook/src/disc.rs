@@ -40,10 +40,10 @@ use crate::{
 ///
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
-///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
-///     Track::new(2, Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b), None),
-///     Track::new(3, Frame::new(0x6256), Frame::new(0xb327 - 0x6256), None),
-///     Track::new(4, Frame::new(0xb327), Frame::new(0xd84a - 0xb327), None),
+///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+///     Track::new(2, Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b)),
+///     Track::new(3, Frame::new(0x6256), Frame::new(0xb327 - 0x6256)),
+///     Track::new(4, Frame::new(0xb327), Frame::new(0xd84a - 0xb327)),
 /// ];
 /// let leadout = Frame::new(0xd84a);
 ///
@@ -54,7 +54,7 @@ use crate::{
 /// disc.update_musicbrainz()?;
 ///
 /// // Select a specific release & attempt to get the cover art from CoverArtArchive
-/// disc.set_release_index(Some(2)).update_cover_art()?;
+/// disc.set_release_by_id(Some("release_id_12938utzqgrbf8")).update_cover_art()?;
 ///
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
@@ -64,7 +64,7 @@ use crate::{
 pub struct Disc {
     /// The table of contents for the CD.
     toc: Toc,
-    /// The list of tracks on the CD.
+    /// The list of audio tracks on the CD.
     tracks: Vec<Track<'static>>,
     /// The leadout frame position.
     leadout: Frame,
@@ -110,7 +110,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     ///
@@ -120,12 +120,6 @@ impl Disc {
     ///
     /// For a more complete example showing how to set metadata retrieval after initialisation,
     /// see the [`Disc`] struct documentation.
-    ///
-    /// # TODO
-    ///
-    /// - Add `new_unchecked()` and/or handle mixed-mode CDs as per [TOC string definition][definition]
-    ///
-    /// [definition]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc#post16082
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
@@ -142,20 +136,25 @@ impl Disc {
         }
 
         for track in tracks.iter() {
+            let track_span = tracing::info_span!("validating", ?track, cdtoc = Empty).entered();
+
             let track_number = track.toc_entry.track as usize;
             let toc_track = toc
                 .audio_track(track_number)
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))?;
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
+                .or_warn("track number")?;
+            track_span.record("cdtoc", format_args!("{toc_track:?}"));
 
             let (min, sec, frame) = toc_track.msf();
             if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
+                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch")).or_warn("start")?;
             }
 
             let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
             let min = (((d * 24) + h as u64) * 60) + min as u64;
             if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"));
+                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
+                    .or_warn("duration")?;
             }
         }
 
@@ -194,7 +193,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -204,8 +203,8 @@ impl Disc {
     /// // usually discs have multiple releases, and you need to select one
     /// if disc.release().is_none() {
     ///     // ... some logic to identify the correct release
-    ///     let correct_release = Some(2);
-    ///     disc.set_release_index(correct_release);
+    ///     let correct_release = Some("release_id_13iukhi8i9dsazbn32reg");
+    ///     disc.set_release_by_id(correct_release);
     /// }
     ///
     /// let release = disc.release();
@@ -229,7 +228,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -259,7 +258,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -289,7 +288,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -322,7 +321,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -356,7 +355,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -393,7 +392,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -418,6 +417,10 @@ impl Disc {
             .releases
             .as_ref()?
             .iter()
+            .filter(|release| match self.toc.has_data() {
+                true => release.has_data(),
+                false => release.has_audio_only(),
+            })
             .collect();
         releases.sort_by_key(|release| {
             release
@@ -451,6 +454,14 @@ impl Disc {
         self
     }
 
+    fn release_index_for(&self, release: &Release) -> Option<usize> {
+        self.musicbrainz.as_ref().and_then(|mb| {
+            mb.releases
+                .as_ref()
+                .and_then(|releases| releases.iter().position(|rel| rel.id == release.id))
+        })
+    }
+
     /// Set the release, or reset to `None`.
     ///
     /// Providing an invalid index will make no change. Returns `self` for chaining.
@@ -468,32 +479,14 @@ impl Disc {
         self
     }
 
-    /// Set the selected release by index, or reset to `None`.
-    ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
-    ///
-    /// # Examples
-    ///
-    /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
-    /// use cdtoc::Toc;
-    ///
-    /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
-    /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
-    /// ];
-    /// let leadout = Frame::new(0x2d2b);
-    /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
-    /// disc.update_musicbrainz()?;
-    ///
-    /// // Select the second release (if available)
-    /// disc.set_release_index(Some(1));
-    ///
-    /// // Or reset the selection
-    /// disc.set_release_index(None);
-    /// # Ok::<(), std::io::Error>(())
-    /// ```
-    pub fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "everyone should be using set_release or set_release_by_id for sanity"
+        )
+    )]
+    fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_index", index = ?index).entered();
         self.release_index = match index {
             Some(index)
@@ -523,11 +516,13 @@ impl Disc {
         )
         .entered();
 
-        self.release_index = match self.all_releases() {
-            None => Some(0),
-            Some(releases) if releases.is_empty() => Some(0),
-            Some(releases) if releases.len() == 1 => Some(0),
-            _ => None,
+        match self.all_releases() {
+            None => self.release_index = Some(0),
+            Some(releases) if releases.is_empty() => self.release_index = Some(0),
+            Some(releases) if releases.len() == 1 => {
+                self.release_index = self.release_index_for(releases.first().unwrap())
+            }
+            _ => self.release_index = None,
         };
 
         tracing::debug!(release_index = self.release_index);
@@ -549,7 +544,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -620,7 +615,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -658,7 +653,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -669,7 +664,7 @@ impl Disc {
     /// // Check if release was auto-selected
     /// if disc.release().is_none() {
     ///     // Multiple releases found, need to select one
-    ///     disc.set_release_index(Some(0));
+    ///     disc.set_release_by_id(Some("release_id_askdjhasdkhasd123"));
     /// }
     ///
     /// // Check if disc index was auto-selected
@@ -724,7 +719,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -804,7 +799,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -835,7 +830,8 @@ impl Disc {
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {
-        let debug_fn = tracing::debug_span!("Disc::update_thumbnails", retrieved = 0,).entered();
+        let _main_span = tracing::error_span!("Disc::update_thumbnails").entered();
+        let debug_span = tracing::debug_span!("", retrieved = 0).entered();
         tracing::trace!("");
 
         let mut retrieved = 0;
@@ -843,15 +839,11 @@ impl Disc {
         let client = reqwest::blocking::Client::new();
 
         let release_ids: Vec<_> = self
-            .musicbrainz
+            .all_releases()
             .as_ref()
-            .and_then(|mb| {
-                mb.releases
-                    .as_ref()
-                    .map(|releases| releases.iter().map(|release| release.id.clone()))
-            })
+            .map(|releases| releases.iter().map(|release| release.id.clone()))
             .ok_or_else(|| io::Error::other("No releases found"))
-            .or_warn("")?
+            .or_warn("no releases found")?
             .collect();
         for id in release_ids {
             cx.cancelled()?;
@@ -891,7 +883,7 @@ impl Disc {
                     Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image),
                 );
                 retrieved += 1;
-                debug_fn.record("retrieved", retrieved);
+                debug_span.record("retrieved", retrieved);
             } else {
                 let reason = response.text().ok();
                 tracing::warn!(name: "thumbnail failed", reason = ?reason);
@@ -916,7 +908,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -950,7 +942,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -1006,7 +998,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let leadout = Frame::new(0x2d2b);
     /// let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -1025,10 +1017,6 @@ impl Disc {
         let track = self.track(track_number)?;
 
         vorbis.set_track(track.track_number() as u32);
-
-        if let Some(id) = track.windows_identifier {
-            vorbis.set("WINDOWS_IDENTIFIER", vec![id.to_string()])
-        }
 
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);
@@ -1139,7 +1127,7 @@ impl Disc {
 ///
 /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
 /// let tracks = [
-///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96), None),
+///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
 /// ];
 /// let leadout = Frame::new(0x2d2b);
 /// let disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -1177,6 +1165,26 @@ impl<'m> ExactSizeIterator for Tracks<'m> {
     }
 }
 
+trait MediaType {
+    fn has_data(&self) -> bool;
+    fn has_audio_only(&self) -> bool;
+}
+
+impl MediaType for Release {
+    fn has_data(&self) -> bool {
+        self.media
+            .as_ref()
+            .and_then(|all_media| all_media.iter().find(|media| media.data_tracks.is_some()))
+            .is_some()
+    }
+    fn has_audio_only(&self) -> bool {
+        self.media
+            .as_ref()
+            .and_then(|all_media| all_media.iter().find(|media| media.data_tracks.is_none()))
+            .is_some()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::iter::zip;
@@ -1187,21 +1195,23 @@ mod tests {
 
     // TODO - validate with minimal track info
 
+    #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn new(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
 
         let disc = Disc::new(toc, tracks, leadout).unwrap();
         assert_eq!(disc.toc, album.expected_toc());
         assert_eq!(
             disc.tracks().collect::<Vec<_>>(),
-            album.expected_tracks_minimal()
+            album.expected_audio_tracks_minimal()
         );
         assert_eq!(disc.leadout, album.expected_leadout());
     }
@@ -1211,10 +1221,11 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     #[cfg_attr(miri, ignore = "no unsafe used & super slow on miri")]
     fn identify_disc_index(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1229,10 +1240,11 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn all_releases(#[case] album: TestAlbum) {
         let expected_order = album.expected_releases_in_order();
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1247,12 +1259,13 @@ mod tests {
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn set_release_by_ref(#[case] album: TestAlbum) {
         let ordered_releases = album.expected_releases_in_order();
         let expected_order = album.expected_release_order();
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1268,7 +1281,7 @@ mod tests {
     fn set_release_invalid() {
         let album = DefinitelyMaybe;
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
@@ -1283,7 +1296,7 @@ mod tests {
     fn set_release_no_musicbrainz() {
         let album = DefinitelyMaybe;
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
@@ -1295,7 +1308,7 @@ mod tests {
     #[test]
     fn set_single_release() {
         let album = BatOutOfHellRevamped;
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let toc = album.expected_toc();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
@@ -1309,5 +1322,20 @@ mod tests {
             disc.tracks().next().unwrap().title().unwrap(),
             "Bat Out of Hell"
         );
+    }
+
+    #[test_log::test]
+    /// This Disc only has one possible release which includes a data track
+    fn only_extended_cd() {
+        let album = TheBoyWhoKnewTooMuch;
+        let tracks = album.expected_audio_tracks_minimal();
+        let toc = album.expected_toc();
+        let leadout = album.expected_leadout();
+        let musicbrainz = album.expected_musicbrainz();
+
+        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        disc.set_musicbrainz(musicbrainz);
+        assert_eq!(disc.release_index, Some(3));
+        assert_eq!(disc.disc_index, Some(0));
     }
 }

@@ -1,16 +1,22 @@
 //! Support for Tables of Contents & Frame-based time
 
 use std::{
+    fmt::Display,
     io::{self, ErrorKind},
-    ops::{Add, Rem, Sub},
+    ops::{Add, AddAssign, Rem, Sub, SubAssign},
     time::Duration,
 };
 
+use bitflags::bitflags;
+use cdtoc::Toc;
 use tracing_result::Trace;
 
 use crate::LEADIN;
 
-/// Entry in a CD TOC (Table of Contents).
+/// 0b0010 format track identifier for Leadout
+pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
+
+/// Entry in a CD TOC (Table of Contents) for an audio track.
 ///
 /// Represents a single entry from the CD's Table of Contents, containing the
 /// track number and its absolute start position on the disc.
@@ -18,28 +24,68 @@ use crate::LEADIN;
 /// # Notes
 ///
 /// - The start position includes the lead-in area (150 frames)
-/// - Used for low-level disc navigation and track positioning
+/// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
+///   maintained. Conversion functions should be designed discard or fail on data tracks.
 ///
-/// # Examples
+/// # TODO
 ///
-/// ```rust, no_run
-/// use redbook::TocEntry;
-/// use redbook::Frame;
-///
-/// // Create a TOC entry for track 1 starting at frame 150 (beginning of lead-in)
-/// let entry = TocEntry {
-///     track: 1,
-///     start: Frame::new(150),
-/// };
-///
-/// assert_eq!(entry.track, 1);
-/// ```
+/// - Example
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TocEntry {
     /// The 1-indexed track number.
     pub track: u8,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     pub start: Frame,
+    /// The control code, identifying track type
+    pub control: Control,
+}
+
+/// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
+///
+/// # Interpretation
+/// | Value |  | Definition |
+/// |------:|--|:-----------|
+/// | 00x0b |  | 2 audio channels without pre-emphasis |
+/// | 00x1b |  | 2 audio channels with pre-emphasis of 50/15 µs |
+/// | 10x0b |  | audio channels without pre-emphasis (reserved in CD-R/RW) |
+/// | 10x1b |  | audio channels with pre-emphasis of 50/15 µs (reserved in CD-R/RW) |
+/// | 01x0b |  | Data track, recorded uninterrupted |
+/// | 01x1b |  | Data track, recorded incremental |
+/// | 11xxb |  | Reserved |
+/// | xx0xb |  | digital copy prohibited |
+/// | xx1xb |  | digital copy permitted |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Control(u8);
+
+bitflags! {
+        impl Control: u8 {
+        /// pre-emphasis of 50/15 µs
+        const PRE_EMPHASIS = 0b0001;
+        /// digital copy-permitted
+        const COPY_PERMITTED = 0b0010;
+        /// data track
+        const DATA_TRACK = 0b0100;
+        /// non-stereo audio
+        const NON_STEREO_AUDIO = 0b1000;
+    }
+}
+
+impl Control {
+    /// represents a data track
+    pub fn is_data(&self) -> bool {
+        self.contains(Control::DATA_TRACK)
+    }
+
+    /// represents an audio track
+    pub fn is_audio(&self) -> bool {
+        !self.is_data()
+    }
+}
+
+impl Display for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        bitflags::parser::to_writer_strict(self, f)
+    }
 }
 
 impl TocEntry {
@@ -66,8 +112,8 @@ impl TocEntry {
     /// - 0xA0: first track number = Start Mins
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
-    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Self> {
-        let _trace = tracing::trace_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
+    pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Option<Self>> {
+        let _error = tracing::error_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
         let mut iter = data.iter().copied();
 
@@ -84,25 +130,14 @@ impl TocEntry {
             })
             .or_warn("")?;
 
-        let session_number = iter.next().unwrap();
-        (session_number == 1)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "multi-session discs are not supported",
-                )
-            })
-            .or_warn("")?;
+        let _session_number = iter.next().unwrap();
 
-        let acr_control = iter.next().unwrap();
-        (acr_control & 0b11110000 == 0b00010000)
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("invalid ADR value: expected 0001xxxx, got {:#08b}", data[2]),
-                )
-            })
-            .or_warn("")?;
+        let adr_control = iter.next().unwrap();
+        let adr = (adr_control & 0b11110000) >> 4;
+        if adr != 1 {
+            return Ok(None);
+        }
+        let control = Control::from_bits_truncate(adr_control);
 
         let tno = iter.next().unwrap();
         (tno == 0)
@@ -122,7 +157,21 @@ impl TocEntry {
             iter.next().unwrap(),
         );
         let start = Frame::from(start);
-        Ok(Self { track, start })
+        Ok(Some(Self {
+            track,
+            start,
+            control,
+        }))
+    }
+
+    /// Is an audio track (based on control code & track number)
+    pub fn is_audio_track(&self) -> bool {
+        self.control.is_audio() && self.track <= 0x63
+    }
+
+    /// Is an audio track (based on control code & track number)
+    pub fn is_data_track(&self) -> bool {
+        self.control.is_data() && self.track <= 0x63
     }
 }
 
@@ -154,6 +203,7 @@ impl TocEntry {
 ///
 /// # TODO
 /// - impl Display
+/// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
@@ -270,6 +320,16 @@ const impl Add<Frame> for Frame {
     }
 }
 
+impl<N> AddAssign<N> for Frame
+where
+    Frame: Add<N, Output = Frame>,
+{
+    fn add_assign(&mut self, rhs: N) {
+        let f = *self + rhs;
+        self.0 = f.0
+    }
+}
+
 const impl Sub<Frame> for Frame {
     type Output = Self;
 
@@ -286,6 +346,16 @@ where
 
     fn sub(self, rhs: N) -> Self::Output {
         Self(self.0 - rhs)
+    }
+}
+
+impl<N> SubAssign<N> for Frame
+where
+    Frame: Sub<N, Output = Frame>,
+{
+    fn sub_assign(&mut self, rhs: N) {
+        let f = *self - rhs;
+        self.0 = f.0
     }
 }
 
@@ -496,37 +566,95 @@ impl PartialEq<Frame> for Msf {
     }
 }
 
-/// A text-representation of a TOC as
-/// `[audio trackcount]+[first audio track address]+[second audio track address]+...+[leadout address]`.
-///
-/// See [dbpoweramp forum][defn] for more details.
-///
-/// [defn]: https://forum.dbpoweramp.com/forum/other-topics/developers-corner/16082-flac-ogg-vorbis-storage-of-cdtoc?16705-FLAC-amp-Ogg-Vorbis-Storage-of-CDTOC=&s=3ca0c65ee58fc45489103bb1c39bfac0&viewfull=1#post76686
-pub struct TocString(String);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// A collection of [`TocEntry`]s, neatly grouped and sorted
+struct TocEntries {
+    /// Audio tracks, sorted by start position
+    audio: Vec<TocEntry>,
+    /// Data tracks, sorted by start position
+    data: Vec<TocEntry>,
+    /// Leadouts, sorted by start position
+    leadouts: Vec<TocEntry>,
+}
 
-impl TocString {
-    /// Validates track count and well-ordered tracks
-    pub fn new(toc: String) -> io::Result<Self> {
-        let mut parts = toc.split("+");
-        let track_count = parts
-            .next()
-            .and_then(|n| usize::from_str_radix(n, 16).ok())
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no valid track count"))?;
-        let addresses: Vec<_> = parts
-            .map(|n| usize::from_str_radix(n, 16).map_err(io::Error::other))
-            .try_collect()?;
-        (addresses.len() == track_count + 1)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "incorrect number of tracks"))?;
-        addresses
-            .is_sorted()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "tracks not in order"))?;
-        Ok(Self(toc))
+impl TryFrom<TocEntries> for Toc {
+    type Error = io::Error;
+
+    fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
+        // TODO: Don't panic! (via #106)
+        let audio = entries
+            .audio
+            .iter()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .collect();
+        let data = entries
+            .data
+            .last()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
+        let leadout = entries
+            .leadouts
+            .last()
+            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .unwrap();
+        Toc::from_parts(audio, data, leadout).map_err(io::Error::other)
     }
+}
 
-    /// Converts a hex dump of raw TOC data provided by SCSI command READ TOC 0010b.
-    ///
-    /// See [TocEntry::from_scsi_readtoc_0010b] for details of the specific format.
-    pub fn from_scsi_readtoc_0010b(bytes: Vec<u8>) -> io::Result<Self> {
+impl TryFrom<ReadTocDescriptors> for Toc {
+    type Error = io::Error;
+
+    fn try_from(entries: ReadTocDescriptors) -> Result<Self, Self::Error> {
+        TocEntries::try_from(entries)?.try_into()
+    }
+}
+
+impl FromIterator<TocEntry> for TocEntries {
+    fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
+        let mut entries: Vec<_> = iter.into_iter().collect();
+
+        // INVARIANT: all fields are expected to be sorted by start position
+        entries.sort_by_key(|entry| entry.start);
+
+        let data = entries
+            .extract_if(.., |entry| entry.is_data_track())
+            .collect();
+        let leadouts = entries
+            // TODO: 0b0001 & 0b0010 use different IDs for Leadout!
+            .extract_if(.., |entry| entry.track == LEADOUT_TRACK_NUMBER)
+            .collect();
+        let audio = {
+            entries.retain_mut(|entry| entry.is_audio_track());
+            entries
+        };
+        TocEntries {
+            audio,
+            data,
+            leadouts,
+        }
+    }
+}
+
+impl TryFrom<ReadTocDescriptors> for TocEntries {
+    type Error = io::Error;
+
+    fn try_from(descriptors: ReadTocDescriptors) -> Result<Self, Self::Error> {
+        descriptors
+            .0
+            .into_iter()
+            .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(&entry).transpose())
+            .try_collect()
+    }
+}
+
+/// TOC Track Descriptors as returned by READ_TOC format 0b0010 (See MMC-3 10g 5.23.4)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ReadTocDescriptors(Vec<[u8; 11]>);
+
+impl ReadTocDescriptors {
+    /// Errors if not a multiple of 11 bytes
+    pub fn new(bytes: Vec<u8>) -> io::Result<Self> {
+        let _span = tracing::error_span!("TocString::from_scsi_readtoc_0010b", ?bytes).entered();
+
         let (entries, rem) = bytes.as_chunks::<11>();
         rem.is_empty()
             .ok_or_else(|| {
@@ -536,75 +664,8 @@ impl TocString {
                 )
             })
             .or_warn("")?;
-
-        let mut entries: Vec<_> = entries
-            .iter()
-            .map(|entry| TocEntry::from_scsi_readtoc_0010b(entry.as_slice()))
-            .try_collect()?;
-
-        entries.sort_by_key(|entry| entry.track);
-
-        let leadout = entries
-            .pop()
-            .filter(|leadout| leadout.track == 0xA2)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no leadout"))?;
-
-        // track number stored in minutes field in TOC
-        let Msf {
-            min: last_track, ..
-        } = entries
-            .pop()
-            .filter(|last| last.track == 0xA1)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no last track specified"))?
-            .start
-            .into();
-
-        let Msf {
-            min: first_track, ..
-        } = entries
-            .pop()
-            .filter(|last| last.track == 0xA0)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no first track specified"))?
-            .start
-            .into();
-
-        let tracks = entries.len();
-
-        (first_track
-            == entries
-                .first()
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
-                .or_warn("")?
-                .track)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track number mismatch"))
-            .or_warn("")?;
-
-        (last_track
-            == entries
-                .last()
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "no tracks"))
-                .or_warn("")?
-                .track)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "last track number mismatch"))
-            .or_warn("")?;
-
-        let timings = entries
-            .iter()
-            .map(|entry| format!("{frames:02x}+", frames = entry.start.as_usize()))
-            .collect::<String>();
-        let toc = [
-            &format!("{tracks:02x}"),
-            timings.trim_end_matches("+"),
-            &format!("{:02x}", leadout.start.as_usize()),
-        ]
-        .join("+");
-        Self::new(toc)
-    }
-}
-
-impl From<TocString> for cdtoc::Toc {
-    fn from(toc: TocString) -> Self {
-        cdtoc::Toc::from_cdtoc(toc.0).expect("known good TocString format")
+        let descriptors = entries.to_vec();
+        Ok(Self(descriptors))
     }
 }
 

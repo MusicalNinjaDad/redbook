@@ -64,53 +64,73 @@ impl TryFrom<CdDrive> for AudioCd {
             })
             .try_collect()
             .or_error("parse cda")?;
-        tracks.sort_by_key(|track| track.toc_entry.start);
 
         let wintoc = drive.toc();
-        (wintoc.FirstTrack
-            == tracks
-                .first()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                .or_warn("identifying first track")?
-                .toc_entry
-                .track as u8)
-            .ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                "Mismatch between TOC and cda files: different first track number",
-            ))
-            .or_warn("identifying first track")?;
-        (wintoc.LastTrack
-            == tracks
-                .last()
-                .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                .or_warn("identifying last track")?
-                .toc_entry
-                .track as u8)
-            .ok_or(io::Error::new(
-                ErrorKind::InvalidData,
-                "Mismatch between TOC and cda files: different last track number",
-            ))
-            .or_warn("identifying last track")?;
 
-        for track in tracks.iter() {
-            let track_number = track.toc_entry.track as usize;
+        if !tracks.is_empty() {
+            tracks.sort_by_key(|track| track.toc_entry.start);
+            (wintoc.FirstTrack
+                == tracks
+                    .first()
+                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                    .or_warn("identifying first track")?
+                    .toc_entry
+                    .track as u8)
+                .ok_or(io::Error::new(
+                    ErrorKind::InvalidData,
+                    "Mismatch between TOC and cda files: different first track number",
+                ))
+                .or_warn("identifying first track")?;
+            (wintoc.LastTrack
+                == tracks
+                    .last()
+                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
+                    .or_warn("identifying last track")?
+                    .toc_entry
+                    .track as u8)
+                .ok_or(io::Error::new(
+                    ErrorKind::InvalidData,
+                    "Mismatch between TOC and cda files: different last track number",
+                ))
+                .or_warn("identifying last track")?;
 
-            let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+            for track in tracks.iter() {
+                let track_number = track.toc_entry.track as usize;
 
-            let data = wintoc
+                let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
+
+                let data = wintoc
+                    .TrackData
+                    .get(track_number - 1)
+                    .ok_or(io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!("track {track_number} missing in TOC"),
+                    ))
+                    .or_warn("")?;
+                (TocEntry::from(data) == track.toc_entry)
+                    .ok_or(io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!("Mismatch between TOC and cda files for track {track_number}"),
+                    ))
+                    .or_warn("")?;
+            }
+        } else {
+            let toc_tracks = wintoc
                 .TrackData
-                .get(track_number - 1)
-                .ok_or(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("track {track_number} missing in TOC"),
-                ))
-                .or_warn("")?;
-            (TocEntry::from(data) == track.toc_entry)
-                .ok_or(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("Mismatch between TOC and cda files for track {track_number}"),
-                ))
-                .or_warn("")?;
+                .iter()
+                .take(wintoc.track_entries())
+                .map(TocEntry::from)
+                .map_windows(|[track, next]| {
+                    track.is_audio_track().then(|| {
+                        let mut duration = next.start - track.start;
+                        if next.is_data_track() {
+                            duration -= Frame::new(11400)
+                        }
+                        Track::new(track.track, track.start, duration)
+                    })
+                })
+                .flatten();
+            tracks.extend(toc_tracks);
         }
 
         let toc = wintoc
@@ -180,11 +200,13 @@ mod miri {
 
     use super::*;
 
+    #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();
@@ -193,6 +215,10 @@ mod miri {
         let handle = unsafe { cd.drive.handle() };
         assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
         let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
-        assert_eq!(album.expected_toc_entries(), toc_entries);
+        assert_eq!(album.expected_audio_toc_entries(), toc_entries);
+        assert_eq!(
+            cd.disc().tracks().collect::<Vec<_>>(),
+            album.expected_audio_tracks_minimal()
+        );
     }
 }

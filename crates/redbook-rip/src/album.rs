@@ -124,13 +124,13 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        disc.set_release_index(Some(album.release()));
+        disc.set_release_by_id(album.release_id());
 
         let details = ReleaseDetails::from(disc.release().unwrap());
 
@@ -156,13 +156,13 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
         let mut disc = Disc::new(toc, tracks, leadout).unwrap();
         disc.set_musicbrainz(musicbrainz);
-        disc.set_release_index(Some(album.release()));
+        disc.set_release_by_id(album.release_id());
         let release_id = disc.release().unwrap().id.clone();
         let thumb = fs::read(album.thumbnail_path()).unwrap();
         let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
@@ -196,7 +196,7 @@ mod tests {
         let album: TestAlbum = DefinitelyMaybe;
 
         let toc = album.expected_toc();
-        let tracks = album.expected_tracks_minimal();
+        let tracks = album.expected_audio_tracks_minimal();
         let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 

@@ -10,10 +10,13 @@ edition.workspace = true
 version.workspace = true
 
 [features]
-simd-nightly = ["flacenc/simd-nightly"] # currently broken in published version on flacenc - but working if you patch to github
+simd-nightly = [
+    "flacenc/simd-nightly",
+] # currently broken in published version on flacenc - but working if you patch to github
 
 [dependencies]
-build_safely.workspace = true # for doc link
+bitflags.workspace = true
+build_safely.workspace = true       # for doc link
 cdtoc.workspace = true
 clap.workspace = true
 errno.workspace = true
@@ -28,7 +31,7 @@ tabular.workspace = true
 thread_safely.workspace = true
 tracing-result.workspace = true
 tracing-subscriber.workspace = true
-tracing.workspace = true 
+tracing.workspace = true
 try_v2.workspace = true
 windows-link.workspace = true
 zune-jpeg.workspace = true
@@ -41,6 +44,9 @@ similar-asserts.workspace = true
 syn.workspace = true
 tempfile.workspace = true
 windows-bindgen.workspace = true
+test-log = { version = "0.2.21", default-features = false, features = [
+    "trace",
+] }
 
 [build-dependencies]
 build_safely.workspace = true

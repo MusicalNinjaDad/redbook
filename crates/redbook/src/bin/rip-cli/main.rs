@@ -81,25 +81,18 @@ fn main() -> Exit<()> {
         (None, true) => {
             let latest_release = cd
                 .disc()
-                .musicbrainz()
-                .and_then(|disc| disc.releases.as_ref())
+                .all_releases()
                 .as_ref()
                 .and_then(|releases| {
-                    releases
-                        .iter()
-                        .max_by_key(|release| {
-                            release
-                                .date
-                                .as_ref()
-                                .map(|date| date.into_naive_date(1, 1, 1).ok())
-                        })
-                        .and_then(|latest_release| {
-                            releases
-                                .iter()
-                                .position(|release| release.id == latest_release.id)
-                        })
-                });
-            cd.disc_mut().set_release_index(latest_release);
+                    releases.iter().max_by_key(|release| {
+                        release
+                            .date
+                            .as_ref()
+                            .map(|date| date.into_naive_date(1, 1, 1).ok())
+                    })
+                })
+                .map(|release| release.id.clone());
+            cd.disc_mut().set_release_by_id(latest_release.as_deref());
             tracing::info!(
                 name: "selected latest release",
                 title = %cd.disc().title().unwrap_or_default(),
@@ -225,7 +218,6 @@ fn main() -> Exit<()> {
         .unwrap_or_else(|| "Unknown".to_string());
     info.record("artist", &artist);
 
-    // TODO: #24 handle invlaid chars in filenames: see https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
     let output_dir = PathBuf::from(artist.sanitize_filename()).join(disc_title.sanitize_filename());
     tracing::debug!(output_dir = %output_dir.display());
     fs::create_dir_all(&output_dir)?;

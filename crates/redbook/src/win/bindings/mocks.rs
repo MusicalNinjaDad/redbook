@@ -26,6 +26,7 @@ const THE_WALL_1: HANDLE = 2 as _;
 const THE_WALL_2: HANDLE = 3 as _;
 const ALL_ALBUMS: HDEVINFO = 4 as _;
 const BAT_OUT_OF_HELL_REVAMPED: HDEVINFO = 5 as _;
+const THE_BOY_WHO_KNEW_TOO_MUCH: HDEVINFO = 6 as _;
 
 impl TryFrom<HANDLE> for TestAlbum {
     type Error = io::Error;
@@ -36,6 +37,7 @@ impl TryFrom<HANDLE> for TestAlbum {
             THE_WALL_1 => Ok(TheWallDisc1),
             THE_WALL_2 => Ok(TheWallDisc2),
             BAT_OUT_OF_HELL_REVAMPED => Ok(BatOutOfHellRevamped),
+            THE_BOY_WHO_KNEW_TOO_MUCH => Ok(TheBoyWhoKnewTooMuch),
             _ => Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "invalid album handle",
@@ -135,6 +137,7 @@ pub unsafe fn CreateFile2(
         TheWallDisc1 => THE_WALL_1,
         TheWallDisc2 => THE_WALL_2,
         BatOutOfHellRevamped => BAT_OUT_OF_HELL_REVAMPED,
+        TheBoyWhoKnewTooMuch => THE_BOY_WHO_KNEW_TOO_MUCH,
     }
 }
 
@@ -257,6 +260,7 @@ pub unsafe fn DeviceIoControl(
                 THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
                 THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
                 BAT_OUT_OF_HELL_REVAMPED => BatOutOfHellRevamped.load_cdrom_toc(),
+                THE_BOY_WHO_KNEW_TOO_MUCH => TheBoyWhoKnewTooMuch.load_cdrom_toc(),
                 _ => panic!("unknown album"),
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
