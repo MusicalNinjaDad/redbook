@@ -28,10 +28,12 @@ fn main() -> Result<()> {
     ac.emit_unstable_feature(const_ops, &allowed_features);
     ac.emit_unstable_feature(const_trait_impl, &allowed_features);
     ac.emit_unstable_feature(default_field_values, &allowed_features);
+    ac.emit_unstable_feature(exact_div, &allowed_features);
     ac.emit_unstable_feature(exact_size_is_empty, &allowed_features);
     ac.emit_unstable_feature(integer_casts, &allowed_features);
     ac.emit_unstable_feature(integer_cast_extras, &allowed_features);
     ac.emit_unstable_feature(iter_array_chunks, &allowed_features);
+    ac.emit_unstable_feature(iter_map_windows, &allowed_features);
     ac.emit_unstable_feature(iter_next_chunk, &allowed_features);
     ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
     ac.emit_unstable_feature(path_absolute_method, &allowed_features);

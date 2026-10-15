@@ -6,16 +6,16 @@
 #![cfg_attr(unstable_const_ops, feature(const_ops))]
 #![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
+#![cfg_attr(unstable_exact_div, feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
 #![cfg_attr(unstable_integer_cast_extras, feature(integer_cast_extras))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
+#![cfg_attr(unstable_iter_map_windows, feature(iter_map_windows))]
 #![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
-#![feature(exact_div)]
-#![feature(iter_map_windows)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
