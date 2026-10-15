@@ -1,4 +1,5 @@
 #![allow(stable_features)]
+#![allow(clippy::arbitrary_source_item_ordering)]
 #![feature(never_type)]
 #![feature(try_trait_v2)]
 #![feature(try_trait_v2_residual)]

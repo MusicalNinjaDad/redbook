@@ -2,6 +2,7 @@
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![cfg_attr(unstable_try_blocks, feature(try_blocks))]
 #![cfg_attr(not(windows), expect(unused))]
+#![allow(clippy::arbitrary_source_item_ordering)]
 
 use std::{
     fs::{self, File},
