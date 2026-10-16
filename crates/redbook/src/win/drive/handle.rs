@@ -291,7 +291,54 @@ impl Residual<DeviceInfoSet> for InvalidHandle {
 
 impl DeviceInfoSet {
     #[expect(unsafe_code, reason = "must not be closed, cloned")]
+    /// Provides a reference to the underlying handle
+    ///
+    /// # SAFETY
+    /// Callers must ensure that the underlying handle is
+    /// - NOT closed (to avoid double close when DeviceInfoSet is dropped)
+    /// - NOT cloned (to avoid potential usage after closing on drop)
     pub unsafe fn as_handle(&self) -> &HDEVINFO {
         &self.0
+    }
+
+    pub fn for_device_class(class: Guid) -> io::Result<Self> {
+        let _tracing_span =
+            tracing::error_span!("DeviceInfoSet::for_device_class", %class).entered();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "directly type-safe wrapped via into_deviceinfoset"
+        )]
+        // SAFETY:
+        // 1. SetupDiGetClassDevsW returns a handle to a device information set that contains all
+        //    installed devices that matched the supplied parameters.
+        // 2. If the operation fails, the function returns INVALID_HANDLE_VALUE.
+        // 3. This is then immediately wrapped in a DeviceInfoSet which calls
+        //    SetupDiDestroyDeviceInfoList on Drop
+        let handle = unsafe {
+            SetupDiGetClassDevsW(
+                // A pointer to the GUID for a device setup class or a device interface class.
+                &class.0 as *const _,
+                // This pointer is optional and can be NULL.
+                // If an enumeration value is not used to select devices, set Enumerator to NULL.
+                // - No PnP enumeration required
+                null(),
+                // A handle to the top-level window to be used for a user interface that is
+                // associated with installing a device instance in the device information set.
+                // This handle is optional and can be NULL.
+                // - Not installing a device
+                null_mut(),
+                // Filter the device information elements that are added to the device
+                // information set. This parameter can be a bitwise OR of zero or more flags
+                // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
+                //   specified device interface classes.
+                // - DIGCF_PRESENT: Return only devices that are currently present in a system.
+                DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
+            )
+            .into_deviceinfoset()
+        }
+        .or_warn("invalid handle")?;
+        Ok(handle)
     }
 }

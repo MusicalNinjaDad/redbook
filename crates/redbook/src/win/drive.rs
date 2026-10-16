@@ -24,7 +24,7 @@ use super::{
     convert::{Guid, Sector, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
-use crate::win::drive::handle::{DeviceInfoSet, IntoDeviceInfoSet};
+use crate::win::drive::handle::DeviceInfoSet;
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
@@ -577,36 +577,7 @@ impl Display for DeviceDetails {
 pub fn all_drives() -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
-    #[expect(unsafe_code, reason = "ffi call")]
-    #[expect(
-        clippy::multiple_unsafe_ops_per_block,
-        reason = "directly type-safe wrapped via into_deviceinfoset"
-    )]
-    // SAFETY: inline based on:
-    // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
-    let deviceinfoset = unsafe {
-        SetupDiGetClassDevsW(
-            // A pointer to the GUID for a device setup class or a device interface class.
-            &GUID_DEVINTERFACE_CDROM as *const _,
-            // This pointer is optional and can be NULL.
-            // If an enumeration value is not used to select devices, set Enumerator to NULL.
-            // - No PnP enumeration required
-            null(),
-            // A handle to the top-level window to be used for a user interface that is
-            // associated with installing a device instance in the device information set.
-            // This handle is optional and can be NULL.
-            // - Not installing a device
-            null_mut(),
-            // Filter the device information elements that are added to the device
-            // information set. This parameter can be a bitwise OR of zero or more flags
-            // - DIGCF_DEVICEINTERFACE: Return devices that support device interfaces for the
-            //   specified device interface classes.
-            // - DIGCF_PRESENT: Return only devices that are currently present in a system.
-            DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
-        )
-        .into_deviceinfoset()
-    }
-    .or_warn("invalid handle")?;
+    let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))?;
     debug.record("handle", format!("{deviceinfoset:?}"));
 
     tracing::debug!("got device infoset");

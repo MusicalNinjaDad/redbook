@@ -365,6 +365,17 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
     success!()
 }
 
+/// The SetupDiGetClassDevs function returns a handle to a device information set that contains
+/// requested device information elements for a local computer.
+///
+/// See: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+///
+/// # SAFETY
+/// - The caller of SetupDiGetClassDevs must delete the returned device information set when it is
+///   no longer needed by calling SetupDiDestroyDeviceInfoList.
+/// - It is recommended to avoid direct calls to SetupDiGetClassDevsW and use associated functions
+///   on DeviceInfoSet which provides a type-safe wrapper for the returned handle and calls
+///   SetupDiDestroyDeviceInfoList when dropped.
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
     #[expect(unused_variables, reason = "irrelevant for mock")] enumerator: PCWSTR,
