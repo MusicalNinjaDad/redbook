@@ -1,3 +1,5 @@
+use std::ops::{FromResidual, Residual, Try};
+
 use crate::win::bindings::{FILE_DEVICE_CD_ROM, IOCTL_STORAGE_GET_DEVICE_NUMBER};
 
 use super::*;
@@ -41,7 +43,7 @@ impl DriveHandle {
         let _debug = tracing::debug_span!("opening drive handle", %path).entered();
 
         #[expect(unsafe_code, reason = "ffi call")]
-        let handle: HANDLE = unsafe {
+        let handle = unsafe {
             // SAFETY:
             // - `path` is owned by this function and therefore valid for duration of this block
             // - returned handle will be stored in `Self` immediately after successful creation
@@ -53,12 +55,11 @@ impl DriveHandle {
                 const { OPEN_EXISTING.strict_cast_unsigned() },
                 null(),
             )
-        };
-        (handle != INVALID_HANDLE_VALUE)
-            .ok_or_else(io::Error::last_os_error)
-            .or_error("getting handle for drive")?;
+        }
+        .into_drive_handle()
+        .or_error("getting handle for drive")?;
         tracing::debug!(?handle, "opened successfully");
-        Ok(Self(handle))
+        Ok(handle)
     }
 
     /// get a currently valid file-system path, not valid across reboots but can be passed
@@ -144,5 +145,56 @@ impl DriveHandle {
     )]
     pub unsafe fn as_handle(&self) -> &HANDLE {
         &self.0
+    }
+}
+
+pub struct InvalidHandle;
+
+impl Try for DriveHandle {
+    type Output = DriveHandle;
+
+    type Residual = InvalidHandle;
+
+    #[inline]
+    fn from_output(output: Self::Output) -> Self {
+        output
+    }
+
+    #[inline]
+    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
+        if self.0 == INVALID_HANDLE_VALUE {
+            std::ops::ControlFlow::Break(InvalidHandle)
+        } else {
+            std::ops::ControlFlow::Continue(self)
+        }
+    }
+}
+
+impl FromResidual<InvalidHandle> for DriveHandle {
+    #[inline]
+    fn from_residual(_: InvalidHandle) -> Self {
+        Self(INVALID_HANDLE_VALUE)
+    }
+}
+
+impl<T> FromResidual<InvalidHandle> for io::Result<T> {
+    #[inline]
+    fn from_residual(_: InvalidHandle) -> Self {
+        Err(io::Error::last_os_error())
+    }
+}
+
+impl Residual<DriveHandle> for InvalidHandle {
+    type TryType = DriveHandle;
+}
+
+trait WinHandle {
+    fn into_drive_handle(self) -> DriveHandle;
+}
+
+impl WinHandle for HANDLE {
+    #[inline]
+    fn into_drive_handle(self) -> DriveHandle {
+        DriveHandle(self)
     }
 }

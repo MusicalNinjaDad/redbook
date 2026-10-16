@@ -38,6 +38,8 @@ fn main() -> Result<()> {
     ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
     ac.emit_unstable_feature(path_absolute_method, &allowed_features);
     ac.emit_unstable_feature(try_blocks_heterogeneous, &allowed_features);
+    ac.emit_unstable_feature(try_trait_v2, &allowed_features);
+    ac.emit_unstable_feature(try_trait_v2_residual, &allowed_features);
 
     Ok(())
 }

@@ -16,6 +16,8 @@
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![cfg_attr(unstable_try_trait_v2, feature(try_trait_v2))]
+#![cfg_attr(unstable_try_trait_v2_residual, feature(try_trait_v2_residual))]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
