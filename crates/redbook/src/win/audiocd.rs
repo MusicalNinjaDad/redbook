@@ -200,6 +200,15 @@ mod miri {
 
     use super::*;
 
+    impl TryFrom<&AudioCd> for TestAlbum {
+        type Error = io::Error;
+
+        fn try_from(audio_cd: &AudioCd) -> Result<Self, Self::Error> {
+            let drive = &audio_cd.drive;
+            drive.try_into()
+        }
+    }
+
     #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
@@ -210,10 +219,7 @@ mod miri {
     fn new(#[case] album: TestAlbum) {
         let path = album.assets_path();
         let cd = AudioCd::new(path).unwrap();
-        #[expect(unsafe_code, reason = "get mocked handle")]
-        // SAFETY: not a real handle and no threads involved
-        let handle = unsafe { cd.drive.handle() };
-        assert_eq!(album, TestAlbum::try_from(*handle).unwrap());
+        assert_eq!(album, TestAlbum::try_from(&cd).unwrap());
         let toc_entries: Vec<_> = cd.disc().tracks().map(|track| track.toc_entry).collect();
         assert_eq!(album.expected_audio_toc_entries(), toc_entries);
         assert_eq!(

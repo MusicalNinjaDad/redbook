@@ -151,6 +151,15 @@ impl DriveHandle {
     }
 }
 
+#[cfg(test)]
+impl TryFrom<&DriveHandle> for TestAlbum {
+    type Error = io::Error;
+
+    fn try_from(handle: &DriveHandle) -> Result<Self, Self::Error> {
+        handle.0.try_into()
+    }
+}
+
 pub struct InvalidHandle;
 
 impl Try for DriveHandle {

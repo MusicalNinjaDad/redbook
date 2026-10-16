@@ -24,6 +24,8 @@ use super::{
     convert::{Guid, Sector, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
+#[cfg(test)]
+use crate::test_fixtures::albums::TestAlbum;
 use crate::win::drive::handle::DeviceInfoSet;
 #[cfg(any(
     target_arch = "aarch64",
@@ -428,6 +430,16 @@ pub fn all_drives() -> io::Result<CdDrives> {
 
     tracing::debug!("got device infoset");
     Ok(CdDrives { deviceinfoset, .. })
+}
+
+#[cfg(test)]
+impl TryFrom<&CdDrive> for TestAlbum {
+    type Error = io::Error;
+
+    fn try_from(drive: &CdDrive) -> Result<Self, Self::Error> {
+        let handle = &drive.handle;
+        handle.try_into()
+    }
 }
 
 #[cfg(test)]
