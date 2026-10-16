@@ -263,17 +263,6 @@ impl IntoDeviceInfoSet for HDEVINFO {
 }
 
 impl DeviceInfoSet {
-    #[expect(unsafe_code, reason = "must not be closed, cloned")]
-    /// Provides a reference to the underlying handle
-    ///
-    /// # SAFETY
-    /// Callers must ensure that the underlying handle is
-    /// - NOT closed (to avoid double close when DeviceInfoSet is dropped)
-    /// - NOT cloned (to avoid potential usage after closing on drop)
-    pub unsafe fn as_handle(&self) -> &HDEVINFO {
-        &self.0
-    }
-
     pub fn for_device_class(class: Guid) -> io::Result<Self> {
         let _tracing_span =
             tracing::error_span!("DeviceInfoSet::for_device_class", %class).entered();
@@ -330,7 +319,7 @@ impl DeviceInfoSet {
         #[expect(unsafe_code, reason = "data must fit in a `DeviceDetails`")]
         // SAFETY: We just called check_required_buffer_size
         let member = unsafe { self.get_member_details(&interface_data)? };
-        
+
         Ok(Some(member))
     }
 
