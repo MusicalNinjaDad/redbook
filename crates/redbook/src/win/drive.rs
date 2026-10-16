@@ -1,12 +1,11 @@
 //! Handles direct hardware access via Windows APIs
-mod handle;
 
 use std::{
     fmt::{Debug, Display},
     io::{self, ErrorKind},
     mem::offset_of,
     path::{Path, PathBuf},
-    ptr::{null, null_mut},
+    ptr::null_mut,
 };
 
 use tracing::field::Empty;
@@ -15,30 +14,21 @@ use tracing_result::Trace;
 use super::{
     MAX_PATH_CHARS,
     bindings::{
-        CDDA, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
-        FILE_SHARE_READ, GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
-        INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, OPEN_EXISTING, RAW_READ_INFO,
-        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        CDDA, DeviceIoControl, GUID_DEVINTERFACE_CDROM, HANDLE, IOCTL_CDROM_RAW_READ,
+        RAW_READ_INFO, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
     },
     convert::{Guid, Sector, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
-use crate::win::drive::handle::DeviceInfoSet;
+use crate::win::handles::{DeviceInfoSet, DriveHandle};
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
-use crate::{
-    FRAME_SIZE, Track,
-    hex::hex_dump,
-    win::bindings::{ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS},
-};
-
-pub(super) use handle::DriveHandle;
+use crate::{FRAME_SIZE, Track, hex::hex_dump};
 
 #[expect(
     rustdoc::private_intra_doc_links,

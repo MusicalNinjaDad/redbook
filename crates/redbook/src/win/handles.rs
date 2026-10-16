@@ -1,10 +1,27 @@
-use std::ops::{FromResidual, Residual, Try};
-
-use crate::win::bindings::{
-    FILE_DEVICE_CD_ROM, IOCTL_STORAGE_GET_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+use std::{
+    io::{self, ErrorKind},
+    ops::{FromResidual, Residual, Try},
+    path::PathBuf,
+    ptr::{null, null_mut},
 };
 
-use super::*;
+use tracing_result::Trace;
+
+#[cfg(test)]
+use crate::test_fixtures::albums::TestAlbum;
+use crate::win::{
+    bindings::{
+        CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
+        ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
+        GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
+        IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, SP_DEVICE_INTERFACE_DATA,
+        SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+    },
+    convert::{Guid, WinString},
+    drive::DeviceDetails,
+};
+
 /// A open file handle which is known to point to a valid drive.
 ///
 /// # SAFETY
@@ -342,7 +359,7 @@ impl DeviceInfoSet {
                 null(),
                 // A pointer to a GUID that specifies the device interface class for the
                 // requested interface.
-                &GUID_DEVINTERFACE_CDROM as *const _,
+                &GUID_DEVINTERFACE_CDROM as *const _, // TODO: FIX HARDOCDING
                 // A zero-based index into the list of interfaces in the device information set.
                 memberindex,
                 // A pointer to a caller-allocated buffer that contains, on successful return,

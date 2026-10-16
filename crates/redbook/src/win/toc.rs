@@ -15,12 +15,10 @@ use tracing_result::Trace;
 
 pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
+use crate::win::handles::DriveHandle;
 use crate::{Control, Frame, LEADIN, Msf, TocEntry, Track};
 
-use super::{
-    bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX},
-    drive::DriveHandle,
-};
+use super::bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
