@@ -342,3 +342,73 @@ impl DeviceInfoSet {
         Ok(handle)
     }
 }
+
+pub struct DeviceInfoSetIter {
+    info_set: DeviceInfoSet,
+    current_index: usize = 0,
+}
+
+impl IntoIterator for DeviceInfoSet {
+    type Item = SP_DEVICE_INTERFACE_DATA;
+
+    type IntoIter = DeviceInfoSetIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DeviceInfoSetIter { info_set: self, .. }
+    }
+}
+
+impl Iterator for DeviceInfoSetIter {
+    type Item = SP_DEVICE_INTERFACE_DATA;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+        // before calling SetupDiEnumDeviceInterfaces
+        let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: inline based on
+        // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
+        let get_data = unsafe {
+            SetupDiEnumDeviceInterfaces(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                //
+                // SAFETY: Known to be a valid handle based on typed wrapper
+                self.info_set.0,
+                // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
+                // information about the interfaces that are associated with *all* the device
+                // information elements in DeviceInfoSet
+                null(),
+                // A pointer to a GUID that specifies the device interface class for the
+                // requested interface.
+                &GUID_DEVINTERFACE_CDROM as *const _,
+                // A zero-based index into the list of interfaces in the device information set.
+                self.current_index.strict_cast(),
+                // A pointer to a caller-allocated buffer that contains, on successful return,
+                // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
+                // that meets the search parameters.
+                // The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
+                // before calling this function.
+                //
+                // SAFETY: **cbSize set upon construction**
+                &mut deviceinterfacedata as *mut _,
+            )
+        };
+
+        // repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        let err = io::Error::last_os_error();
+        match (get_data, err.raw_os_error()) {
+            (0, Some(ERROR_NO_MORE_ITEMS)) => None,
+            (0, _) => {
+                tracing::error!(self.current_index, %err, "failed to get data about device");
+                None
+            }
+            _ => Some(deviceinterfacedata),
+        }
+    }
+}
