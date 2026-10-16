@@ -316,10 +316,7 @@ impl DeviceInfoSet {
     }
 
     /// Get the detail data for a given member of the device information set
-    pub fn get_member(
-        &self,
-        index: usize,
-    ) -> io::Result<Option<SP_DEVICE_INTERFACE_DETAIL_DATA_W>> {
+    pub fn get_member(&self, index: usize) -> io::Result<Option<DeviceDetails>> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
@@ -327,7 +324,14 @@ impl DeviceInfoSet {
             Some(data) => data,
             None => return Ok(None),
         };
-        todo!()
+
+        self.check_required_buffer_size(&interface_data)?;
+
+        #[expect(unsafe_code, reason = "data must fit in a `DeviceDetails`")]
+        // SAFETY: We just called check_required_buffer_size
+        let member = unsafe { self.get_member_details(&interface_data)? };
+        
+        Ok(Some(member))
     }
 
     /// Provides the basic information required to be able to get detail data for a given member.
@@ -387,6 +391,124 @@ impl DeviceInfoSet {
                 tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid), "got data for device");
                 Ok(Some(deviceinterfacedata))
             }
+        }
+    }
+
+    /// Validates that a [`DeviceDetails`] struct is large enough to house the details for `member`
+    fn check_required_buffer_size(&self, member: &SP_DEVICE_INTERFACE_DATA) -> io::Result<()> {
+        let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
+        let mut requiredsize: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        //
+        // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
+        // NULLDeviceInterfaceDetailData pointer, a DeviceInterfaceDetailDataSize of zero,
+        // and a valid RequiredSize variable. In response to such a call, this function returns
+        // the required buffer size at RequiredSize and fails with GetLastError
+        // returning ERROR_INSUFFICIENT_BUFFER.
+        let get_required_buffer_size = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                self.0,
+                member,
+                // a NULLDeviceInterfaceDetailData pointer
+                null_mut(),
+                // a DeviceInterfaceDetailDataSize of zero
+                0,
+                // a valid RequiredSize variable
+                //
+                // Receives the required size of the DeviceInterfaceDetailData buffer.
+                // This size includes the size of the fixed part of the structure plus the number
+                // of bytes required for the variable-length device path string.
+                &mut requiredsize as *mut _,
+                null_mut(),
+            )
+        };
+        let err = io::Error::last_os_error();
+        match (get_required_buffer_size, err.raw_os_error()) {
+            (0, Some(ERROR_INSUFFICIENT_BUFFER)) => tracing::debug!(requiredsize),
+            _ => {
+                tracing::error!(%err, "reading required buffer size");
+                return Err(err);
+            }
+        };
+
+        DeviceDetails::check_size(requiredsize)
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "must validate that details will fit in a DeviceDetails"
+    )]
+    /// Get detail data for a given `member`.
+    ///
+    /// # SAFETY
+    ///
+    /// Caller must guarantee that the data will fit in a DeviceDetails struct. It is recommended
+    /// to call [Self::check_required_buffer_size] in order to validate this requirement.
+    unsafe fn get_member_details(
+        &self,
+        member: &SP_DEVICE_INTERFACE_DATA,
+    ) -> io::Result<DeviceDetails> {
+        let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
+
+        // SAFETY:
+        // 1. cbSize is fixed to correct value via construction:
+        //    the caller must set DeviceInterfaceDetailData.cbSize to
+        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
+        //    The cbSize member always contains the size of the fixed part of the data structure,
+        //    not a size reflecting the variable-length string at the end.
+        //
+        // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
+        let get_details = unsafe {
+            SetupDiGetDeviceInterfaceDetailW(
+                // A pointer to a device information set that contains the device
+                // interfaces for which to return information.
+                self.0,
+                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
+                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
+                // typically returned by SetupDiEnumDeviceInterfaces.
+                member,
+                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
+                // about the specified interface.
+                //
+                // ** If this parameter is specified, the caller must set
+                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
+                // before calling this function. The cbSize member always contains the size of the
+                // fixed part of the data structure, not a size reflecting the variable-length
+                // string at the end.**
+                //
+                // SAFETY:
+                // 1. cbSize set upon construction
+                // 2. buffer size validated by caller
+                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
+                //    with identical fields, layout & alignment
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
+                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
+                // to contain the fixed part of the structure and a single NULL to terminate an
+                // empty MULTI_SZ string.
+                //
+                // Therefore this size must be the total size of the DeviceDetails struct, which
+                // is known to have sufficient buffer for the fixed part, path + termination
+                const { size_of::<DeviceDetails>() as u32 },
+                null_mut(),
+                null_mut(),
+            )
+        };
+
+        match get_details {
+            0 => {
+                let err = io::Error::last_os_error();
+                tracing::error!(get_details, %err);
+                Err(err)
+            }
+            _ => Ok(deviceinterfacedetaildata),
         }
     }
 }
