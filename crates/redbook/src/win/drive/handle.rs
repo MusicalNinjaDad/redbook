@@ -117,27 +117,7 @@ impl DriveHandle {
     /// Obtain a reference to the underlying [`HANDLE`] for the drive.
     ///
     /// # SAFETY
-    /// - Any modifications to the underlying [`HANDLE`] must ensure:
-    ///   1. That the previous handle is properly closed
-    ///   2. That the new handle is valid, open and refers to an available device which
-    ///      supports [`GUID_DEVINTERFACE_CDROM`]
-    /// - [`DriveHandle`] is marked as [`Send`]. Callers must ensure that the handle is not
-    ///   used to enable concurrent access to the drive ("processes and threads that share
-    ///   the same file must synchronize their access").
-    ///   See: https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles
-    #[expect(
-        unsafe_code,
-        reason = "required to be unsafe, to allow DriveHandle to be Send"
-    )]
-    pub unsafe fn as_handle_mut(&mut self) -> &mut HANDLE {
-        &mut self.0
-    }
-}
-
-impl DriveHandle {
-    /// Obtain a reference to the underlying [`HANDLE`] for the drive.
-    ///
-    /// # SAFETY
+    /// - Callers must not call CloseHandle, to avoid double-close when DriveHandle is dropped
     /// - [`DriveHandle`] is marked as [`Send`]. Callers must ensure that the handle is not
     ///   used to enable concurrent access to the drive ("processes and threads that share
     ///   the same file must synchronize their access").

@@ -123,6 +123,7 @@ impl CdDrive {
     /// Obtain a reference to the [`HANDLE`] for the drive.
     ///
     /// # SAFETY
+    /// - Callers must not call CloseHandle, to avoid double-close when DriveHandle is dropped
     /// - [`CdDrive`] is marked as [`Send`]. Callers must ensure that the handle is not
     ///   used to enable concurrent access to the drive ("processes and threads that share
     ///   the same file must synchronize their access").
@@ -132,7 +133,7 @@ impl CdDrive {
         reason = "required to be unsafe, to allow CdDrive to be Send"
     )]
     pub unsafe fn handle(&self) -> &HANDLE {
-        // SAFETY: We provide the same safety message regarding `Send`
+        // SAFETY: We provide the same safety message regarding  CloseHandle & `Send`
         unsafe { self.handle.as_handle() }
     }
 
