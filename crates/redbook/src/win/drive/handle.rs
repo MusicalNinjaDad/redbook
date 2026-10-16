@@ -237,7 +237,7 @@ pub trait IntoDeviceInfoSet {
         unsafe_code,
         reason = "caller must guarantee correctness of wrapped handle"
     )]
-    unsafe fn into_deviceinfoset(self) -> DeviceInfoSet;
+    unsafe fn into_deviceinfoset(self) -> io::Result<DeviceInfoSet>;
 }
 
 impl IntoDeviceInfoSet for HDEVINFO {
@@ -253,40 +253,13 @@ impl IntoDeviceInfoSet for HDEVINFO {
     /// Callers must ensure that the wrapped handle is either:
     /// - an open handle to a device information set
     /// - or INVALID_HANDLE_VALUE from a failed attempt to obtain a handle to a device information set
-    unsafe fn into_deviceinfoset(self) -> DeviceInfoSet {
-        DeviceInfoSet(self)
-    }
-}
-
-impl Try for DeviceInfoSet {
-    type Output = DeviceInfoSet;
-
-    type Residual = InvalidHandle;
-
-    #[inline]
-    fn from_output(output: Self::Output) -> Self {
-        output
-    }
-
-    #[inline]
-    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
-        if self.0 == INVALID_HANDLE_VALUE {
-            std::ops::ControlFlow::Break(InvalidHandle)
+    unsafe fn into_deviceinfoset(self) -> io::Result<DeviceInfoSet> {
+        if self == INVALID_HANDLE_VALUE {
+            Err(io::Error::last_os_error())
         } else {
-            std::ops::ControlFlow::Continue(self)
+            Ok(DeviceInfoSet(self))
         }
     }
-}
-
-impl FromResidual<InvalidHandle> for DeviceInfoSet {
-    #[inline]
-    fn from_residual(_: InvalidHandle) -> Self {
-        Self(INVALID_HANDLE_VALUE)
-    }
-}
-
-impl Residual<DeviceInfoSet> for InvalidHandle {
-    type TryType = DeviceInfoSet;
 }
 
 impl DeviceInfoSet {
