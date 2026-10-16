@@ -77,6 +77,14 @@ pub unsafe fn CloseHandle(
     success!()
 }
 
+pub unsafe fn SetupDiDestroyDeviceInfoList(
+    #[expect(unused_variables, reason = "always succeeds")] deviceinfoset: HDEVINFO,
+) -> BOOL {
+    // TODO: Maybe mock this with some thread-local RefCell HashSet or similar to
+    // allow for tests which validate closure in error cases & ensure no double closures.
+    success!()
+}
+
 /// Creates or opens a file or I/O device. (See also [Ms Learn][docs_CreateFile2])
 ///
 /// # SAFETY:

@@ -14,10 +14,11 @@ use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
 // as these are not visible for import.
-const BINDINGS: [&str; 33] = [
+const BINDINGS: [&str; 34] = [
     "CloseHandle",
     "CreateFile2",
     "DeviceIoControl",
+    "SetupDiDestroyDeviceInfoList",
     "SetupDiEnumDeviceInterfaces",
     "SetupDiGetClassDevsW",
     "SetupDiGetDeviceInterfaceDetailW",
