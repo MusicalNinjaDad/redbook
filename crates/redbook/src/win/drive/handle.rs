@@ -204,10 +204,7 @@ impl IntoDriveHandle for HANDLE {
 }
 
 #[derive(Debug)]
-pub struct DeviceInfoSet{
-    inner: HDEVINFO,
-    current_member: u32 = 0,
-}
+pub struct DeviceInfoSet(HDEVINFO);
 
 // TODO: Extend Safety requirements for SetupDiGetClassDevs
 impl Drop for DeviceInfoSet {
@@ -223,7 +220,7 @@ impl Drop for DeviceInfoSet {
         // - has not been closed (see safety sections for [as_handle_mut] & [as_handle])
         // - has not been externally mutated (see safety section for [as_handle_mut])
         unsafe {
-            SetupDiDestroyDeviceInfoList(self.inner as *mut _);
+            SetupDiDestroyDeviceInfoList(self.0 as *mut _);
         }
         // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
     }
@@ -260,7 +257,7 @@ impl IntoDeviceInfoSet for HDEVINFO {
         if self == INVALID_HANDLE_VALUE {
             Err(io::Error::last_os_error())
         } else {
-            Ok(DeviceInfoSet{inner: self, ..})
+            Ok(DeviceInfoSet(self))
         }
     }
 }
@@ -274,7 +271,7 @@ impl DeviceInfoSet {
     /// - NOT closed (to avoid double close when DeviceInfoSet is dropped)
     /// - NOT cloned (to avoid potential usage after closing on drop)
     pub unsafe fn as_handle(&self) -> &HDEVINFO {
-        &self.inner
+        &self.0
     }
 
     pub fn for_device_class(class: Guid) -> io::Result<Self> {
@@ -317,12 +314,8 @@ impl DeviceInfoSet {
         .or_warn("invalid handle")?;
         Ok(handle)
     }
-}
 
-impl Iterator for DeviceInfoSet {
-    type Item = SP_DEVICE_INTERFACE_DATA;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn get_member(&self, index: usize) -> io::Result<Option<SP_DEVICE_INTERFACE_DATA>> {
         // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
         // before calling SetupDiEnumDeviceInterfaces
         let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
@@ -339,7 +332,7 @@ impl Iterator for DeviceInfoSet {
                 // interfaces for which to return information.
                 //
                 // SAFETY: Known to be a valid handle based on typed wrapper
-                self.inner,
+                self.0,
                 // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
                 // information about the interfaces that are associated with *all* the device
                 // information elements in DeviceInfoSet
@@ -348,7 +341,7 @@ impl Iterator for DeviceInfoSet {
                 // requested interface.
                 &GUID_DEVINTERFACE_CDROM as *const _,
                 // A zero-based index into the list of interfaces in the device information set.
-                self.current_member,
+                index.strict_cast(),
                 // A pointer to a caller-allocated buffer that contains, on successful return,
                 // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
                 // that meets the search parameters.
@@ -364,12 +357,12 @@ impl Iterator for DeviceInfoSet {
         // fails and GetLastError returns ERROR_NO_MORE_ITEMS
         let err = io::Error::last_os_error();
         match (get_data, err.raw_os_error()) {
-            (0, Some(ERROR_NO_MORE_ITEMS)) => None,
+            (0, Some(ERROR_NO_MORE_ITEMS)) => Ok(None),
             (0, _) => {
-                tracing::error!(self.current_member, %err, "failed to get data about device");
-                None
+                tracing::error!(index, %err, "failed to get data about device");
+                Err(err)
             }
-            _ => Some(deviceinterfacedata),
+            _ => Ok(Some(deviceinterfacedata)),
         }
     }
 }
