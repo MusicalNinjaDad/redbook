@@ -1,6 +1,8 @@
 use std::ops::{FromResidual, Residual, Try};
 
-use crate::win::bindings::{FILE_DEVICE_CD_ROM, IOCTL_STORAGE_GET_DEVICE_NUMBER};
+use crate::win::bindings::{
+    FILE_DEVICE_CD_ROM, IOCTL_STORAGE_GET_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+};
 
 use super::*;
 /// A open file handle which is known to point to a valid drive.
@@ -24,6 +26,7 @@ pub struct DriveHandle(HANDLE);
 // SAFETY: See documentation comment
 unsafe impl Send for DriveHandle {}
 
+// TODO: FIX SAFETY requirements of as_handle, as_handle_mut, CreateFile2
 impl Drop for DriveHandle {
     fn drop(&mut self) {
         #[expect(unsafe_code, reason = "ffi call")]
@@ -188,13 +191,107 @@ impl Residual<DriveHandle> for InvalidHandle {
     type TryType = DriveHandle;
 }
 
-trait WinHandle {
+trait IntoDriveHandle {
+    // TODO unsafe
     fn into_drive_handle(self) -> DriveHandle;
 }
 
-impl WinHandle for HANDLE {
+impl IntoDriveHandle for HANDLE {
     #[inline]
     fn into_drive_handle(self) -> DriveHandle {
         DriveHandle(self)
+    }
+}
+
+#[derive(Debug)]
+pub struct DeviceInfoSet(HDEVINFO);
+
+// TODO: Extend Safety requirements for SetupDiGetClassDevs
+impl Drop for DeviceInfoSet {
+    /// Ensures that list is correctly destroyed as per
+    /// https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw#remarks
+    ///
+    /// Which requires that the caller of SetupDiGetClassDevs must delete the returned device
+    /// information set when it is no longer needed by calling SetupDiDestroyDeviceInfoList.
+    fn drop(&mut self) {
+        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY: handle
+        // - is of correct type, based on type-safe wrapper
+        // - has not been closed (see safety sections for [as_handle_mut] & [as_handle])
+        // - has not been externally mutated (see safety section for [as_handle_mut])
+        unsafe {
+            SetupDiDestroyDeviceInfoList(self.0 as *mut _);
+        }
+        // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
+    }
+}
+
+pub trait IntoDeviceInfoSet {
+    /// Stores the handle as a DeviceInfoSet with associated type-safety, drop and try implementations
+    ///
+    /// # SAFETY
+    ///
+    /// Implementation must only be performed on types which can represent handles to device
+    /// information sets
+    #[expect(
+        unsafe_code,
+        reason = "caller must guarantee correctness of wrapped handle"
+    )]
+    unsafe fn into_deviceinfoset(self) -> DeviceInfoSet;
+}
+
+impl IntoDeviceInfoSet for HDEVINFO {
+    #[inline]
+    #[expect(
+        unsafe_code,
+        reason = "caller must guarantee correctness of wrapped handle"
+    )]
+    /// Stores the handle as a DeviceInfoSet with associated type-safety, drop and try implementations
+    ///
+    /// # SAFETY
+    ///
+    /// Callers must ensure that the wrapped handle is either:
+    /// - an open handle to a device information set
+    /// - or INVALID_HANDLE_VALUE from a failed attempt to obtain a handle to a device information set
+    unsafe fn into_deviceinfoset(self) -> DeviceInfoSet {
+        DeviceInfoSet(self)
+    }
+}
+
+impl Try for DeviceInfoSet {
+    type Output = DeviceInfoSet;
+
+    type Residual = InvalidHandle;
+
+    #[inline]
+    fn from_output(output: Self::Output) -> Self {
+        output
+    }
+
+    #[inline]
+    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
+        if self.0 == INVALID_HANDLE_VALUE {
+            std::ops::ControlFlow::Break(InvalidHandle)
+        } else {
+            std::ops::ControlFlow::Continue(self)
+        }
+    }
+}
+
+impl FromResidual<InvalidHandle> for DeviceInfoSet {
+    #[inline]
+    fn from_residual(_: InvalidHandle) -> Self {
+        Self(INVALID_HANDLE_VALUE)
+    }
+}
+
+impl Residual<DeviceInfoSet> for InvalidHandle {
+    type TryType = DeviceInfoSet;
+}
+
+impl DeviceInfoSet {
+    #[expect(unsafe_code, reason = "must not be closed, cloned")]
+    pub unsafe fn as_handle(&self) -> &HDEVINFO {
+        &self.0
     }
 }

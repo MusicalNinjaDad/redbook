@@ -24,6 +24,7 @@ use super::{
     convert::{Guid, Sector, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
+use crate::win::drive::handle::{DeviceInfoSet, IntoDeviceInfoSet};
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
@@ -289,7 +290,7 @@ pub struct CdDrives {
     /// # SAFETY:
     /// Must be a valid handle (pointer *mut c_void) to device information set.
     /// Can only be constructed via [`all_drives`] which ensures this is upheld.
-    deviceinfoset: HDEVINFO,
+    deviceinfoset: DeviceInfoSet,
     /// Index of next element to retrieve from deviceinfoset.
     /// `u32` as this is what the ffi calls use.
     current_index: u32 = 0,
@@ -300,7 +301,7 @@ impl Iterator for CdDrives {
 
     fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
-        let deviceinfoset = self.deviceinfoset;
+        let deviceinfoset = &self.deviceinfoset;
         self.current_index += 1;
         let debug = tracing::debug_span!(
             "next drive",
@@ -319,6 +320,10 @@ impl Iterator for CdDrives {
         };
 
         #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inlined call to as_handle()"
+        )]
         // SAFETY: inline based on
         // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
         let get_data = unsafe {
@@ -326,8 +331,8 @@ impl Iterator for CdDrives {
                 // A pointer to a device information set that contains the device
                 // interfaces for which to return information.
                 //
-                // SAFETY: Known to be a valid handle as this comes from non-public field in Self
-                deviceinfoset,
+                // SAFETY: Known to be a valid handle based on typed wrapper
+                *deviceinfoset.as_handle(),
                 // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
                 // information about the interfaces that are associated with *all* the device
                 // information elements in DeviceInfoSet
@@ -366,6 +371,10 @@ impl Iterator for CdDrives {
         let mut requiredsize: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inlined call to as_handle()"
+        )]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         //
         // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a
@@ -375,7 +384,7 @@ impl Iterator for CdDrives {
         // returning ERROR_INSUFFICIENT_BUFFER.
         let get_required_buffer_size = unsafe {
             SetupDiGetDeviceInterfaceDetailW(
-                deviceinfoset,
+                *deviceinfoset.as_handle(),
                 &deviceinterfacedata as *const _,
                 // a NULLDeviceInterfaceDetailData pointer
                 null_mut(),
@@ -414,12 +423,16 @@ impl Iterator for CdDrives {
         let mut deviceinterfacedetaildata = DeviceDetails::default();
 
         #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inlined call to as_handle()"
+        )]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         let get_details = unsafe {
             SetupDiGetDeviceInterfaceDetailW(
                 // A pointer to a device information set that contains the device
                 // interfaces for which to return information.
-                deviceinfoset,
+                *deviceinfoset.as_handle(),
                 // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
                 // in DeviceInfoSet for which to retrieve details. A pointer of this type is
                 // typically returned by SetupDiEnumDeviceInterfaces.
@@ -565,6 +578,10 @@ pub fn all_drives() -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
     #[expect(unsafe_code, reason = "ffi call")]
+    #[expect(
+        clippy::multiple_unsafe_ops_per_block,
+        reason = "directly type-safe wrapped via into_deviceinfoset"
+    )]
     // SAFETY: inline based on:
     // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
     let deviceinfoset = unsafe {
@@ -587,16 +604,10 @@ pub fn all_drives() -> io::Result<CdDrives> {
             // - DIGCF_PRESENT: Return only devices that are currently present in a system.
             DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
         )
-    };
+        .into_deviceinfoset()
+    }
+    .or_warn("invalid handle")?;
     debug.record("handle", format!("{deviceinfoset:?}"));
-
-    // If the operation succeeds, SetupDiGetClassDevs returns a handle to a device information
-    // set that contains all installed devices that matched the supplied parameters. If the
-    // operation fails, the function returns INVALID_HANDLE_VALUE. To get extended error
-    // information, call GetLastError.
-    (deviceinfoset != INVALID_HANDLE_VALUE)
-        .ok_or_else(io::Error::last_os_error)
-        .or_warn("invalid handle")?;
 
     tracing::debug!("got device infoset");
     Ok(CdDrives { deviceinfoset, .. })
