@@ -315,7 +315,28 @@ impl DeviceInfoSet {
         Ok(handle)
     }
 
-    fn get_member(&self, index: usize) -> io::Result<Option<SP_DEVICE_INTERFACE_DATA>> {
+    /// Get the detail data for a given member of the device information set
+    pub fn get_member(
+        &self,
+        index: usize,
+    ) -> io::Result<Option<SP_DEVICE_INTERFACE_DETAIL_DATA_W>> {
+        // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
+        // and wrap each step in a private function to try and preserve our, and your, sanity.
+
+        let interface_data = match self.get_interface_data(index.strict_cast())? {
+            Some(data) => data,
+            None => return Ok(None),
+        };
+        todo!()
+    }
+
+    /// Provides the basic information required to be able to get detail data for a given member.
+    ///
+    /// Returns `Ok(None)` if the member does not exist.
+    fn get_interface_data(&self, memberindex: u32) -> io::Result<Option<SP_DEVICE_INTERFACE_DATA>> {
+        let _span =
+            tracing::error_span!("DeviceInfoSet::get_interface_data", memberindex).entered();
+
         // SAFETY: The caller must set DeviceInterfaceData.cbSize to sizeof(SP_DEVICE_INTERFACE_DATA)
         // before calling SetupDiEnumDeviceInterfaces
         let mut deviceinterfacedata = SP_DEVICE_INTERFACE_DATA {
@@ -341,7 +362,7 @@ impl DeviceInfoSet {
                 // requested interface.
                 &GUID_DEVINTERFACE_CDROM as *const _,
                 // A zero-based index into the list of interfaces in the device information set.
-                index.strict_cast(),
+                memberindex,
                 // A pointer to a caller-allocated buffer that contains, on successful return,
                 // a completed SP_DEVICE_INTERFACE_DATA structure that identifies an interface
                 // that meets the search parameters.
@@ -353,16 +374,19 @@ impl DeviceInfoSet {
             )
         };
 
-        // repeatedly increment MemberIndex and retrieve an interface until this function
-        // fails and GetLastError returns ERROR_NO_MORE_ITEMS
+        // "repeatedly increment MemberIndex and retrieve an interface until this function
+        // fails and GetLastError returns ERROR_NO_MORE_ITEMS"
         let err = io::Error::last_os_error();
         match (get_data, err.raw_os_error()) {
             (0, Some(ERROR_NO_MORE_ITEMS)) => Ok(None),
             (0, _) => {
-                tracing::error!(index, %err, "failed to get data about device");
+                tracing::error!(%err, "failed to get data about device");
                 Err(err)
             }
-            _ => Ok(Some(deviceinterfacedata)),
+            _ => {
+                tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid), "got data for device");
+                Ok(Some(deviceinterfacedata))
+            }
         }
     }
 }
