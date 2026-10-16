@@ -13,10 +13,10 @@ use crate::win::{
     bindings::{
         CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
         ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
-        GENERIC_READ, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
-        IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, SP_DEVICE_INTERFACE_DATA,
-        SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
-        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+        OPEN_EXISTING, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+        STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces,
+        SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
     convert::{Guid, WinString},
     drive::DeviceDetails,
@@ -210,7 +210,10 @@ impl IntoDriveHandle for HANDLE {
 }
 
 #[derive(Debug)]
-pub struct DeviceInfoSet(HDEVINFO);
+pub struct DeviceInfoSet {
+    handle: HDEVINFO,
+    class: Guid,
+}
 
 // TODO: Extend Safety requirements for SetupDiGetClassDevs
 impl Drop for DeviceInfoSet {
@@ -226,45 +229,9 @@ impl Drop for DeviceInfoSet {
         // - has not been closed (see safety sections for [as_handle_mut] & [as_handle])
         // - has not been externally mutated (see safety section for [as_handle_mut])
         unsafe {
-            SetupDiDestroyDeviceInfoList(self.0 as *mut _);
+            SetupDiDestroyDeviceInfoList(self.handle as *mut _);
         }
         // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
-    }
-}
-
-pub trait IntoDeviceInfoSet {
-    /// Stores the handle as a DeviceInfoSet with associated type-safety, drop and try implementations
-    ///
-    /// # SAFETY
-    ///
-    /// Implementation must only be performed on types which can represent handles to device
-    /// information sets
-    #[expect(
-        unsafe_code,
-        reason = "caller must guarantee correctness of wrapped handle"
-    )]
-    unsafe fn into_deviceinfoset(self) -> io::Result<DeviceInfoSet>;
-}
-
-impl IntoDeviceInfoSet for HDEVINFO {
-    #[inline]
-    #[expect(
-        unsafe_code,
-        reason = "caller must guarantee correctness of wrapped handle"
-    )]
-    /// Stores the handle as a DeviceInfoSet with associated type-safety, drop and try implementations
-    ///
-    /// # SAFETY
-    ///
-    /// Callers must ensure that the wrapped handle is either:
-    /// - an open handle to a device information set
-    /// - or INVALID_HANDLE_VALUE from a failed attempt to obtain a handle to a device information set
-    unsafe fn into_deviceinfoset(self) -> io::Result<DeviceInfoSet> {
-        if self == INVALID_HANDLE_VALUE {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(DeviceInfoSet(self))
-        }
     }
 }
 
@@ -274,10 +241,6 @@ impl DeviceInfoSet {
             tracing::error_span!("DeviceInfoSet::for_device_class", %class).entered();
 
         #[expect(unsafe_code, reason = "ffi call")]
-        #[expect(
-            clippy::multiple_unsafe_ops_per_block,
-            reason = "directly type-safe wrapped via into_deviceinfoset"
-        )]
         // SAFETY:
         // 1. SetupDiGetClassDevsW returns a handle to a device information set that contains all
         //    installed devices that matched the supplied parameters.
@@ -304,10 +267,12 @@ impl DeviceInfoSet {
                 // - DIGCF_PRESENT: Return only devices that are currently present in a system.
                 DIGCF_DEVICEINTERFACE as u32 | DIGCF_PRESENT as u32,
             )
-            .into_deviceinfoset()
+        };
+        if handle == INVALID_HANDLE_VALUE {
+            Err(io::Error::last_os_error()).or_warn("invalid handle")?
+        } else {
+            Ok(Self { handle, class })
         }
-        .or_warn("invalid handle")?;
-        Ok(handle)
     }
 
     /// Get the detail data for a given member of the device information set
@@ -352,14 +317,14 @@ impl DeviceInfoSet {
                 // interfaces for which to return information.
                 //
                 // SAFETY: Known to be a valid handle based on typed wrapper
-                self.0,
+                self.handle,
                 // If this parameter is NULL, repeated calls to SetupDiEnumDeviceInterfaces return
                 // information about the interfaces that are associated with *all* the device
                 // information elements in DeviceInfoSet
                 null(),
                 // A pointer to a GUID that specifies the device interface class for the
                 // requested interface.
-                &GUID_DEVINTERFACE_CDROM as *const _, // TODO: FIX HARDOCDING
+                &self.class.0 as *const _,
                 // A zero-based index into the list of interfaces in the device information set.
                 memberindex,
                 // A pointer to a caller-allocated buffer that contains, on successful return,
@@ -404,7 +369,7 @@ impl DeviceInfoSet {
         // returning ERROR_INSUFFICIENT_BUFFER.
         let get_required_buffer_size = unsafe {
             SetupDiGetDeviceInterfaceDetailW(
-                self.0,
+                self.handle,
                 member,
                 // a NULLDeviceInterfaceDetailData pointer
                 null_mut(),
@@ -463,7 +428,7 @@ impl DeviceInfoSet {
             SetupDiGetDeviceInterfaceDetailW(
                 // A pointer to a device information set that contains the device
                 // interfaces for which to return information.
-                self.0,
+                self.handle,
                 // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
                 // in DeviceInfoSet for which to retrieve details. A pointer of this type is
                 // typically returned by SetupDiEnumDeviceInterfaces.

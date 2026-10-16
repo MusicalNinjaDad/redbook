@@ -1,6 +1,6 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use super::bindings::GUID;
 use crate::{Frame, win::bindings::PCWSTR};
@@ -19,6 +19,14 @@ impl PartialEq for Guid {
 }
 
 impl Eq for Guid {}
+
+impl Debug for Guid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Guid")
+            .field(&format_args!("{self}"))
+            .finish()
+    }
+}
 
 impl Display for Guid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
