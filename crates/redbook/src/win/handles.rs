@@ -11,15 +11,17 @@ use tracing_result::Trace;
 use crate::test_fixtures::albums::TestAlbum;
 use crate::win::{
     bindings::{
-        BOOL, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
-        ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
-        GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_STORAGE_GET_DEVICE_NUMBER,
-        OPEN_EXISTING, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-        STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces,
-        SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        BOOL, CDROM_READ_TOC_EX, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
+        DeviceIoControl, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM,
+        FILE_SHARE_READ, GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
+        IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING,
+        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
+        SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+        SetupDiGetDeviceInterfaceDetailW,
     },
     convert::{Guid, WinString},
     drive::DeviceDetails,
+    toc::CDROM_TOC,
 };
 
 /// A open file handle which can be validated with `?` to ensure it is valid and refers to a drive
@@ -90,7 +92,7 @@ impl DriveHandle {
         let info = self.device_number()?;
 
         let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
-        
+
         Ok(path)
     }
 
@@ -141,6 +143,54 @@ impl DriveHandle {
             bytes_returned,
         )?;
         Ok(device)
+    }
+
+    /// Read the Table of Contents from the disc.
+    /// 
+    /// # Errors
+    /// 
+    /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
+    pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {
+            SessionTrack: 1,
+            ..Default::default()
+        };
+
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let mut toc: CDROM_TOC = CDROM_TOC::default();
+        let mut bytes_read: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call to read toc")]
+        unsafe {
+            // SAFETY: inline based on
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
+            DeviceIoControl(
+                // handle is valid for a CD_ROM_DRIVE. The only public way to construct a
+                // DeviceHandle includes validation
+                self.0,
+                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
+                // points to a buffer of type CDROM_READ_TOC_EX
+                &toc_command as *const _ as *const _,
+                // indicates the size, in bytes, of the input buffer,
+                // which must be >= sizeof(CDROM_READ_TOC_EX).
+                const { size_of::<CDROM_READ_TOC_EX>().strict_cast() },
+                // CDROM_READ_TOC_EX does not allow setting `Format` but
+                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
+                // The output data is reported in a CDROM_TOC structure.
+                &mut toc as *mut _ as *mut _,
+                const { size_of::<CDROM_TOC>().strict_cast() },
+                &mut bytes_read as *mut _,
+                null_mut(),
+            )
+        }
+        .validate(
+            Some(const { size_of::<CDROM_TOC>().strict_cast() }),
+            bytes_read,
+        )?;
+        Ok(toc)
     }
 }
 
