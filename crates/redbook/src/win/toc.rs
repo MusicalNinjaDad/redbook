@@ -8,8 +8,6 @@
 
 use std::{fs, io, path::Path};
 
-use std::ptr::null_mut;
-
 use cdtoc::{Toc, TocError};
 use tracing_result::Trace;
 
@@ -17,8 +15,6 @@ pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
 use crate::win::handles::DriveHandle;
 use crate::{Control, Frame, LEADIN, Msf, TocEntry, Track};
-
-use super::bindings::{CDROM_READ_TOC_EX, DeviceIoControl, IOCTL_CDROM_READ_TOC_EX};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -29,46 +25,7 @@ pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 impl CDROM_TOC {
     /// Load from disc
     pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
-        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
-        // call to `DeviceIoControl` below
-        let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {
-            SessionTrack: 1,
-            ..Default::default()
-        };
-
-        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
-        // call to `DeviceIoControl` below
-        let mut toc: CDROM_TOC = CDROM_TOC::default();
-        let mut bytes_read: u32 = 0;
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        #[expect(clippy::multiple_unsafe_ops_per_block, reason = "obtain HANDLE inline")]
-        let read_toc = unsafe {
-            // SAFETY: inline based on
-            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
-            DeviceIoControl(
-                // valid handle - upheld by DriveHandle
-                *handle.as_handle(),
-                const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
-                // points to a buffer of type CDROM_READ_TOC_EX
-                &toc_command as *const _ as *const _,
-                // indicates the size, in bytes, of the input buffer,
-                // which must be >= sizeof(CDROM_READ_TOC_EX).
-                const { size_of::<CDROM_READ_TOC_EX>().strict_cast() },
-                // CDROM_READ_TOC_EX does not allow setting `Format` but
-                // `CDROM_READ_TOC_EX_FORMAT_TOC` is `0` (default) whereby
-                // The output data is reported in a CDROM_TOC structure.
-                &mut toc as *mut _ as *mut _,
-                const { size_of::<CDROM_TOC>().strict_cast() },
-                &mut bytes_read as *mut _,
-                null_mut(),
-            )
-        };
-        let _error_span = tracing::error_span!("reading TOC", bytes_read).entered();
-        (read_toc != 0)
-            .ok_or_else(io::Error::last_os_error)
-            .or_error("")?;
-        Ok(toc)
+        handle.read_toc()
     }
 
     /// Returns the full size, in bytes of the data-carrying part of the struct.

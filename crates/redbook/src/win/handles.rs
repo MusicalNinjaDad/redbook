@@ -146,9 +146,9 @@ impl DriveHandle {
     }
 
     /// Read the Table of Contents from the disc.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
     pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
