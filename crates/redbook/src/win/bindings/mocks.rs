@@ -7,7 +7,6 @@ use std::{io, slice};
 use super::super::{
     MAX_PATH_CHARS,
     convert::{Guid, WinString},
-    drive::DeviceDetails,
     toc::CDROM_TOC,
 };
 use super::bindgen::{
@@ -20,6 +19,7 @@ use super::{
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
 use crate::win::bindings::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
+use crate::win::handles::DeviceDetails;
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;

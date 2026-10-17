@@ -1,9 +1,8 @@
 //! Handles direct hardware access via Windows APIs
 
 use std::{
-    fmt::{Debug, Display},
+    fmt::Debug,
     io::{self, ErrorKind},
-    mem::offset_of,
     path::{Path, PathBuf},
 };
 
@@ -11,8 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::{
-    MAX_PATH_CHARS,
-    bindings::{GUID_DEVINTERFACE_CDROM, SP_DEVICE_INTERFACE_DETAIL_DATA_W},
+    bindings::GUID_DEVINTERFACE_CDROM,
     convert::{Guid, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
@@ -26,7 +24,7 @@ use crate::test_fixtures::albums::TestAlbum;
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
 use crate::{
     Frame,
-    win::handles::{DeviceInfoSet, DriveHandle},
+    win::handles::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 
 #[expect(
@@ -232,90 +230,6 @@ impl Iterator for CdDrives {
                 None
             }
         }
-    }
-}
-
-#[repr(C)]
-#[cfg(any(
-    target_arch = "aarch64",
-    target_arch = "arm64ec",
-    target_arch = "x86_64"
-))]
-#[expect(nonstandard_style, reason = "mimic C++ struct")]
-/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
-///
-/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
-///
-/// A real example of such a path is:
-/// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct DeviceDetails {
-    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
-}
-
-#[repr(C, packed(1))]
-#[cfg(target_arch = "x86")]
-#[expect(nonstandard_style, reason = "mimic C++ struct")]
-/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct DeviceDetails {
-    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
-}
-
-const _: () = {
-    assert!(align_of::<DeviceDetails>() == align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
-    assert!(
-        offset_of!(DeviceDetails, DevicePath)
-            == offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
-    );
-};
-
-impl DeviceDetails {
-    /// Validate that the buffer provided by `DeviceDetails` is sufficient.
-    ///
-    /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
-    /// get the required size, then to call `check_size` before using DeviceDetails to store the
-    /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    pub fn check_size(requiredsize: u32) -> io::Result<()> {
-        (requiredsize <= size_of::<Self>() as u32)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
-    }
-
-    /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
-    pub fn path(&self) -> WinString {
-        WinString::from(self.DevicePath.as_slice())
-    }
-
-    /// Set the path. Returns the number of u16 "words" stored on success, or
-    /// `ErrorKind::InvalidData` if the provided path is too large.
-    pub(super) fn set_path(&mut self, path: &WinString) -> io::Result<usize> {
-        let len = path.as_words().len();
-        (len < self.DevicePath.len()).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "path too long: can only store {MAX_PATH_CHARS} words, received {len} words"
-                ),
-            )
-        })?;
-        self.DevicePath[..len].copy_from_slice(path.as_words());
-        Ok(len)
-    }
-}
-
-impl Display for DeviceDetails {
-    /// Output the path, parsing correctly as null-terminated utf16
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let len = self
-            .DevicePath
-            .iter()
-            .position(|c| *c == 0)
-            .unwrap_or(self.DevicePath.len());
-        Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
     }
 }
 
