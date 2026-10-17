@@ -81,6 +81,57 @@ impl DriveHandle {
         .into_drive_handle()
         .or_error("getting handle for drive")?;
         tracing::debug!(?handle, "opened successfully");
+
+        let mut device = STORAGE_DEVICE_NUMBER::default();
+        let mut bytes_returned = 0;
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        let check_device_type = unsafe {
+            // SAFETY: inline based on
+            // - https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
+            // - https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+            DeviceIoControl(
+                // known valid handle for a storage device, opened and checked above
+                handle.0,
+                // control code (bindgen creates i32, function requires u32)
+                const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast() },
+                // null pointer - no input buffer
+                null(),
+                // 0 size - no input buffer
+                0,
+                // output is a STORAGE_DEVICE_NUMBER
+                &mut device as *mut _ as *mut _,
+                const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() },
+                &mut bytes_returned,
+                // optional - not using overlapped operations
+                null_mut(),
+            )
+        };
+        if check_device_type == 0 {
+            let err = io::Error::last_os_error();
+            tracing::warn!(%err, "checking device type");
+            return Err(err);
+        }
+        if bytes_returned != const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast::<u32>() } {
+            let err = io::Error::new(
+                ErrorKind::UnexpectedEof,
+                format!(
+                    "expected {bytes_expected} bytes, received {bytes_returned}",
+                    bytes_expected = size_of::<STORAGE_DEVICE_NUMBER>()
+                ),
+            );
+            tracing::warn!(%err, "checking device type");
+            return Err(err);
+        }
+        if device.DeviceType != const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() } {
+            let err = io::Error::new(
+                ErrorKind::Unsupported,
+                format!("{path} does not represent a device capable of handling CDROMs"),
+            );
+            tracing::warn!(%err, device.DeviceType, "checking device type");
+            return Err(err);
+        }
+
         Ok(handle)
     }
 
