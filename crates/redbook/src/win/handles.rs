@@ -87,49 +87,10 @@ impl DriveHandle {
     /// get a currently valid file-system path, not valid across reboots but can be passed
     /// to [`std::fs::read_dir`] etc.
     pub fn fs_path(&self) -> io::Result<PathBuf> {
-        let mut info: STORAGE_DEVICE_NUMBER = Default::default();
-        let mut bytes_returned: u32 = 0;
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        let get_info = unsafe {
-            // SAFETY:
-            // - handle known to be valid, owned by Self
-            // - IOCTL_STORAGE_GET_DEVICE_NUMBER does not require input
-            // - output buffer of type STORAGE_DEVICE_NUMBER
-            // - bytes returned is not NULL
-            // - not overlapped
-            DeviceIoControl(
-                self.0,
-                const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast_unsigned() },
-                null(),
-                0,
-                &mut info as *mut _ as *mut _,
-                const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() },
-                &mut bytes_returned as *mut _,
-                null_mut(),
-            )
-        };
-        (get_info != 0)
-            .ok_or_else(io::Error::last_os_error)
-            .or_warn("unable to get meaningful drive details")?;
-
-        (bytes_returned == const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast::<u32>() })
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "wrong number of bytes received. Expected {correct} got {bytes_returned}",
-                        correct = const { size_of::<STORAGE_DEVICE_NUMBER>() }
-                    ),
-                )
-            })
-            .or_error("")?;
-
-        (info.DeviceType == const { FILE_DEVICE_CD_ROM.strict_cast_unsigned() })
-            .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "Invalid device type"))
-            .or_warn("not a CDROM")?;
+        let info = self.device_number()?;
 
         let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
+        
         Ok(path)
     }
 
