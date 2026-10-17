@@ -275,6 +275,7 @@ pub unsafe fn DeviceIoControl(
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
             unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+            unsafe { *lpbytesreturned = size_of_val(&toc).strict_cast() };
         }
         IOCTL_STORAGE_GET_DEVICE_NUMBER => {
             let info = STORAGE_DEVICE_NUMBER {
