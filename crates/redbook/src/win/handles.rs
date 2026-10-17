@@ -11,7 +11,7 @@ use tracing_result::Trace;
 use crate::test_fixtures::albums::TestAlbum;
 use crate::win::{
     bindings::{
-        CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
+        BOOL, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl,
         ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
         GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_STORAGE_GET_DEVICE_NUMBER,
         OPEN_EXISTING, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
@@ -85,8 +85,8 @@ impl DriveHandle {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 
-        #[expect(unsafe_code, reason = "ffi call")]
-        let check_device_type = unsafe {
+        #[expect(unsafe_code, reason = "ffi call to get device type")]
+        unsafe {
             // SAFETY: inline based on
             // - https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
             // - https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
@@ -106,23 +106,12 @@ impl DriveHandle {
                 // optional - not using overlapped operations
                 null_mut(),
             )
-        };
-        if check_device_type == 0 {
-            let err = io::Error::last_os_error();
-            tracing::warn!(%err, "checking device type");
-            return Err(err);
         }
-        if bytes_returned != const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast::<u32>() } {
-            let err = io::Error::new(
-                ErrorKind::UnexpectedEof,
-                format!(
-                    "expected {bytes_expected} bytes, received {bytes_returned}",
-                    bytes_expected = size_of::<STORAGE_DEVICE_NUMBER>()
-                ),
-            );
-            tracing::warn!(%err, "checking device type");
-            return Err(err);
-        }
+        .validate(
+            Some(const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() }),
+            bytes_returned,
+        )?;
+
         if device.DeviceType != const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() } {
             let err = io::Error::new(
                 ErrorKind::Unsupported,
@@ -198,6 +187,33 @@ impl DriveHandle {
     )]
     pub unsafe fn as_handle(&self) -> &HANDLE {
         &self.0
+    }
+}
+
+trait IoControl {
+    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> io::Result<()>;
+}
+
+impl IoControl for BOOL {
+    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> io::Result<()> {
+        let _span = tracing::error_span!("DeviceIoControl::validate", return_code = self, ?bytes_expected, %bytes_returned).entered();
+
+        (*self != 0)
+            .ok_or_else(io::Error::last_os_error)
+            .or_warn("error calling DeviceIoControl")?;
+
+        if let Some(bytes_expected) = bytes_expected {
+            (bytes_returned == bytes_expected)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        ErrorKind::UnexpectedEof,
+                        format!("expected {bytes_expected} bytes, received {bytes_returned}"),
+                    )
+                })
+                .or_warn("error calling DeviceIoControl")?;
+        };
+
+        Ok(())
     }
 }
 
