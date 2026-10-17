@@ -22,14 +22,13 @@ use crate::win::{
     drive::DeviceDetails,
 };
 
-/// A open file handle which is known to either:
-/// - point to a valid drive able to process CD_ROM IOCTL codes, or
-/// - be an invalid, unopened handle (can be validated with `?`)
+/// A open file handle which can be validated with `?` to ensure it is valid and refers to a drive
+/// able to process CD_ROM IOCTL codes.
 ///
 /// # SAFETY guarantees provided
 /// - Stored handle is not publicly accessible.
 /// - Handle is closed on Drop.
-/// - Can only be created via provided functions ensuring handle validity.
+/// - Can only be publically created via [open][Self::open] which validates the handle.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DriveHandle(HANDLE);
 
@@ -81,45 +80,6 @@ impl DriveHandle {
         .into_drive_handle()
         .or_error("getting handle for drive")?;
         tracing::debug!(?handle, "opened successfully");
-
-        let mut device = STORAGE_DEVICE_NUMBER::default();
-        let mut bytes_returned = 0;
-
-        #[expect(unsafe_code, reason = "ffi call to get device type")]
-        unsafe {
-            // SAFETY: inline based on
-            // - https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
-            // - https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
-            DeviceIoControl(
-                // known valid handle for a storage device, opened and checked above
-                handle.0,
-                // control code (bindgen creates i32, function requires u32)
-                const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast() },
-                // null pointer - no input buffer
-                null(),
-                // 0 size - no input buffer
-                0,
-                // output is a STORAGE_DEVICE_NUMBER
-                &mut device as *mut _ as *mut _,
-                const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() },
-                &mut bytes_returned,
-                // optional - not using overlapped operations
-                null_mut(),
-            )
-        }
-        .validate(
-            Some(const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() }),
-            bytes_returned,
-        )?;
-
-        if device.DeviceType != const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() } {
-            let err = io::Error::new(
-                ErrorKind::Unsupported,
-                format!("{path} does not represent a device capable of handling CDROMs"),
-            );
-            tracing::warn!(%err, device.DeviceType, "checking device type");
-            return Err(err);
-        }
 
         Ok(handle)
     }
@@ -188,6 +148,39 @@ impl DriveHandle {
     pub unsafe fn as_handle(&self) -> &HANDLE {
         &self.0
     }
+
+    pub fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
+        let mut device = STORAGE_DEVICE_NUMBER::default();
+        let mut bytes_returned = 0;
+
+        #[expect(unsafe_code, reason = "ffi call to get device type")]
+        unsafe {
+            // SAFETY: inline based on
+            // - https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
+            // - https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+            DeviceIoControl(
+                // known valid handle for a storage device, opened and checked above
+                self.0,
+                // control code (bindgen creates i32, function requires u32)
+                const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast() },
+                // null pointer - no input buffer
+                null(),
+                // 0 size - no input buffer
+                0,
+                // output is a STORAGE_DEVICE_NUMBER
+                &mut device as *mut _ as *mut _,
+                const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() },
+                &mut bytes_returned,
+                // optional - not using overlapped operations
+                null_mut(),
+            )
+        }
+        .validate(
+            Some(const { size_of::<STORAGE_DEVICE_NUMBER>().strict_cast() }),
+            bytes_returned,
+        )?;
+        Ok(device)
+    }
 }
 
 trait IoControl {
@@ -243,7 +236,17 @@ impl Try for DriveHandle {
         if self.0 == INVALID_HANDLE_VALUE {
             std::ops::ControlFlow::Break(InvalidHandle)
         } else {
-            std::ops::ControlFlow::Continue(self)
+            match self.device_number() {
+                Ok(device)
+                    if device.DeviceType == const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() } =>
+                {
+                    std::ops::ControlFlow::Continue(self)
+                }
+                _ => {
+                    tracing::warn!("device is support a CDROM drive");
+                    std::ops::ControlFlow::Break(InvalidHandle)
+                }
+            }
         }
     }
 }
