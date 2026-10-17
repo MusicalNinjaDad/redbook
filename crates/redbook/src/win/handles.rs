@@ -1,6 +1,69 @@
+/// Contains and seals the only way to create a DriveHandle, thus enforcing invariants.
+mod safety {
+    use super::*;
+    /// A open file handle which can only be created by calling
+    /// [`into_drive_handle`][HANDLE::into_drive_handle], thus ensuring invariants are upheld.
+    ///
+    /// # SAFETY guarantees provided
+    /// - Stored handle is not publicly accessible.
+    /// - Handle is closed on Drop.
+    /// - Can only be publically created via [open][Self::open] which validates the handle.
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct DriveHandle(HANDLE);
+
+    impl DriveHandle {
+        /// Allows (only) `super` to implement safe wrappers around ffi calls which require the
+        /// underlying [`HANDLE`]
+        ///
+        /// # SAFETY
+        ///
+        /// Callers must ensure that the raw handle is not:
+        /// - cloned
+        /// - copied
+        /// - closed
+        /// - shared between threads
+        #[expect(unsafe_code, reason = "handle must only used for passing to ffi")]
+        pub(super) unsafe fn handle(&self) -> &HANDLE {
+            &self.0
+        }
+    }
+
+    trait Sealed {}
+    impl Sealed for HANDLE {}
+
+    #[expect(private_bounds, reason = "sealed for safety")]
+    pub(super) trait IntoDriveHandle: Sealed {
+        fn into_drive_handle(self) -> io::Result<DriveHandle>;
+    }
+
+    impl IntoDriveHandle for HANDLE {
+        #[inline]
+        fn into_drive_handle(self) -> io::Result<DriveHandle> {
+            (self != INVALID_HANDLE_VALUE)
+                .ok_or_else(io::Error::last_os_error)
+                .or_warn("invalid handle")?;
+
+            let drivehandle = DriveHandle(self);
+            (drivehandle
+                .device_number()
+                .or_warn("unable to identify device type")?
+                .DeviceType
+                == const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() })
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::Unsupported,
+                    "Device does not support CDROM commands",
+                )
+            })
+            .or_warn("unsupported device")?;
+
+            Ok(drivehandle)
+        }
+    }
+}
+
 use std::{
     io::{self, ErrorKind},
-    ops::{FromResidual, Residual, Try},
     path::PathBuf,
     ptr::{null, null_mut},
 };
@@ -28,16 +91,9 @@ use crate::{
         toc::CDROM_TOC,
     },
 };
+use safety::IntoDriveHandle;
 
-/// A open file handle which can be validated with `?` to ensure it is valid and refers to a drive
-/// able to process CD_ROM IOCTL codes.
-///
-/// # SAFETY guarantees provided
-/// - Stored handle is not publicly accessible.
-/// - Handle is closed on Drop.
-/// - Can only be publically created via [open][Self::open] which validates the handle.
-#[derive(Debug, PartialEq, Eq)]
-pub struct DriveHandle(HANDLE);
+pub use safety::DriveHandle;
 
 /// # SAFETY
 /// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to
@@ -55,12 +111,16 @@ unsafe impl Send for DriveHandle {}
 impl Drop for DriveHandle {
     fn drop(&mut self) {
         #[expect(unsafe_code, reason = "ffi call")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inline call to get handle"
+        )]
         unsafe {
             // SAFETY: handle
             // - was opened and validated in `open()`
             // - has not been closed (no such methods provided on Self)
             // - has not been externally mutated (no such methods provided on Self)
-            CloseHandle(self.0 as *mut _);
+            CloseHandle(*self.handle() as *mut _);
         }
         // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
     }
@@ -106,13 +166,17 @@ impl DriveHandle {
         let mut bytes_returned = 0;
 
         #[expect(unsafe_code, reason = "ffi call to get device type")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inline call to get handle"
+        )]
         unsafe {
             // SAFETY: inline based on
             // - https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
             // - https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
             DeviceIoControl(
                 // known valid handle for a storage device, opened and checked above
-                self.0,
+                *self.handle(),
                 // control code (bindgen creates i32, function requires u32)
                 const { IOCTL_STORAGE_GET_DEVICE_NUMBER.strict_cast() },
                 // null pointer - no input buffer
@@ -153,13 +217,17 @@ impl DriveHandle {
         let mut bytes_read: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call to read toc")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inline call to get handle"
+        )]
         unsafe {
             // SAFETY: inline based on
             // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
             DeviceIoControl(
                 // handle is valid for a CD_ROM_DRIVE. The only public way to construct a
                 // DeviceHandle includes validation
-                self.0,
+                *self.handle(),
                 const { IOCTL_CDROM_READ_TOC_EX.strict_cast_unsigned() },
                 // points to a buffer of type CDROM_READ_TOC_EX
                 &toc_command as *const _ as *const _,
@@ -223,11 +291,15 @@ impl DriveHandle {
         let mut bytes_read: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call to read raw cdda data")]
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inline call to get handle"
+        )]
         // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
         unsafe {
             DeviceIoControl(
                 // handle known valid thanks to type wrapper
-                self.0,
+                *self.handle(),
                 // handle known to represent drive able to process CDROM controls, thanks to type wrapper
                 const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },
                 // If the IOCTL is from user mode, Irp->AssociatedIrp.SystemBuffer contains a RAW_READ_INFO
@@ -287,69 +359,10 @@ impl TryFrom<&DriveHandle> for TestAlbum {
     type Error = io::Error;
 
     fn try_from(handle: &DriveHandle) -> Result<Self, Self::Error> {
-        handle.0.try_into()
-    }
-}
-
-pub struct InvalidHandle;
-
-impl Try for DriveHandle {
-    type Output = DriveHandle;
-
-    type Residual = InvalidHandle;
-
-    #[inline]
-    fn from_output(output: Self::Output) -> Self {
-        output
-    }
-
-    #[inline]
-    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
-        if self.0 == INVALID_HANDLE_VALUE {
-            std::ops::ControlFlow::Break(InvalidHandle)
-        } else {
-            match self.device_number() {
-                Ok(device)
-                    if device.DeviceType == const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() } =>
-                {
-                    std::ops::ControlFlow::Continue(self)
-                }
-                _ => {
-                    tracing::warn!("device is support a CDROM drive");
-                    std::ops::ControlFlow::Break(InvalidHandle)
-                }
-            }
-        }
-    }
-}
-
-impl FromResidual<InvalidHandle> for DriveHandle {
-    #[inline]
-    fn from_residual(_: InvalidHandle) -> Self {
-        Self(INVALID_HANDLE_VALUE)
-    }
-}
-
-impl<T> FromResidual<InvalidHandle> for io::Result<T> {
-    #[inline]
-    fn from_residual(_: InvalidHandle) -> Self {
-        Err(io::Error::last_os_error())
-    }
-}
-
-impl Residual<DriveHandle> for InvalidHandle {
-    type TryType = DriveHandle;
-}
-
-trait IntoDriveHandle {
-    // TODO unsafe
-    fn into_drive_handle(self) -> DriveHandle;
-}
-
-impl IntoDriveHandle for HANDLE {
-    #[inline]
-    fn into_drive_handle(self) -> DriveHandle {
-        DriveHandle(self)
+        #[expect(unsafe_code, reason = "mock handle")]
+        // SAFETY: mock handle
+        let h = unsafe { *handle.handle() };
+        h.try_into()
     }
 }
 
