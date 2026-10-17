@@ -13,7 +13,6 @@ use tracing_result::Trace;
 
 pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
-use crate::win::handles::DriveHandle;
 use crate::{Control, Frame, LEADIN, Msf, TocEntry, Track};
 
 /// size of `.cda` files
@@ -23,11 +22,6 @@ pub const CDA_LEN: usize = 0x2c;
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
 impl CDROM_TOC {
-    /// Load from disc
-    pub fn read_from(handle: &mut DriveHandle) -> io::Result<CDROM_TOC> {
-        handle.read_toc()
-    }
-
     /// Returns the full size, in bytes of the data-carrying part of the struct.
     ///
     /// While `Self.Length` indicates the length, in bytes, of the table of contents data, it does

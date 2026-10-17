@@ -96,8 +96,8 @@ impl CdDrive {
         let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
 
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
-        let mut handle = DriveHandle::open(windrive).or_error("")?;
-        let toc = CDROM_TOC::read_from(&mut handle)?;
+        let handle = DriveHandle::open(windrive).or_error("opening drive")?;
+        let toc = handle.read_toc().or_error("reading TOC")?;
         Ok(Self { path, handle, toc })
     }
 
@@ -271,8 +271,8 @@ impl TryFrom<DeviceDetails> for CdDrive {
     type Error = io::Error;
 
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
-        let mut handle = DriveHandle::open(device.path()).or_error("")?;
-        let toc = CDROM_TOC::read_from(&mut handle)?;
+        let handle = DriveHandle::open(device.path()).or_error("")?;
+        let toc = handle.read_toc()?;
         let path = handle.fs_path()?;
         Ok(Self { path, handle, toc })
     }
