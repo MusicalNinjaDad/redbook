@@ -22,12 +22,14 @@ use crate::win::{
     drive::DeviceDetails,
 };
 
-/// A open file handle which is known to point to a valid drive.
+/// A open file handle which is known to either:
+/// - point to a valid drive able to process CD_ROM IOCTL codes, or
+/// - be an invalid, unopened handle (can be validated with `?`)
 ///
-/// # SAFETY
-/// - Stored handle is not public. Can only be created via provided functions ensuring this
-///   is a safe new-type wrapper
-/// - Handle is closed on Drop
+/// # SAFETY guarantees provided
+/// - Stored handle is not publicly accessible.
+/// - Handle is closed on Drop.
+/// - Can only be created via provided functions ensuring handle validity.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DriveHandle(HANDLE);
 
