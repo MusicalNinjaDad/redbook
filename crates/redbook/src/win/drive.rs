@@ -12,7 +12,7 @@ use tracing_result::Trace;
 
 use super::{
     MAX_PATH_CHARS,
-    bindings::{GUID_DEVINTERFACE_CDROM, HANDLE, SP_DEVICE_INTERFACE_DETAIL_DATA_W},
+    bindings::{GUID_DEVINTERFACE_CDROM, SP_DEVICE_INTERFACE_DETAIL_DATA_W},
     convert::{Guid, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
@@ -103,27 +103,6 @@ impl CdDrive {
     /// The path of the drive
     pub fn path(&self) -> &PathBuf {
         &self.path
-    }
-
-    #[expect(
-        rustdoc::private_intra_doc_links,
-        reason = "1. in-IDE help, 2. lint enforcement of privacy"
-    )]
-    /// Obtain a reference to the [`HANDLE`] for the drive.
-    ///
-    /// # SAFETY
-    /// - Callers must not call CloseHandle, to avoid double-close when DriveHandle is dropped
-    /// - [`CdDrive`] is marked as [`Send`]. Callers must ensure that the handle is not
-    ///   used to enable concurrent access to the drive ("processes and threads that share
-    ///   the same file must synchronize their access").
-    ///   See: [MS Learn](https://learn.microsoft.com/en-us/windows/win32/fileio/file-handles)
-    #[expect(
-        unsafe_code,
-        reason = "required to be unsafe, to allow CdDrive to be Send"
-    )]
-    pub unsafe fn handle(&self) -> &HANDLE {
-        // SAFETY: We provide the same safety message regarding  CloseHandle & `Send`
-        unsafe { self.handle.as_handle() }
     }
 
     /// Obtain the raw bytes representing the [`CDROM_TOC`]
