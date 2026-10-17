@@ -5,23 +5,28 @@ use std::{
     ptr::{null, null_mut},
 };
 
+use tracing::field::Empty;
 use tracing_result::Trace;
 
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
-use crate::win::{
-    bindings::{
-        BOOL, CDROM_READ_TOC_EX, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-        DeviceIoControl, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM,
-        FILE_SHARE_READ, GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
-        IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING,
-        SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-        SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-        SetupDiGetDeviceInterfaceDetailW,
+use crate::{
+    FRAME_SIZE, Frame,
+    win::{
+        bindings::{
+            BOOL, CDDA, CDROM_READ_TOC_EX, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
+            DIGCF_PRESENT, DeviceIoControl, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS,
+            FILE_DEVICE_CD_ROM, FILE_SHARE_READ, GENERIC_READ, HANDLE, HDEVINFO,
+            INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+            IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
+            SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
+            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+            SetupDiGetDeviceInterfaceDetailW,
+        },
+        convert::{Guid, Sector, WinString},
+        drive::DeviceDetails,
+        toc::CDROM_TOC,
     },
-    convert::{Guid, WinString},
-    drive::DeviceDetails,
-    toc::CDROM_TOC,
 };
 
 /// A open file handle which can be validated with `?` to ensure it is valid and refers to a drive
@@ -191,6 +196,78 @@ impl DriveHandle {
             bytes_read,
         )?;
         Ok(toc)
+    }
+
+    /// Read raw CDDA data starting at frame `start` into `buf`
+    ///
+    /// Returns number of frames read. Errors with ErrorKind::TODO if `buf` is not sized for an
+    /// exact number of frames.
+    pub fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
+        let span = tracing::error_span!(
+            "DriveHandle::read_cdda",
+            start = start.as_usize(),
+            buf_size = buf.len(),
+            frames_to_read = Empty,
+            start_offset_sector = Empty,
+        )
+        .entered();
+        let bytes_to_read = u32::try_from(buf.len())
+            .map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
+            .or_error("buffer too large")?;
+
+        // SAFETY: buffer size must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+        // SectorCount = frames_to_read
+        // RAW_SECTOR_SIZE = FRAME_SIZE
+        let frames_to_read = bytes_to_read
+            .checked_div_exact(const { FRAME_SIZE.strict_cast() })
+            .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "invalid buffer size"))
+            .or_error("buffer not sized for CDDA")?;
+
+        span.record("frames_to_read", frames_to_read);
+
+        let offset = Sector::from_frame(start).offset();
+        span.record("start_offset_sector", offset);
+
+        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
+        // call to `DeviceIoControl` below
+        let read_command: RAW_READ_INFO = RAW_READ_INFO {
+            DiskOffset: offset,
+            SectorCount: frames_to_read,
+            TrackMode: CDDA,
+        };
+
+        let mut bytes_read: u32 = 0;
+
+        #[expect(unsafe_code, reason = "ffi call to read raw cdda data")]
+        // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
+        unsafe {
+            DeviceIoControl(
+                // handle known valid thanks to type wrapper
+                self.0,
+                // handle known to represent drive able to process CDROM controls, thanks to type wrapper
+                const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },
+                // If the IOCTL is from user mode, Irp->AssociatedIrp.SystemBuffer contains a RAW_READ_INFO
+                // structure that specifies the starting disk offset, the sector count, and the track mode
+                // (XA or CDDA) for the read.
+                &read_command as *const _ as *const _,
+                // Parameters.DeviceIoControl.InputBufferLength specifies the size, in bytes, of the
+                // structure, which must be >= sizeof(RAW_READ_INFO)
+                const { size_of::<RAW_READ_INFO>().strict_cast() },
+                // Buffer correctly sized, validated above
+                buf as *mut _ as *mut _,
+                // SAFETY:
+                // 1. bytes_to_read calculated from buf.len() is validated at runtime, above
+                // 2. This must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                //    - SectorCount calculated as bytes_to_read.checked_exact_div(FRAME_SIZE)
+                bytes_to_read,
+                &mut bytes_read as *mut _,
+                null_mut(),
+            )
+        }
+        .validate(Some(bytes_to_read), bytes_read)
+        .or_warn("raw CDDA data read failed")?;
+
+        Ok(Frame::new(frames_to_read.strict_cast()))
     }
 }
 

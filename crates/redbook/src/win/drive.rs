@@ -5,7 +5,6 @@ use std::{
     io::{self, ErrorKind},
     mem::offset_of,
     path::{Path, PathBuf},
-    ptr::null_mut,
 };
 
 use tracing::field::Empty;
@@ -13,22 +12,22 @@ use tracing_result::Trace;
 
 use super::{
     MAX_PATH_CHARS,
-    bindings::{
-        CDDA, DeviceIoControl, GUID_DEVINTERFACE_CDROM, HANDLE, IOCTL_CDROM_RAW_READ,
-        RAW_READ_INFO, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-    },
-    convert::{Guid, Sector, WinString},
+    bindings::{GUID_DEVINTERFACE_CDROM, HANDLE, SP_DEVICE_INTERFACE_DETAIL_DATA_W},
+    convert::{Guid, WinString},
     toc::{CDROM_TOC, TOC_SIZE},
 };
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
-use crate::win::handles::{DeviceInfoSet, DriveHandle};
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
+use crate::{
+    Frame,
+    win::handles::{DeviceInfoSet, DriveHandle},
+};
 
 #[expect(
     rustdoc::private_intra_doc_links,
@@ -163,7 +162,9 @@ impl CdDrive {
         &self.toc
     }
 
-    /// Read a chunk of data from the disc to `buf`
+    /// Read a chunk of data from the disc to `buf`. Returns number of bytes read
+    ///
+    /// TODO - return frames read, not bytes
     pub fn read_chunk(
         &self,
         track: &Track,
@@ -178,92 +179,19 @@ impl CdDrive {
             frames_to_read
         )
         .entered();
-        let offset = Sector::from_frame(track.toc_entry.start + frame_offset).offset();
 
-        // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
-        // call to `DeviceIoControl` below
-        let read_command: RAW_READ_INFO = RAW_READ_INFO {
-            DiskOffset: offset,
-            SectorCount: frames_to_read,
-            TrackMode: CDDA,
-        };
-
-        let bytes_to_read = frames_to_read
-            .checked_mul(const { FRAME_SIZE.strict_cast::<u32>() })
+        let start = track.toc_entry.start + frame_offset;
+        let frames_read = self.handle.read_cdda(start, buf)?;
+        (frames_read == Frame::new(frames_to_read.strict_cast()))
             .ok_or_else(|| {
                 io::Error::new(
-                    ErrorKind::OutOfMemory,
-                    "requested too many bytes for architecture",
+                    ErrorKind::UnexpectedEof,
+                    format!("expected {frames_to_read} frames, but only read {frames_read:?}"),
                 )
-            })?;
-        // SAFETY check:
-        // Buffer is expected size. This is a runtime check because `buf` is provided by caller.
-        (bytes_to_read == u32::try_from(buf.len()).map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large for architecture"))?)
-                .ok_or_else(|| io::Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("buffer incorrectly sized for track data. Require {bytes_to_read} bytes, buffer is {len} bytes", len = buf.len())
-                )
-            )?;
-
-        let mut bytes_read: u32 = 0;
-        tracing::trace!(offset = offset);
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        #[expect(
-            clippy::multiple_unsafe_ops_per_block,
-            reason = "embedded call to ensure raw pointer dropped immediately"
-        )]
-        // SAFETY: inline based on https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
-        let read_chunk = unsafe {
-            DeviceIoControl(
-                *self.handle(),
-                const { IOCTL_CDROM_RAW_READ.strict_cast_unsigned() },
-                // If the IOCTL is from user mode, Irp->AssociatedIrp.SystemBuffer contains a RAW_READ_INFO
-                // structure that specifies the starting disk offset, the sector count, and the track mode
-                // (XA or CDDA) for the read.
-                &read_command as *const _ as *const _,
-                // Parameters.DeviceIoControl.InputBufferLength specifies the size, in bytes, of the
-                // structure, which must be >= sizeof(RAW_READ_INFO)
-                const { size_of::<RAW_READ_INFO>().strict_cast() },
-                // Cannot reallocate without risking invalidating pointer. We create frame with capacity
-                // equal to read_command.SectorCount * Sectorsize.
-                buf as *mut _ as *mut _,
-                // SAFETY:
-                // 1. bytes_to_read == buf.len() is validated at runtime, above
-                // 2. This must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
-                //    - SectorCount = frames_to_read
-                //    - RAW_SECTOR_SIZE = FRAME_SIZE
-                //    - bytes_to_read = (frames_to_read * FRAME_SIZE) == (SectorCount * RAW_SECTOR_SIZE)
-                bytes_to_read,
-                &mut bytes_read as *mut _,
-                null_mut(),
-            )
-        };
-        let _warn = tracing::warn_span!(
-            "Read chunk",
-            track = track.track_number(),
-            frame_offset,
-            offset,
-            frames_to_read,
-            bytes_to_read,
-            bytes_read
-        )
-        .entered();
-        if read_chunk == 0 {
-            let error = io::Error::last_os_error();
-            tracing::warn!(error = error.to_string());
-            return Err(error);
-        }
-        if bytes_read != bytes_to_read {
-            tracing::warn!("incorrect number of bytes read");
-            return Err(io::Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "intended to read {bytes_to_read} bytes from offset {offset} but only got {bytes_read}"
-                ),
-            ));
-        }
-        Ok(bytes_read)
+            })
+            .or_error("reading chunk")?;
+        let bytes_read = frames_read.as_usize().strict_mul(FRAME_SIZE);
+        Ok(bytes_read.strict_cast())
     }
 }
 
