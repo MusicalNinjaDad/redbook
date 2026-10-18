@@ -1,7 +1,6 @@
 //! Provides a logical representation of an audio CD on the windows platform.
 
 use std::{
-    fs,
     io::{self, ErrorKind},
     iter::zip,
     path::Path,
@@ -53,94 +52,64 @@ impl TryFrom<CdDrive> for AudioCd {
 
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        let mut tracks: Vec<_> = fs::read_dir(drive.path())
-            .or_error("open drive as dir")?
-            .filter_map(|track| {
-                let path =
-                    try bikeshed io::Result<_> { track.or_error("read dir entry for cda")?.path() }
-                        .ok()?;
-                (path.extension()? == "cda").then(|| try bikeshed io::Result<_> {
-                    let cda = CdaFile::from_path(path).or_error("read cda")?;
-                    Track::from(cda)
-                })
-            })
-            .try_collect()
-            .or_error("parse cda")?;
+        //
+        // glob yields paths in alphabetical order
+        let cda_tracks: Vec<_> = glob::glob(
+            drive
+                .path()
+                .join("*.cda")
+                .to_str()
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "drive path not valid"))
+                .or_error("unable to glob cda files")?,
+        )
+        .map_err(|err| io::Error::new(ErrorKind::InvalidFilename, err))
+        .or_error("unable to glob cda files")?
+        .filter_map(|cda| {
+            cda.map_err(|error| io::Error::new(ErrorKind::InvalidFilename, error))
+                .or_error("getting cda file")
+                .ok()
+        })
+        .filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok())
+        .map(Track::from)
+        .collect();
 
-        let wintoc = drive.toc();
+        let toc = drive.toc();
 
-        if !tracks.is_empty() {
-            tracks.sort_by_key(|track| track.toc_entry.start);
-            (wintoc
-                .audio
-                .first()
-                .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no audio tracks"))
-                .or_error("not an audio CD")?
-                .track
-                == tracks
-                    .first()
-                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                    .or_warn("identifying first track")?
-                    .toc_entry
-                    .track as u8)
-                .ok_or(io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Mismatch between TOC and cda files: different first track number",
-                ))
-                .or_warn("identifying first track")?;
-            (wintoc
-                .audio
-                .last()
-                .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no audio tracks"))
-                .or_error("not an audio CD")?
-                .track
-                == tracks
-                    .last()
-                    .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
-                    .or_warn("identifying last track")?
-                    .toc_entry
-                    .track as u8)
-                .ok_or(io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Mismatch between TOC and cda files: different last track number",
-                ))
-                .or_warn("identifying last track")?;
-
-            (tracks.len() == wintoc.audio.len())
+        if !cda_tracks.is_empty() {
+            (cda_tracks.len() == toc.audio.len())
                 .ok_or_else(|| {
                     io::Error::new(
                         ErrorKind::InvalidData,
                         format!(
                             "disc TOC reports {d} tracks but {c} cda files found",
-                            d = wintoc.audio.len(),
-                            c = tracks.len()
+                            d = toc.audio.len(),
+                            c = cda_tracks.len()
                         ),
                     )
                 })
                 .or_error("comparing number of tracks in TOC vs cda files")?;
 
-            for (t, (track, wintoc_entry)) in zip(tracks.iter(), wintoc.audio.iter()).enumerate() {
+            for (t, (cda_track, toc_entry)) in zip(cda_tracks, toc).enumerate() {
                 let track_number = t + 1;
                 let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
 
-                ((wintoc_entry.track == track.track_number())
-                    && (wintoc_entry.track.strict_cast::<usize>() == track_number))
+                ((toc_entry.track == cda_track.track_number())
+                    && (toc_entry.track.strict_cast::<usize>() == track_number))
                     .ok_or_else(|| {
                         io::Error::new(ErrorKind::InvalidData, "track numbers are not sequential")
                     })?;
 
-                (wintoc_entry == &track.toc_entry)
+                (toc_entry == &cda_track.toc_entry)
                     .ok_or(io::Error::new(
                         ErrorKind::InvalidData,
                         format!("Mismatch between TOC and cda files for track {t}"),
                     ))
                     .or_warn("")?;
             }
-        } else {
-            tracks.extend(wintoc.audio_tracks());
         }
 
-        let toc = Toc::try_from(wintoc).or_error("")?;
+        let tracks: Vec<_> = toc.audio_tracks().collect();
+        let toc = Toc::try_from(toc).or_error("")?;
 
         // TODO: Why do we need a leadout on Disc & document that it is the final one, if still needed
         let leadout = toc.leadout();

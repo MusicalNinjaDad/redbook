@@ -22,6 +22,7 @@ clap.workspace = true
 errno.workspace = true
 exit_safely.workspace = true
 flacenc.workspace = true
+glob.workspace = true
 humanize-duration.workspace = true
 metaflac.workspace = true
 musicbrainz_rs.workspace = true
@@ -37,7 +38,6 @@ windows-link.workspace = true
 zune-jpeg.workspace = true
 
 [dev-dependencies]
-glob.workspace = true
 proc-macro2.workspace = true
 rstest.workspace = true
 similar-asserts.workspace = true
