@@ -24,7 +24,7 @@ use crate::test_fixtures::albums::TestAlbum;
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
 use crate::{
     Frame,
-    win::handles::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    win::bindings::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 
 #[expect(

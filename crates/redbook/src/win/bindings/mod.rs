@@ -11,17 +11,8 @@
     reason = "until we split and have an extra use for auto-generated stuff that we don't use"
 )]
 
-#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
-#[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
-#[expect(missing_docs, reason = "generated code")]
-mod bindgen;
-
-#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
-#[allow(
-    clippy::arbitrary_source_item_ordering,
-    reason = "consts ordered by value"
-)]
-mod mocks;
+pub(crate) use handles::DeviceDetails;
+pub use handles::{DeviceInfoSet, DriveHandle};
 
 // TODO: #79 switch from `target_family = "windows"` to simply `cfg(windows)`
 #[cfg(all(target_family = "windows", not(any(test, doc))))]
@@ -44,3 +35,17 @@ pub use bindgen::{
     PCWSTR, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
     STORAGE_DEVICE_NUMBER, TRACK_DATA,
 };
+
+#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
+#[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
+#[expect(missing_docs, reason = "generated code")]
+mod bindgen;
+
+mod handles;
+
+#[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
+#[allow(
+    clippy::arbitrary_source_item_ordering,
+    reason = "consts ordered by value"
+)]
+mod mocks;

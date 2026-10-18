@@ -13,8 +13,6 @@ pub mod convert;
 
 // These modules are where any unsafe ffi usage occurs
 pub mod drive;
-mod handles;
-
 pub mod toc;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
