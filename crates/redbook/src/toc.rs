@@ -570,11 +570,11 @@ impl PartialEq<Frame> for Msf {
 /// A collection of [`TocEntry`]s, neatly grouped and sorted
 pub struct TocEntries {
     /// Audio tracks, sorted by start position
-    audio: Vec<TocEntry>,
+    pub audio: Vec<TocEntry>,
     /// Data tracks, sorted by start position
-    data: Vec<TocEntry>,
+    pub data: Vec<TocEntry>,
     /// Leadouts, sorted by start position
-    leadouts: Vec<TocEntry>,
+    pub leadouts: Vec<TocEntry>,
 }
 
 impl TryFrom<TocEntries> for Toc {

@@ -13,7 +13,7 @@ use tracing_result::Trace;
 
 pub use super::bindings::CDROM_TOC;
 use super::bindings::TRACK_DATA;
-use crate::{Control, Frame, LEADIN, Msf, TocEntry, Track};
+use crate::{Control, Frame, LEADIN, Msf, TocEntries, TocEntry, Track};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -144,6 +144,13 @@ impl CDROM_TOC {
             .map(TocEntry::from)
     }
 
+    pub fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
+        self.TrackData
+            .iter()
+            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
+            .map(TocEntry::from)
+    }
+
     /// The absolute start of the lead out
     pub fn leadout(&self) -> Result<Frame, TocError> {
         self.TrackData
@@ -152,6 +159,26 @@ impl CDROM_TOC {
             .map(TocEntry::from)
             .map(|entry| entry.start)
             .ok_or(TocError::SectorOrder)
+    }
+
+    pub fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
+        self.TrackData
+            .iter()
+            .filter(|track| track.TrackNumber == 170)
+            .map(TocEntry::from)
+    }
+}
+
+impl From<CDROM_TOC> for TocEntries {
+    fn from(toc: CDROM_TOC) -> Self {
+        let audio = toc.iter_audio().collect();
+        let data = toc.iter_data().collect();
+        let leadouts = toc.iter_leadouts().collect();
+        TocEntries {
+            audio,
+            data,
+            leadouts,
+        }
     }
 }
 
