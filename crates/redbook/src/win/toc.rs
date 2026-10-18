@@ -117,6 +117,30 @@ impl CDROM_TOC {
         toc
     }
 
+    pub fn as_raw_bytes(&self) -> Vec<u8> {
+        // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
+        const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
+
+        // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
+        // This length value does not include the length of the Length member itself.
+        let len = u16::from_be_bytes(self.Length)
+            .strict_cast::<usize>()
+            .strict_add(size_of_val(&self.Length));
+        assert!(len <= TOC_SIZE);
+
+        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
+        let bytes: &[u8] = unsafe {
+            // SAFETY:
+            // - correct size validated above, we are not reading past the end of valid data
+            // - CDROM_TOC is Copy, slice points to current stack. Slice is therefore only valid
+            //   for duration of current function.
+            // - Return type is owned copy of this data as a Vec<u8>.
+            std::slice::from_raw_parts(self as *const _ as *const _, len)
+        };
+
+        Vec::from(bytes)
+    }
+
     pub fn to_toc(self) -> io::Result<Toc> {
         let tocentries = &TocEntries::from(self);
         tocentries.try_into()

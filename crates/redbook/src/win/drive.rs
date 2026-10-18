@@ -12,7 +12,6 @@ use tracing_result::Trace;
 use super::{
     bindings::GUID_DEVINTERFACE_CDROM,
     convert::{Guid, WinString},
-    toc::{CDROM_TOC, TOC_SIZE},
 };
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
@@ -105,28 +104,10 @@ impl CdDrive {
 
     /// Obtain the raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> Vec<u8> {
-        let toc: CDROM_TOC = self.handle.read_toc().expect("TODO: error handling");
-
-        // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
-        const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
-
-        // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
-        // This length value does not include the length of the Length member itself.
-        let len = u16::from_be_bytes(toc.Length)
-            .strict_cast::<usize>()
-            .strict_add(size_of_val(&toc.Length));
-        assert!(len <= TOC_SIZE);
-
-        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
-        let bytes: &[u8] = unsafe {
-            // SAFETY:
-            // - correct size validated above, we are not reading past the end of valid data
-            // - CDROM_TOC is Copy, slice points to current stack. Only valid for duration of
-            //   current function. Return type is owned copy of this data as a Vec<u8>.
-            std::slice::from_raw_parts(&toc as *const _ as *const _, len)
-        };
-
-        Vec::from(bytes)
+        self.handle
+            .read_toc()
+            .expect("TODO: error handling")
+            .as_raw_bytes()
     }
 
     /// Obtain a hex representation of the raw bytes representing the [`CDROM_TOC`]
