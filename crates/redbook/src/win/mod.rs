@@ -2,7 +2,7 @@
 
 pub use audiocd::AudioCd;
 
-#[cfg_attr(not(test), forbid(unsafe_code))]
+#[forbid(unsafe_code)]
 mod audiocd;
 
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
@@ -14,7 +14,7 @@ pub mod cda;
 #[forbid(unsafe_code)]
 pub mod convert;
 
-// These modules are where any unsafe ffi usage occurs
+#[forbid(unsafe_code)]
 pub mod drive;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).

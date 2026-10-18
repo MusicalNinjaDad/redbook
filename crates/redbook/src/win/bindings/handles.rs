@@ -42,6 +42,10 @@ mod safety {
     /// - Stored handle is not publicly accessible.
     /// - Handle is closed on Drop.
     /// - Can only be publically created via [open][Self::open] which validates the handle.
+    ///
+    /// # TODO
+    /// - Consider how https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
+    ///   could help provide Clone, etc.
     #[derive(Debug, PartialEq, Eq)]
     pub struct DriveHandle(HANDLE);
 
@@ -97,10 +101,8 @@ mod safety {
 }
 
 /// # SAFETY
-/// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to
-///   [`as_handle`][Self::as_handle] which includes specific safety restrictions allowing
-///   `DriveHandle` to be [Send]
-/// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
+/// - `DriveHandle`s are safe to [`Send`] to other threads as only one thread can ever access the
+///   underlying device at any time.
 #[expect(
     unsafe_code,
     reason = "Want to be able to rip in one thread and encode in another"

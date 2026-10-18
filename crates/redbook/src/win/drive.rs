@@ -40,22 +40,6 @@ pub struct CdDrive {
     toc: TocEntries,
 }
 
-#[expect(
-    rustdoc::private_intra_doc_links,
-    reason = "1. in-IDE help, 2. lint enforcement of privacy"
-)]
-/// # SAFETY
-/// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to [`handle`][Self::handle]
-///   which includes specific safety restrictions allowing `CdDrive` to be [Send]
-/// - All other fields are already `Send`
-/// - Not Sync as we have not enabled overlapped I/O or any internal sync mechanism
-#[expect(
-    unsafe_code,
-    reason = "Want to be able to rip in one thread and encode in another"
-)]
-// SAFETY: See documentation comment
-unsafe impl Send for CdDrive {}
-
 impl Debug for CdDrive {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CdDrive")
