@@ -9,8 +9,6 @@ use std::{
 use tracing::field::Empty;
 use tracing_result::Trace;
 
-#[cfg(test)]
-use crate::test_fixtures::albums::TestAlbum;
 use crate::{
     FRAME_SIZE, Frame,
     win::{
@@ -29,10 +27,12 @@ use crate::{
         toc::CDROM_TOC,
     },
 };
-use safety::IntoDriveHandle;
 
+use safety::IntoDriveHandle;
 pub use safety::DriveHandle;
 
+#[cfg(test)]
+use crate::test_fixtures::albums::TestAlbum;
 /// Contains and seals the only way to create a DriveHandle, thus enforcing invariants.
 mod safety {
     use super::*;
