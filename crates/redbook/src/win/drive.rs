@@ -263,7 +263,7 @@ mod miri {
     #[test]
     fn all() {
         let drives = all_drives().unwrap();
-        let albums: Vec<_> = drives.map(|drive| drive.toc().as_toc().unwrap()).collect();
+        let albums: Vec<_> = drives.map(|drive| drive.toc().to_toc().unwrap()).collect();
         let expected = [
             DefinitelyMaybe.expected_toc(),
             TheWallDisc1.expected_toc(),

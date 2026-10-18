@@ -133,10 +133,7 @@ impl TryFrom<CdDrive> for AudioCd {
             tracks.extend(toc_tracks);
         }
 
-        let toc = wintoc
-            .as_toc()
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
-            .or_error("")?;
+        let toc = wintoc.to_toc().or_error("")?;
 
         let leadout = toc.leadout();
 

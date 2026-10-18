@@ -28,7 +28,7 @@ fn main() -> io::Result<()> {
 
     for cd in drives {
         let path = cd.path();
-        let toc = cd.toc().as_toc().map_err(io::Error::other).or_warn("")?;
+        let toc = cd.toc().to_toc().or_warn("")?;
         tracing::info!(path = %path.display(), %toc, "found");
     }
 

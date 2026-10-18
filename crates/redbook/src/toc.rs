@@ -582,6 +582,8 @@ impl TryFrom<TocEntries> for Toc {
 
     fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
         // TODO: Don't panic! (via #106)
+        // TODO: last() or first()?? Check downstream docs
+        // TODO: should this be other or InvalidData?
         let audio = entries
             .audio
             .iter()

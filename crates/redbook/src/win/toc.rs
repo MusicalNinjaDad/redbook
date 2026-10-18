@@ -117,16 +117,9 @@ impl CDROM_TOC {
         toc
     }
 
-    pub fn as_toc(&self) -> Result<Toc, TocError> {
-        let audio = self
-            .iter_audio()
-            .map(|entry| entry.start.as_usize() as u32)
-            .collect();
-        let data = self
-            .data()
-            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
-        let leadout = self.leadout()?.as_usize() as u32;
-        Toc::from_parts(audio, data, leadout)
+    pub fn to_toc(self) -> io::Result<Toc> {
+        let tocentries = TocEntries::from(self);
+        tocentries.try_into()
     }
 
     pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
@@ -487,6 +480,6 @@ mod tests {
         let cdrom_toc = album.load_cdrom_toc();
         let toc = album.expected_toc();
 
-        assert_eq!(toc, cdrom_toc.as_toc().unwrap())
+        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
     }
 }
