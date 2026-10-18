@@ -3,7 +3,9 @@
 use std::{
     fmt::Display,
     io::{self, ErrorKind},
+    iter::Peekable,
     ops::{Add, AddAssign, Rem, Sub, SubAssign},
+    slice,
     time::Duration,
 };
 
@@ -208,6 +210,13 @@ impl TocEntry {
 pub struct Frame(usize);
 
 impl Frame {
+    /// Given [constant improvements in manufacturing][wiki], this represent the maximum Frame value
+    /// which can be stored on the current architecture (`usize::MAX`) and *not* the current
+    /// maximum number of frames which can be squeezed onto a single physical CD.
+    ///
+    /// [wiki]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Storage_capacity_and_playing_time
+    pub const MAX: Self = Frame(usize::MAX);
+
     /// Creates a new `Frame` from a frame count.
     ///
     /// # Arguments
@@ -577,6 +586,75 @@ pub struct TocEntries {
     pub leadouts: Vec<TocEntry>,
 }
 
+impl TocEntries {
+    /// Provides an iterator over *borrowed* [&TocEntry][TocEntry]s.
+    ///
+    /// # Note
+    ///
+    /// [TocEntries] does not directly implement [IntoIterator], but `&TocEntries` does.
+    /// Either use `TocEntries.iter()` or `&TocEntries` in a for loop or anywhere else which
+    /// expects an `IntoIterator`.
+    pub fn iter(&self) -> TocEntriesIter<'_> {
+        todo!()
+    }
+}
+
+impl<'entries> IntoIterator for &'entries TocEntries {
+    type Item = &'entries TocEntry;
+
+    type IntoIter = TocEntriesIter<'entries>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let audio = self.audio.iter().peekable();
+        let data = self.data.iter().peekable();
+        let leadouts = self.leadouts.iter().peekable();
+        TocEntriesIter {
+            audio,
+            data,
+            leadouts,
+        }
+    }
+}
+
+/// An iterator over the all entries in the order they appear on the CD.
+///
+/// This `struct` is created by the `into_iter()` method on a *borrowed* [`&TocEntries`][TocEntries]
+/// (provided by the [`Iterator`] trait) and the [`iter`][TocEntries::iter] helper method on a
+/// [`TocEntries`].
+pub struct TocEntriesIter<'entries> {
+    audio: Peekable<slice::Iter<'entries, TocEntry>>,
+    data: Peekable<slice::Iter<'entries, TocEntry>>,
+    leadouts: Peekable<slice::Iter<'entries, TocEntry>>,
+}
+
+impl<'entries> Iterator for TocEntriesIter<'entries> {
+    type Item = &'entries TocEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_audio = self
+            .audio
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_data = self
+            .data
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_leadout = self
+            .leadouts
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_start = next_audio.min(next_data).min(next_leadout);
+
+        self.audio
+            .next_if(|entry| entry.start == next_start)
+            .or(self.data.next_if(|entry| entry.start == next_start))
+            .or(self.leadouts.next_if(|entry| entry.start == next_start))
+    }
+}
+
 impl TryFrom<&TocEntries> for Toc {
     type Error = io::Error;
 
@@ -676,6 +754,10 @@ impl ReadTocDescriptors {
 mod tests {
     use std::time::Duration;
 
+    use rstest::rstest;
+
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
+
     use super::*;
 
     #[test]
@@ -702,5 +784,19 @@ mod tests {
         let starting_time = Msf::new(0, 2, 33);
         assert_eq!(starting_frames.relative_to_leadin(), Frame::new(33));
         assert_eq!(starting_time.relative_to_leadin(), Msf::new(0, 0, 33));
+    }
+
+    #[test_log::test]
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn toc_entries_from_cdrom_toc(#[case] album: TestAlbum) {
+        let wintoc = album.load_cdrom_toc();
+        let entries = TocEntries::from(wintoc);
+        assert_eq!(entries.audio, album.expected_audio_toc_entries());
+        // assert_eq!(entries.audio_tracks().collect::<Vec<_>>(), album.expected_audio_tracks_minimal());
     }
 }
