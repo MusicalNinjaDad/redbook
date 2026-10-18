@@ -137,20 +137,7 @@ impl TryFrom<CdDrive> for AudioCd {
                     .or_warn("")?;
             }
         } else {
-            let toc_tracks = wintoc
-                .audio
-                .iter()
-                .map_windows(|[track, next]| {
-                    track.is_audio_track().then(|| {
-                        let mut duration = next.start - track.start;
-                        if next.is_data_track() {
-                            duration -= Frame::new(11400)
-                        }
-                        Track::new(track.track, track.start, duration)
-                    })
-                })
-                .flatten();
-            tracks.extend(toc_tracks);
+            tracks.extend(wintoc.audio_tracks());
         }
 
         let toc = Toc::try_from(wintoc).or_error("")?;
