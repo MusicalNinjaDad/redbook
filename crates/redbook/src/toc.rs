@@ -568,7 +568,7 @@ impl PartialEq<Frame> for Msf {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted
-struct TocEntries {
+pub struct TocEntries {
     /// Audio tracks, sorted by start position
     audio: Vec<TocEntry>,
     /// Data tracks, sorted by start position
