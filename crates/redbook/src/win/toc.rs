@@ -8,7 +8,7 @@
 
 use std::{fs, io, path::Path};
 
-use cdtoc::{Toc, TocError};
+use cdtoc::Toc;
 use tracing_result::Trace;
 
 pub use super::bindings::CDROM_TOC;
@@ -122,39 +122,21 @@ impl CDROM_TOC {
         tocentries.try_into()
     }
 
-    pub fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
+    fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
             .map(TocEntry::from)
     }
 
-    /// Returns the *first* data track, if present
-    pub fn data(&self) -> Option<TocEntry> {
-        self.TrackData
-            .iter()
-            .find(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
-            .map(TocEntry::from)
-    }
-
-    pub fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
+    fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
             .map(TocEntry::from)
     }
 
-    /// The absolute start of the lead out
-    pub fn leadout(&self) -> Result<Frame, TocError> {
-        self.TrackData
-            .iter()
-            .find(|track| track.TrackNumber == 170)
-            .map(TocEntry::from)
-            .map(|entry| entry.start)
-            .ok_or(TocError::SectorOrder)
-    }
-
-    pub fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
+    fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
         self.TrackData
             .iter()
             .filter(|track| track.TrackNumber == 170)
@@ -431,8 +413,11 @@ mod tests {
     #[case(TheBoyWhoKnewTooMuch)]
     fn leadout(#[case] album: TestAlbum) {
         let toc = album.load_cdrom_toc();
-        let leadout = toc.leadout().unwrap();
-        assert_eq!(leadout, album.expected_leadout());
+        let leadout = toc.to_toc().unwrap().leadout();
+        assert_eq!(
+            leadout,
+            album.expected_leadout().as_usize().strict_cast::<u32>()
+        );
     }
 
     #[rstest]
