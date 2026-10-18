@@ -5,10 +5,7 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 
 use metaflac::block::{Picture, PictureType};
 
-use crate::{
-    Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt,
-    win::toc::CDROM_TOC,
-};
+use crate::{Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt};
 
 /// Test album identifier for parameterized tests
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,13 +85,6 @@ impl TestAlbum {
         let toc_dump = super::load_hex_file(&path);
         let entries = ReadTocDescriptors::new(toc_dump).unwrap();
         cdtoc::Toc::try_from(entries).unwrap()
-    }
-
-    /// Load and parse the CDROM_TOC.hex file
-    pub fn load_cdrom_toc(&self) -> CDROM_TOC {
-        let path = self.cdrom_toc_path();
-        let toc_dump = super::load_hex_file(&path);
-        CDROM_TOC::from_raw_bytes(toc_dump)
     }
 
     /// Expected first track number for this album

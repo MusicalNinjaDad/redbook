@@ -11,7 +11,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use super::{drive::CdDrive, toc::CdaFile};
+use super::{cda::CdaFile, drive::CdDrive};
 use crate::{AudioCdExt, Disc, Frame, RipProgress, Track};
 
 /// An AudioCd with potentially mutable metadata.

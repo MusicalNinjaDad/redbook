@@ -7,10 +7,10 @@ use std::{io, slice};
 use super::super::{
     MAX_PATH_CHARS,
     convert::{Guid, WinString},
-    toc::CDROM_TOC,
 };
 use super::bindgen::{
-    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, SP_DEVINFO_DATA,
+    BOOL, CDROM_TOC, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR,
+    SP_DEVINFO_DATA,
 };
 use super::{
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
@@ -266,11 +266,11 @@ pub unsafe fn DeviceIoControl(
     match dwiocontrolcode.strict_cast::<i32>() {
         IOCTL_CDROM_READ_TOC_EX => {
             let toc = match hdevice {
-                DEFINITELY_MAYBE => DefinitelyMaybe.load_cdrom_toc(),
-                THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
-                THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
-                BAT_OUT_OF_HELL_REVAMPED => BatOutOfHellRevamped.load_cdrom_toc(),
-                THE_BOY_WHO_KNEW_TOO_MUCH => TheBoyWhoKnewTooMuch.load_cdrom_toc(),
+                DEFINITELY_MAYBE => CDROM_TOC::from(DefinitelyMaybe),
+                THE_WALL_1 => CDROM_TOC::from(TheWallDisc1),
+                THE_WALL_2 => CDROM_TOC::from(TheWallDisc2),
+                BAT_OUT_OF_HELL_REVAMPED => CDROM_TOC::from(BatOutOfHellRevamped),
+                THE_BOY_WHO_KNEW_TOO_MUCH => CDROM_TOC::from(TheBoyWhoKnewTooMuch),
                 _ => panic!("unknown album"),
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));

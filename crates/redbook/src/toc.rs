@@ -779,10 +779,6 @@ impl ReadTocDescriptors {
 mod tests {
     use std::time::Duration;
 
-    use rstest::rstest;
-
-    use crate::test_fixtures::albums::TestAlbum::{self, *};
-
     use super::*;
 
     #[test]
@@ -809,22 +805,5 @@ mod tests {
         let starting_time = Msf::new(0, 2, 33);
         assert_eq!(starting_frames.relative_to_leadin(), Frame::new(33));
         assert_eq!(starting_time.relative_to_leadin(), Msf::new(0, 0, 33));
-    }
-
-    #[test_log::test]
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn toc_entries_from_cdrom_toc(#[case] album: TestAlbum) {
-        let wintoc = album.load_cdrom_toc();
-        let entries = TocEntries::from(wintoc);
-        assert_eq!(entries.audio, album.expected_audio_toc_entries());
-        assert_eq!(
-            entries.audio_tracks().collect::<Vec<_>>(),
-            album.expected_audio_tracks_minimal()
-        );
     }
 }

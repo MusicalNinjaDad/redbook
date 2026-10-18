@@ -9,11 +9,13 @@ mod audiocd;
 mod bindings;
 
 #[forbid(unsafe_code)]
+pub mod cda;
+
+#[forbid(unsafe_code)]
 pub mod convert;
 
 // These modules are where any unsafe ffi usage occurs
 pub mod drive;
-pub mod toc;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///
