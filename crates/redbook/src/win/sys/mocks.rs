@@ -17,9 +17,9 @@ use super::{
     IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::DeviceDetails;
-use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
-use crate::win::bindings::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
+use crate::win::sys::DeviceDetails;
+use crate::win::sys::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
+use crate::win::sys::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;

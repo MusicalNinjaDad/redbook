@@ -13,7 +13,8 @@ use crate::{
     FRAME_SIZE, Frame,
     win::{
         MAX_PATH_CHARS,
-        bindings::{
+        convert::{Guid, Sector, WinString},
+        sys::{
             BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2,
             DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl, ERROR_INSUFFICIENT_BUFFER,
             ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ, GENERIC_READ, HANDLE,
@@ -23,7 +24,6 @@ use crate::{
             SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
             SetupDiGetDeviceInterfaceDetailW,
         },
-        convert::{Guid, Sector, WinString},
     },
 };
 

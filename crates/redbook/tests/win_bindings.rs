@@ -56,7 +56,7 @@ const BINDINGS: [&str; 34] = [
 fn gen_bindings() {
     let src = PathBuf::from("src")
         .join("win")
-        .join("bindings")
+        .join("sys")
         .join("bindgen.rs");
     let existing = fs::read_to_string(&src).unwrap();
 
@@ -134,7 +134,7 @@ fn mocks() {
 
     let mocks_src = PathBuf::from("src")
         .join("win")
-        .join("bindings")
+        .join("sys")
         .join("mocks.rs");
     let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
     let mocks = syn::parse_file(&mocks_contents).unwrap();

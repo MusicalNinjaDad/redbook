@@ -5,9 +5,6 @@ pub use audiocd::AudioCd;
 #[forbid(unsafe_code)]
 mod audiocd;
 
-/// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
-mod bindings;
-
 #[forbid(unsafe_code)]
 pub mod cda;
 
@@ -16,6 +13,9 @@ pub mod convert;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+/// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
+mod sys;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///

@@ -10,8 +10,8 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::{
-    bindings::GUID_DEVINTERFACE_CDROM,
     convert::{Guid, WinString},
+    sys::GUID_DEVINTERFACE_CDROM,
 };
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
@@ -23,7 +23,7 @@ use crate::test_fixtures::albums::TestAlbum;
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
 use crate::{
     Frame, TocEntries,
-    win::bindings::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 
 #[expect(

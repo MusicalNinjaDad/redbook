@@ -2,8 +2,8 @@
 
 use std::fmt::{Debug, Display};
 
-use super::bindings::GUID;
-use crate::{Frame, win::bindings::PCWSTR};
+use super::sys::GUID;
+use crate::{Frame, win::sys::PCWSTR};
 
 /// A windows GUID - e.g. `53F56308-B6BF-11D0-94F2-00A0C91EFB8B`
 #[derive(Clone, Copy)]
