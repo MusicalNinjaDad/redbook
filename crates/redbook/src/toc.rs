@@ -13,7 +13,7 @@ use bitflags::bitflags;
 use cdtoc::Toc;
 use tracing_result::Trace;
 
-use crate::LEADIN;
+use crate::{LEADIN, Track};
 
 /// 0b0010 format track identifier for Leadout
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
@@ -595,7 +595,32 @@ impl TocEntries {
     /// Either use `TocEntries.iter()` or `&TocEntries` in a for loop or anywhere else which
     /// expects an `IntoIterator`.
     pub fn iter(&self) -> TocEntriesIter<'_> {
-        todo!()
+        self.into_iter()
+    }
+
+    /// Provides an iterator over the audio tracks as [`Track`]s with duration calculated based
+    /// upon the start position of the next track / leadout.
+    /// 
+    /// # Note
+    /// This iterator is **NOT** a [FusedIterator][std::iter::FusedIterator], it will stop each time
+    /// it encounters a non-audio track or a session leadout.
+    /// 
+    /// # TODO
+    /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
+    pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
+        const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
+
+        self.iter()
+            .map_windows(|[this_track, next_track]| {
+                this_track.is_audio_track().then(|| {
+                    let mut duration = next_track.start - this_track.start;
+                    if next_track.is_data_track() {
+                        duration -= OFFSET_BEFORE_DATA
+                    }
+                    Track::new(this_track.track, this_track.start, duration)
+                })
+            })
+            .flatten()
     }
 }
 
@@ -797,6 +822,9 @@ mod tests {
         let wintoc = album.load_cdrom_toc();
         let entries = TocEntries::from(wintoc);
         assert_eq!(entries.audio, album.expected_audio_toc_entries());
-        // assert_eq!(entries.audio_tracks().collect::<Vec<_>>(), album.expected_audio_tracks_minimal());
+        assert_eq!(
+            entries.audio_tracks().collect::<Vec<_>>(),
+            album.expected_audio_tracks_minimal()
+        );
     }
 }
