@@ -80,6 +80,13 @@
 //! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
 //! to avoid future lint errors for stable features
 
+pub use audiocd::*;
+pub use disc::*;
+pub use toc::*;
+pub use track::*;
+#[doc(inline)]
+pub use win::AudioCd;
+
 #[forbid(unsafe_code)]
 mod audiocd;
 
@@ -105,13 +112,6 @@ mod track;
 
 // provides abstractions over direct hardware access
 pub mod win;
-
-pub use audiocd::*;
-pub use disc::*;
-pub use toc::*;
-pub use track::*;
-#[doc(inline)]
-pub use win::AudioCd;
 
 /// Size of a single CDDA audio frame in bytes.
 ///

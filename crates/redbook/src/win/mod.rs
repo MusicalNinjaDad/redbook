@@ -1,5 +1,7 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
+pub use audiocd::AudioCd;
+
 #[cfg_attr(not(test), forbid(unsafe_code))]
 mod audiocd;
 
@@ -14,8 +16,6 @@ pub mod drive;
 mod handles;
 
 pub mod toc;
-
-pub use audiocd::AudioCd;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///

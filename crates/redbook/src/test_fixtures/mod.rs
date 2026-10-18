@@ -4,10 +4,9 @@
 //!
 //! This module is not part of the public API and subject to change without the usual
 //! semver guarantees.
+use std::path::PathBuf;
 
 pub mod albums;
-
-use std::path::PathBuf;
 
 /// Load a hex file and parse it as raw bytes
 pub fn load_hex_file(path: &PathBuf) -> Vec<u8> {

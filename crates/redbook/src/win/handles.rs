@@ -1,3 +1,38 @@
+use std::{
+    fmt::Display,
+    io::{self, ErrorKind},
+    mem::offset_of,
+    path::PathBuf,
+    ptr::{null, null_mut},
+};
+
+use tracing::field::Empty;
+use tracing_result::Trace;
+
+#[cfg(test)]
+use crate::test_fixtures::albums::TestAlbum;
+use crate::{
+    FRAME_SIZE, Frame,
+    win::{
+        MAX_PATH_CHARS,
+        bindings::{
+            BOOL, CDDA, CDROM_READ_TOC_EX, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
+            DIGCF_PRESENT, DeviceIoControl, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS,
+            FILE_DEVICE_CD_ROM, FILE_SHARE_READ, GENERIC_READ, HANDLE, HDEVINFO,
+            INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+            IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
+            SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
+            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+            SetupDiGetDeviceInterfaceDetailW,
+        },
+        convert::{Guid, Sector, WinString},
+        toc::CDROM_TOC,
+    },
+};
+use safety::IntoDriveHandle;
+
+pub use safety::DriveHandle;
+
 /// Contains and seals the only way to create a DriveHandle, thus enforcing invariants.
 mod safety {
     use super::*;
@@ -61,41 +96,6 @@ mod safety {
         }
     }
 }
-
-use std::{
-    fmt::Display,
-    io::{self, ErrorKind},
-    mem::offset_of,
-    path::PathBuf,
-    ptr::{null, null_mut},
-};
-
-use tracing::field::Empty;
-use tracing_result::Trace;
-
-#[cfg(test)]
-use crate::test_fixtures::albums::TestAlbum;
-use crate::{
-    FRAME_SIZE, Frame,
-    win::{
-        MAX_PATH_CHARS,
-        bindings::{
-            BOOL, CDDA, CDROM_READ_TOC_EX, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
-            DIGCF_PRESENT, DeviceIoControl, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS,
-            FILE_DEVICE_CD_ROM, FILE_SHARE_READ, GENERIC_READ, HANDLE, HDEVINFO,
-            INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-            IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
-            SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-            SetupDiGetDeviceInterfaceDetailW,
-        },
-        convert::{Guid, Sector, WinString},
-        toc::CDROM_TOC,
-    },
-};
-use safety::IntoDriveHandle;
-
-pub use safety::DriveHandle;
 
 /// # SAFETY
 /// - The only way to get the underlying [`HANDLE`] is via `unsafe` call to
