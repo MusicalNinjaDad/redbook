@@ -577,10 +577,10 @@ pub struct TocEntries {
     pub leadouts: Vec<TocEntry>,
 }
 
-impl TryFrom<TocEntries> for Toc {
+impl TryFrom<&TocEntries> for Toc {
     type Error = io::Error;
 
-    fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
+    fn try_from(entries: &TocEntries) -> Result<Self, Self::Error> {
         // TODO: Don't panic! (via #106)
         // TODO: last() or first()?? Check downstream docs
         // TODO: should this be other or InvalidData?
@@ -606,7 +606,8 @@ impl TryFrom<ReadTocDescriptors> for Toc {
     type Error = io::Error;
 
     fn try_from(entries: ReadTocDescriptors) -> Result<Self, Self::Error> {
-        TocEntries::try_from(entries)?.try_into()
+        let organised = &TocEntries::try_from(entries)?;
+        organised.try_into()
     }
 }
 

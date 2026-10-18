@@ -118,7 +118,7 @@ impl CDROM_TOC {
     }
 
     pub fn to_toc(self) -> io::Result<Toc> {
-        let tocentries = TocEntries::from(self);
+        let tocentries = &TocEntries::from(self);
         tocentries.try_into()
     }
 

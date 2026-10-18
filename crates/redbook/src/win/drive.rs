@@ -23,7 +23,7 @@ use crate::test_fixtures::albums::TestAlbum;
 ))]
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
 use crate::{
-    Frame,
+    Frame, TocEntries,
     win::bindings::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 
@@ -38,7 +38,7 @@ use crate::{
 pub struct CdDrive {
     path: PathBuf,
     handle: DriveHandle,
-    toc: CDROM_TOC,
+    toc: TocEntries,
 }
 
 #[expect(
@@ -94,7 +94,7 @@ impl CdDrive {
 
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let handle = DriveHandle::open(windrive).or_error("opening drive")?;
-        let toc = handle.read_toc().or_error("reading TOC")?;
+        let toc = handle.read_toc().or_error("reading TOC")?.into();
         Ok(Self { path, handle, toc })
     }
 
@@ -105,7 +105,7 @@ impl CdDrive {
 
     /// Obtain the raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> Vec<u8> {
-        let toc: CDROM_TOC = self.toc;
+        let toc: CDROM_TOC = self.handle.read_toc().expect("TODO: error handling");
 
         // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
         const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
@@ -134,8 +134,8 @@ impl CdDrive {
         hex_dump(&self.toc_as_raw_bytes())
     }
 
-    /// Obtain a reference to the TOC as a [`CDROM_TOC`]
-    pub fn toc(&self) -> &CDROM_TOC {
+    /// Obtain a reference to the TOC entries
+    pub fn toc(&self) -> &TocEntries {
         &self.toc
     }
 
@@ -177,7 +177,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
 
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let handle = DriveHandle::open(device.path()).or_error("")?;
-        let toc = handle.read_toc()?;
+        let toc = handle.read_toc()?.into();
         let path = handle.fs_path()?;
         Ok(Self { path, handle, toc })
     }
@@ -256,6 +256,8 @@ impl TryFrom<&CdDrive> for TestAlbum {
 
 #[cfg(test)]
 mod miri {
+    use cdtoc::Toc;
+
     use crate::test_fixtures::albums::TestAlbum::*;
 
     use super::*;
@@ -263,7 +265,9 @@ mod miri {
     #[test]
     fn all() {
         let drives = all_drives().unwrap();
-        let albums: Vec<_> = drives.map(|drive| drive.toc().to_toc().unwrap()).collect();
+        let albums: Vec<_> = drives
+            .map(|drive| Toc::try_from(drive.toc()).unwrap())
+            .collect();
         let expected = [
             DefinitelyMaybe.expected_toc(),
             TheWallDisc1.expected_toc(),

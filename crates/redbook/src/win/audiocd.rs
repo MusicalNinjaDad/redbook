@@ -3,14 +3,16 @@
 use std::{
     fs,
     io::{self, ErrorKind},
+    iter::zip,
     path::Path,
 };
 
+use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::{drive::CdDrive, toc::CdaFile};
-use crate::{AudioCdExt, Disc, Frame, RipProgress, TocEntry, Track};
+use crate::{AudioCdExt, Disc, Frame, RipProgress, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -69,7 +71,12 @@ impl TryFrom<CdDrive> for AudioCd {
 
         if !tracks.is_empty() {
             tracks.sort_by_key(|track| track.toc_entry.start);
-            (wintoc.FirstTrack
+            (wintoc
+                .audio
+                .first()
+                .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no audio tracks"))
+                .or_error("not an audio CD")?
+                .track
                 == tracks
                     .first()
                     .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
@@ -81,7 +88,12 @@ impl TryFrom<CdDrive> for AudioCd {
                     "Mismatch between TOC and cda files: different first track number",
                 ))
                 .or_warn("identifying first track")?;
-            (wintoc.LastTrack
+            (wintoc
+                .audio
+                .last()
+                .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no audio tracks"))
+                .or_error("not an audio CD")?
+                .track
                 == tracks
                     .last()
                     .ok_or(io::Error::new(ErrorKind::NotFound, "no .cda files found"))
@@ -94,32 +106,40 @@ impl TryFrom<CdDrive> for AudioCd {
                 ))
                 .or_warn("identifying last track")?;
 
-            for track in tracks.iter() {
-                let track_number = track.toc_entry.track as usize;
+            (tracks.len() == wintoc.audio.len())
+                .ok_or_else(|| {
+                    io::Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "disc TOC reports {d} tracks but {c} cda files found",
+                            d = wintoc.audio.len(),
+                            c = tracks.len()
+                        ),
+                    )
+                })
+                .or_error("comparing number of tracks in TOC vs cda files")?;
 
+            for (t, (track, wintoc_entry)) in zip(tracks.iter(), wintoc.audio.iter()).enumerate() {
+                let track_number = t + 1;
                 let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
 
-                let data = wintoc
-                    .TrackData
-                    .get(track_number - 1)
+                ((wintoc_entry.track == track.track_number())
+                    && (wintoc_entry.track.strict_cast::<usize>() == track_number))
+                    .ok_or_else(|| {
+                        io::Error::new(ErrorKind::InvalidData, "track numbers are not sequential")
+                    })?;
+
+                (wintoc_entry == &track.toc_entry)
                     .ok_or(io::Error::new(
                         ErrorKind::InvalidData,
-                        format!("track {track_number} missing in TOC"),
-                    ))
-                    .or_warn("")?;
-                (TocEntry::from(data) == track.toc_entry)
-                    .ok_or(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Mismatch between TOC and cda files for track {track_number}"),
+                        format!("Mismatch between TOC and cda files for track {t}"),
                     ))
                     .or_warn("")?;
             }
         } else {
             let toc_tracks = wintoc
-                .TrackData
+                .audio
                 .iter()
-                .take(wintoc.track_entries())
-                .map(TocEntry::from)
                 .map_windows(|[track, next]| {
                     track.is_audio_track().then(|| {
                         let mut duration = next.start - track.start;
@@ -133,8 +153,9 @@ impl TryFrom<CdDrive> for AudioCd {
             tracks.extend(toc_tracks);
         }
 
-        let toc = wintoc.to_toc().or_error("")?;
+        let toc = Toc::try_from(wintoc).or_error("")?;
 
+        // TODO: Why do we need a leadout on Disc & document that it is the final one, if still needed
         let leadout = toc.leadout();
 
         let disc = Disc::new(toc, tracks, Frame::new(leadout as usize))?;

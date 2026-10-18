@@ -10,6 +10,8 @@ use std::fs;
 use std::io;
 
 #[cfg(target_family = "windows")]
+use cdtoc::Toc;
+#[cfg(target_family = "windows")]
 use redbook::win::drive::{CdDrive, all_drives};
 use tracing::level_filters::LevelFilter;
 #[cfg(target_family = "windows")]
@@ -28,7 +30,7 @@ fn main() -> io::Result<()> {
 
     for cd in drives {
         let path = cd.path();
-        let toc = cd.toc().to_toc().or_warn("")?;
+        let toc = Toc::try_from(cd.toc()).or_warn("")?;
         tracing::info!(path = %path.display(), %toc, "found");
     }
 
