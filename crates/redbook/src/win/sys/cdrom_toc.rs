@@ -2,11 +2,12 @@ use std::io;
 
 use cdtoc::Toc;
 
-use super::CDROM_TOC;
-use super::TRACK_DATA;
-use crate::test_fixtures;
-use crate::test_fixtures::albums::TestAlbum;
-use crate::{Control, Frame, LEADIN, TocEntries, TocEntry};
+use crate::{
+    Control, Frame, LEADIN, TocEntries, TocEntry,
+    test_fixtures::{albums::TestAlbum, load_hex_file},
+};
+
+use super::{CDROM_TOC, TRACK_DATA};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -164,7 +165,7 @@ impl CDROM_TOC {
 impl From<TestAlbum> for CDROM_TOC {
     fn from(album: TestAlbum) -> Self {
         let path = album.cdrom_toc_path();
-        let toc_dump = test_fixtures::load_hex_file(&path);
+        let toc_dump = load_hex_file(&path);
         Self::from_raw_bytes(toc_dump)
     }
 }
