@@ -1,12 +1,5 @@
 #![expect(unsafe_code, reason = "bindings to windows API via ffi")]
 #![expect(
-    clippy::undocumented_unsafe_blocks,
-    nonstandard_style,
-    clippy::too_many_arguments,
-    clippy::upper_case_acronyms,
-    reason = "generated bindings to windows API via ffi"
-)]
-#![expect(
     dead_code,
     reason = "until we split and have an extra use for auto-generated stuff that we don't use"
 )]
@@ -42,6 +35,12 @@ pub use handles::{DeviceInfoSet, DriveHandle};
 
 #[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
 #[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
+#[expect(
+    clippy::undocumented_unsafe_blocks,
+    nonstandard_style,
+    clippy::upper_case_acronyms,
+    reason = "generated bindings to windows API via ffi"
+)]
 mod bindgen;
 
 mod cdrom_toc;
@@ -51,5 +50,10 @@ mod handles;
 #[allow(
     clippy::arbitrary_source_item_ordering,
     reason = "consts ordered by value"
+)]
+#[expect(
+    clippy::undocumented_unsafe_blocks,
+    nonstandard_style,
+    reason = "generated bindings to windows API via ffi"
 )]
 mod mocks;
