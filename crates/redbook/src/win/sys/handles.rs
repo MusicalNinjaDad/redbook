@@ -273,7 +273,7 @@ impl DriveHandle {
     /// # Errors
     ///
     /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
-    pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
+    pub fn cdrom_toc(&self) -> io::Result<CDROM_TOC> {
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
         // call to `DeviceIoControl` below
         let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {

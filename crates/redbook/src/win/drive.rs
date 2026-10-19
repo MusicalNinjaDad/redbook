@@ -79,7 +79,7 @@ impl CdDrive {
         let _error = tracing::error_span!("CdDrive::open", path = %path.display()).entered();
 
         let handle = DriveHandle::open(&path).or_error("opening drive")?;
-        let toc = handle.read_toc().or_error("reading TOC")?.into();
+        let toc = handle.cdrom_toc().or_error("reading TOC")?.into();
 
         let cdas = cda::tracks(&path)
             .or_debug("unable to open path as filesystem")
@@ -100,7 +100,7 @@ impl CdDrive {
     /// Obtain the raw bytes representing the [`CDROM_TOC`]
     pub fn toc_as_raw_bytes(&self) -> Vec<u8> {
         self.handle
-            .read_toc()
+            .cdrom_toc()
             .expect("TODO: error handling")
             .as_raw_bytes()
     }
@@ -173,7 +173,7 @@ impl TryFrom<DeviceDetails> for CdDrive {
 
     fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
         let handle = DriveHandle::open(device.path()).or_error("")?;
-        let toc = handle.read_toc()?.into();
+        let toc = handle.cdrom_toc()?.into();
         let path = handle.fs_path()?;
         Ok(Self { path, handle, toc })
     }

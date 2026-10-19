@@ -87,6 +87,7 @@
 
 pub use audiocd::*;
 pub use disc::*;
+pub use drive::*;
 pub use toc::*;
 pub use track::*;
 #[doc(inline)]
@@ -97,6 +98,9 @@ mod audiocd;
 
 #[forbid(unsafe_code)]
 mod disc;
+
+#[forbid(unsafe_code)]
+mod drive;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
