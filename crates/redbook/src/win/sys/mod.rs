@@ -14,14 +14,16 @@
 // TODO: #79 switch from `target_family = "windows"` to simply `cfg(windows)`
 #[cfg(all(target_family = "windows", not(any(test, doc))))]
 use bindgen::{
-    CloseHandle, CreateFile2, DeviceIoControl, SetupDiDestroyDeviceInfoList,
-    SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+    CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
+    SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+    SetupDiGetDeviceInterfaceDetailW,
 };
 
 #[cfg(any(test, doc, not(target_family = "windows")))]
 use mocks::{
-    CloseHandle, CreateFile2, DeviceIoControl, SetupDiDestroyDeviceInfoList,
-    SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+    CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
+    SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
+    SetupDiGetDeviceInterfaceDetailW,
 };
 
 use bindgen::{
