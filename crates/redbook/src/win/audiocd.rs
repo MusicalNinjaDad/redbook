@@ -1,10 +1,6 @@
 //! Provides a logical representation of an audio CD on the windows platform.
 
-use std::{
-    io::{self, ErrorKind},
-    iter::zip,
-    path::Path,
-};
+use std::{io, path::Path};
 
 use cdtoc::Toc;
 use thread_safely::Context;
@@ -57,36 +53,7 @@ impl TryFrom<CdDrive> for AudioCd {
         let toc = drive.toc();
 
         if !cda_tracks.is_empty() {
-            (cda_tracks.len() == toc.audio.len())
-                .ok_or_else(|| {
-                    io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "disc TOC reports {d} tracks but {c} cda files found",
-                            d = toc.audio.len(),
-                            c = cda_tracks.len()
-                        ),
-                    )
-                })
-                .or_error("comparing number of tracks in TOC vs cda files")?;
-
-            for (t, (cda_track, toc_entry)) in zip(cda_tracks, toc).enumerate() {
-                let track_number = t + 1;
-                let _warn = tracing::warn_span!("validating TOC vs `.cda`s", track_number);
-
-                ((toc_entry.track == cda_track.track_number())
-                    && (toc_entry.track.strict_cast::<usize>() == track_number))
-                    .ok_or_else(|| {
-                        io::Error::new(ErrorKind::InvalidData, "track numbers are not sequential")
-                    })?;
-
-                (toc_entry == &cda_track.toc_entry)
-                    .ok_or(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Mismatch between TOC and cda files for track {t}"),
-                    ))
-                    .or_warn("")?;
-            }
+            let _warn_if_different = *toc == cda_tracks;
         }
 
         let tracks: Vec<_> = toc.audio_tracks().collect();

@@ -24,6 +24,7 @@ exit_safely.workspace = true
 flacenc.workspace = true
 glob.workspace = true
 humanize-duration.workspace = true
+itertools.workspace = true
 metaflac.workspace = true
 musicbrainz_rs.workspace = true
 reqwest.workspace = true

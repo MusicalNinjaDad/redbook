@@ -2,6 +2,7 @@
 
 use std::{
     fmt::Display,
+    hint::cold_path,
     io::{self, ErrorKind},
     iter::Peekable,
     ops::{Add, AddAssign, Rem, Sub, SubAssign},
@@ -11,6 +12,7 @@ use std::{
 
 use bitflags::bitflags;
 use cdtoc::Toc;
+use itertools::{EitherOrBoth, Itertools};
 use tracing_result::Trace;
 
 use crate::{LEADIN, Track};
@@ -677,6 +679,35 @@ impl<'entries> Iterator for TocEntriesIter<'entries> {
             .next_if(|entry| entry.start == next_start)
             .or(self.data.next_if(|entry| entry.start == next_start))
             .or(self.leadouts.next_if(|entry| entry.start == next_start))
+    }
+}
+
+impl<'meta, V> PartialEq<V> for TocEntries
+where
+    for<'v> &'v V: IntoIterator<Item = &'v Track<'meta>>,
+{
+    fn eq(&self, tracks: &V) -> bool {
+        for pair in self.iter().zip_longest(tracks) {
+            match pair {
+                EitherOrBoth::Both(entry, track) if entry.track == track.track_number() => {}
+                EitherOrBoth::Left(entry) => {
+                    cold_path();
+                    tracing::warn!(?entry, "no cda file present");
+                    return false;
+                }
+                EitherOrBoth::Right(track) => {
+                    cold_path();
+                    tracing::warn!(?track, "additional cda file found");
+                    return false;
+                }
+                EitherOrBoth::Both(entry, track) => {
+                    cold_path();
+                    tracing::warn!(?entry, ?track, "mismatch between cda file and TOC");
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
