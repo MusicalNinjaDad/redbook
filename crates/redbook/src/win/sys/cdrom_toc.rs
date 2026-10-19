@@ -1,7 +1,3 @@
-use std::io;
-
-use cdtoc::Toc;
-
 use crate::{
     Control, Frame, LEADIN, TocEntries, TocEntry,
     test_fixtures::{albums::TestAlbum, load_hex_file},
@@ -9,8 +5,8 @@ use crate::{
 
 use super::{CDROM_TOC, TRACK_DATA};
 
-/// size of ffi struct [`CDROM_TOC`]
-pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
+/// size of ffi struct [`CDROM_TOC`]. TODO: think this is pointless as currently implemented.
+const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
 impl CDROM_TOC {
     /// Returns the full size, in bytes of the data-carrying part of the struct.
@@ -26,7 +22,7 @@ impl CDROM_TOC {
 
     /// Returns the number of actual entries in the TrackData array. This is calculated based
     /// upon the total size of the struct.
-    pub fn track_entries(&self) -> usize {
+    fn track_entries(&self) -> impl Iterator<Item = &TRACK_DATA> {
         let entries_size = self
             .size()
             .strict_sub(size_of_val(&self.Length))
@@ -36,16 +32,8 @@ impl CDROM_TOC {
             .div_exact(size_of::<TRACK_DATA>().strict_cast())
             .expect(
                 "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
-            )
-    }
-
-    /// Returns the track number of the last audio track, or `None` if no audio tracks are present.
-    pub fn last_audio_track(&self) -> Option<usize> {
-        self.TrackData
-            .iter()
-            .take(self.LastTrack.strict_cast())
-            .rfind(|track| !track.control().contains(Control::DATA_TRACK))
-            .map(|track| track.TrackNumber.strict_cast())
+            );
+        self.TrackData.iter().take(entries_size)
     }
 
     /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
@@ -54,7 +42,7 @@ impl CDROM_TOC {
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    pub fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
+    fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
         // SAFETY: ffi spec has not changed
         assert_eq!(size_of::<CDROM_TOC>(), TOC_SIZE);
 
@@ -110,13 +98,12 @@ impl CDROM_TOC {
 
     pub fn as_raw_bytes(&self) -> Vec<u8> {
         // SAFETY check: stored value is the expected size, nothing has changed in the ffi spec
+        // TODO: should use size_of_val here to avoid assert!(true)
         const { assert!(size_of::<CDROM_TOC>() == TOC_SIZE) };
 
         // SAFETY: toc.Length Indicates the length, in bytes, of the table of contents data.
         // This length value does not include the length of the Length member itself.
-        let len = u16::from_be_bytes(self.Length)
-            .strict_cast::<usize>()
-            .strict_add(size_of_val(&self.Length));
+        let len = self.size();
         assert!(len <= TOC_SIZE);
 
         #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
@@ -132,28 +119,20 @@ impl CDROM_TOC {
         Vec::from(bytes)
     }
 
-    pub fn to_toc(self) -> io::Result<Toc> {
-        let tocentries = &TocEntries::from(self);
-        tocentries.try_into()
-    }
-
     fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
-        self.TrackData
-            .iter()
+        self.track_entries()
             .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
             .map(TocEntry::from)
     }
 
     fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
-        self.TrackData
-            .iter()
+        self.track_entries()
             .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
             .map(TocEntry::from)
     }
 
     fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
-        self.TrackData
-            .iter()
+        self.track_entries()
             .filter(|track| track.TrackNumber == 170)
             .map(TocEntry::from)
     }
@@ -181,7 +160,7 @@ impl From<CDROM_TOC> for TocEntries {
 }
 
 impl TRACK_DATA {
-    pub fn control(&self) -> Control {
+    fn control(&self) -> Control {
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control_code = self._bitfield;
         Control::from_bits_truncate(control_code)
@@ -221,8 +200,31 @@ impl From<&TRACK_DATA> for TocEntry {
 #[forbid(unsafe_code)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+    use std::io;
+
+    use cdtoc::Toc;
     use rstest::rstest;
+
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+    impl CDROM_TOC {
+        fn to_toc(self) -> io::Result<Toc> {
+            let tocentries = &TocEntries::from(self);
+            tocentries.try_into()
+        }
+
+        /// Only takes the claimed number of tracks, thus avoiding the leadouts.
+        ///
+        /// TODO: TRACK_DATA::is_leadout()
+        fn last_audio_track(&self) -> Option<usize> {
+            self.TrackData
+                .iter()
+                .take(self.LastTrack.strict_cast())
+                .rfind(|track| !track.control().contains(Control::DATA_TRACK))
+                .map(|track| track.TrackNumber.strict_cast())
+        }
+    }
 
     #[rstest]
     #[case(DefinitelyMaybe)]
@@ -232,7 +234,7 @@ mod tests {
     #[case(TheBoyWhoKnewTooMuch)]
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
-        for track in toc.TrackData.iter().take(toc.track_entries()) {
+        for track in toc.track_entries() {
             use crate::Msf;
 
             dbg!(track.TrackNumber);
