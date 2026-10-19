@@ -54,6 +54,7 @@ mod handles;
 #[expect(
     clippy::undocumented_unsafe_blocks,
     nonstandard_style,
+    clippy::too_many_arguments,
     reason = "generated bindings to windows API via ffi"
 )]
 mod mocks;

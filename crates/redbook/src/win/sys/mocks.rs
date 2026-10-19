@@ -330,7 +330,7 @@ pub unsafe fn DeviceIoControl(
 /// - `[in] dwDesiredAccess`: The access requested for the new handle. For the flags that can be
 ///   specified for each object type, see [MS-Learn][docs-remarks]. This parameter is ignored if the
 ///   dwOptions parameter specifies the `DUPLICATE_SAME_ACCESS` flag. Currently, only using
-///   `DUPLICATE_SAME_ACCESS` is supported.
+///   `DUPLICATE_SAME_ACCESS` is supported and `0` must be passed to `dwDesiredAccess`.
 /// - `[in] bInheritHandle`: Whether the handle is inheritable. If `TRUE`, the duplicate handle
 ///   can be inherited by new processes created by the target process. If `FALSE`, the new handle
 ///   cannot be inherited. Currently only `FALSE` is supported.
@@ -339,7 +339,7 @@ pub unsafe fn DeviceIoControl(
 ///   - `DUPLICATE_CLOSE_SOURCE`: Closes the source handle. This occurs regardless of any error
 ///     status returned. Currently not supported.
 ///   - `DUPLICATE_SAME_ACCESS`: Ignores the `dwDesiredAccess` parameter. The duplicate handle has
-///     the same access as the source handle.
+///     the same access as the source handle. Currently this value must be passed to `dwOptions`.
 ///
 /// [docs]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
 /// [docs-remarks]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle#remarks

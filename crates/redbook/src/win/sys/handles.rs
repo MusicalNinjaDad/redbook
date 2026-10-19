@@ -16,13 +16,14 @@ use crate::{
         convert::{Guid, Sector, WinString},
         sys::{
             BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2,
-            DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl, ERROR_INSUFFICIENT_BUFFER,
-            ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ, GENERIC_READ, HANDLE,
-            HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
-            IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
-            SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-            SetupDiGetDeviceInterfaceDetailW,
+            DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DeviceIoControl, DuplicateHandle,
+            ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
+            GENERIC_READ, GetCurrentProcess, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE,
+            IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+            OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
+            SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+            SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+            bindgen::{DUPLICATE_SAME_ACCESS, FALSE},
         },
     },
 };
@@ -126,6 +127,54 @@ impl Drop for DriveHandle {
             CloseHandle(*self.handle() as *mut _);
         }
         // Not checking for success: cannot meaningfully handle CloseHandle failure during drop
+    }
+}
+
+/// Cloning a DriveHandle calls `DuplicateHandle` in background and provides a *new handle* to the
+/// same underlying drive, which can be used within the current process, but cannot be passed to
+/// a child process. (Please, raise an issue / PR if you need to pass a DriveHandle to a spawned
+/// process).
+///
+/// **IMPORTANT:** See the note regarding equality below.
+///
+/// # Note
+///
+/// - Contrary to the usual expectations, the cloned handle will *not compare equal* to the original.
+///   Code should not, and unsafe code MUST NOT, rely on assuming `drivehandle.clone() == drivehandle`
+///   as this will not be true!
+/// - The cloned handle must be independently closed (ideally automatically via the [`Drop`][Self::drop]
+///   implemenation).
+/// - Cloning a `DriveHandle` *may panic*, if for some reason the validation of the new handle fails.
+///   This could occur for example, if the underlying drive is unplugged before cloning.
+///
+/// # TODO
+/// - Provide DriveHandle::duplicate -> io::Result<DriveHandle>
+impl Clone for DriveHandle {
+    fn clone(&self) -> Self {
+        let mut cloned = INVALID_HANDLE_VALUE;
+
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inlined calls to GetCurrentProcess, self.handle, dereferencing self.handle"
+        )]
+        unsafe {
+            // SAFETY: inline
+            DuplicateHandle(
+                GetCurrentProcess(),
+                // type wrapper ensures validity
+                *self.handle(),
+                GetCurrentProcess(),
+                // instantiated above as INVALID_HANDLE_VALUE,
+                // will be immediately wrapped in a DriveHandle, which calls CloseHandle on Drop
+                &mut cloned as *mut HANDLE,
+                0,
+                FALSE,
+                const { DUPLICATE_SAME_ACCESS.strict_cast() },
+            )
+        };
+        cloned
+            .into_drive_handle()
+            .expect("drive is no longer available")
     }
 }
 
