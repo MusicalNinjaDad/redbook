@@ -377,6 +377,27 @@ pub unsafe fn DeviceIoControl(
     success!()
 }
 
+/// Retrieves a pseudo handle for the current process.
+///
+/// A pseudo handle is a special constant that is interpreted as the current process handle.
+/// For compatibility with future operating systems, it is best to call `GetCurrentProcess` instead
+/// of hard-coding this constant value. The calling process can use a pseudo handle to specify its
+/// own process whenever a process handle is required. Pseudo handles are not inherited by child
+/// processes. This handle has the `PROCESS_ALL_ACCESS` access right to the process object.
+///
+/// # SAFETY
+/// No particular safety invariants must be upheld. `unsafe` is simply applyed by default to the
+/// generated ffi binding.
+///
+/// # Note
+/// - The pseudo handle *need not be closed* when it is no longer needed. Calling the `CloseHandle`
+///   function with a pseudo handle has no effect.
+/// - If the pseudo handle is duplicated by `DuplicateHandle`, the duplicate handle must be closed.
+///   Duplication is currently forbidden by the mock `DuplicateHandle`.
+pub unsafe fn GetCurrentProcess() -> HANDLE {
+    -1 as _
+}
+
 /// Enumerates the device interfaces that are contained in a device information set.
 ///
 /// Repeated calls to this function return an [`SP_DEVICE_INTERFACE_DATA`] structure for a different
