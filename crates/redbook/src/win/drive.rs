@@ -114,7 +114,7 @@ impl CdDrive {
         frames_to_read: u32,
         buf: &mut [u8],
     ) -> io::Result<u32> {
-        let _trace = tracing::trace_span!(
+        let _span = tracing::error_span!(
             "CdDrive::read_chunk",
             track = track.toc_entry.track,
             frame_offset,
@@ -122,7 +122,26 @@ impl CdDrive {
         )
         .entered();
 
+        (buf.len()
+            == frames_to_read
+                .checked_mul(FRAME_SIZE.strict_cast())
+                .ok_or_else(|| io::Error::new(ErrorKind::OutOfMemory, "too many frames requested"))
+                .or_error("calculating required buffer size")?
+                .strict_cast::<usize>())
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "incorrectly sized buffer: expected {frames_size}, got {buf_size} bytes",
+                    frames_size = frames_to_read.strict_mul(FRAME_SIZE.strict_cast()),
+                    buf_size = buf.len()
+                ),
+            )
+        })
+        .or_error("incorrect buffer size")?;
+
         let start = track.toc_entry.start + frame_offset;
+
         let frames_read = self.handle.read_cdda(start, buf)?;
         (frames_read == Frame::new(frames_to_read.strict_cast()))
             .ok_or_else(|| {
@@ -132,6 +151,7 @@ impl CdDrive {
                 )
             })
             .or_error("reading chunk")?;
+
         let bytes_read = frames_read.as_usize().strict_mul(FRAME_SIZE);
         Ok(bytes_read.strict_cast())
     }
