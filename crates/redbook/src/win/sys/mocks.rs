@@ -366,16 +366,28 @@ pub unsafe fn DuplicateHandle(
 ) -> BOOL {
     assert!(!hsourceprocesshandle.is_null());
     assert!(hsourceprocesshandle.is_aligned());
-    assert_eq!(hsourceprocesshandle, unsafe { GetCurrentProcess() });
+    assert_eq!(
+        hsourceprocesshandle,
+        unsafe { GetCurrentProcess() },
+        "source process must be current process"
+    );
     assert!(!hsourcehandle.is_null());
     assert!(hsourcehandle.is_aligned());
-    assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE);
+    assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE, "invalid source handle");
     assert!(!htargetprocesshandle.is_null());
     assert!(htargetprocesshandle.is_aligned());
-    assert_eq!(htargetprocesshandle, unsafe { GetCurrentProcess() });
+    assert_eq!(
+        htargetprocesshandle,
+        unsafe { GetCurrentProcess() },
+        "target process must be current process"
+    );
     assert!(!lptargethandle.is_null());
     assert!(lptargethandle.is_aligned());
-    assert_eq!(unsafe { lptargethandle.read() }, INVALID_HANDLE_VALUE);
+    assert_eq!(
+        unsafe { lptargethandle.read() },
+        INVALID_HANDLE_VALUE,
+        "target handle must not be a valid handle"
+    );
     assert_eq!(dwdesiredaccess, 0);
     assert_eq!(binherithandle, FALSE);
     assert_eq!(

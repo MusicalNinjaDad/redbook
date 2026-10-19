@@ -99,6 +99,19 @@ mod safety {
             Ok(drivehandle)
         }
     }
+
+    #[cfg(test)]
+    mod miri {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "invalid source handle")]
+        /// This should panic during cloning, before validation in into_drive_handle
+        fn clone_invalid() {
+            let invalid = DriveHandle(INVALID_HANDLE_VALUE);
+            let _cloned = invalid.clone();
+        }
+    }
 }
 
 /// # SAFETY
@@ -782,5 +795,10 @@ mod miri {
         // The mock for DuplicateHandle simply duplicates the handle value.
         // This assertion would not hold true with a real handle.
         assert_eq!(handle, cloned);
+    }
+
+    #[test]
+    fn invalid() {
+        assert!(INVALID_HANDLE_VALUE.into_drive_handle().is_err());
     }
 }
