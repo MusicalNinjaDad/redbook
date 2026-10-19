@@ -13,13 +13,16 @@ use super::bindgen::{
     SP_DEVINFO_DATA,
 };
 use super::{
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
-    IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+    DUPLICATE_SAME_ACCESS, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM,
+    HANDLE, HDEVINFO, IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA,
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W,
 };
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 use crate::win::sys::DeviceDetails;
-use crate::win::sys::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
-use crate::win::sys::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
+use crate::win::sys::bindgen::{
+    FILE_FLAG_OVERLAPPED, INVALID_HANDLE_VALUE, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+};
+use crate::win::sys::{CDROM_READ_TOC_EX, FALSE, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -149,6 +152,88 @@ pub unsafe fn CreateFile2(
         BatOutOfHellRevamped => BAT_OUT_OF_HELL_REVAMPED,
         TheBoyWhoKnewTooMuch => THE_BOY_WHO_KNEW_TOO_MUCH,
     }
+}
+
+/// Duplicates an object handle. (See also [MS learn][docs])
+///
+/// # SAFETY
+/// Safety remarks & mock only provided for use with file handles within a single process.
+///
+/// - `hsourcehandle` must be a valid pointer to a `HANDLE` as defined at [`std::ptr::read`]
+/// - `lpTargetHandle` does not point to a valid open `HANDLE`, as this handle will be lost and
+///   will not be closed. The mock enforces this by checking that `lpTargetHandle` points to an
+///   `INVALID_HANDLE_VALUE`.
+/// - The returned handle must be properly closed via [CloseHandle] when no longer required.
+/// - The pointer to the returned handle (`lpTargetHandle`) must not be `null` as the handle will
+///   duplicated but not returned. You will lose system resources until the target process terminates.
+///
+/// # Notes
+/// Supported use case is restricted to duplicating handles:
+/// - owned by the current thread
+/// - to be used by the current
+/// - which cannot be inherited by spawned child processes
+/// - with `dwOptions` = `DUPLICATE_SAME_ACCESS`
+///
+/// # Returns / `last_os_error`
+/// If the function succeeds, the return value is nonzero. If the function fails, the return value
+/// is zero. To get extended error information, call `GetLastError`.
+///
+/// # Arguments
+/// - `[in] hSourceProcessHandle`: A handle to the process with the handle to be duplicated. It is
+///   recommended to use [`GetCurrentProcess`] to obtain a handle with suitable access rights which
+///   references the current process. Other use cases are not supported / documented.
+/// - `[in] hSourceHandle`: The handle to be duplicated. This is an open object handle that is valid
+///   in the context of the source process.
+/// - `[out] lpTargetHandle`: A pointer to a variable that receives the duplicate handle. This
+///   handle value is valid in the context of the target process.
+/// - `[in] dwDesiredAccess`: The access requested for the new handle. For the flags that can be
+///   specified for each object type, see [MS-Learn][docs-remarks]. This parameter is ignored if the
+///   dwOptions parameter specifies the `DUPLICATE_SAME_ACCESS` flag. Currently, only using
+///   `DUPLICATE_SAME_ACCESS` is supported.
+/// - `[in] bInheritHandle`: Whether the handle is inheritable. If `TRUE`, the duplicate handle
+///   can be inherited by new processes created by the target process. If `FALSE`, the new handle
+///   cannot be inherited. Currently only `FALSE` is supported.
+/// - `[in] dwOptions`: Optional actions. This parameter can be zero, or any combination of the
+///   following values:
+///   - `DUPLICATE_CLOSE_SOURCE`: Closes the source handle. This occurs regardless of any error
+///     status returned. Currently not supported.
+///   - `DUPLICATE_SAME_ACCESS`: Ignores the `dwDesiredAccess` parameter. The duplicate handle has
+///     the same access as the source handle.
+///
+/// [docs]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
+/// [docs-remarks]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle#remarks
+pub unsafe fn DuplicateHandle(
+    hsourceprocesshandle: HANDLE,
+    hsourcehandle: HANDLE,
+    htargetprocesshandle: HANDLE,
+    lptargethandle: *mut HANDLE,
+    dwdesiredaccess: u32,
+    binherithandle: BOOL,
+    dwoptions: u32,
+) -> BOOL {
+    assert!(!hsourceprocesshandle.is_null());
+    assert!(hsourceprocesshandle.is_aligned());
+    assert_ne!(hsourceprocesshandle, INVALID_HANDLE_VALUE);
+    // TODO assert CurrentProcess
+    assert!(!hsourcehandle.is_null());
+    assert!(hsourcehandle.is_aligned());
+    assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE);
+    assert!(!htargetprocesshandle.is_null());
+    assert!(htargetprocesshandle.is_aligned());
+    assert_ne!(htargetprocesshandle, INVALID_HANDLE_VALUE);
+    assert_ne!(htargetprocesshandle, 0 as _);
+    // TODO assert CurrentProcess
+    assert!(!lptargethandle.is_null());
+    assert!(lptargethandle.is_aligned());
+    assert_eq!(unsafe { lptargethandle.read() }, INVALID_HANDLE_VALUE);
+    assert_eq!(dwdesiredaccess, 0);
+    assert_eq!(binherithandle, FALSE);
+    assert_eq!(
+        dwoptions,
+        const { DUPLICATE_SAME_ACCESS.strict_cast::<u32>() }
+    );
+    unsafe { lptargethandle.write(hsourcehandle) };
+    success!()
 }
 
 /// Sends a control code directly to a specified device driver, causing the corresponding device
