@@ -214,7 +214,7 @@ pub unsafe fn DuplicateHandle(
     assert!(!hsourceprocesshandle.is_null());
     assert!(hsourceprocesshandle.is_aligned());
     assert_ne!(hsourceprocesshandle, INVALID_HANDLE_VALUE);
-    // TODO assert CurrentProcess
+    assert_eq!(hsourcehandle, unsafe { GetCurrentProcess() });
     assert!(!hsourcehandle.is_null());
     assert!(hsourcehandle.is_aligned());
     assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE);
@@ -222,7 +222,7 @@ pub unsafe fn DuplicateHandle(
     assert!(htargetprocesshandle.is_aligned());
     assert_ne!(htargetprocesshandle, INVALID_HANDLE_VALUE);
     assert_ne!(htargetprocesshandle, 0 as _);
-    // TODO assert CurrentProcess
+    assert_eq!(htargetprocesshandle, unsafe { GetCurrentProcess() });
     assert!(!lptargethandle.is_null());
     assert!(lptargethandle.is_aligned());
     assert_eq!(unsafe { lptargethandle.read() }, INVALID_HANDLE_VALUE);
