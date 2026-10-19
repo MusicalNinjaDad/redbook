@@ -14,10 +14,13 @@ use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
 // as these are not visible for import.
-const BINDINGS: [&str; 33] = [
+const BINDINGS: [&str; 38] = [
     "CloseHandle",
     "CreateFile2",
     "DeviceIoControl",
+    "DuplicateHandle",
+    "GetCurrentProcess",
+    "SetupDiDestroyDeviceInfoList",
     "SetupDiEnumDeviceInterfaces",
     "SetupDiGetClassDevsW",
     "SetupDiGetDeviceInterfaceDetailW",
@@ -27,8 +30,10 @@ const BINDINGS: [&str; 33] = [
     "GUID_DEVINTERFACE_CDROM",
     "DIGCF_DEVICEINTERFACE",
     "DIGCF_PRESENT",
+    "DUPLICATE_SAME_ACCESS",
     "ERROR_INSUFFICIENT_BUFFER",
     "ERROR_NO_MORE_ITEMS",
+    "FALSE",
     "FILE_DEVICE_CD_ROM",
     "FILE_FLAG_OVERLAPPED",
     "FILE_SHARE_READ",
@@ -55,7 +60,7 @@ const BINDINGS: [&str; 33] = [
 fn gen_bindings() {
     let src = PathBuf::from("src")
         .join("win")
-        .join("bindings")
+        .join("sys")
         .join("bindgen.rs");
     let existing = fs::read_to_string(&src).unwrap();
 
@@ -133,7 +138,7 @@ fn mocks() {
 
     let mocks_src = PathBuf::from("src")
         .join("win")
-        .join("bindings")
+        .join("sys")
         .join("mocks.rs");
     let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
     let mocks = syn::parse_file(&mocks_contents).unwrap();

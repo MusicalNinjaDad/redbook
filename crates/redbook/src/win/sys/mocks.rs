@@ -4,22 +4,23 @@
 use std::path::PathBuf;
 use std::{io, slice};
 
-use super::super::{
-    MAX_PATH_CHARS,
-    convert::{Guid, WinString},
-    drive::DeviceDetails,
-    toc::CDROM_TOC,
+use crate::{
+    test_fixtures::albums::TestAlbum::{self, *},
+    win::{
+        MAX_PATH_CHARS,
+        convert::{Guid, WinString},
+        sys::DeviceDetails,
+    },
 };
-use super::bindgen::{
-    BOOL, CREATEFILE2_EXTENDED_PARAMETERS, GUID, HWND, OVERLAPPED, PCWSTR, SP_DEVINFO_DATA,
-};
+
 use super::{
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
-    IOCTL_CDROM_READ_TOC_EX, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+    BOOL, CDROM_READ_TOC_EX, CDROM_TOC, CREATEFILE2_EXTENDED_PARAMETERS, DUPLICATE_SAME_ACCESS,
+    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM,
+    FILE_FLAG_OVERLAPPED, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, HWND,
+    INVALID_HANDLE_VALUE, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OVERLAPPED,
+    PCWSTR, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
+    STORAGE_DEVICE_NUMBER,
 };
-use crate::test_fixtures::albums::TestAlbum::{self, *};
-use crate::win::bindings::bindgen::{FILE_FLAG_OVERLAPPED, IOCTL_STORAGE_GET_DEVICE_NUMBER};
-use crate::win::bindings::{CDROM_READ_TOC_EX, FILE_DEVICE_CD_ROM, STORAGE_DEVICE_NUMBER};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -42,6 +43,18 @@ impl TryFrom<HANDLE> for TestAlbum {
                 io::ErrorKind::NotFound,
                 "invalid album handle",
             )),
+        }
+    }
+}
+
+impl From<TestAlbum> for HANDLE {
+    fn from(album: TestAlbum) -> Self {
+        match album {
+            DefinitelyMaybe => DEFINITELY_MAYBE,
+            TheWallDisc1 => THE_WALL_1,
+            TheWallDisc2 => THE_WALL_2,
+            BatOutOfHellRevamped => BAT_OUT_OF_HELL_REVAMPED,
+            TheBoyWhoKnewTooMuch => THE_BOY_WHO_KNEW_TOO_MUCH,
         }
     }
 }
@@ -71,6 +84,14 @@ macro_rules! success {
 
 pub unsafe fn CloseHandle(
     #[expect(unused_variables, reason = "always succeeds")] hobject: HANDLE,
+) -> BOOL {
+    // TODO: Maybe mock this with some thread-local RefCell HashSet or similar to
+    // allow for tests which validate closure in error cases & ensure no double closures.
+    success!()
+}
+
+pub unsafe fn SetupDiDestroyDeviceInfoList(
+    #[expect(unused_variables, reason = "always succeeds")] deviceinfoset: HDEVINFO,
 ) -> BOOL {
     // TODO: Maybe mock this with some thread-local RefCell HashSet or similar to
     // allow for tests which validate closure in error cases & ensure no double closures.
@@ -258,15 +279,16 @@ pub unsafe fn DeviceIoControl(
     match dwiocontrolcode.strict_cast::<i32>() {
         IOCTL_CDROM_READ_TOC_EX => {
             let toc = match hdevice {
-                DEFINITELY_MAYBE => DefinitelyMaybe.load_cdrom_toc(),
-                THE_WALL_1 => TheWallDisc1.load_cdrom_toc(),
-                THE_WALL_2 => TheWallDisc2.load_cdrom_toc(),
-                BAT_OUT_OF_HELL_REVAMPED => BatOutOfHellRevamped.load_cdrom_toc(),
-                THE_BOY_WHO_KNEW_TOO_MUCH => TheBoyWhoKnewTooMuch.load_cdrom_toc(),
+                DEFINITELY_MAYBE => CDROM_TOC::from(DefinitelyMaybe),
+                THE_WALL_1 => CDROM_TOC::from(TheWallDisc1),
+                THE_WALL_2 => CDROM_TOC::from(TheWallDisc2),
+                BAT_OUT_OF_HELL_REVAMPED => CDROM_TOC::from(BatOutOfHellRevamped),
+                THE_BOY_WHO_KNEW_TOO_MUCH => CDROM_TOC::from(TheBoyWhoKnewTooMuch),
                 _ => panic!("unknown album"),
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
             unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
+            unsafe { *lpbytesreturned = size_of_val(&toc).strict_cast() };
         }
         IOCTL_STORAGE_GET_DEVICE_NUMBER => {
             let info = STORAGE_DEVICE_NUMBER {
@@ -281,6 +303,118 @@ pub unsafe fn DeviceIoControl(
         _ => todo!("mock DeviceIoControl for additional control codes"),
     }
     success!()
+}
+
+/// Duplicates an object handle. (See also [MS learn][docs])
+///
+/// # SAFETY
+/// Safety remarks & mock only provided for use with file handles within a single process.
+///
+/// - `hsourcehandle` must be a valid pointer to a `HANDLE` as defined at [`std::ptr::read`]
+/// - `lpTargetHandle` does not point to a valid open `HANDLE`, as this handle will be lost and
+///   will not be closed. The mock enforces this by checking that `lpTargetHandle` points to an
+///   `INVALID_HANDLE_VALUE`.
+/// - The returned handle must be properly closed via [CloseHandle] when no longer required.
+/// - The pointer to the returned handle (`lpTargetHandle`) must not be `null` as the handle will
+///   duplicated but not returned. You will lose system resources until the target process terminates.
+///
+/// # Notes
+/// Supported use case is restricted to duplicating handles:
+/// - owned by the current thread
+/// - to be used by the current
+/// - which cannot be inherited by spawned child processes
+/// - with `dwOptions` = `DUPLICATE_SAME_ACCESS`
+///
+/// # Returns / `last_os_error`
+/// If the function succeeds, the return value is nonzero. If the function fails, the return value
+/// is zero. To get extended error information, call `GetLastError`.
+///
+/// # Arguments
+/// - `[in] hSourceProcessHandle`: A handle to the process with the handle to be duplicated. It is
+///   recommended to use [`GetCurrentProcess`] to obtain a handle with suitable access rights which
+///   references the current process. Other use cases are not supported / documented.
+/// - `[in] hSourceHandle`: The handle to be duplicated. This is an open object handle that is valid
+///   in the context of the source process.
+/// - `[out] lpTargetHandle`: A pointer to a variable that receives the duplicate handle. This
+///   handle value is valid in the context of the target process.
+/// - `[in] dwDesiredAccess`: The access requested for the new handle. For the flags that can be
+///   specified for each object type, see [MS-Learn][docs-remarks]. This parameter is ignored if the
+///   dwOptions parameter specifies the `DUPLICATE_SAME_ACCESS` flag. Currently, only using
+///   `DUPLICATE_SAME_ACCESS` is supported and `0` must be passed to `dwDesiredAccess`.
+/// - `[in] bInheritHandle`: Whether the handle is inheritable. If `TRUE`, the duplicate handle
+///   can be inherited by new processes created by the target process. If `FALSE`, the new handle
+///   cannot be inherited. Currently only `FALSE` is supported.
+/// - `[in] dwOptions`: Optional actions. This parameter can be zero, or any combination of the
+///   following values:
+///   - `DUPLICATE_CLOSE_SOURCE`: Closes the source handle. This occurs regardless of any error
+///     status returned. Currently not supported.
+///   - `DUPLICATE_SAME_ACCESS`: Ignores the `dwDesiredAccess` parameter. The duplicate handle has
+///     the same access as the source handle. Currently this value must be passed to `dwOptions`.
+///
+/// [docs]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
+/// [docs-remarks]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle#remarks
+pub unsafe fn DuplicateHandle(
+    hsourceprocesshandle: HANDLE,
+    hsourcehandle: HANDLE,
+    htargetprocesshandle: HANDLE,
+    lptargethandle: *mut HANDLE,
+    dwdesiredaccess: u32,
+    binherithandle: BOOL,
+    dwoptions: u32,
+) -> BOOL {
+    assert!(!hsourceprocesshandle.is_null());
+    assert!(hsourceprocesshandle.is_aligned());
+    assert_eq!(
+        hsourceprocesshandle,
+        unsafe { GetCurrentProcess() },
+        "source process must be current process"
+    );
+    assert!(!hsourcehandle.is_null());
+    assert!(hsourcehandle.is_aligned());
+    assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE, "invalid source handle");
+    assert!(!htargetprocesshandle.is_null());
+    assert!(htargetprocesshandle.is_aligned());
+    assert_eq!(
+        htargetprocesshandle,
+        unsafe { GetCurrentProcess() },
+        "target process must be current process"
+    );
+    assert!(!lptargethandle.is_null());
+    assert!(lptargethandle.is_aligned());
+    assert_eq!(
+        unsafe { lptargethandle.read() },
+        INVALID_HANDLE_VALUE,
+        "target handle must not be a valid handle"
+    );
+    assert_eq!(dwdesiredaccess, 0);
+    assert_eq!(binherithandle, FALSE);
+    assert_eq!(
+        dwoptions,
+        const { DUPLICATE_SAME_ACCESS.strict_cast::<u32>() }
+    );
+    unsafe { lptargethandle.write(hsourcehandle) };
+    success!()
+}
+
+/// Retrieves a pseudo handle for the current process.
+///
+/// A pseudo handle is a special constant that is interpreted as the current process handle.
+/// For compatibility with future operating systems, it is best to call `GetCurrentProcess` instead
+/// of hard-coding this constant value. The calling process can use a pseudo handle to specify its
+/// own process whenever a process handle is required. Pseudo handles are not inherited by child
+/// processes. This handle has the `PROCESS_ALL_ACCESS` access right to the process object.
+///
+/// # SAFETY
+/// No particular safety invariants must be upheld. `unsafe` is simply applyed by default to the
+/// generated ffi binding.
+///
+/// # Note
+/// - The pseudo handle *need not be closed* when it is no longer needed. Calling the `CloseHandle`
+///   function with a pseudo handle has no effect.
+/// - If the pseudo handle is duplicated by `DuplicateHandle`, the duplicate handle must be closed.
+///   Duplication is currently forbidden by the mock `DuplicateHandle`.
+pub unsafe fn GetCurrentProcess() -> HANDLE {
+    -1 as _
 }
 
 /// Enumerates the device interfaces that are contained in a device information set.
@@ -357,6 +491,17 @@ pub unsafe fn SetupDiEnumDeviceInterfaces(
     success!()
 }
 
+/// The SetupDiGetClassDevs function returns a handle to a device information set that contains
+/// requested device information elements for a local computer.
+///
+/// See: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
+///
+/// # SAFETY
+/// - The caller of SetupDiGetClassDevs must delete the returned device information set when it is
+///   no longer needed by calling SetupDiDestroyDeviceInfoList.
+/// - It is recommended to avoid direct calls to SetupDiGetClassDevsW and use associated functions
+///   on DeviceInfoSet which provides a type-safe wrapper for the returned handle and calls
+///   SetupDiDestroyDeviceInfoList when dropped.
 pub unsafe fn SetupDiGetClassDevsW(
     classguid: *const GUID,
     #[expect(unused_variables, reason = "irrelevant for mock")] enumerator: PCWSTR,

@@ -1,16 +1,16 @@
 module-item-order-groupings = [
     [
-        "top_matter",
+        "use",
+        [
+            "use",
+        ],
+    ],
+    [
+        "imports",
         [
             "extern_crate",
             "mod",
             "foreign_mod",
-        ],
-    ],
-    [
-        "use",
-        [
-            "use",
         ],
     ],
     [
@@ -48,7 +48,7 @@ module-item-order-groupings = [
     ],
 ]
 
-module-items-ordered-within-groupings = ["top_matter", "aliases"]
+module-items-ordered-within-groupings = ["imports", "aliases"]
 
 source-item-ordering = ["module"]
 

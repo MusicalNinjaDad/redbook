@@ -1,6 +1,9 @@
 windows_link::link!("kernel32.dll" "system" fn CloseHandle(hobject : HANDLE) -> BOOL);
 windows_link::link!("kernel32.dll" "system" fn CreateFile2(lpfilename : PCWSTR, dwdesiredaccess : u32, dwsharemode : u32, dwcreationdisposition : u32, pcreateexparams : *const CREATEFILE2_EXTENDED_PARAMETERS) -> HANDLE);
 windows_link::link!("kernel32.dll" "system" fn DeviceIoControl(hdevice : HANDLE, dwiocontrolcode : u32, lpinbuffer : *const core::ffi::c_void, ninbuffersize : u32, lpoutbuffer : *mut core::ffi::c_void, noutbuffersize : u32, lpbytesreturned : *mut u32, lpoverlapped : *mut OVERLAPPED) -> BOOL);
+windows_link::link!("kernel32.dll" "system" fn DuplicateHandle(hsourceprocesshandle : HANDLE, hsourcehandle : HANDLE, htargetprocesshandle : HANDLE, lptargethandle : *mut HANDLE, dwdesiredaccess : u32, binherithandle : BOOL, dwoptions : u32) -> BOOL);
+windows_link::link!("kernel32.dll" "system" fn GetCurrentProcess() -> HANDLE);
+windows_link::link!("setupapi.dll" "system" fn SetupDiDestroyDeviceInfoList(deviceinfoset : HDEVINFO) -> BOOL);
 windows_link::link!("setupapi.dll" "system" fn SetupDiEnumDeviceInterfaces(deviceinfoset : HDEVINFO, deviceinfodata : *const SP_DEVINFO_DATA, interfaceclassguid : *const GUID, memberindex : u32, deviceinterfacedata : *mut SP_DEVICE_INTERFACE_DATA) -> BOOL);
 windows_link::link!("setupapi.dll" "system" fn SetupDiGetClassDevsW(classguid : *const GUID, enumerator : PCWSTR, hwndparent : HWND, flags : u32) -> HDEVINFO);
 windows_link::link!("setupapi.dll" "system" fn SetupDiGetDeviceInterfaceDetailW(deviceinfoset : HDEVINFO, deviceinterfacedata : *const SP_DEVICE_INTERFACE_DATA, deviceinterfacedetaildata : *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W, deviceinterfacedetaildatasize : u32, requiredsize : *mut u32, deviceinfodata : *mut SP_DEVINFO_DATA) -> BOOL);
@@ -39,8 +42,10 @@ pub struct CREATEFILE2_EXTENDED_PARAMETERS {
 }
 pub const DIGCF_DEVICEINTERFACE: i32 = 16;
 pub const DIGCF_PRESENT: i32 = 2;
+pub const DUPLICATE_SAME_ACCESS: i32 = 2;
 pub const ERROR_INSUFFICIENT_BUFFER: i32 = 122;
 pub const ERROR_NO_MORE_ITEMS: i32 = 259;
+pub const FALSE: i32 = 0;
 pub const FILE_DEVICE_CD_ROM: i32 = 2;
 pub const FILE_FLAG_OVERLAPPED: i32 = 1073741824;
 pub const FILE_NAME_NORMALIZED: i32 = 0;

@@ -3,7 +3,9 @@
 use std::{
     fmt::Display,
     io::{self, ErrorKind},
+    iter::Peekable,
     ops::{Add, AddAssign, Rem, Sub, SubAssign},
+    slice,
     time::Duration,
 };
 
@@ -11,7 +13,7 @@ use bitflags::bitflags;
 use cdtoc::Toc;
 use tracing_result::Trace;
 
-use crate::LEADIN;
+use crate::{LEADIN, Track};
 
 /// 0b0010 format track identifier for Leadout
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
@@ -208,6 +210,13 @@ impl TocEntry {
 pub struct Frame(usize);
 
 impl Frame {
+    /// Given [constant improvements in manufacturing][wiki], this represent the maximum Frame value
+    /// which can be stored on the current architecture (`usize::MAX`) and *not* the current
+    /// maximum number of frames which can be squeezed onto a single physical CD.
+    ///
+    /// [wiki]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Storage_capacity_and_playing_time
+    pub const MAX: Self = Frame(usize::MAX);
+
     /// Creates a new `Frame` from a frame count.
     ///
     /// # Arguments
@@ -568,20 +577,116 @@ impl PartialEq<Frame> for Msf {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted
-struct TocEntries {
+pub struct TocEntries {
     /// Audio tracks, sorted by start position
-    audio: Vec<TocEntry>,
+    pub audio: Vec<TocEntry>,
     /// Data tracks, sorted by start position
-    data: Vec<TocEntry>,
+    pub data: Vec<TocEntry>,
     /// Leadouts, sorted by start position
-    leadouts: Vec<TocEntry>,
+    pub leadouts: Vec<TocEntry>,
 }
 
-impl TryFrom<TocEntries> for Toc {
+impl TocEntries {
+    /// Provides an iterator over *borrowed* [&TocEntry][TocEntry]s.
+    ///
+    /// # Note
+    ///
+    /// [TocEntries] does not directly implement [IntoIterator], but `&TocEntries` does.
+    /// Either use `TocEntries.iter()` or `&TocEntries` in a for loop or anywhere else which
+    /// expects an `IntoIterator`.
+    pub fn iter(&self) -> TocEntriesIter<'_> {
+        self.into_iter()
+    }
+
+    /// Provides an iterator over the audio tracks as [`Track`]s with duration calculated based
+    /// upon the start position of the next track / leadout.
+    ///
+    /// # Note
+    /// This iterator is **NOT** a [FusedIterator][std::iter::FusedIterator], it will stop each time
+    /// it encounters a non-audio track or a session leadout.
+    ///
+    /// # TODO
+    /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
+    pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
+        const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
+
+        self.iter()
+            .map_windows(|[this_track, next_track]| {
+                this_track.is_audio_track().then(|| {
+                    let mut duration = next_track.start - this_track.start;
+                    if next_track.is_data_track() {
+                        duration -= OFFSET_BEFORE_DATA
+                    }
+                    Track::new(this_track.track, this_track.start, duration)
+                })
+            })
+            .flatten()
+    }
+}
+
+impl<'entries> IntoIterator for &'entries TocEntries {
+    type Item = &'entries TocEntry;
+
+    type IntoIter = TocEntriesIter<'entries>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let audio = self.audio.iter().peekable();
+        let data = self.data.iter().peekable();
+        let leadouts = self.leadouts.iter().peekable();
+        TocEntriesIter {
+            audio,
+            data,
+            leadouts,
+        }
+    }
+}
+
+/// An iterator over the all entries in the order they appear on the CD.
+///
+/// This `struct` is created by the `into_iter()` method on a *borrowed* [`&TocEntries`][TocEntries]
+/// (provided by the [`Iterator`] trait) and the [`iter`][TocEntries::iter] helper method on a
+/// [`TocEntries`].
+pub struct TocEntriesIter<'entries> {
+    audio: Peekable<slice::Iter<'entries, TocEntry>>,
+    data: Peekable<slice::Iter<'entries, TocEntry>>,
+    leadouts: Peekable<slice::Iter<'entries, TocEntry>>,
+}
+
+impl<'entries> Iterator for TocEntriesIter<'entries> {
+    type Item = &'entries TocEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_audio = self
+            .audio
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_data = self
+            .data
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_leadout = self
+            .leadouts
+            .peek()
+            .map(|entry| entry.start)
+            .unwrap_or(Frame::MAX);
+        let next_start = next_audio.min(next_data).min(next_leadout);
+
+        self.audio
+            .next_if(|entry| entry.start == next_start)
+            .or(self.data.next_if(|entry| entry.start == next_start))
+            .or(self.leadouts.next_if(|entry| entry.start == next_start))
+    }
+}
+
+impl TryFrom<&TocEntries> for Toc {
     type Error = io::Error;
 
-    fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
+    fn try_from(entries: &TocEntries) -> Result<Self, Self::Error> {
         // TODO: Don't panic! (via #106)
+        // TODO: last() or first()?? Check downstream docs
+        // TODO: should this be other or InvalidData?
         let audio = entries
             .audio
             .iter()
@@ -604,7 +709,8 @@ impl TryFrom<ReadTocDescriptors> for Toc {
     type Error = io::Error;
 
     fn try_from(entries: ReadTocDescriptors) -> Result<Self, Self::Error> {
-        TocEntries::try_from(entries)?.try_into()
+        let organised = &TocEntries::try_from(entries)?;
+        organised.try_into()
     }
 }
 

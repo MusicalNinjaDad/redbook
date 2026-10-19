@@ -1,19 +1,21 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
-#[cfg_attr(not(test), forbid(unsafe_code))]
+pub use audiocd::AudioCd;
+
+#[forbid(unsafe_code)]
 mod audiocd;
 
-/// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
-mod bindings;
+#[forbid(unsafe_code)]
+pub mod cda;
 
 #[forbid(unsafe_code)]
 pub mod convert;
 
-// These modules are where any unsafe ffi usage occurs
+#[forbid(unsafe_code)]
 pub mod drive;
-pub mod toc;
 
-pub use audiocd::AudioCd;
+/// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
+mod sys;
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///
