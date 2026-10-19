@@ -89,9 +89,10 @@ impl CdDrive {
         let cdas = cda::tracks(&path)
             .or_debug("unable to open path as filesystem")
             .unwrap_or_default();
-        if !cdas.is_empty() {
-            let _warn_if_different = toc == cdas;
-        }
+        (cdas.is_empty() || (toc == cdas))
+            .ok_or(())
+            .or_warn("cdas do not match TOC")
+            .unwrap_or_default();
 
         Ok(Self { path, handle, toc })
     }

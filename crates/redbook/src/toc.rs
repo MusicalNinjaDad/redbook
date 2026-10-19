@@ -690,19 +690,8 @@ where
         for pair in self.iter().zip_longest(tracks) {
             match pair {
                 EitherOrBoth::Both(entry, track) if entry.track == track.track_number() => {}
-                EitherOrBoth::Left(entry) => {
+                _ => {
                     cold_path();
-                    tracing::warn!(?entry, "no cda file present");
-                    return false;
-                }
-                EitherOrBoth::Right(track) => {
-                    cold_path();
-                    tracing::warn!(?track, "additional cda file found");
-                    return false;
-                }
-                EitherOrBoth::Both(entry, track) => {
-                    cold_path();
-                    tracing::warn!(?entry, ?track, "mismatch between cda file and TOC");
                     return false;
                 }
             }
