@@ -765,3 +765,22 @@ impl Display for DeviceDetails {
         Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
     }
 }
+
+#[cfg(test)]
+mod miri {
+    use super::*;
+
+    use crate::test_fixtures::albums::TestAlbum;
+
+    #[test]
+    fn clone() {
+        let handle = HANDLE::from(TestAlbum::DefinitelyMaybe)
+            .into_drive_handle()
+            .unwrap();
+        let cloned = handle.clone();
+
+        // The mock for DuplicateHandle simply duplicates the handle value.
+        // This assertion would not hold true with a real handle.
+        assert_eq!(handle, cloned);
+    }
+}

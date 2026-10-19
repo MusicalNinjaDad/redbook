@@ -49,6 +49,18 @@ impl TryFrom<HANDLE> for TestAlbum {
     }
 }
 
+impl From<TestAlbum> for HANDLE {
+    fn from(album: TestAlbum) -> Self {
+        match album {
+            DefinitelyMaybe => DEFINITELY_MAYBE,
+            TheWallDisc1 => THE_WALL_1,
+            TheWallDisc2 => THE_WALL_2,
+            BatOutOfHellRevamped => BAT_OUT_OF_HELL_REVAMPED,
+            TheBoyWhoKnewTooMuch => THE_BOY_WHO_KNEW_TOO_MUCH,
+        }
+    }
+}
+
 /// (Optionally) set `last_os_err` to `errno` then return 0 to signify failure
 macro_rules! failure {
     () => {
@@ -354,15 +366,12 @@ pub unsafe fn DuplicateHandle(
 ) -> BOOL {
     assert!(!hsourceprocesshandle.is_null());
     assert!(hsourceprocesshandle.is_aligned());
-    assert_ne!(hsourceprocesshandle, INVALID_HANDLE_VALUE);
-    assert_eq!(hsourcehandle, unsafe { GetCurrentProcess() });
+    assert_eq!(hsourceprocesshandle, unsafe { GetCurrentProcess() });
     assert!(!hsourcehandle.is_null());
     assert!(hsourcehandle.is_aligned());
     assert_ne!(hsourcehandle, INVALID_HANDLE_VALUE);
     assert!(!htargetprocesshandle.is_null());
     assert!(htargetprocesshandle.is_aligned());
-    assert_ne!(htargetprocesshandle, INVALID_HANDLE_VALUE);
-    assert_ne!(htargetprocesshandle, 0 as _);
     assert_eq!(htargetprocesshandle, unsafe { GetCurrentProcess() });
     assert!(!lptargethandle.is_null());
     assert!(lptargethandle.is_aligned());
