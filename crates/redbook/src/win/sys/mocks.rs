@@ -582,7 +582,6 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            dbg!("get required size");
             // This potentially slightly oversizes the requirement. This is acceptable for
             // testing purposes to avoid the complexity of calculating the size required when
             // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
