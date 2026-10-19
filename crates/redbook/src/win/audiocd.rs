@@ -10,8 +10,8 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use super::{cda::CdaFile, drive::CdDrive};
-use crate::{AudioCdExt, Disc, Frame, RipProgress, Track};
+use super::drive::CdDrive;
+use crate::{AudioCdExt, Disc, Frame, RipProgress, Track, win::cda};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -52,26 +52,7 @@ impl TryFrom<CdDrive> for AudioCd {
 
         // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
         // durations and gives us a comparison to validate the raw TOC against.
-        //
-        // glob yields paths in alphabetical order
-        let cda_tracks: Vec<_> = glob::glob(
-            drive
-                .path()
-                .join("*.cda")
-                .to_str()
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "drive path not valid"))
-                .or_error("unable to glob cda files")?,
-        )
-        .map_err(|err| io::Error::new(ErrorKind::InvalidFilename, err))
-        .or_error("unable to glob cda files")?
-        .filter_map(|cda| {
-            cda.map_err(|error| io::Error::new(ErrorKind::InvalidFilename, error))
-                .or_error("getting cda file")
-                .ok()
-        })
-        .filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok())
-        .map(Track::from)
-        .collect();
+        let cda_tracks = cda::tracks(drive.path())?;
 
         let toc = drive.toc();
 
