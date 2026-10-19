@@ -89,8 +89,7 @@ mod tests {
     fn release_menus(#[case] album: TestAlbum) {
         let toc: cdtoc::Toc = album.expected_toc();
         let tracks: Vec<Track> = album.expected_audio_tracks_minimal();
-        let leadout = album.expected_leadout();
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        let mut disc = Disc::new(toc, tracks).unwrap();
         let musicbrainz = album.expected_musicbrainz();
         disc.set_musicbrainz(musicbrainz);
         let ReleaseMenu { table, .. } = release_menu(&disc).unwrap();
@@ -107,10 +106,9 @@ mod tests {
         let expected_order = album.expected_releases_in_order();
         let toc = album.expected_toc();
         let tracks = album.expected_audio_tracks_minimal();
-        let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        let mut disc = Disc::new(toc, tracks).unwrap();
         disc.set_musicbrainz(musicbrainz);
         let ReleaseMenu { releases, .. } = release_menu(&disc).unwrap();
         let ordered: Vec<_> = releases.into_iter().cloned().collect();

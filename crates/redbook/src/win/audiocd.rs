@@ -7,7 +7,7 @@ use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::drive::CdDrive;
-use crate::{AudioCdExt, Disc, Frame, RipProgress, Track};
+use crate::{AudioCdExt, Disc, RipProgress, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -50,10 +50,7 @@ impl TryFrom<CdDrive> for AudioCd {
         let tracks: Vec<_> = toc.audio_tracks().collect();
         let toc = Toc::try_from(toc).or_error("")?;
 
-        // TODO: Why do we need a leadout on Disc & document that it is the final one, if still needed
-        let leadout = toc.leadout();
-
-        let disc = Disc::new(toc, tracks, Frame::new(leadout as usize))?;
+        let disc = Disc::new(toc, tracks)?;
 
         Ok(Self {
             drive,
