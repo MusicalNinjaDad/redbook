@@ -49,7 +49,7 @@ mod bindgen;
 
 /// Additional functions on CDROM_TOC & TRACK_DATA to allow for interconversion without leaking
 /// windows-specific structs into the main API.
-/// 
+///
 /// TODO: consider making some of this public
 #[expect(unsafe_code, reason = "conversion to & from raw bytes")]
 mod cdrom_toc;
