@@ -1,5 +1,7 @@
 //! Provides [`Track`] & associated types
 
+use std::fmt::Display;
+
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
@@ -32,6 +34,18 @@ pub struct Track<'meta> {
     pub duration: Frame,
     /// Optional reference to MusicBrainz track metadata.
     pub(crate) meta: Option<&'meta musicbrainz_rs::entity::release::Track>,
+}
+
+impl<'meta> Display for Track<'meta> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{toc}, duration: {dur}, has metadata: {meta}",
+            toc = self.toc_entry,
+            dur = self.duration,
+            meta = self.meta.is_some()
+        )
+    }
 }
 
 impl Track<'static> {
