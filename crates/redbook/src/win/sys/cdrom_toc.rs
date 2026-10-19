@@ -69,7 +69,6 @@ impl CDROM_TOC {
         // Pad with null bytes to allow round-tripping
         bytes.resize(TOC_SIZE, 0);
 
-        #[expect(unsafe_code, reason = "construction from raw bytes")]
         let toc: CDROM_TOC = unsafe {
             // SAFETY: correct size & alignment
             assert_eq!(size_of::<CDROM_TOC>(), bytes.len());
@@ -106,7 +105,6 @@ impl CDROM_TOC {
         let len = self.size();
         assert!(len <= TOC_SIZE);
 
-        #[expect(unsafe_code, reason = "need to construct slice from raw parts")]
         let bytes: &[u8] = unsafe {
             // SAFETY:
             // - correct size validated above, we are not reading past the end of valid data

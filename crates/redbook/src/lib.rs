@@ -1,8 +1,13 @@
-// Unsafe restricted to dedicated wrapper modules
+// Unsafe restricted to dedicated wrapper modules.
+// Modules are individually annotated `forbid` or `expect`.
+// Many additional lints defined in `Cargo.toml`
 #![deny(unsafe_code)]
-// Only applicable to library
+//
+// This lint is only applicable to library, not associated binaries.
 #![deny(missing_docs)]
-// All experimental features are only enabled when on a toolchain where they are still unstable
+//
+// All experimental features are only enabled when on a toolchain where they are still unstable and
+// behave as expected.
 #![cfg_attr(unstable_const_ops, feature(const_ops))]
 #![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
