@@ -13,19 +13,19 @@ use try_v2::Extract;
 use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
+use crate::{
+    Device, Frame, TocEntries,
+    win::{
+        cda,
+        sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    },
+};
 #[cfg(any(
     target_arch = "aarch64",
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
-use crate::{
-    Frame, TocEntries,
-    win::{
-        cda,
-        sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
-    },
-};
 
 #[expect(
     rustdoc::private_intra_doc_links,

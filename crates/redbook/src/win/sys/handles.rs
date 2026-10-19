@@ -10,7 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    FRAME_SIZE, Frame,
+    Device, FRAME_SIZE, Frame,
     win::{
         MAX_PATH_CHARS,
         convert::{Guid, Sector, WinPath, WinString},
@@ -194,43 +194,6 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let path = PathBuf::from(path.as_ref());
-        let _debug = tracing::debug_span!("opening drive handle", path = %path.display()).entered();
-
-        let windrive = WinPath::from(path).into_dos_device_path();
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        let handle = unsafe {
-            // SAFETY:
-            // - `path` is owned by this function and therefore valid for duration of this block
-            // - returned handle will be stored in `Self` immediately after successful creation
-            // - `Drop` calls `CloseHandle`
-            CreateFile2(
-                windrive.as_pcwstr(),
-                GENERIC_READ,
-                const { FILE_SHARE_READ.strict_cast_unsigned() },
-                const { OPEN_EXISTING.strict_cast_unsigned() },
-                null(),
-            )
-        }
-        .into_drive_handle()
-        .or_error("getting handle for drive")?;
-        tracing::debug!(?handle, "opened successfully");
-
-        Ok(handle)
-    }
-
-    /// get a currently valid file-system path, not valid across reboots but can be passed
-    /// to [`std::fs::read_dir`] etc.
-    pub fn fs_path(&self) -> io::Result<PathBuf> {
-        let info = self.device_number()?;
-
-        let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
-
-        Ok(path)
-    }
-
     pub fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
@@ -319,12 +282,45 @@ impl DriveHandle {
         )?;
         Ok(toc)
     }
+}
 
-    /// Read raw CDDA data starting at frame `start` into `buf`
-    ///
-    /// Returns number of frames read. Errors with ErrorKind::TODO if `buf` is not sized for an
-    /// exact number of frames.
-    pub fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
+impl Device for DriveHandle {
+    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let path = PathBuf::from(path.as_ref());
+        let _debug = tracing::debug_span!("opening drive handle", path = %path.display()).entered();
+
+        let windrive = WinPath::from(path).into_dos_device_path();
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        let handle = unsafe {
+            // SAFETY:
+            // - `path` is owned by this function and therefore valid for duration of this block
+            // - returned handle will be stored in `Self` immediately after successful creation
+            // - `Drop` calls `CloseHandle`
+            CreateFile2(
+                windrive.as_pcwstr(),
+                GENERIC_READ,
+                const { FILE_SHARE_READ.strict_cast_unsigned() },
+                const { OPEN_EXISTING.strict_cast_unsigned() },
+                null(),
+            )
+        }
+        .into_drive_handle()
+        .or_error("getting handle for drive")?;
+        tracing::debug!(?handle, "opened successfully");
+
+        Ok(handle)
+    }
+
+    fn fs_path(&self) -> io::Result<PathBuf> {
+        let info = self.device_number()?;
+
+        let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
+
+        Ok(path)
+    }
+
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
         let span = tracing::error_span!(
             "DriveHandle::read_cdda",
             start = start.as_usize(),
@@ -394,6 +390,14 @@ impl DriveHandle {
         .or_warn("raw CDDA data read failed")?;
 
         Ok(Frame::new(frames_to_read.strict_cast()))
+    }
+
+    fn read_toc(&self) -> io::Result<crate::TocEntries> {
+        Ok(self.cdrom_toc()?.into())
+    }
+
+    fn raw_toc(&self) -> io::Result<Vec<u8>> {
+        Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 }
 
