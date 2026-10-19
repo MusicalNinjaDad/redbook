@@ -2,7 +2,7 @@ use std::{
     fmt::Display,
     io::{self, ErrorKind},
     mem::offset_of,
-    path::PathBuf,
+    path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
 
@@ -13,7 +13,7 @@ use crate::{
     FRAME_SIZE, Frame,
     win::{
         MAX_PATH_CHARS,
-        convert::{Guid, Sector, WinString},
+        convert::{Guid, Sector, WinPath, WinString},
     },
 };
 
@@ -194,8 +194,11 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub fn open(path: WinString) -> io::Result<Self> {
-        let _debug = tracing::debug_span!("opening drive handle", %path).entered();
+    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let path = PathBuf::from(path.as_ref());
+        let _debug = tracing::debug_span!("opening drive handle", path = %path.display()).entered();
+
+        let windrive = WinPath::from(path).into_dos_device_path();
 
         #[expect(unsafe_code, reason = "ffi call")]
         let handle = unsafe {
@@ -204,7 +207,7 @@ impl DriveHandle {
             // - returned handle will be stored in `Self` immediately after successful creation
             // - `Drop` calls `CloseHandle`
             CreateFile2(
-                path.as_pcwstr(),
+                windrive.as_pcwstr(),
                 GENERIC_READ,
                 const { FILE_SHARE_READ.strict_cast_unsigned() },
                 const { OPEN_EXISTING.strict_cast_unsigned() },
@@ -748,8 +751,9 @@ impl DeviceDetails {
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
-    pub fn path(&self) -> WinString {
-        WinString::from(self.DevicePath.as_slice())
+    pub fn path(&self) -> PathBuf {
+        let path = WinString::from(self.DevicePath.as_slice());
+        PathBuf::from(path.to_string())
     }
 
     /// Set the path. Returns the number of u16 "words" stored on success, or

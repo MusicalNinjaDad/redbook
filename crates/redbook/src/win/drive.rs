@@ -10,10 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 use try_v2::Extract;
 
-use super::{
-    convert::{Guid, WinString},
-    sys::GUID_DEVINTERFACE_CDROM,
-};
+use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
 #[cfg(any(
@@ -77,13 +74,11 @@ impl CdDrive {
     ///   audio-only CDs) then the TOC will be compared to the available cdas. Tracing warnings will
     ///   be emitted on mismatch, but no hard error will be thrown.
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let path: PathBuf = PathBuf::from(path.as_ref());
-        let path_str = path.display().to_string();
+        let path = PathBuf::from(path.as_ref());
 
-        let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
+        let _error = tracing::error_span!("CdDrive::open", path = %path.display()).entered();
 
-        let windrive = WinString::from(format!(r"\\.\{}", path.display()));
-        let handle = DriveHandle::open(windrive).or_error("opening drive")?;
+        let handle = DriveHandle::open(&path).or_error("opening drive")?;
         let toc = handle.read_toc().or_error("reading TOC")?.into();
 
         let cdas = cda::tracks(&path)

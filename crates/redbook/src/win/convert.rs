@@ -1,6 +1,9 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    path::PathBuf,
+};
 
 use crate::Frame;
 
@@ -142,6 +145,46 @@ impl WinString {
     /// Including the final `\0` termination.
     pub fn as_words(&self) -> &[u16] {
         &self.words
+    }
+}
+
+/// A Windows path either in [traditional] format as a [PathBuf], or [Dos Device Path][dosdevicepath]
+/// format as a [WinString].
+///
+/// More information is available on MS-Learn about [path formats][pathformats], [normalisation] &
+/// [long paths][longpath]
+///
+/// [pathformats]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
+/// [traditional]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#traditional-dos-paths
+/// [dosdevicepath]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#dos-device-paths
+/// [normalisation]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#path-normalization
+/// [longpath]: https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+pub enum WinPath {
+    /// a Rust PathBuf *without* preceding `\\.\` or `\\?\`
+    Traditional(PathBuf),
+    /// a WinString *with* preceding `\\?\`
+    DosDevicePath(WinString),
+}
+
+impl From<PathBuf> for WinPath {
+    fn from(path: PathBuf) -> Self {
+        if path.starts_with(r"\\.\") || path.starts_with(r"\\?\") {
+            Self::DosDevicePath(WinString::from(path.display().to_string()))
+        } else {
+            Self::Traditional(path)
+        }
+    }
+}
+
+impl WinPath {
+    /// Consume the `WinPath` and provide a [WinString] representation beginning with `\\.\` or `\\?\`
+    ///
+    /// See [WinPath] for more details on path formats
+    pub fn into_dos_device_path(self) -> WinString {
+        match self {
+            WinPath::Traditional(path) => WinString::from(format!(r"\\.\{}", path.display())),
+            WinPath::DosDevicePath(win_string) => win_string,
+        }
     }
 }
 

@@ -153,7 +153,9 @@ pub unsafe fn CreateFile2(
     let pcwstr = unsafe { slice::from_raw_parts(lpfilename, path_len) };
 
     let win_path = WinString::from(pcwstr).to_string();
+    dbg!(&win_path);
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
+    dbg!(&path);
 
     match TestAlbum::try_from(&path).unwrap() {
         DefinitelyMaybe => DEFINITELY_MAYBE,
