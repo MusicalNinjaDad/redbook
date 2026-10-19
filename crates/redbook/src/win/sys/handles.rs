@@ -101,6 +101,8 @@ mod safety {
     }
 
     #[cfg(test)]
+    /// These tests must be here as they require instantiating an invalid DriveHandle which is not
+    /// possible outside `mod safety`
     mod miri {
         use super::*;
 
