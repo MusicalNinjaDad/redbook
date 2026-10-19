@@ -161,7 +161,7 @@ impl Drop for DriveHandle {
 ///   This could occur for example, if the underlying drive is unplugged before cloning.
 ///
 /// # TODO
-/// - Provide DriveHandle::duplicate -> io::Result<DriveHandle>
+/// - TODO: #111 Provide DriveHandle::duplicate -> io::Result<DriveHandle>
 impl Clone for DriveHandle {
     fn clone(&self) -> Self {
         let mut cloned = INVALID_HANDLE_VALUE;
