@@ -754,6 +754,13 @@ impl DeviceDetails {
 
     /// Set the path. Returns the number of u16 "words" stored on success, or
     /// `ErrorKind::InvalidData` if the provided path is too large.
+    #[cfg_attr(
+        all(windows, not(any(test, doc))),
+        expect(
+            dead_code,
+            reason = "only used in mock for SetupDiGetDeviceInterfaceDetailW"
+        )
+    )]
     pub(super) fn set_path(&mut self, path: &WinString) -> io::Result<usize> {
         let len = path.as_words().len();
         (len < self.DevicePath.len()).ok_or_else(|| {

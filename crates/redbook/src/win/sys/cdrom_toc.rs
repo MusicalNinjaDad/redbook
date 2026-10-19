@@ -9,9 +9,6 @@ use crate::{
 
 use super::{CDROM_TOC, TRACK_DATA};
 
-/// size of `.cda` files
-pub const CDA_LEN: usize = 0x2c;
-
 /// size of ffi struct [`CDROM_TOC`]
 pub const TOC_SIZE: usize = size_of::<CDROM_TOC>();
 
