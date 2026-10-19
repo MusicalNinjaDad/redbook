@@ -689,7 +689,7 @@ where
     fn eq(&self, tracks: &V) -> bool {
         for pair in self.iter().zip_longest(tracks) {
             match pair {
-                EitherOrBoth::Both(entry, track) if entry.track == track.track_number() => {}
+                EitherOrBoth::Both(entry, track) if entry == &track.toc_entry => {}
                 _ => {
                     cold_path();
                     return false;
