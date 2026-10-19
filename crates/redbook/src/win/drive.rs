@@ -8,6 +8,7 @@ use std::{
 
 use tracing::field::Empty;
 use tracing_result::Trace;
+use try_v2::Extract;
 
 use super::{
     convert::{Guid, WinString},
@@ -23,7 +24,10 @@ use crate::test_fixtures::albums::TestAlbum;
 use crate::{FRAME_SIZE, Track, hex::hex_dump};
 use crate::{
     Frame, TocEntries,
-    win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    win::{
+        cda,
+        sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    },
 };
 
 #[expect(
@@ -69,6 +73,9 @@ impl CdDrive {
     /// - The handle has minimal (shared read only) access rights and will be closed
     ///   when the [`CdDrive`] is dropped. Consider using [exit_safely] to ensure that
     ///   this occurs in your binary even on error.
+    /// - If the OS is kind enough to process the tracks as cda files (e.g. Windows does this for
+    ///   audio-only CDs) then the TOC will be compared to the available cdas. Tracing warnings will
+    ///   be emitted on mismatch, but no hard error will be thrown.
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path: PathBuf = PathBuf::from(path.as_ref());
         let path_str = path.display().to_string();
@@ -78,6 +85,14 @@ impl CdDrive {
         let windrive = WinString::from(format!(r"\\.\{}", path.display()));
         let handle = DriveHandle::open(windrive).or_error("opening drive")?;
         let toc = handle.read_toc().or_error("reading TOC")?.into();
+
+        let cdas = cda::tracks(&path)
+            .or_debug("unable to open path as filesystem")
+            .unwrap_or_default();
+        if !cdas.is_empty() {
+            let _warn_if_different = toc == cdas;
+        }
+
         Ok(Self { path, handle, toc })
     }
 

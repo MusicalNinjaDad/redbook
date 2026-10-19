@@ -7,7 +7,7 @@ use thread_safely::Context;
 use tracing_result::Trace;
 
 use super::drive::CdDrive;
-use crate::{AudioCdExt, Disc, Frame, RipProgress, Track, win::cda};
+use crate::{AudioCdExt, Disc, Frame, RipProgress, Track};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -46,16 +46,7 @@ impl TryFrom<CdDrive> for AudioCd {
             tracing::error_span!("AudioCd::TryFrom<CdDrive>", path = %drive.path().display())
                 .entered();
 
-        // Windows already helpfully decodes the TOC for us. Parsing .cda files pre-calculates the
-        // durations and gives us a comparison to validate the raw TOC against.
-        let cda_tracks = cda::tracks(drive.path())?;
-
         let toc = drive.toc();
-
-        if !cda_tracks.is_empty() {
-            let _warn_if_different = *toc == cda_tracks;
-        }
-
         let tracks: Vec<_> = toc.audio_tracks().collect();
         let toc = Toc::try_from(toc).or_error("")?;
 
