@@ -122,22 +122,23 @@ pub trait Drive: Device {
                 "now reading chunk {i} but have only read {frames_read_so_far} frames so far"
             );
 
-            let start = Frame::new(i * MAX_CHUNK_FRAMES);
+            let offset = Frame::new(i * MAX_CHUNK_FRAMES);
 
             debug_assert_eq!(
-                start, frames_read_so_far,
-                "about to read chunk {i}. We are about to read from {start}, but have only read {frames_read_so_far} frames so far"
+                offset, frames_read_so_far,
+                "about to read chunk {i}. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
             );
 
+            let start = track.toc_entry.start + offset;
             let frames_read = self.read_cdda(start, buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
-        let start = Frame::new(bufs.len() * MAX_CHUNK_FRAMES);
+        let offset = Frame::new(bufs.len() * MAX_CHUNK_FRAMES);
         debug_assert_eq!(
-            start, frames_read_so_far,
-            "about to read last chunk. We are about to read from {start}, but have only read {frames_read_so_far} frames so far"
+            offset, frames_read_so_far,
+            "about to read last chunk. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
         );
 
         if !last_buf.is_empty() {
@@ -150,6 +151,9 @@ pub trait Drive: Device {
                 })
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
+
+            let start = track.toc_entry.start + offset;
+
             let frames_read = self.read_cdda(start, last_buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));

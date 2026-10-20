@@ -325,12 +325,13 @@ impl Device for DriveHandle {
     fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
         let span = tracing::error_span!(
             "DriveHandle::read_cdda",
-            start = start.as_usize(),
+            %start,
             buf_size = buf.len(),
             frames_to_read = Empty,
             start_offset_sector = Empty,
         )
         .entered();
+
         let bytes_to_read = u32::try_from(buf.len())
             .map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
             .or_error("buffer too large")?;
