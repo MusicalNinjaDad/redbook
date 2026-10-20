@@ -2,14 +2,14 @@
 use std::{io, path::PathBuf};
 
 #[cfg(target_family = "windows")]
-use redbook::{AudioCd, AudioCdExt, win::drive::all_drives};
+use redbook::{AudioCd, win::drive::all_drives};
 
 #[cfg(target_family = "windows")]
 fn main() -> io::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let drive = args.get(1).map(PathBuf::from);
     let cd = match drive {
-        Some(drive) => AudioCd::new(drive)?,
+        Some(drive) => AudioCd::open(&drive, Default::default())?,
         None => {
             let drive = all_drives()?
                 .next()
