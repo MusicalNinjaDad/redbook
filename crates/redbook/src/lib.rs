@@ -90,8 +90,6 @@ pub use disc::*;
 pub use drive::{Device, Drive};
 pub use toc::*;
 pub use track::*;
-#[doc(inline)]
-pub use win::AudioCd;
 
 use crate::win::DriveHandle;
 
