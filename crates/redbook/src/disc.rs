@@ -154,6 +154,11 @@ impl Disc {
         })
     }
 
+    /// Get the Table of Contents in cdtoc format
+    pub fn toc(&self) -> &Toc {
+        &self.toc
+    }
+
     /// Get the selected release.
     ///
     /// # Note

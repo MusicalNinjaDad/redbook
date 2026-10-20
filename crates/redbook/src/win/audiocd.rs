@@ -10,7 +10,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, RipProgress, RippedTrack, win::sys::DriveHandle};
+use crate::{CdDrive, Disc, Drive, RipProgress, RippedTrack, TocEntries, win::sys::DriveHandle};
 
 #[derive(Debug)]
 pub struct AudioCd {
@@ -64,6 +64,18 @@ impl AudioCd {
 
     pub fn disc_mut(&mut self) -> &mut Disc {
         &mut self.disc
+    }
+
+    pub fn path(&self) -> &Path {
+        self.drive.path()
+    }
+
+    pub fn toc(&self) -> &Toc {
+        self.disc.toc()
+    }
+
+    pub fn toc_entries(&self) -> &TocEntries {
+        self.drive.toc()
     }
 }
 
