@@ -212,52 +212,24 @@ impl<DEV: Device> CdDrive<DEV> {
     }
 }
 
-impl<DEV: Device> Device for CdDrive<DEV> {
-    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+impl<DEV: Device> Drive for CdDrive<DEV> {
+    type Device = DEV;
+
+    fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
         let _err_span =
-            tracing::error_span!("CdDrive::open", path = %path.as_ref().display()).entered();
+            tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
+                .entered();
+        let _debug_span = tracing::debug_span!("", ?cx).entered();
+
         let device = DEV::open(&path)?;
         let path = PathBuf::from(path.as_ref());
         let tocentries = device.read_toc()?;
-        let cx = Default::default();
         Ok(Self {
             path,
             device,
             tocentries,
             cx,
         })
-    }
-
-    fn fs_path(&self) -> io::Result<PathBuf> {
-        Ok(self.path.clone())
-    }
-
-    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
-        let _trace_span =
-            tracing::trace_span!("CdDrive::read_cdda", %start, bytes = buf.len()).entered();
-        self.device.read_cdda(start, buf)
-    }
-
-    fn read_toc(&self) -> io::Result<TocEntries> {
-        Ok(self.tocentries.clone())
-    }
-
-    fn raw_toc(&self) -> io::Result<Vec<u8>> {
-        let _debug_span = tracing::debug_span!("CdDrive::raw_toc").entered();
-        self.device.raw_toc()
-    }
-}
-
-impl<DEV: Device> Drive for CdDrive<DEV> {
-    type Device = DEV;
-
-    fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
-        let _span =
-            tracing::debug_span!("CdDrive::with_context", path = %path.as_ref().display(), ?cx)
-                .entered();
-        let mut drive = Self::open(path)?;
-        drive.add_context(cx);
-        Ok(drive)
     }
 
     fn add_context(&mut self, cx: Context<RipProgress>) {

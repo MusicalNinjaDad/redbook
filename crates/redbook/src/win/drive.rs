@@ -7,13 +7,13 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
-#[cfg(test)]
-use crate::{Drive, test_fixtures::albums::TestAlbum};
 use crate::{
     Device, RipProgress,
     drive::CdDrive,
     win::sys::{DeviceInfoSet, DriveHandle},
 };
+#[cfg(test)]
+use crate::{Drive, test_fixtures::albums::TestAlbum};
 
 /// Iterator over all the available drives, which have an AudioCd present
 pub struct CdDrives {
