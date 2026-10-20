@@ -280,10 +280,7 @@ impl DriveHandle {
                 null_mut(),
             )
         }
-        .validate(
-            Some(const { size_of::<CDROM_TOC>().strict_cast() }),
-            bytes_read,
-        )?;
+        .validate(Some(toc.size().strict_cast()), bytes_read)?;
         Ok(toc)
     }
 }
