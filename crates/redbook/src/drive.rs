@@ -48,7 +48,7 @@ pub trait Device: Sized {
 /// Implementors of `Drive` are more likely to store cached versions of data such as their path and
 /// ToC, where implementors of only [`Device`] are likely to be low-level entities which directy access
 /// hardware.
-pub trait Drive: Sized {
+pub trait Drive: Device {
     /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
     /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
     /// updates.
@@ -130,7 +130,7 @@ pub trait Drive: Sized {
             );
 
             let start = track.toc_entry.start + offset;
-            let frames_read = self.device().read_cdda(start, buf)?;
+            let frames_read = self.read_cdda(start, buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -154,7 +154,7 @@ pub trait Drive: Sized {
 
             let start = track.toc_entry.start + offset;
 
-            let frames_read = self.device().read_cdda(start, last_buf)?;
+            let frames_read = self.read_cdda(start, last_buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -177,9 +177,6 @@ pub trait Drive: Sized {
     /// The Table of Contents. If you don't need an owned value then, unlike
     /// [`read_toc`][Device::read_toc], this will avoid a heap allocation and will never error.
     fn toc(&self) -> &TocEntries;
-
-    /// The underlying low-level Device
-    fn device(&self) -> &impl Device;
 }
 
 #[derive(Debug, Clone)]
@@ -207,6 +204,47 @@ impl<DEV: Device> CdDrive<DEV> {
             cx,
         }
     }
+
+    /// Get a reference to the underlying `DEV`ice
+    pub fn device(&self) -> &DEV {
+        &self.device
+    }
+}
+
+impl<DEV: Device> Device for CdDrive<DEV> {
+    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let _err_span =
+            tracing::error_span!("CdDrive::open", path = %path.as_ref().display()).entered();
+        let device = DEV::open(&path)?;
+        let path = PathBuf::from(path.as_ref());
+        let tocentries = device.read_toc()?;
+        let cx = Default::default();
+        Ok(Self {
+            path,
+            device,
+            tocentries,
+            cx,
+        })
+    }
+
+    fn fs_path(&self) -> io::Result<PathBuf> {
+        Ok(self.path.clone())
+    }
+
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
+        let _trace_span =
+            tracing::trace_span!("CdDrive::read_cdda", %start, bytes = buf.len()).entered();
+        self.device.read_cdda(start, buf)
+    }
+
+    fn read_toc(&self) -> io::Result<TocEntries> {
+        Ok(self.tocentries.clone())
+    }
+
+    fn raw_toc(&self) -> io::Result<Vec<u8>> {
+        let _debug_span = tracing::debug_span!("CdDrive::raw_toc").entered();
+        self.device.raw_toc()
+    }
 }
 
 impl<DEV: Device> Drive for CdDrive<DEV> {
@@ -214,15 +252,9 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
         let _span =
             tracing::debug_span!("CdDrive::with_context", path = %path.as_ref().display(), ?cx)
                 .entered();
-        let device = DEV::open(&path)?;
-        let path = PathBuf::from(path.as_ref());
-        let tocentries = device.read_toc()?;
-        Ok(Self {
-            path,
-            device,
-            tocentries,
-            cx,
-        })
+        let mut drive = Self::open(path)?;
+        drive.add_context(cx);
+        Ok(drive)
     }
 
     fn add_context(&mut self, cx: Context<RipProgress>) {
@@ -240,22 +272,4 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
     fn toc(&self) -> &TocEntries {
         &self.tocentries
     }
-
-    #[expect(
-        refining_impl_trait,
-        reason = "trait unable to name DEV, but we can & should"
-    )]
-    fn device(&self) -> &DEV {
-        &self.device
-    }
 }
-
-// impl<DEV: Device> TryFrom<DEV> for CdDrive<DEV> {
-//     type Error = io::Error;
-
-//     fn try_from(device: DEV) -> Result<Self, Self::Error> {
-//         let path = device.fs_path()?;
-//         let tocentries = device.read_toc()?;
-//         Ok(Self::new(path, device, tocentries, Default::default()))
-//     }
-// }
