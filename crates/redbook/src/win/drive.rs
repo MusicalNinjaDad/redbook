@@ -10,7 +10,8 @@ use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
 use crate::{
-    CdDrive, Device, Drive, RipProgress,
+    Device, Drive, RipProgress,
+    drive::CdDrive,
     win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 

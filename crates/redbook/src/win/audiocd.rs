@@ -10,7 +10,9 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, RipProgress, RippedTrack, TocEntries, win::sys::DriveHandle};
+use crate::{
+    Disc, Drive, RipProgress, RippedTrack, TocEntries, drive::CdDrive, win::sys::DriveHandle,
+};
 
 #[derive(Debug)]
 pub struct AudioCd {

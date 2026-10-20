@@ -87,11 +87,13 @@
 
 pub use audiocd::*;
 pub use disc::*;
-pub use drive::*;
+pub use drive::{Device, Drive};
 pub use toc::*;
 pub use track::*;
 #[doc(inline)]
 pub use win::AudioCd;
+
+use crate::win::DriveHandle;
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -121,6 +123,11 @@ mod track;
 
 // provides abstractions over direct hardware access
 pub mod win;
+
+/// Platform specific default CdDrive type
+///
+/// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
+pub type CdDrive = drive::CdDrive<DriveHandle>;
 
 /// Size of a single CDDA audio frame in bytes.
 ///
