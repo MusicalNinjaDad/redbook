@@ -1,45 +1,16 @@
 //! Handles direct hardware access via Windows APIs
 
+#[cfg(test)]
 use std::io;
 
-use thread_safely::Context;
-use tracing::field::Empty;
 use tracing_result::Trace;
 
-use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 use crate::{
-    Device, RipProgress,
-    drive::CdDrive,
+    Device,
     win::sys::{DeviceInfoSet, DriveHandle},
 };
 #[cfg(test)]
-use crate::{Drive, test_fixtures::albums::TestAlbum};
-
-/// Iterator over all the available drives, which have an AudioCd present
-pub struct CdDrives {
-    deviceinfoset: DeviceInfoSetIter,
-    /// Thread context for cancellation & status reporting
-    cx: Context<RipProgress>,
-}
-
-impl Iterator for CdDrives {
-    type Item = CdDrive<DriveHandle>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let device = self.deviceinfoset.next()?;
-        let path = device
-            .fs_path()
-            .or_error("getting path for next device")
-            .ok()?;
-        let tocentries = device
-            .read_toc()
-            .or_error("reading TOC for next device")
-            .ok()?;
-        let cx = self.cx.clone();
-
-        Some(CdDrive::new(path, device, tocentries, cx))
-    }
-}
+use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 
 impl IntoIterator for DeviceInfoSet {
     type Item = DriveHandle;
@@ -95,21 +66,6 @@ impl Iterator for DeviceInfoSetIter {
     }
 }
 
-/// Get all the available drives, which have an AudioCd present
-pub fn all_drives(cx: Context<RipProgress>) -> io::Result<CdDrives> {
-    let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
-
-    let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))?;
-    debug.record("handle", format!("{deviceinfoset:?}"));
-
-    tracing::debug!("got device infoset");
-    Ok(CdDrives {
-        deviceinfoset: deviceinfoset.into_iter(),
-        cx,
-        ..
-    })
-}
-
 #[cfg(test)]
 impl TryFrom<&CdDrive<DriveHandle>> for TestAlbum {
     type Error = io::Error;
@@ -117,28 +73,5 @@ impl TryFrom<&CdDrive<DriveHandle>> for TestAlbum {
     fn try_from(drive: &CdDrive<DriveHandle>) -> Result<Self, Self::Error> {
         let handle = drive.device();
         handle.try_into()
-    }
-}
-
-#[cfg(test)]
-mod miri {
-    use cdtoc::Toc;
-
-    use crate::{Drive, test_fixtures::albums::TestAlbum::*};
-
-    use super::*;
-
-    #[test]
-    fn all() {
-        let drives = all_drives(Default::default()).unwrap();
-        let albums: Vec<_> = drives
-            .map(|drive| Toc::try_from(drive.toc()).unwrap())
-            .collect();
-        let expected = [
-            DefinitelyMaybe.expected_toc(),
-            TheWallDisc1.expected_toc(),
-            TheWallDisc2.expected_toc(),
-        ];
-        assert_eq!(albums, expected);
     }
 }

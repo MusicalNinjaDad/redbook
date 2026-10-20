@@ -63,9 +63,6 @@ pub trait Drive: Sized {
     /// updates.
     fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
 
-    /// Get an iterator over all available Drives on the current system.
-    fn all(cx: Context<RipProgress>) -> io::Result<impl Iterator<Item = Self>>;
-
     /// Retrieve the thread [Context]. If no context was provided via [with_context]
     /// or [add_context] then this will be a dummy, default context.
     fn cx(&self) -> Context<RipProgress>;
@@ -238,11 +235,6 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
         })
     }
 
-    fn all(cx: Context<RipProgress>) -> io::Result<impl Iterator<Item = Self>> {
-        let devices = Self::Device::all()?;
-        Ok(CdDrives { devices, cx })
-    }
-
     fn cx(&self) -> Context<RipProgress> {
         self.cx.clone()
     }
@@ -266,6 +258,14 @@ pub struct CdDrives<DEV: Device> {
     cx: Context<RipProgress>,
 }
 
+impl<DEV: Device> CdDrives<DEV> {
+    /// Get an iterator over all available Drives on the current system.
+    pub fn all(cx: Context<RipProgress>) -> io::Result<Self> {
+        let devices = <CdDrive<DEV> as Drive>::Device::all()?;
+        Ok(CdDrives { devices, cx })
+    }
+}
+
 impl<DEV: Device> Iterator for CdDrives<DEV> {
     type Item = CdDrive<DEV>;
 
@@ -281,5 +281,28 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
             tocentries,
             cx,
         })
+    }
+}
+
+#[cfg(test)]
+mod miri {
+    use cdtoc::Toc;
+
+    use crate::{Drive, test_fixtures::albums::TestAlbum::*, win::DriveHandle};
+
+    use super::*;
+
+    #[test]
+    fn all() {
+        let drives = CdDrives::<DriveHandle>::all(Default::default()).unwrap();
+        let albums: Vec<_> = drives
+            .map(|drive| Toc::try_from(drive.toc()).unwrap())
+            .collect();
+        let expected = [
+            DefinitelyMaybe.expected_toc(),
+            TheWallDisc1.expected_toc(),
+            TheWallDisc2.expected_toc(),
+        ];
+        assert_eq!(albums, expected);
     }
 }

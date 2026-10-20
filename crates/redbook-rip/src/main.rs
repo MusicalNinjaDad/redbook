@@ -27,7 +27,6 @@ use metaflac::{
 use redbook::{
     AudioCd, Disc, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
-    win::drive::all_drives,
 };
 use thread_safely::Controller;
 use tracing_result::Trace;
@@ -47,6 +46,8 @@ struct EncodingProgress {
 
 #[cfg(windows)]
 fn main() -> io::Result<()> {
+    use redbook::drive::CdDrives;
+
     output::init_tracing()?;
 
     let music_dir = get_music_location()?;
@@ -56,7 +57,7 @@ fn main() -> io::Result<()> {
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
     let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
 
-    let drive = all_drives(rip_context.clone())?
+    let drive = CdDrives::all(rip_context.clone())?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
     let cd = AudioCd::try_from(drive)?;

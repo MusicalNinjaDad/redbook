@@ -31,8 +31,8 @@ use metaflac::{
 #[cfg(target_family = "windows")]
 use redbook::{
     AudioCd, RippedTrack,
+    drive::CdDrives,
     tagging::{PictureExt, VorbisTagExt},
-    win::drive::all_drives,
 };
 #[cfg(target_family = "windows")]
 use tracing_result::Trace;
@@ -70,7 +70,7 @@ fn main() -> Exit<()> {
             AudioCd::open(&drive, Default::default())?
         }
         None => {
-            let drive = all_drives(Default::default())?
+            let drive = CdDrives::all(Default::default())?
                 .next()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
             AudioCd::try_from(drive)?

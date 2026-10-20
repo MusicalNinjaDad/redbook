@@ -2,7 +2,7 @@
 use std::{io, path::PathBuf};
 
 #[cfg(target_family = "windows")]
-use redbook::{AudioCd, win::drive::all_drives};
+use redbook::{AudioCd, drive::CdDrives};
 
 #[cfg(target_family = "windows")]
 fn main() -> io::Result<()> {
@@ -11,7 +11,7 @@ fn main() -> io::Result<()> {
     let cd = match drive {
         Some(drive) => AudioCd::open(&drive, Default::default())?,
         None => {
-            let drive = all_drives(Default::default())?
+            let drive = CdDrives::all(Default::default())?
                 .next()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
             AudioCd::try_from(drive)?
