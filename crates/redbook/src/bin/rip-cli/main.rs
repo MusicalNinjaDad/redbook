@@ -70,7 +70,7 @@ fn main() -> Exit<()> {
             AudioCd::open(&drive, Default::default())?
         }
         None => {
-            let drive = all_drives()?
+            let drive = all_drives(Default::default())?
                 .next()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
             AudioCd::try_from(drive)?

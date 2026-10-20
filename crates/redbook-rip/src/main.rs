@@ -25,7 +25,7 @@ use metaflac::{
     block::{Picture, PictureType},
 };
 use redbook::{
-    AudioCd, AudioCdExt, Disc, RipProgress, RippedTrack,
+    AudioCd, Disc, RipProgress, RippedTrack,
     tagging::{PictureExt, VorbisTagExt},
     win::drive::all_drives,
 };
@@ -56,11 +56,10 @@ fn main() -> io::Result<()> {
     let (rip_controller, rip_context) = Controller::<RipProgress>::new();
     let (enc_controller, enc_context) = Controller::<EncodingProgress>::new();
 
-    let drive = all_drives()?
+    let drive = all_drives(rip_context.clone())?
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
-    let mut cd = AudioCd::try_from(drive)?;
-    cd.add_context(rip_context.clone());
+    let cd = AudioCd::try_from(drive)?;
     let cd = Arc::new(Mutex::from(cd));
 
     let (to_rip_tx, to_rip_rx) = unbounded::<Vec<usize>>();

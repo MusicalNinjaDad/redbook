@@ -2,6 +2,7 @@
 
 use std::io;
 
+use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
@@ -9,7 +10,7 @@ use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
 use crate::{
-    CdDrive, Device,
+    CdDrive, Device, Drive, RipProgress,
     win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
 };
 
@@ -30,6 +31,8 @@ pub struct CdDrives {
     /// Must be a valid handle (pointer *mut c_void) to device information set.
     /// Can only be constructed via [`all_drives`] which ensures this is upheld.
     deviceinfoset: DeviceInfoSet,
+    /// Thread context for cancellation & status reporting
+    cx: Context<RipProgress>,
     /// Index of next element to retrieve from deviceinfoset.
     /// `u32` as this is what the ffi calls use.
     current_index: u32 = 0,
@@ -60,7 +63,10 @@ impl Iterator for CdDrives {
             .or_warn("getting drive data")?;
 
         match CdDrive::try_from(drive_data) {
-            Ok(cddrive) => Some(cddrive),
+            Ok(mut cddrive) => {
+                cddrive.add_context(self.cx.clone());
+                Some(cddrive)
+            }
             Err(error) if error.raw_os_error() == Some(21) => {
                 // OS error 21 (device not ready) = no disc in drive
                 drop(debug);
@@ -75,14 +81,18 @@ impl Iterator for CdDrives {
 }
 
 /// Get all the available drives, which have an AudioCd present
-pub fn all_drives() -> io::Result<CdDrives> {
+pub fn all_drives(cx: Context<RipProgress>) -> io::Result<CdDrives> {
     let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
 
     let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))?;
     debug.record("handle", format!("{deviceinfoset:?}"));
 
     tracing::debug!("got device infoset");
-    Ok(CdDrives { deviceinfoset, .. })
+    Ok(CdDrives {
+        deviceinfoset,
+        cx,
+        ..
+    })
 }
 
 #[cfg(test)]
@@ -105,7 +115,7 @@ mod miri {
 
     #[test]
     fn all() {
-        let drives = all_drives().unwrap();
+        let drives = all_drives(Default::default()).unwrap();
         let albums: Vec<_> = drives
             .map(|drive| Toc::try_from(drive.toc()).unwrap())
             .collect();
