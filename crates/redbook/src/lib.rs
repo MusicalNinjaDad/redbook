@@ -101,7 +101,7 @@ mod audiocd;
 mod disc;
 
 #[forbid(unsafe_code)]
-mod drive;
+pub mod drive;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
