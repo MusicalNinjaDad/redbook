@@ -38,7 +38,7 @@ impl TryFrom<CdDrive> for AudioCd {
 
 impl AudioCd {
     pub fn open<P: AsRef<Path>>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
-        let drive = CdDrive::with_context(path, cx)?;
+        let drive = CdDrive::open(path, cx)?;
         Self::try_from(drive)
     }
 
