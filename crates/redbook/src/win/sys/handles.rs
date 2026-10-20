@@ -194,7 +194,7 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
+    pub(super) fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 

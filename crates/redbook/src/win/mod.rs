@@ -1,6 +1,7 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
 pub use audiocd::AudioCd;
+pub use sys::DriveHandle;
 
 #[forbid(unsafe_code)]
 mod audiocd;

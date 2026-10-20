@@ -6,8 +6,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use super::drive::CdDrive;
-use crate::{AudioCdExt, Disc, RipProgress, Track};
+use crate::{AudioCdExt, CdDrive, Device, Disc, Drive, RipProgress, Track, win::sys::DriveHandle};
 
 /// An AudioCd with potentially mutable metadata.
 ///
@@ -22,7 +21,7 @@ use crate::{AudioCdExt, Disc, RipProgress, Track};
 /// spawning any threads.
 #[derive(Debug)]
 pub struct AudioCd {
-    drive: CdDrive,
+    drive: CdDrive<DriveHandle>,
     disc: Disc,
     thread_context: Context<RipProgress>,
 }
@@ -31,17 +30,17 @@ pub struct AudioCd {
 ///
 /// To store a context first create the `AudioCd`, then add it:
 /// ```no_run
-/// # use redbook::{AudioCdExt, RipProgress, win::{AudioCd, drive::CdDrive}};
-/// # let drive: CdDrive = CdDrive::open("")?;
+/// # use redbook::{AudioCdExt, CdDrive, Device, RipProgress, win::{AudioCd, DriveHandle}};
+/// # let drive: CdDrive<DriveHandle> = CdDrive::open("")?;
 /// # let cx: thread_safely::Context<RipProgress> = Default::default();
 /// let mut cd = AudioCd::try_from(drive)?;
 /// cd.add_context(cx);
 /// # std::io::Result::Ok(())
 /// ```
-impl TryFrom<CdDrive> for AudioCd {
+impl TryFrom<CdDrive<DriveHandle>> for AudioCd {
     type Error = io::Error;
 
-    fn try_from(drive: CdDrive) -> Result<Self, Self::Error> {
+    fn try_from(drive: CdDrive<DriveHandle>) -> Result<Self, Self::Error> {
         let _err_span =
             tracing::error_span!("AudioCd::TryFrom<CdDrive>", path = %drive.path().display())
                 .entered();
@@ -97,8 +96,7 @@ impl AudioCdExt for AudioCd {
         frames_to_read: u32,
         buf: &mut [u8],
     ) -> io::Result<u32> {
-        self.drive
-            .read_chunk(track, frame_offset, frames_to_read, buf)
+        todo!()
     }
 }
 

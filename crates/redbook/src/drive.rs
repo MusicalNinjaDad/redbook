@@ -176,11 +176,35 @@ pub trait Drive: Device {
 }
 
 #[derive(Debug, Clone)]
-struct CdDrive<DEV: Device> {
+/// TODO: Docs
+pub struct CdDrive<DEV: Device> {
     path: PathBuf,
     device: DEV,
     tocentries: TocEntries,
     cx: Context<RipProgress>,
+}
+
+impl<DEV: Device> CdDrive<DEV> {
+    /// Construct a new CdDrive from constituent parts. You will almost never want to call this directly
+    /// unless implementing `From`/`TryFrom`. Use [`open`][Device::open] instead.
+    pub fn new(
+        path: PathBuf,
+        device: DEV,
+        tocentries: TocEntries,
+        cx: Context<RipProgress>,
+    ) -> Self {
+        Self {
+            path,
+            device,
+            tocentries,
+            cx,
+        }
+    }
+
+    /// Get a reference to the underlying `DEV`ice
+    pub fn device(&self) -> &DEV {
+        &self.device
+    }
 }
 
 impl<DEV: Device> Device for CdDrive<DEV> {

@@ -12,7 +12,10 @@ use std::io;
 #[cfg(target_family = "windows")]
 use cdtoc::Toc;
 #[cfg(target_family = "windows")]
-use redbook::win::drive::{CdDrive, all_drives};
+use redbook::{
+    CdDrive, Drive,
+    win::{DriveHandle, drive::all_drives},
+};
 use tracing::level_filters::LevelFilter;
 #[cfg(target_family = "windows")]
 use tracing_result::Trace;
@@ -26,7 +29,7 @@ fn main() -> io::Result<()> {
         .with(layer().with_filter(LevelFilter::DEBUG))
         .init();
 
-    let drives: Vec<CdDrive> = all_drives().or_error("")?.collect();
+    let drives: Vec<CdDrive<DriveHandle>> = all_drives().or_error("")?.collect();
 
     for cd in drives {
         let path = cd.path();
