@@ -10,64 +10,78 @@ use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
 use crate::test_fixtures::albums::TestAlbum;
 use crate::{
-    Device, Drive, RipProgress,
+    Device, RipProgress,
     drive::CdDrive,
-    win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
+    win::sys::{DeviceInfoSet, DriveHandle},
 };
-
-impl TryFrom<DeviceDetails> for CdDrive<DriveHandle> {
-    type Error = io::Error;
-
-    fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
-        let handle = DriveHandle::open(device.path()).or_error("")?;
-        let toc = handle.read_toc()?;
-        let path = handle.fs_path()?;
-        Ok(Self::new(path, handle, toc, Default::default()))
-    }
-}
 
 /// Iterator over all the available drives, which have an AudioCd present
 pub struct CdDrives {
-    /// # SAFETY:
-    /// Must be a valid handle (pointer *mut c_void) to device information set.
-    /// Can only be constructed via [`all_drives`] which ensures this is upheld.
-    deviceinfoset: DeviceInfoSet,
+    deviceinfoset: DeviceInfoSetIter,
     /// Thread context for cancellation & status reporting
     cx: Context<RipProgress>,
-    /// Index of next element to retrieve from deviceinfoset.
-    /// `u32` as this is what the ffi calls use.
-    current_index: u32 = 0,
 }
 
 impl Iterator for CdDrives {
     type Item = CdDrive<DriveHandle>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let device = self.deviceinfoset.next()?;
+        let path = device
+            .fs_path()
+            .or_error("getting path for next device")
+            .ok()?;
+        let tocentries = device
+            .read_toc()
+            .or_error("reading TOC for next device")
+            .ok()?;
+        let cx = self.cx.clone();
+
+        Some(CdDrive::new(path, device, tocentries, cx))
+    }
+}
+
+impl IntoIterator for DeviceInfoSet {
+    type Item = DriveHandle;
+
+    type IntoIter = DeviceInfoSetIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DeviceInfoSetIter { infoset: self, .. }
+    }
+}
+
+/// TODO: Docs
+pub struct DeviceInfoSetIter {
+    infoset: DeviceInfoSet,
+    current_index: usize = 0,
+}
+
+impl Iterator for DeviceInfoSetIter {
+    type Item = DriveHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
         self.current_index += 1;
 
-        let deviceinfoset = &self.deviceinfoset;
+        let guid = self.infoset.class();
 
         let debug = tracing::debug_span!(
-            "next drive",
+            "DeviceInfoSetIter::next",
             drive_index,
-            guid = Empty,
-            path_length = Empty,
-            path = Empty,
+            %guid,
         )
         .entered();
 
-        let drive_data = deviceinfoset
+        let drive_data = self
+            .infoset
             .get_member(drive_index.strict_cast())
+            .or_warn("error getting drive data")
             .ok()
-            .flatten()
-            .or_warn("getting drive data")?;
+            .flatten()?;
 
-        match CdDrive::try_from(drive_data) {
-            Ok(mut cddrive) => {
-                cddrive.add_context(self.cx.clone());
-                Some(cddrive)
-            }
+        match DriveHandle::open(drive_data.path()) {
+            Ok(drive) => Some(drive),
             Err(error) if error.raw_os_error() == Some(21) => {
                 // OS error 21 (device not ready) = no disc in drive
                 drop(debug);
@@ -90,7 +104,7 @@ pub fn all_drives(cx: Context<RipProgress>) -> io::Result<CdDrives> {
 
     tracing::debug!("got device infoset");
     Ok(CdDrives {
-        deviceinfoset,
+        deviceinfoset: deviceinfoset.into_iter(),
         cx,
         ..
     })

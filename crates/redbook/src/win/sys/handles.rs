@@ -510,6 +510,11 @@ impl DeviceInfoSet {
         }
     }
 
+    /// Obtain the GUID of the associated device class
+    pub fn class(&self) -> Guid {
+        self.class
+    }
+
     /// Get the detail data for a given member of the device information set
     pub fn get_member(&self, index: usize) -> io::Result<Option<DeviceDetails>> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn

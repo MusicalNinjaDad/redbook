@@ -28,7 +28,6 @@ use bindgen::{
 };
 
 pub(super) use bindgen::{GUID, GUID_DEVINTERFACE_CDROM, PCWSTR};
-pub(super) use handles::DeviceDetails;
 
 pub use handles::{DeviceInfoSet, DriveHandle};
 
