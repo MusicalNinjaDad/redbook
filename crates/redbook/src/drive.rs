@@ -210,7 +210,7 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Device for CdDrive<DEV> {
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let _err_span =
-            tracing::error_span!("CdDrive::new", path = %path.as_ref().display()).entered();
+            tracing::error_span!("CdDrive::open", path = %path.as_ref().display()).entered();
         let device = DEV::open(&path)?;
         let path = PathBuf::from(path.as_ref());
         let tocentries = device.read_toc()?;

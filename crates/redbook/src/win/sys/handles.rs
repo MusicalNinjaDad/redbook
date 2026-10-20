@@ -239,6 +239,8 @@ impl DriveHandle {
     ///
     /// TODO: consider making public if we make win::sys::cdrom_toc public too
     fn cdrom_toc(&self) -> io::Result<CDROM_TOC> {
+        let _error_span = tracing::error_span!("DriveHandle::cdrom_toc").entered();
+
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
         // call to `DeviceIoControl` below
         let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {
@@ -289,9 +291,10 @@ impl DriveHandle {
 impl Device for DriveHandle {
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path = PathBuf::from(path.as_ref());
-        let _debug = tracing::debug_span!("opening drive handle", path = %path.display()).entered();
+        let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
 
         let windrive = WinPath::from(path).into_dos_device_path();
+        tracing::debug!(%windrive);
 
         #[expect(unsafe_code, reason = "ffi call")]
         let handle = unsafe {
@@ -395,6 +398,7 @@ impl Device for DriveHandle {
     }
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {
+        let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
         Ok(self.cdrom_toc()?.into())
     }
 
