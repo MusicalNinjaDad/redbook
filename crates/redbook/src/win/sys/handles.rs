@@ -14,6 +14,7 @@ use crate::{
     win::{
         MAX_PATH_CHARS,
         convert::{Guid, Sector, WinPath, WinString},
+        drive::DeviceInfoSetIter,
     },
 };
 
@@ -21,11 +22,11 @@ use super::{
     BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
     DIGCF_PRESENT, DUPLICATE_SAME_ACCESS, DeviceIoControl, DuplicateHandle,
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
-    GENERIC_READ, GetCurrentProcess, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
-    IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-    SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-    SetupDiGetDeviceInterfaceDetailW,
+    GENERIC_READ, GUID_DEVINTERFACE_CDROM, GetCurrentProcess, HANDLE, HDEVINFO,
+    INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+    IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+    SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
 };
 
 pub use safety::DriveHandle;
@@ -286,6 +287,8 @@ impl DriveHandle {
 }
 
 impl Device for DriveHandle {
+    type Iter = DeviceInfoSetIter;
+
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let path = PathBuf::from(path.as_ref());
         let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
@@ -312,6 +315,18 @@ impl Device for DriveHandle {
         tracing::debug!(?handle, "opened successfully");
 
         Ok(handle)
+    }
+
+    fn all() -> io::Result<DeviceInfoSetIter> {
+        let debug = tracing::debug_span!("DriveHandle::all", deviceinfoset = Empty).entered();
+
+        let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))
+            .or_error("getting device info set")?;
+
+        debug.record("deviceinfoset", format!("{deviceinfoset:?}"));
+        tracing::debug!("opened DeviceInfoSet");
+
+        Ok(deviceinfoset.into_iter())
     }
 
     fn fs_path(&self) -> io::Result<PathBuf> {

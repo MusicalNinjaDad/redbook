@@ -13,8 +13,14 @@ use tracing_result::Trace;
 use crate::{FRAME_SIZE, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries};
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
+    /// The type of Iterator available that provides all available devices on the system
+    type Iter: Iterator<Item = Self>;
+
     /// Open the device represented by the path
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>;
+
+    /// Get an iterator over all available cd devices on the system
+    fn all() -> io::Result<Self::Iter>;
 
     /// Get a valid file system-path which represents the device and can be passed to
     /// [`std::fs::read_dir`] etc. to read from the device as a file-system.
@@ -56,6 +62,9 @@ pub trait Drive: Sized {
     /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
     /// updates.
     fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
+
+    /// Get an iterator over all available Drives on the current system.
+    fn all(cx: Context<RipProgress>) -> io::Result<impl Iterator<Item = Self>>;
 
     /// Retrieve the thread [Context]. If no context was provided via [with_context]
     /// or [add_context] then this will be a dummy, default context.
@@ -229,6 +238,11 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
         })
     }
 
+    fn all(cx: Context<RipProgress>) -> io::Result<impl Iterator<Item = Self>> {
+        let devices = Self::Device::all()?;
+        Ok(CdDrives { devices, cx })
+    }
+
     fn cx(&self) -> Context<RipProgress> {
         self.cx.clone()
     }
@@ -243,5 +257,29 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
 
     fn device(&self) -> &Self::Device {
         &self.device
+    }
+}
+
+/// TODO: Docs
+pub struct CdDrives<DEV: Device> {
+    devices: DEV::Iter,
+    cx: Context<RipProgress>,
+}
+
+impl<DEV: Device> Iterator for CdDrives<DEV> {
+    type Item = CdDrive<DEV>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let _span = tracing::debug_span!("CdDrives::next");
+        let device = self.devices.next()?;
+        let path = device.fs_path().or_warn("error getting path").ok()?;
+        let tocentries = device.read_toc().or_warn("error getting TOC").ok()?;
+        let cx = self.cx.clone();
+        Some(CdDrive {
+            path,
+            device,
+            tocentries,
+            cx,
+        })
     }
 }
