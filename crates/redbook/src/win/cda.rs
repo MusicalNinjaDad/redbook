@@ -1,6 +1,10 @@
 //! Handling of windows [`CdaFile`]s: [specification](https://en.wikipedia.org/wiki/.cda_file).
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, ErrorKind},
+    path::Path,
+};
 
 use tracing_result::Trace;
 
@@ -181,6 +185,29 @@ impl From<CdaFile> for Track<'static> {
             ..Default::default()
         }
     }
+}
+
+/// Parse all the cda files at `path` into [`Track`]s
+///
+/// These are guaranteed to be sorted as glob yields paths in alphabetical order
+pub fn tracks<P: AsRef<Path>>(path: &P) -> io::Result<Vec<Track<'_>>> {
+    let glob_path = path.as_ref().join("*.cda");
+    let glob_pattern = glob_path
+        .to_str()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "drive path not valid"))
+        .or_error("drive path contains non utf-8")?;
+    let paths = glob::glob(glob_pattern)
+        .map_err(|err| io::Error::new(ErrorKind::InvalidFilename, err))
+        .or_error("invalid glob pattern")?;
+    let valid_paths = paths.filter_map(|cda| {
+        cda.map_err(|error| io::Error::new(ErrorKind::InvalidFilename, error))
+            .or_error("unable to access globbed file")
+            .ok()
+    });
+    let cda_files =
+        valid_paths.filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok());
+    let tracks = cda_files.map(Track::from);
+    Ok(tracks.collect())
 }
 
 #[cfg(test)]

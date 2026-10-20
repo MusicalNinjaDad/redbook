@@ -1,210 +1,58 @@
 //! Handles direct hardware access via Windows APIs
 
-use std::{
-    fmt::Debug,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
-};
+#[cfg(test)]
+use std::io;
 
-use tracing::field::Empty;
 use tracing_result::Trace;
 
-use super::{
-    convert::{Guid, WinString},
-    sys::GUID_DEVINTERFACE_CDROM,
+use crate::{
+    Device,
+    win::sys::{DeviceInfoSet, DriveHandle},
 };
 #[cfg(test)]
-use crate::test_fixtures::albums::TestAlbum;
-#[cfg(any(
-    target_arch = "aarch64",
-    target_arch = "arm64ec",
-    target_arch = "x86_64"
-))]
-use crate::{FRAME_SIZE, Track, hex::hex_dump};
-use crate::{
-    Frame, TocEntries,
-    win::sys::{DeviceDetails, DeviceInfoSet, DriveHandle},
-};
+use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 
-#[expect(
-    rustdoc::private_intra_doc_links,
-    reason = "1. in-IDE help, 2. lint enforcement of privacy"
-)]
-/// A CdDrive with opened read-only [`HANDLE`] and [`CDROM_TOC`]
-///
-/// # SAFETY
-/// - CdDrive cannot be `Clone` to avoid duplicate handles
-pub struct CdDrive {
-    path: PathBuf,
-    handle: DriveHandle,
-    toc: TocEntries,
-}
+impl IntoIterator for DeviceInfoSet {
+    type Item = DriveHandle;
 
-impl Debug for CdDrive {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CdDrive")
-            .field("path", &self.path)
-            .field("handle", &self.handle)
-            .field("toc", &self.toc_as_hex())
-            .finish()
+    type IntoIter = DeviceInfoSetIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        DeviceInfoSetIter { infoset: self, .. }
     }
 }
 
-impl PartialEq for CdDrive {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
-            && self.handle == other.handle
-            && self.toc_as_raw_bytes() == other.toc_as_raw_bytes()
-    }
+/// TODO: Docs
+pub struct DeviceInfoSetIter {
+    infoset: DeviceInfoSet,
+    current_index: usize = 0,
 }
 
-impl Eq for CdDrive {}
-
-impl CdDrive {
-    /// A safe wrapper around the ffi calls needed to obtain a handle for the raw
-    /// drive at `path` and obtain the TOC as provided by the relevant windows system
-    /// call `DeviceIoControl(..,IOCTL_CDROM_READ_TOC_EX,..)`
-    ///
-    /// - The returned [`CdDrive`] provides methods to access the handle and TOC.
-    /// - The handle has minimal (shared read only) access rights and will be closed
-    ///   when the [`CdDrive`] is dropped. Consider using [exit_safely] to ensure that
-    ///   this occurs in your binary even on error.
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let path: PathBuf = PathBuf::from(path.as_ref());
-        let path_str = path.display().to_string();
-
-        let _error = tracing::error_span!("CdDrive::open", path = %path_str).entered();
-
-        let windrive = WinString::from(format!(r"\\.\{}", path.display()));
-        let handle = DriveHandle::open(windrive).or_error("opening drive")?;
-        let toc = handle.read_toc().or_error("reading TOC")?.into();
-        Ok(Self { path, handle, toc })
-    }
-
-    /// The path of the drive
-    pub fn path(&self) -> &PathBuf {
-        &self.path
-    }
-
-    /// Obtain the raw bytes representing the [`CDROM_TOC`]
-    pub fn toc_as_raw_bytes(&self) -> Vec<u8> {
-        self.handle
-            .read_toc()
-            .expect("TODO: error handling")
-            .as_raw_bytes()
-    }
-
-    /// Obtain a hex representation of the raw bytes representing the [`CDROM_TOC`]
-    pub fn toc_as_hex(&self) -> String {
-        hex_dump(&self.toc_as_raw_bytes())
-    }
-
-    /// Obtain a reference to the TOC entries
-    pub fn toc(&self) -> &TocEntries {
-        &self.toc
-    }
-
-    /// Read a chunk of data from the disc to `buf`. Returns number of bytes read
-    ///
-    /// TODO - return frames read, not bytes
-    pub fn read_chunk(
-        &self,
-        track: &Track,
-        frame_offset: usize,
-        frames_to_read: u32,
-        buf: &mut [u8],
-    ) -> io::Result<u32> {
-        let _span = tracing::error_span!(
-            "CdDrive::read_chunk",
-            track = track.toc_entry.track,
-            frame_offset,
-            frames_to_read
-        )
-        .entered();
-
-        (buf.len()
-            == frames_to_read
-                .checked_mul(FRAME_SIZE.strict_cast())
-                .ok_or_else(|| io::Error::new(ErrorKind::OutOfMemory, "too many frames requested"))
-                .or_error("calculating required buffer size")?
-                .strict_cast::<usize>())
-        .ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "incorrectly sized buffer: expected {frames_size}, got {buf_size} bytes",
-                    frames_size = frames_to_read.strict_mul(FRAME_SIZE.strict_cast()),
-                    buf_size = buf.len()
-                ),
-            )
-        })
-        .or_error("incorrect buffer size")?;
-
-        let start = track.toc_entry.start + frame_offset;
-
-        let frames_read = self.handle.read_cdda(start, buf)?;
-        (frames_read == Frame::new(frames_to_read.strict_cast()))
-            .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::UnexpectedEof,
-                    format!("expected {frames_to_read} frames, but only read {frames_read:?}"),
-                )
-            })
-            .or_error("reading chunk")?;
-
-        let bytes_read = frames_read.as_usize().strict_mul(FRAME_SIZE);
-        Ok(bytes_read.strict_cast())
-    }
-}
-
-impl TryFrom<DeviceDetails> for CdDrive {
-    type Error = io::Error;
-
-    fn try_from(device: DeviceDetails) -> Result<Self, Self::Error> {
-        let handle = DriveHandle::open(device.path()).or_error("")?;
-        let toc = handle.read_toc()?.into();
-        let path = handle.fs_path()?;
-        Ok(Self { path, handle, toc })
-    }
-}
-
-/// Iterator over all the available drives, which have an AudioCd present
-pub struct CdDrives {
-    /// # SAFETY:
-    /// Must be a valid handle (pointer *mut c_void) to device information set.
-    /// Can only be constructed via [`all_drives`] which ensures this is upheld.
-    deviceinfoset: DeviceInfoSet,
-    /// Index of next element to retrieve from deviceinfoset.
-    /// `u32` as this is what the ffi calls use.
-    current_index: u32 = 0,
-}
-
-impl Iterator for CdDrives {
-    type Item = CdDrive;
+impl Iterator for DeviceInfoSetIter {
+    type Item = DriveHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
         self.current_index += 1;
 
-        let deviceinfoset = &self.deviceinfoset;
+        let guid = self.infoset.class();
 
         let debug = tracing::debug_span!(
-            "next drive",
+            "DeviceInfoSetIter::next",
             drive_index,
-            guid = Empty,
-            path_length = Empty,
-            path = Empty,
+            %guid,
         )
         .entered();
 
-        let drive_data = deviceinfoset
+        let drive_data = self
+            .infoset
             .get_member(drive_index.strict_cast())
+            .or_warn("error getting drive data")
             .ok()
-            .flatten()
-            .or_warn("getting drive data")?;
+            .flatten()?;
 
-        match CdDrive::try_from(drive_data) {
-            Ok(cddrive) => Some(cddrive),
+        match DriveHandle::open(drive_data.path()) {
+            Ok(drive) => Some(drive),
             Err(error) if error.raw_os_error() == Some(21) => {
                 // OS error 21 (device not ready) = no disc in drive
                 drop(debug);
@@ -218,46 +66,12 @@ impl Iterator for CdDrives {
     }
 }
 
-/// Get all the available drives, which have an AudioCd present
-pub fn all_drives() -> io::Result<CdDrives> {
-    let debug = tracing::debug_span!("all_drives", handle = Empty).entered();
-
-    let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))?;
-    debug.record("handle", format!("{deviceinfoset:?}"));
-
-    tracing::debug!("got device infoset");
-    Ok(CdDrives { deviceinfoset, .. })
-}
-
 #[cfg(test)]
-impl TryFrom<&CdDrive> for TestAlbum {
+impl TryFrom<&CdDrive<DriveHandle>> for TestAlbum {
     type Error = io::Error;
 
-    fn try_from(drive: &CdDrive) -> Result<Self, Self::Error> {
-        let handle = &drive.handle;
+    fn try_from(drive: &CdDrive<DriveHandle>) -> Result<Self, Self::Error> {
+        let handle = drive.device();
         handle.try_into()
-    }
-}
-
-#[cfg(test)]
-mod miri {
-    use cdtoc::Toc;
-
-    use crate::test_fixtures::albums::TestAlbum::*;
-
-    use super::*;
-
-    #[test]
-    fn all() {
-        let drives = all_drives().unwrap();
-        let albums: Vec<_> = drives
-            .map(|drive| Toc::try_from(drive.toc()).unwrap())
-            .collect();
-        let expected = [
-            DefinitelyMaybe.expected_toc(),
-            TheWallDisc1.expected_toc(),
-            TheWallDisc2.expected_toc(),
-        ];
-        assert_eq!(albums, expected);
     }
 }

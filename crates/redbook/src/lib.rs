@@ -1,8 +1,13 @@
-// Unsafe restricted to dedicated wrapper modules
+// Unsafe restricted to dedicated wrapper modules.
+// Modules are individually annotated `forbid` or `expect`.
+// Many additional lints defined in `Cargo.toml`
 #![deny(unsafe_code)]
-// Only applicable to library
+//
+// This lint is only applicable to library, not associated binaries.
 #![deny(missing_docs)]
-// All experimental features are only enabled when on a toolchain where they are still unstable
+//
+// All experimental features are only enabled when on a toolchain where they are still unstable and
+// behave as expected.
 #![cfg_attr(unstable_const_ops, feature(const_ops))]
 #![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
@@ -16,6 +21,7 @@
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![feature(os_str_split_at)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -82,16 +88,20 @@
 
 pub use audiocd::*;
 pub use disc::*;
+pub use drive::{Device, Drive};
 pub use toc::*;
 pub use track::*;
-#[doc(inline)]
-pub use win::AudioCd;
+
+use crate::win::DriveHandle;
 
 #[forbid(unsafe_code)]
 mod audiocd;
 
 #[forbid(unsafe_code)]
 mod disc;
+
+#[forbid(unsafe_code)]
+pub mod drive;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
@@ -112,6 +122,11 @@ mod track;
 
 // provides abstractions over direct hardware access
 pub mod win;
+
+/// Platform specific default CdDrive type
+///
+/// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
+pub type CdDrive = drive::CdDrive<DriveHandle>;
 
 /// Size of a single CDDA audio frame in bytes.
 ///

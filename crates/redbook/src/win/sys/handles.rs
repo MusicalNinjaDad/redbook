@@ -2,7 +2,7 @@ use std::{
     fmt::Display,
     io::{self, ErrorKind},
     mem::offset_of,
-    path::PathBuf,
+    path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
 
@@ -10,10 +10,11 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    FRAME_SIZE, Frame,
+    Device, FRAME_SIZE, Frame,
     win::{
         MAX_PATH_CHARS,
-        convert::{Guid, Sector, WinString},
+        convert::{Guid, Sector, WinPath, WinString},
+        drive::DeviceInfoSetIter,
     },
 };
 
@@ -21,11 +22,11 @@ use super::{
     BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
     DIGCF_PRESENT, DUPLICATE_SAME_ACCESS, DeviceIoControl, DuplicateHandle,
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
-    GENERIC_READ, GetCurrentProcess, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
-    IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
-    SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-    SetupDiGetDeviceInterfaceDetailW,
+    GENERIC_READ, GUID_DEVINTERFACE_CDROM, GetCurrentProcess, HANDLE, HDEVINFO,
+    INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+    IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
+    SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
 };
 
 pub use safety::DriveHandle;
@@ -194,41 +195,7 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub fn open(path: WinString) -> io::Result<Self> {
-        let _debug = tracing::debug_span!("opening drive handle", %path).entered();
-
-        #[expect(unsafe_code, reason = "ffi call")]
-        let handle = unsafe {
-            // SAFETY:
-            // - `path` is owned by this function and therefore valid for duration of this block
-            // - returned handle will be stored in `Self` immediately after successful creation
-            // - `Drop` calls `CloseHandle`
-            CreateFile2(
-                path.as_pcwstr(),
-                GENERIC_READ,
-                const { FILE_SHARE_READ.strict_cast_unsigned() },
-                const { OPEN_EXISTING.strict_cast_unsigned() },
-                null(),
-            )
-        }
-        .into_drive_handle()
-        .or_error("getting handle for drive")?;
-        tracing::debug!(?handle, "opened successfully");
-
-        Ok(handle)
-    }
-
-    /// get a currently valid file-system path, not valid across reboots but can be passed
-    /// to [`std::fs::read_dir`] etc.
-    pub fn fs_path(&self) -> io::Result<PathBuf> {
-        let info = self.device_number()?;
-
-        let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
-
-        Ok(path)
-    }
-
-    pub fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
+    pub(super) fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 
@@ -270,7 +237,11 @@ impl DriveHandle {
     /// # Errors
     ///
     /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
-    pub fn read_toc(&self) -> io::Result<CDROM_TOC> {
+    ///
+    /// TODO: consider making public if we make win::sys::cdrom_toc public too
+    fn cdrom_toc(&self) -> io::Result<CDROM_TOC> {
+        let _error_span = tracing::error_span!("DriveHandle::cdrom_toc").entered();
+
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
         // call to `DeviceIoControl` below
         let toc_command: CDROM_READ_TOC_EX = CDROM_READ_TOC_EX {
@@ -310,26 +281,72 @@ impl DriveHandle {
                 null_mut(),
             )
         }
-        .validate(
-            Some(const { size_of::<CDROM_TOC>().strict_cast() }),
-            bytes_read,
-        )?;
+        .validate(Some(toc.size().strict_cast()), bytes_read)?;
         Ok(toc)
     }
+}
 
-    /// Read raw CDDA data starting at frame `start` into `buf`
-    ///
-    /// Returns number of frames read. Errors with ErrorKind::TODO if `buf` is not sized for an
-    /// exact number of frames.
-    pub fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
+impl Device for DriveHandle {
+    type Iter = DeviceInfoSetIter;
+
+    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let path = PathBuf::from(path.as_ref());
+        let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
+
+        let windrive = WinPath::from(path).into_dos_device_path();
+        tracing::debug!(%windrive);
+
+        #[expect(unsafe_code, reason = "ffi call")]
+        let handle = unsafe {
+            // SAFETY:
+            // - `path` is owned by this function and therefore valid for duration of this block
+            // - returned handle will be stored in `Self` immediately after successful creation
+            // - `Drop` calls `CloseHandle`
+            CreateFile2(
+                windrive.as_pcwstr(),
+                GENERIC_READ,
+                const { FILE_SHARE_READ.strict_cast_unsigned() },
+                const { OPEN_EXISTING.strict_cast_unsigned() },
+                null(),
+            )
+        }
+        .into_drive_handle()
+        .or_error("getting handle for drive")?;
+        tracing::debug!(?handle, "opened successfully");
+
+        Ok(handle)
+    }
+
+    fn all() -> io::Result<DeviceInfoSetIter> {
+        let debug = tracing::debug_span!("DriveHandle::all", deviceinfoset = Empty).entered();
+
+        let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))
+            .or_error("getting device info set")?;
+
+        debug.record("deviceinfoset", format!("{deviceinfoset:?}"));
+        tracing::debug!("opened DeviceInfoSet");
+
+        Ok(deviceinfoset.into_iter())
+    }
+
+    fn fs_path(&self) -> io::Result<PathBuf> {
+        let info = self.device_number()?;
+
+        let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
+
+        Ok(path)
+    }
+
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
         let span = tracing::error_span!(
             "DriveHandle::read_cdda",
-            start = start.as_usize(),
+            %start,
             buf_size = buf.len(),
             frames_to_read = Empty,
             start_offset_sector = Empty,
         )
         .entered();
+
         let bytes_to_read = u32::try_from(buf.len())
             .map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
             .or_error("buffer too large")?;
@@ -391,6 +408,15 @@ impl DriveHandle {
         .or_warn("raw CDDA data read failed")?;
 
         Ok(Frame::new(frames_to_read.strict_cast()))
+    }
+
+    fn read_toc(&self) -> io::Result<crate::TocEntries> {
+        let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
+        Ok(self.cdrom_toc()?.into())
+    }
+
+    fn raw_toc(&self) -> io::Result<Vec<u8>> {
+        Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 }
 
@@ -497,6 +523,11 @@ impl DeviceInfoSet {
         } else {
             Ok(Self { handle, class })
         }
+    }
+
+    /// Obtain the GUID of the associated device class
+    pub fn class(&self) -> Guid {
+        self.class
     }
 
     /// Get the detail data for a given member of the device information set
@@ -748,8 +779,9 @@ impl DeviceDetails {
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
-    pub fn path(&self) -> WinString {
-        WinString::from(self.DevicePath.as_slice())
+    pub fn path(&self) -> PathBuf {
+        let path = WinString::from(self.DevicePath.as_slice());
+        PathBuf::from(path.to_string())
     }
 
     /// Set the path. Returns the number of u16 "words" stored on success, or

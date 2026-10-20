@@ -2,15 +2,17 @@
 
 use std::{
     fmt::Display,
+    hint::cold_path,
     io::{self, ErrorKind},
     iter::Peekable,
-    ops::{Add, AddAssign, Rem, Sub, SubAssign},
+    ops::{Add, AddAssign, Mul, Rem, Sub, SubAssign},
     slice,
     time::Duration,
 };
 
 use bitflags::bitflags;
 use cdtoc::Toc;
+use itertools::{EitherOrBoth, Itertools};
 use tracing_result::Trace;
 
 use crate::{LEADIN, Track};
@@ -40,6 +42,18 @@ pub struct TocEntry {
     pub start: Frame,
     /// The control code, identifying track type
     pub control: Control,
+}
+
+impl Display for TocEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "track: {n}, start: {start}, control codes: {ctl}",
+            n = self.track,
+            start = self.start,
+            ctl = self.control
+        )
+    }
 }
 
 /// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
@@ -209,6 +223,12 @@ impl TocEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Frame(usize);
 
+impl Display for Frame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Frame {}", self.0)
+    }
+}
+
 impl Frame {
     /// Given [constant improvements in manufacturing][wiki], this represent the maximum Frame value
     /// which can be stored on the current architecture (`usize::MAX`) and *not* the current
@@ -376,6 +396,25 @@ where
 
     fn rem(self, rhs: N) -> Self::Output {
         Self(self.0 % rhs)
+    }
+}
+
+impl<N> Mul<N> for Frame
+where
+    usize: Mul<N, Output = usize>,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: N) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+const impl Mul<Frame> for Frame {
+    type Output = Self;
+
+    fn mul(self, rhs: Frame) -> Self::Output {
+        Self(self.0 * rhs.0)
     }
 }
 
@@ -622,6 +661,25 @@ impl TocEntries {
             })
             .flatten()
     }
+
+    /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
+    pub fn track(&self, track: usize) -> Option<Track<'static>> {
+        const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
+
+        self.iter()
+            .skip_while(|entry| entry.track.strict_cast::<usize>() != track)
+            .map_windows(|[this_track, next_track]| {
+                this_track.is_audio_track().then(|| {
+                    let mut duration = next_track.start - this_track.start;
+                    if next_track.is_data_track() {
+                        duration -= OFFSET_BEFORE_DATA
+                    }
+                    Track::new(this_track.track, this_track.start, duration)
+                })
+            })
+            .flatten()
+            .next()
+    }
 }
 
 impl<'entries> IntoIterator for &'entries TocEntries {
@@ -677,6 +735,24 @@ impl<'entries> Iterator for TocEntriesIter<'entries> {
             .next_if(|entry| entry.start == next_start)
             .or(self.data.next_if(|entry| entry.start == next_start))
             .or(self.leadouts.next_if(|entry| entry.start == next_start))
+    }
+}
+
+impl<'meta, V> PartialEq<V> for TocEntries
+where
+    for<'v> &'v V: IntoIterator<Item = &'v Track<'meta>>,
+{
+    fn eq(&self, tracks: &V) -> bool {
+        for pair in self.iter().zip_longest(tracks) {
+            match pair {
+                EitherOrBoth::Both(entry, track) if entry == &track.toc_entry => {}
+                _ => {
+                    cold_path();
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 

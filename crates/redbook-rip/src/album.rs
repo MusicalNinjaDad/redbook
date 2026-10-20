@@ -125,10 +125,9 @@ mod tests {
 
         let toc = album.expected_toc();
         let tracks = album.expected_audio_tracks_minimal();
-        let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        let mut disc = Disc::new(toc, tracks).unwrap();
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_by_id(album.release_id());
 
@@ -157,10 +156,9 @@ mod tests {
 
         let toc = album.expected_toc();
         let tracks = album.expected_audio_tracks_minimal();
-        let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        let mut disc = Disc::new(toc, tracks).unwrap();
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_by_id(album.release_id());
         let release_id = disc.release().unwrap().id.clone();
@@ -197,10 +195,9 @@ mod tests {
 
         let toc = album.expected_toc();
         let tracks = album.expected_audio_tracks_minimal();
-        let leadout = album.expected_leadout();
         let musicbrainz = album.expected_musicbrainz();
 
-        let mut disc = Disc::new(toc, tracks, leadout).unwrap();
+        let mut disc = Disc::new(toc, tracks).unwrap();
         disc.set_musicbrainz(musicbrainz);
 
         let releases: Vec<_> = disc

@@ -1,6 +1,9 @@
 //! Conversion wrappers around windows ideosyncracies
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    path::PathBuf,
+};
 
 use crate::Frame;
 
@@ -145,9 +148,53 @@ impl WinString {
     }
 }
 
+/// A Windows path either in [traditional] format as a [PathBuf], or [Dos Device Path][dosdevicepath]
+/// format as a [WinString].
+///
+/// More information is available on MS-Learn about [path formats][pathformats], [normalisation] &
+/// [long paths][longpath]
+///
+/// [pathformats]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
+/// [traditional]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#traditional-dos-paths
+/// [dosdevicepath]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#dos-device-paths
+/// [normalisation]: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#path-normalization
+/// [longpath]: https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WinPath {
+    /// a Rust PathBuf *without* preceding `\\.\` or `\\?\`
+    Traditional(PathBuf),
+    /// a WinString *with* preceding `\\?\`
+    DosDevicePath(WinString),
+}
+
+impl From<PathBuf> for WinPath {
+    fn from(path: PathBuf) -> Self {
+        let (prefix, _) = path.as_os_str().split_at(4);
+        if prefix == (r"\\.\") || prefix == (r"\\?\") {
+            Self::DosDevicePath(WinString::from(path.display().to_string()))
+        } else {
+            Self::Traditional(path)
+        }
+    }
+}
+
+impl WinPath {
+    /// Consume the `WinPath` and provide a [WinString] representation beginning with `\\.\` or `\\?\`
+    ///
+    /// See [WinPath] for more details on path formats
+    pub fn into_dos_device_path(self) -> WinString {
+        match self {
+            WinPath::Traditional(path) => WinString::from(format!(r"\\.\{}", path.display())),
+            WinPath::DosDevicePath(win_string) => win_string,
+        }
+    }
+}
+
 #[cfg(test)]
 #[forbid(unsafe_code)]
 mod tests {
+
+    use std::assert_matches;
 
     use super::*;
 
@@ -171,5 +218,13 @@ mod tests {
         let s = "a/load/of/text";
         let w = WinString::from(s);
         assert_eq!(s, w.to_string());
+    }
+
+    #[test]
+    fn device_path() {
+        let devpath = r"\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d555642414e313035a920&0#{53f56308-b7bf-11d0-95f2-00a0e91efb8b}";
+        let path = PathBuf::from(devpath);
+        let winpath = WinPath::from(path);
+        assert_matches!(winpath, WinPath::DosDevicePath(p) if p == WinString::from(devpath));
     }
 }

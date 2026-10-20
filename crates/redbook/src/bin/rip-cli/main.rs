@@ -30,9 +30,9 @@ use metaflac::{
 };
 #[cfg(target_family = "windows")]
 use redbook::{
-    AudioCd, AudioCdExt, RippedTrack,
+    AudioCd, RippedTrack,
+    drive::CdDrives,
     tagging::{PictureExt, VorbisTagExt},
-    win::drive::all_drives,
 };
 #[cfg(target_family = "windows")]
 use tracing_result::Trace;
@@ -66,10 +66,11 @@ fn main() -> Exit<()> {
     let mut cd = match ripper.drive {
         Some(drive) => {
             info.record("drive", drive.display().to_string());
-            AudioCd::new(drive)?
+            //TODO: Add thread context handling
+            AudioCd::open(&drive, Default::default())?
         }
         None => {
-            let drive = all_drives()?
+            let drive = CdDrives::all(Default::default())?
                 .next()
                 .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
             AudioCd::try_from(drive)?

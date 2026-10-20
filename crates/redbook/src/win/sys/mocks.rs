@@ -9,7 +9,6 @@ use crate::{
     win::{
         MAX_PATH_CHARS,
         convert::{Guid, WinString},
-        sys::DeviceDetails,
     },
 };
 
@@ -19,7 +18,7 @@ use super::{
     FILE_FLAG_OVERLAPPED, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, HWND,
     INVALID_HANDLE_VALUE, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OVERLAPPED,
     PCWSTR, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
-    STORAGE_DEVICE_NUMBER,
+    STORAGE_DEVICE_NUMBER, handles::DeviceDetails,
 };
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
@@ -153,7 +152,9 @@ pub unsafe fn CreateFile2(
     let pcwstr = unsafe { slice::from_raw_parts(lpfilename, path_len) };
 
     let win_path = WinString::from(pcwstr).to_string();
+    dbg!(&win_path);
     let path = PathBuf::from(win_path.strip_prefix(r"\\.\").unwrap());
+    dbg!(&path);
 
     match TestAlbum::try_from(&path).unwrap() {
         DefinitelyMaybe => DEFINITELY_MAYBE,
@@ -288,7 +289,7 @@ pub unsafe fn DeviceIoControl(
             };
             assert_eq!(noutbuffersize as usize, size_of_val(&toc));
             unsafe { *(lpoutbuffer as *mut CDROM_TOC) = toc };
-            unsafe { *lpbytesreturned = size_of_val(&toc).strict_cast() };
+            unsafe { lpbytesreturned.write(toc.size().strict_cast()) };
         }
         IOCTL_STORAGE_GET_DEVICE_NUMBER => {
             let info = STORAGE_DEVICE_NUMBER {
@@ -582,7 +583,6 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            dbg!("get required size");
             // This potentially slightly oversizes the requirement. This is acceptable for
             // testing purposes to avoid the complexity of calculating the size required when
             // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.

@@ -1,5 +1,11 @@
 # redbook changelog
 
+## [WIP]
+
+### Breaking changes
+
+- NOTE: read_cdda takes start as total offset on disc, read_chunk took track + offset
+
 ## [0.4.0]
 
 ### New features
