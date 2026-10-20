@@ -8,7 +8,7 @@ use tracing_result::Trace;
 
 use super::{convert::Guid, sys::GUID_DEVINTERFACE_CDROM};
 #[cfg(test)]
-use crate::test_fixtures::albums::TestAlbum;
+use crate::{Drive, test_fixtures::albums::TestAlbum};
 use crate::{
     Device, RipProgress,
     drive::CdDrive,

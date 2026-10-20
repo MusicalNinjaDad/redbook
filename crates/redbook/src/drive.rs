@@ -48,7 +48,10 @@ pub trait Device: Sized {
 /// Implementors of `Drive` are more likely to store cached versions of data such as their path and
 /// ToC, where implementors of only [`Device`] are likely to be low-level entities which directy access
 /// hardware.
-pub trait Drive: Device {
+pub trait Drive: Sized {
+    /// The type of [`Device`] which this `Drive` uses to access a disc
+    type Device: Device;
+
     /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
     /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
     /// updates.
@@ -130,7 +133,7 @@ pub trait Drive: Device {
             );
 
             let start = track.toc_entry.start + offset;
-            let frames_read = self.read_cdda(start, buf)?;
+            let frames_read = self.device().read_cdda(start, buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -154,7 +157,7 @@ pub trait Drive: Device {
 
             let start = track.toc_entry.start + offset;
 
-            let frames_read = self.read_cdda(start, last_buf)?;
+            let frames_read = self.device().read_cdda(start, last_buf)?;
             frames_read_so_far += frames_read;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -177,6 +180,9 @@ pub trait Drive: Device {
     /// The Table of Contents. If you don't need an owned value then, unlike
     /// [`read_toc`][Device::read_toc], this will avoid a heap allocation and will never error.
     fn toc(&self) -> &TocEntries;
+
+    /// The underlying device
+    fn device(&self) -> &Self::Device;
 }
 
 #[derive(Debug, Clone)]
@@ -203,11 +209,6 @@ impl<DEV: Device> CdDrive<DEV> {
             tocentries,
             cx,
         }
-    }
-
-    /// Get a reference to the underlying `DEV`ice
-    pub fn device(&self) -> &DEV {
-        &self.device
     }
 }
 
@@ -248,6 +249,8 @@ impl<DEV: Device> Device for CdDrive<DEV> {
 }
 
 impl<DEV: Device> Drive for CdDrive<DEV> {
+    type Device = DEV;
+
     fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
         let _span =
             tracing::debug_span!("CdDrive::with_context", path = %path.as_ref().display(), ?cx)
@@ -271,5 +274,9 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
 
     fn toc(&self) -> &TocEntries {
         &self.tocentries
+    }
+
+    fn device(&self) -> &Self::Device {
+        &self.device
     }
 }
