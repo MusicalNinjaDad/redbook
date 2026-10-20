@@ -10,20 +10,18 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{
-    Disc, Drive, RipProgress, RippedTrack, TocEntries, drive::CdDrive, win::sys::DriveHandle,
-};
+use crate::{CdDrive, Disc, Drive, RipProgress, RippedTrack, TocEntries};
 
 #[derive(Debug)]
 pub struct AudioCd {
-    drive: CdDrive<DriveHandle>,
+    drive: CdDrive,
     disc: Disc,
 }
 
-impl TryFrom<CdDrive<DriveHandle>> for AudioCd {
+impl TryFrom<CdDrive> for AudioCd {
     type Error = io::Error;
 
-    fn try_from(drive: CdDrive<DriveHandle>) -> Result<Self, Self::Error> {
+    fn try_from(drive: CdDrive) -> Result<Self, Self::Error> {
         let _err_span =
             tracing::error_span!("AudioCd::TryFrom<CdDrive>", path = %drive.path().display())
                 .entered();
