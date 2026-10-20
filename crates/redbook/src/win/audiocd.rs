@@ -12,17 +12,6 @@ use tracing_result::Trace;
 
 use crate::{CdDrive, Disc, Drive, RipProgress, RippedTrack, win::sys::DriveHandle};
 
-/// An AudioCd with potentially mutable metadata.
-///
-/// # Thread safety
-///
-/// This is !Send to avoid metadata diverging between threads.
-///
-/// Calls to [disc().clone()][AudioCdExt::disc] should be treated as having created a true
-/// clone of the metadata as any future mutation will use [Arc::make_mut].
-///
-/// It is recommended that you call [lock()][Self::lock] to obtain a [ReadOnlyAudioCd] before
-/// spawning any threads.
 #[derive(Debug)]
 pub struct AudioCd {
     drive: CdDrive<DriveHandle>,
@@ -67,6 +56,14 @@ impl AudioCd {
             coverart,
             raw_data,
         })
+    }
+
+    pub fn disc(&self) -> &Disc {
+        &self.disc
+    }
+
+    pub fn disc_mut(&mut self) -> &mut Disc {
+        &mut self.disc
     }
 }
 
