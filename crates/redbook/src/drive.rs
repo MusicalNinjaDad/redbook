@@ -57,9 +57,6 @@ pub trait Drive: Sized {
     /// updates.
     fn with_context<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
 
-    /// Add a thread [Context] to an existing `AudioCd`
-    fn add_context(&mut self, cx: Context<RipProgress>);
-
     /// Retrieve the thread [Context]. If no context was provided via [with_context]
     /// or [add_context] then this will be a dummy, default context.
     fn cx(&self) -> Context<RipProgress>;
@@ -230,10 +227,6 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
             tocentries,
             cx,
         })
-    }
-
-    fn add_context(&mut self, cx: Context<RipProgress>) {
-        self.cx = cx;
     }
 
     fn cx(&self) -> Context<RipProgress> {
