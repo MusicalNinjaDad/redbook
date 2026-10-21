@@ -120,6 +120,9 @@ mod safety {
 /// # SAFETY
 /// - `DriveHandle`s are safe to [`Send`] to other threads as only one thread can ever access the
 ///   underlying device at any time.
+///
+/// # TODO
+/// TODO: #118 can `DriveHandle` also be `Sync`?
 #[expect(
     unsafe_code,
     reason = "Want to be able to rip in one thread and encode in another"
