@@ -34,6 +34,60 @@
 //! 2. **Parse & lookup** information on the album, generate tags  & embeddable coverart
 //! 3. **Encode music** to wav or flac
 //!
+//! # Example
+//! 
+//! A simple ripper can be constructed in a few steps. A more full-featured example is included
+//! in this crate as the binary `rip-cli` and an even more full-fetured one is available in the
+//! separate crate `redbook-rip` in the same repo.
+//! 
+//! ```no_run
+//! use std::{fs::{self, File}, io::{self, Write}};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, tagging::{PictureExt, VorbisTagExt}};
+//! use metaflac::Tag;
+//! use thread_safely::Controller;
+//! 
+//! // Allow for status updates & cancellation mid-rip
+//! let (rip_controller, rip_context) = Controller::<RipProgress>::new();
+//! 
+//! // Find & open the first available CD drive
+//! let mut available_drives = CdDrives::all(rip_context)?;
+//! let mut first_drive = available_drives.next().ok_or(io::Error::other("No drives found"))?;
+//! let mut cd = AudioCd::try_from(first_drive)?;
+//! 
+//! // Get additional meta data from musicbrainz
+//! cd.disc_mut().update_musicbrainz()?;
+//! 
+//! // Rip a track
+//! let track_1 = cd.rip(1)?;
+//! 
+//! // Encode to flac
+//! let flac = track_1.to_flac();
+//! 
+//! // Get associated data
+//! let RippedTrack {tags, coverart, ..} = track_1;
+//! 
+//! // Decide where to store the music
+//! let album_directory = tags.directory();
+//! fs::create_dir_all(&album_directory)?;
+//! 
+//! // Save the flac file
+//! let flac_path = album_directory.join(tags.filename()).with_extension("flac");
+//! let mut flac_file = File::create_new(&flac_path)?;
+//! flac_file.write_all(flac.as_slice())?;
+//! 
+//! // Add tags to the file
+//! let mut file_tag = Tag::read_from_path(&flac_path).map_err(io::Error::other)?;
+//! file_tag.vorbis_comments_mut().comments.extend(tags.comments);
+//! file_tag.write_to_path(&flac_path).map_err(io::Error::other)?;
+//! 
+//! // Save the coverart as cover.jpg
+//! if let Some(artwork) = coverart {
+//!     let path = album_directory.join(artwork.filename()?);
+//!     fs::write(path, artwork.data)?;
+//! }
+//! # io::Result::Ok(())
+//! ```
+//! 
 //! # Structure
 //!
 //! ## Main entry point
@@ -80,10 +134,6 @@
 //! **Currently windows-only**
 //!
 //! - [win] - windows-specifics
-//!
-//! # Example
-//!
-//!  TODO New docs
 //!
 //! # Technical
 //!
