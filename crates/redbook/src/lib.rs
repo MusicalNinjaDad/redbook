@@ -156,7 +156,7 @@
 //! are designed to be directly usable as output from a CLI binary. Debug & Trace information is
 //! designed to assist with log file analysis.
 //!
-//! ## Testing {#testing}
+//! ## Testing
 //!
 //! The [`test_fixtures`] module provides access to the suite of album data which is used for
 //! testing `redbook`.
