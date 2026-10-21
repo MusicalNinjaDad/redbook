@@ -17,7 +17,7 @@ pub trait Device: Sized {
     type Iter: Iterator<Item = Self>;
 
     /// Open the device represented by the path
-    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>;
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self>;
 
     /// Get an iterator over all available cd devices on the system
     fn all() -> io::Result<Self::Iter>;
@@ -61,7 +61,7 @@ pub trait Drive: Sized {
     /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
     /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
     /// updates.
-    fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self>;
 
     /// Retrieve the thread [Context]. If no context was provided via [with_context]
     /// or [add_context] then this will be a dummy, default context.
@@ -218,7 +218,7 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Drive for CdDrive<DEV> {
     type Device = DEV;
 
-    fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();

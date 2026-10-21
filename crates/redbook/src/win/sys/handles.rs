@@ -292,7 +292,7 @@ impl DriveHandle {
 impl Device for DriveHandle {
     type Iter = DeviceInfoSetIter;
 
-    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self> {
         let path = PathBuf::from(path.as_ref());
         let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
 

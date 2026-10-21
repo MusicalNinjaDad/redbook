@@ -1,5 +1,5 @@
 #![expect(missing_docs, reason = "WIP")]
-//! Provides a logical representation of an audio CD on the windows platform.
+//! Provides [`AudioCd`] & associated [`RipProgress`]
 
 use std::{
     io::{self, ErrorKind},
@@ -13,6 +13,39 @@ use tracing_result::Trace;
 use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
 
 #[derive(Debug)]
+/// A CD loaded into a physical drive. This combines the ability to access the physical disc with
+/// additional data about the contents which is not stored on the disc itself.
+///
+/// This is the main entry point for the crate and the struct which binaries will most likely interact
+/// with. It makes use of the platform-specific [`CdDrive`] and will always be well-behaved for the
+/// target OS.
+///
+/// # Construction
+///
+/// **Direct construction** is possible from a path which represents the file-system entry for the device.
+/// On windows, this is the drive letter (`E:`), on linux it is the `/dev/...` entry (*not* a related
+/// mount point).
+///
+/// ```rust no_run
+/// # use std::io;
+/// # use redbook::AudioCd;
+/// let mut cd = AudioCd::open("E:", Default::default())?;
+/// # io::Result::Ok(())
+/// ```
+///
+/// **Indirect construction** is possible for cases where you do not know the correct path to provide.
+/// [`CdDrives`][crate::CdDrives] provides an iterator over all available drives, and `AudioCd` implements
+/// `TryFrom<CdDrive>`.
+///
+/// ```
+/// # use std::io;
+/// # use redbook::{AudioCd, CdDrives};
+/// let first_drive = CdDrives::all(Default::default())?
+///     .next()
+///     .ok_or(io::Error::other("no drives found"))?;
+/// let mut cd = AudioCd::try_from(first_drive)?;
+/// # io::Result::Ok(())
+/// ```
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,
@@ -37,7 +70,7 @@ impl TryFrom<CdDrive> for AudioCd {
 }
 
 impl AudioCd {
-    pub fn open<P: AsRef<Path>>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
+    pub fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
         let drive = CdDrive::open(path, cx)?;
         Self::try_from(drive)
     }

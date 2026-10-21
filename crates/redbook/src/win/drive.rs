@@ -51,7 +51,7 @@ impl Iterator for DeviceInfoSetIter {
             .ok()
             .flatten()?;
 
-        match DriveHandle::open(drive_data.path()) {
+        match DriveHandle::open(&drive_data.path()) {
             Ok(drive) => Some(drive),
             Err(error) if error.raw_os_error() == Some(21) => {
                 // OS error 21 (device not ready) = no disc in drive

@@ -227,7 +227,8 @@
 //! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
 //! to avoid future lint errors for stable features
 
-pub use audiocd::*;
+#[doc(inline)]
+pub use audiocd::{AudioCd, RipProgress};
 pub use disc::*;
 pub use drive::{Device, Drive};
 pub use toc::*;
