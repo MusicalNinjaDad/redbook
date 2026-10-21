@@ -134,8 +134,8 @@
 //! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
 //!   information on relevant [`Disc`] in order to be meaningful.
 //! - [`TocEntries`]    - a CD's Table of Contents
-//! - [`TocEntry`]      - a single entry from a Table of Contents
-//! - [`Control`]       - technical control code associated with a TOC entry
+//! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
+//! - [`Control`][toc::Control] - technical control code associated with a TOC entry
 //! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
 //! - [`Msf`]           - Minutes, seconds, frames: the time-based unit of measure for audio CDs
 //!
