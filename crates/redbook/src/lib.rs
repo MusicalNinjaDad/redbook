@@ -250,7 +250,8 @@
 
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
-pub use disc::*;
+#[doc(inline)]
+pub use disc::{Disc};
 pub use drive::{Device, Drive};
 pub use toc::*;
 pub use track::*;
@@ -261,7 +262,7 @@ use crate::win::DriveHandle;
 mod audiocd;
 
 #[forbid(unsafe_code)]
-mod disc;
+pub mod disc;
 
 #[forbid(unsafe_code)]
 pub mod drive;
