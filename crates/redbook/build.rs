@@ -36,6 +36,7 @@ fn main() -> Result<()> {
     ac.emit_unstable_feature(iter_map_windows, &allowed_features);
     ac.emit_unstable_feature(iter_next_chunk, &allowed_features);
     ac.emit_unstable_feature(iterator_try_collect, &allowed_features);
+    ac.emit_unstable_feature(os_str_split_at, &allowed_features);
     ac.emit_unstable_feature(path_absolute_method, &allowed_features);
     ac.emit_unstable_feature(try_blocks_heterogeneous, &allowed_features);
 
