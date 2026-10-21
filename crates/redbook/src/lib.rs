@@ -181,16 +181,17 @@
 //! I've made a deliberate choice to use [`io::Error`][std::io::Error] as the error type throughout
 //! the library. The reasons for this choice are:
 //! - downstream usage is most likely to convert to an io::Error anyway, whether directly or indirectly.
-//! - `io::Error` is well known, versatile with meaningful `ErrorKind`s and powerful functionality.
+//! - `io::Error` is well known, versatile with meaningful [`ErrorKind`][std::io::ErrorKind]s and
+//!   powerful functionality.
 //! - `io::Error` is widely understood, a custom error type adds conversion overhead to code and
 //!   cognitive overhead for developers
 //! - semantically, all errors are related to IO
 //!
 //! The following `ErrorKind`s are primarily used when constructing and converting new errors:
-//! - [`ErrorKind::InvalidData`] - data conversion errors and un-parsable responses
-//! - [`ErrorKind::NotFound`] - attempts to read a track which does not exist
-//! - [`ErrorKind::UnexpectedEOF`] - data returned is too short to be valid
-//! - [`ErrorKind::Unsupported`] - operations which cannot be performed, e.g. attempting to read
+//! - `ErrorKind::InvalidData` - data conversion errors and un-parsable responses
+//! - `ErrorKind::NotFound` - attempts to read a track which does not exist
+//! - `ErrorKind::UnexpectedEOF` - data returned is too short to be valid
+//! - `ErrorKind::Unsupported` - operations which cannot be performed, e.g. attempting to read
 //!   a non-integer number of frames from a disc.
 //!
 //! A future version *may* introduce a custom error type with a large number of
