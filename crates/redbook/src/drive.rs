@@ -79,7 +79,7 @@ pub trait Drive: Sized {
         let track = self
             .toc()
             .track(track_number)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "invalid track number"))
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "invalid track number"))
             .or_warn("")?;
 
         dbg_span.record("track_details", format_args!("{track}"));
