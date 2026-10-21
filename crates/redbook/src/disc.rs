@@ -26,11 +26,11 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-/// Represents a physical CD with its table of contents, tracks, and metadata.
+/// Represents a logical CD with additional metadata such as track names and cover art.
 ///
 /// This is the main starting point for all data and actions you take on the CD itself.
-/// It is usually stored in some kind of drive struct which implements
-/// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
+/// It is usually stored in an [`AudioCd`][crate::AudioCd] which provides access to the physical
+/// disc.
 ///
 /// # Example
 ///
@@ -96,8 +96,8 @@ impl Disc {
     ///
     /// This constructor validates that all provided data is consistent:
     /// - The leadout frame must match the TOC's leadout value
-    /// - Each track's start position (MSF) must match its corresponding TOC entry
-    /// - Each track's duration must match the duration calculated from its TOC entry
+    /// - Each track's start frame must match the corresponding TOC entry
+    /// - Each track's duration must match the duration calculated from the TOC
     ///
     /// # Examples
     ///
