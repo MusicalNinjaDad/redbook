@@ -113,8 +113,8 @@ impl AudioCd {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// A status update which is provided in the `reply` channel of a [thread_safely::Context] during
-/// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
+/// A status update which is provided in the `reply` channel of a [`thread_safely::Context`] during
+/// calls to [`rip`][AudioCd::rip] and [`read_track`][Drive::read_track]
 ///
 /// TODO: #114 Include device identifier in RipProgress
 #[expect(missing_docs, reason = "well named fields")]
