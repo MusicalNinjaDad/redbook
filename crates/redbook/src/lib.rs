@@ -37,8 +37,8 @@
 //! # Example
 //!
 //! A simple ripper can be constructed in a few steps. A more full-featured example is included
-//! in this crate as the binary `rip-cli` and an even more full-fetured one is available in the
-//! separate crate `redbook-rip` in the same repo.
+//! in this crate as the binary `rip-cli` and an even more full-fetured one showing thread-cancellation
+//! is available in the separate crate `redbook-rip` in the same repo.
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::{self, Write}};
