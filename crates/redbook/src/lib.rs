@@ -34,6 +34,22 @@
 //! 2. **Parse & lookup** information on the album, generate tags  & embeddable coverart
 //! 3. **Encode music** to wav or flac
 //!
+//! # Why?
+//!
+//! I wanted to create my own cd ripper and found two problems:
+//!
+//! 1. The only crate available to read data from a CD has lots of undocumented unsafe code and
+//!    doesn't make use of any specialised OS or driver functionality, just going straight to hardware.
+//!    Auditing was as much work as re-implementing, and re-implementing allowed me to leverage
+//!    OS-specific IO-Controls and thereby also make use of any OS and driver functionality.
+//! 2. There are a load of great crates out there for each of the other bits of the process, but glueing
+//!    them together into a coherent whole needed a lot of code. Those great crates are used here and
+//!    worth naming:
+//!      - [cdtoc](https://crates.io/crates/cdtoc) - for handling all the online & generic representations of a TOC
+//!      - [musicbrainz_rs](https://crates.io/crates/musicbrainz_rs) - for querying MusicBrainz and parsing the results
+//!      - [metaflac](https://crates.io/crates/metaflac) - for tagging FLAC files
+//!      - [flacenc](https://crates.io/crates/flacenc) - for encoding to FLAC (currently slightly broken after changes to `portable_simd` earlier this year)
+//!
 //! # Example
 //!
 //! A simple ripper can be constructed in a few steps. A more full-featured example is included
