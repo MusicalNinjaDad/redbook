@@ -36,27 +36,95 @@
 //!
 //! # Structure
 //!
-//! There are 3 key entry points to the crate, one each for hardware, CD structure, and music data.
+//! ## Main entry point
 //!
-//! - [AudioCd] & [AudioCdExt]  - for interfacing with hardware
-//! - [Disc]                    - for working with the contents of a CD
-//! - [RippedTrack]             - for the actual music of a given track
+//! The main entry point is [AudioCd] which provides a single struct representing a CD loaded into
+//! a physical drive and allows for:
+//!
+//! - reading data from the disc
+//! - looking up metadata online
+//! - creating vorbis tags
+//! - encoding music to flac & wav
+//!
+//! Additionally there are the following lower-level entry points to the crate
+//!
+//! ## Hardware access
+//!
+//! In reducing order of abstraction (from highest-level to lowest-level)
+//!
+//! - [`CdDrives`]  - platform specific iterator over all available physical drives
+//! - [`CdDrive`]   - platform specific representation of a physical drive
+//! - [`Drive`]     - general trait providing high-level capabilities for a physical drive
+//! - [`drive::CdDrives<DEV>`] & [`drive::CdDrive<DEV>`] - general versions of [`CdDrives`] & [`CdDrive`]
+//! - [`Device`]    - general trait describing the low-level capabilities of a device able to read CDs
+//!
+//! ## CD contents
+//!
+//! In reducing order of abstraction (from highest-level to lowest-level)
+//!
+//! - [`Disc`]          - a physical CD with its table of contents, tracks, and metadata
+//! - [`RippedTrack`]   - the music, coverart and relevant tags for a track
+//! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
+//!   information on relevant [`Disc`] in order to be meaningful.
+//! - [`TocEntries`]    - a CD's Table of Contents
+//! - [`TocEntry`]      - a single entry from a Table of Contents
+//! - [`Control`]       - technical control code associated with a TOC entry
+//! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
+//! - [`Msf`]           - Minutes, seconds, frames: the time-based unit of measure for audio CDs
+//!
+//! ## Platform specifics
+//!
+//! Various safe wrappers around platform specific aspects of audio CD access. See the individual
+//! platform module docs for information
+//!
+//! **Currently windows-only**
+//!
+//! - [win] - windows-specifics
 //!
 //! # Example
 //!
 //!  TODO New docs
 //!
-//! # Tracing
+//! # Technical
+//!
+//! ## Tracing
 //!
 //! Redbook leverages [tracing](https://crates.io/crates/tracing). Info, Warn & Error messages
-//! are designed to be directly usable as output from a CLI binary.
+//! are designed to be directly usable as output from a CLI binary. Debug & Trace information is
+//! designed to assist with log file analysis.
+//!
+//! ## Testing {#testing}
+//!
+//! The [`test_fixtures`] module provides access to the suite of album data which is used for
+//! testing `redbook`.
+//!
+//! All low-level device access is fully mocked and uses the test data to provide meaningful
+//! return values.
+//!
+//! ## Cross-platform development
+//!
+//! The top-level struct [`AudioCd`] plus type aliases [`CdDrives`] & [`CdDrive`] are cfg-gated
+//! to provide easy access to the the relevant platform-specific implementations.
+//!
+//! Direct access to all platform-specific variants is available by naming the module path.
+//!
+//! Your code will always compile: it will use the provided mocks (see: [Testing](#testing)) for
+//! foreign platforms and for `#[cfg(test)]` & `#[cfg(doc)]`. That means you don't need to battle
+//! with your IDE or rust-analyzer to get full support, but you should take care to add
+//! platform-specific cfg-gates if you directly name and use platform-specific code.
 //!
 //! # Safety
 //!
+//! The major driver for directly including hardware access in redbook was the lack of auditable
+//! safety considerations in unsafe code in the only alternative available. As such, safety is taken
+//! *very seriously* and you can rely on the following to assist with any audits:
+//!
 //! - Unsafe code is limited to specific hardware access modules.
-//! - `#![deny(unsafe_code)]` with a wide selection of additional lints defined in `Cargo.toml`
-//! - All other modules are marked `#[forbid(unsafe_code)]`.
-//! - Every unsafe call is annotated with `#[expect(unsafe_code, reason = "...")]`.
+//! - Every module not requiring unsafe is annotated `#[forbid(unsafe_code)]` as high-up the module
+//!   tree as possible.
+//! - Every unsafe block is annotated `#[expect(unsafe_code, reason "...")]`
+//! - A wide selection of unsafe-specific lints are set to `forbid` in `Cargo.toml`. Lints which
+//!   fail for generated bindings are set to `deny`.
 //! - All unsafe code includes full safety comments.
 //! - All ffi calls are also mocked with full safety instructions, ensuring that IDE integration
 //!   provides these details in-situ. The correctness of the mock signatures is validated on every
@@ -66,20 +134,30 @@
 //! - It goes without saying but, ALL unsafe code is *hand crafted by humans*. Agents.md
 //!   specifically forbids any unsafe code changes or generation.
 //!
-//! # Thread Safety
+//! # Multi-threading
 //!
-//! File handles are not `Sync`, but you almost certainly will want to split reading data from a CD
-//! and processing that data into separate threads. To facilitate this [AudioCdExt] and
-//! [AudioCdExtMut] are separate traits. See the example for how to take advantage to initially
-//! update and mutate metadata, before obtaining calling [lock][AudioCdExtMut::lock] and spawning
-//! threads to use that data.
+//! Realistically any application reading data from a CD will want to run IO in a background thread
+//! leaving the main thread available for UI updates etc.
+//!
+//! [`AudioCd`], [CdDrive] & [CdDrives] require a [`Context::<RipProgress>`][thread_safely::Context]
+//! from the [`thread_safely`] crate which provides a means for providing status updates / cancelling
+//! long-running IO (e.g. reading an entire track).
+//!
+//! Great care has been taken to ensure [`Send`] & [`Sync`] are sound, as such multi-threaded
+//! applications will need to wrap an [`AudioCd`] in an `Arc<Mutex<AudioCd>>`. This isn't a smell,
+//! it's a proper use of those wrappers. A [`Disc`] cannot be [`Sync`] as this would allow one thread
+//! to update the meta-data while another was in the process of reading the same meta-data for a given
+//! [`Track`].
+//!
+//! Likewise, [`Clone`] is implemented in a sound manner for low-level [`Device`]s by generating an
+//! additional handle to the underlying device rather than simply re-using the existing one.
 //!
 //! # Nightly only
 //!
 //! This crate is nightly only for a few reasons:
 //! - I want to rely on downstream crates which use nightly features, in particular: leveraging
-//!   `poratble_simd` in [`flacenc`] (currently disabled); and `try_trait_v2` for [`exit_safely`] in
-//!   binaries & tracing ergonomics via [`tracing_result`].
+//!   `portable_simd` in [`flacenc`]; `try_trait_v2` for [`exit_safely`] in binaries & tracing
+//!   ergonomics via [`tracing_result`].
 //! - I find many of the ergonomic benefits worth the toolchain restriction.
 //! - I want to support development of the language and stabilisation of new features.
 //!
@@ -127,6 +205,11 @@ pub mod win;
 ///
 /// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
 pub type CdDrive = drive::CdDrive<DriveHandle>;
+
+/// Platform specific iterator over the default CdDrive type
+///
+/// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
+pub type CdDrives = drive::CdDrives<DriveHandle>;
 
 /// Size of a single CDDA audio frame in bytes.
 ///
