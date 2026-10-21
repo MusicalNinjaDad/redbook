@@ -1,6 +1,6 @@
 // Unsafe restricted to dedicated wrapper modules.
 // Modules are individually annotated `forbid` or `expect`.
-// Many additional lints defined in `Cargo.toml`
+// Many additional safety lints are defined in `Cargo.toml`
 #![deny(unsafe_code)]
 //
 // This lint is only applicable to library, not associated binaries.
