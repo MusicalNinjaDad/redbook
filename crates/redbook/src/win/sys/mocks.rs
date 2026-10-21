@@ -234,7 +234,7 @@ pub unsafe fn CreateFile2(
 ///   stored in the output buffer, in bytes.
 /// - `[in, out, optional] lpOverlapped`: A pointer to an OVERLAPPED structure. Currently not supported
 ///   must be NULL
-/// 
+///
 /// # TODO: #117 Mock reading audio data
 ///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol

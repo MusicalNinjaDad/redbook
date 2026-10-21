@@ -4,11 +4,14 @@
 use std::{
     fmt::{Debug, Display},
     io::{self, ErrorKind},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
-use metaflac::block::{Picture, PictureType, VorbisComment};
+use metaflac::{
+    Tag,
+    block::{Picture, PictureType, VorbisComment},
+};
 use musicbrainz_rs::entity::{
     artist_credit::ArtistCredit,
     release::{Release, ReleaseStatus, Track},
@@ -172,6 +175,9 @@ pub trait VorbisTagExt {
 
     /// Title one - Title two
     fn full_title(&self) -> String;
+
+    /// Write tags to the given file
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> io::Result<()>;
 }
 
 impl VorbisTagExt for VorbisComment {
@@ -197,6 +203,27 @@ impl VorbisTagExt for VorbisComment {
         self.title()
             .map(|titles| titles.join(" - "))
             .unwrap_or_default()
+    }
+
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> io::Result<()> {
+        let mut file_tag = Tag::read_from_path(path.as_ref())
+            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .or_warn("reading tags from file")?;
+        file_tag
+            .vorbis_comments_mut()
+            .comments
+            .extend(self.comments);
+        file_tag
+            .write_to_path(path.as_ref())
+            .map_err(|error| match error.kind {
+                metaflac::ErrorKind::Io(error) => error,
+                metaflac::ErrorKind::StringDecoding(utf8error) => {
+                    io::Error::new(ErrorKind::InvalidData, utf8error)
+                }
+                metaflac::ErrorKind::InvalidInput => io::Error::new(ErrorKind::InvalidData, error),
+            })
+            .or_warn("saving tags to file")?;
+        Ok(())
     }
 }
 
