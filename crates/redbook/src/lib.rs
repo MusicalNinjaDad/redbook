@@ -251,9 +251,11 @@
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 #[doc(inline)]
-pub use disc::{Disc};
+pub use disc::Disc;
+#[doc(inline)]
 pub use drive::{Device, Drive};
-pub use toc::*;
+#[doc(inline)]
+pub use toc::{Frame, Msf, TocEntries};
 pub use track::*;
 
 use crate::win::DriveHandle;

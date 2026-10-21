@@ -5,7 +5,7 @@ use std::fmt::Display;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
-use crate::{Frame, TocEntry};
+use crate::{Frame, toc::TocEntry};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 /// A track on a CD with associated metadata.

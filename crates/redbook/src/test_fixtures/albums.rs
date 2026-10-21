@@ -5,7 +5,9 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 
 use metaflac::block::{Picture, PictureType};
 
-use crate::{Frame, LEADIN, Msf, ReadTocDescriptors, TocEntry, Track, tagging::PictureExt};
+use crate::{
+    Frame, LEADIN, Msf, Track, tagging::PictureExt, toc::ReadTocDescriptors, toc::TocEntry,
+};
 
 /// Test album identifier for parameterized tests
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

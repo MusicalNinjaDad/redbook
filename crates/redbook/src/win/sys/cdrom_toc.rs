@@ -1,6 +1,8 @@
 use crate::{
-    Control, Frame, LEADIN, TocEntries, TocEntry,
+    Frame, LEADIN, TocEntries,
     test_fixtures::{albums::TestAlbum, load_hex_file},
+    toc::Control,
+    toc::TocEntry,
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
