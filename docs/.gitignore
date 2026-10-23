@@ -1,0 +1,15 @@
+# This directory contains auto-generated and indexed docs of all local crates and all
+# dependencies in json format. It is designed to be consumed by agents, particularly via
+# the `read-the-docs` skill but may be useful for other use cases too.
+
+# Including the generated docs adds huge noise when comparing branches, so we only keep the
+# shell scripts needed to generate the docs and accept the few minutes it takes to re-generate
+# after a fresh clone
+*
+!*.sh
+
+# in case anyone changes this file in future
+!.gitignore
+
+# allow for any .sh files later placed in sub-directories
+!*/
