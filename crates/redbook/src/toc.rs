@@ -191,7 +191,7 @@ impl TocEntry {
         self.control.is_audio() && self.track <= 0x63
     }
 
-    /// Is an audio track (based on control code & track number)
+    /// Is an data track (based on control code & track number)
     pub fn is_data_track(&self) -> bool {
         self.control.is_data() && self.track <= 0x63
     }
