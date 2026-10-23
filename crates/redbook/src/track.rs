@@ -139,6 +139,12 @@ impl<'meta> Track<'meta> {
     }
 }
 
+impl PartialEq<cdtoc::Track> for Track<'_> {
+    fn eq(&self, toc_track: &cdtoc::Track) -> bool {
+        (&self.toc_entry == toc_track) && (self.duration == toc_track.duration())
+    }
+}
+
 /// A ripped audio track containing raw CD data and metadata.
 ///
 /// This struct wraps the raw audio data from a CD track along with its track number.

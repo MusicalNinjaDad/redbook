@@ -5,11 +5,12 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{self, Write},
+    io::{self, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
 use cdtoc::Toc;
+use itertools::Itertools;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::{
     Fetch,
@@ -21,7 +22,7 @@ use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
-    Msf, Track,
+    Track,
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
@@ -90,12 +91,12 @@ pub struct Disc {
 }
 
 impl Disc {
-    /// Creates a new [`Disc`] from a table of contents, tracks, and leadout frame.
+    /// Creates a new [`Disc`] from a table of contents and an interator of tracks.
     ///
     /// # Notes
     ///
     /// This constructor validates that all provided data is consistent:
-    /// - The leadout frame must match the TOC's leadout value
+    /// - The number of tracks must match between both inputs
     /// - Each track's start frame must match the corresponding TOC entry
     /// - Each track's duration must match the duration calculated from the TOC
     ///
@@ -120,28 +121,28 @@ impl Disc {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
-        for track in tracks.iter() {
-            let track_span = tracing::info_span!("validating", ?track, cdtoc = Empty).entered();
-
-            let track_number = track.toc_entry.track as usize;
-            let toc_track = toc
-                .audio_track(track_number)
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
-                .or_warn("track number")?;
-            track_span.record("cdtoc", format_args!("{toc_track:?}"));
-
-            let (min, sec, frame) = toc_track.msf();
-            if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch")).or_warn("start")?;
-            }
-
-            let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
-            let min = (((d * 24) + h as u64) * 60) + min as u64;
-            if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
-                    .or_warn("duration")?;
-            }
-        }
+        tracks
+            .iter()
+            .zip_longest(toc.audio_tracks())
+            .try_for_each(|zipped| match zipped {
+                itertools::EitherOrBoth::Both(track, toc_track) if track == &toc_track => Ok(()),
+                itertools::EitherOrBoth::Both(track, toc_track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("track mismatch: toc {toc_track:?} vs tracks {track}"),
+                )),
+                itertools::EitherOrBoth::Left(track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "provided tracks contains more entries than toc. first additional entry {track}"
+                    ),
+                )),
+                itertools::EitherOrBoth::Right(toc_track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "toc contains more entries than provided tracks. first additional entry {toc_track:?}"
+                    ),
+                )),
+            }).or_warn("mismatch between provided TOC & provided tracks")?;
 
         Ok(Self {
             toc,

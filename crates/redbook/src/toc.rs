@@ -56,6 +56,12 @@ impl Display for TocEntry {
     }
 }
 
+impl PartialEq<cdtoc::Track> for TocEntry {
+    fn eq(&self, toc_track: &cdtoc::Track) -> bool {
+        (self.track == toc_track.number()) && (self.start == Msf::from(toc_track.msf()))
+    }
+}
+
 /// Q Sub-Channel control flags, as per table 222 of MMC-3 draft (section 5.22.2)
 ///
 /// # Interpretation
@@ -424,6 +430,13 @@ impl PartialEq<Msf> for Frame {
     }
 }
 
+impl PartialEq<cdtoc::Duration> for Frame {
+    fn eq(&self, duration: &cdtoc::Duration) -> bool {
+        let (s, f) = duration.seconds_frames();
+        self.as_usize().strict_cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// CD audio duration in min:sec:frame format (75 frames/sec).
 ///
@@ -458,7 +471,7 @@ impl PartialEq<Msf> for Frame {
 ///  # TODO
 /// - impl Display
 pub struct Msf {
-    /// Minutes component (0-59).
+    /// Minutes component. This is stored as a u8 in the physical disc TOC.
     min: u8,
     /// Seconds component (0-59).
     sec: u8,
@@ -604,6 +617,18 @@ impl From<Frame> for Msf {
             min: min as u8,
             sec: secs as u8,
             frame: frames as u8,
+        }
+    }
+}
+
+/// This is the format returned by cdtoc for [Track::msf()][cdtoc::Track::msf]
+impl From<(u32, u8, u8)> for Msf {
+    fn from(msf: (u32, u8, u8)) -> Self {
+        let (m, sec, frame) = msf;
+        Self {
+            min: m.strict_cast(),
+            sec,
+            frame,
         }
     }
 }
