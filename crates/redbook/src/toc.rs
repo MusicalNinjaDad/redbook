@@ -193,6 +193,7 @@ impl TocEntry {
 
     /// Is an data track (based on control code & track number)
     pub fn is_data_track(&self) -> bool {
+        // TODO: #122 Tracknumbers: types & consts
         self.control.is_data() && self.track <= 0x63
     }
 }
