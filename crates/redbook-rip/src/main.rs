@@ -172,6 +172,7 @@ fn main() -> io::Result<()> {
                     size = flac.as_slice().len()
                 );
 
+                // TODO #121 update redbook-rip based on redbook lib docs & new functions
                 let RippedTrack { tags, coverart, .. } = ripped;
                 let mut file_tag = Tag::read_from_path(&flac_path)
                     // TODO #67 error handling reading empty tag from file during encoding
