@@ -147,17 +147,14 @@ impl PartialEq<cdtoc::Track> for Track<'_> {
 
 /// A ripped audio track containing raw CD data and metadata.
 ///
-/// This struct wraps the raw audio data from a CD track along with its track number.
+/// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
+/// (tags) and the cover art.
 /// It provides methods for encoding the raw data to various formats.
 ///
 /// # Notes
 ///
 /// - The raw data is in CDDA format (2352 bytes per frame)
-/// - Use [`to_flac`](method@Self::to_flac) or [`to_wav`](method@Self::to_wav) to encode to compressed or uncompressed formats
-///
-/// # Examples
-///
-///  TODO New docs
+/// - Use [`to_flac`](method@Self::to_flac) or [`to_wav`](method@Self::to_wav) to encode
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
     /// Track details
@@ -170,20 +167,6 @@ pub struct RippedTrack {
 
 impl RippedTrack {
     /// Encodes the raw CD audio data to FLAC format.
-    ///
-    /// # Returns
-    ///
-    /// A [`MemSink<u8>`] containing the FLAC-encoded audio data.
-    ///
-    /// # Notes
-    ///
-    /// - The audio is encoded as 16-bit stereo at 44.1 kHz
-    /// - FLAC is a lossless compression format, typically reducing CD audio to ~60% of original size
-    /// - The returned type can be converted to a byte vector using `.into_inner()`
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn to_flac(&self) -> MemSink<u8> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
@@ -212,21 +195,6 @@ impl RippedTrack {
     }
 
     /// Encodes the raw CD audio data to WAV format.
-    ///
-    /// # Returns
-    ///
-    /// A byte vector containing the WAV-encoded audio data.
-    ///
-    /// # Notes
-    ///
-    /// - The audio is encoded as 16-bit stereo at 44.1 kHz (standard CD audio)
-    /// - WAV is an uncompressed format, so the output will be the same size as the input
-    /// - The WAV header is written with the correct RIFF format specifications
-    /// - Inspired by implementations from the rust-cd-da-reader project
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn to_wav(&self) -> Vec<u8> {
         let pcm = &self.raw_data;
 

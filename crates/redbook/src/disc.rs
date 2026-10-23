@@ -697,7 +697,7 @@ impl Disc {
         Some(written_to_path)
     }
 
-    /// Generate Vorbis comments for a track.
+    /// Generate Vorbis comments for a track. This does not include any related images.
     ///
     /// Creates a [`VorbisComment`] with track and album metadata including MusicBrainz identifiers.
     ///
