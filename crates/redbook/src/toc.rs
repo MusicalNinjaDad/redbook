@@ -666,16 +666,14 @@ impl TocEntries {
     /// Provides an iterator over the audio tracks as [`Track`]s with duration calculated based
     /// upon the start position of the next track / leadout.
     ///
-    /// # Note
-    /// This iterator is **NOT** a [FusedIterator][std::iter::FusedIterator], it will stop each time
-    /// it encounters a non-audio track or a session leadout.
-    ///
     /// # TODO
     /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
     pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
         const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
 
         self.iter()
+            // .filter_map_windows() does not exist.
+            // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
                     let mut duration = next_track.start - this_track.start;
@@ -694,6 +692,8 @@ impl TocEntries {
 
         self.iter()
             .skip_while(|entry| entry.track.strict_cast::<usize>() != track)
+            // .filter_map_windows() does not exist.
+            // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
                     let mut duration = next_track.start - this_track.start;
