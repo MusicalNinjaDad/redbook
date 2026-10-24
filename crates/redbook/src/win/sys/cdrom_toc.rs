@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::{
     Frame, LEADIN, TocEntries,
     test_fixtures::{albums::TestAlbum, load_hex_file},
@@ -146,16 +148,14 @@ impl From<TestAlbum> for CDROM_TOC {
     }
 }
 
-impl From<CDROM_TOC> for TocEntries {
-    fn from(toc: CDROM_TOC) -> Self {
-        let audio = toc.iter_audio().collect();
-        let data = toc.iter_data().collect();
-        let leadouts = toc.iter_leadouts().collect();
-        TocEntries {
-            audio,
-            data,
-            leadouts,
-        }
+impl TryFrom<CDROM_TOC> for TocEntries {
+    type Error = io::Error;
+
+    fn try_from(toc: CDROM_TOC) -> Result<Self, Self::Error> {
+        let audio = toc.iter_audio();
+        let data = toc.iter_data();
+        let leadouts = toc.iter_leadouts();
+        audio.chain(data).chain(leadouts).collect()
     }
 }
 
@@ -206,11 +206,14 @@ mod tests {
     use cdtoc::Toc;
     use rstest::rstest;
 
-    use crate::test_fixtures::albums::TestAlbum::{self, *};
+    use crate::{
+        test_fixtures::albums::TestAlbum::{self, *},
+        toc::TocEntryFilter,
+    };
 
     impl CDROM_TOC {
         fn to_toc(self) -> io::Result<Toc> {
-            let tocentries = &TocEntries::from(self);
+            let tocentries = &TocEntries::try_from(self)?;
             tocentries.try_into()
         }
 
@@ -307,8 +310,11 @@ mod tests {
     #[case(TheBoyWhoKnewTooMuch)]
     fn toc_entries_from_cdrom_toc(#[case] album: TestAlbum) {
         let wintoc = CDROM_TOC::from(album);
-        let entries = TocEntries::from(wintoc);
-        assert_eq!(entries.audio, album.expected_audio_toc_entries());
+        let entries = TocEntries::try_from(wintoc).unwrap();
+        assert_eq!(
+            entries.iter().audio().cloned().collect::<Vec<_>>(),
+            album.expected_audio_toc_entries()
+        );
         assert_eq!(
             entries.audio_tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()

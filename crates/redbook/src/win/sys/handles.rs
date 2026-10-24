@@ -415,7 +415,7 @@ impl Device for DriveHandle {
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {
         let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
-        Ok(self.cdrom_toc()?.into())
+        self.cdrom_toc()?.try_into()
     }
 
     fn raw_toc(&self) -> io::Result<Vec<u8>> {
