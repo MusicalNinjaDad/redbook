@@ -663,15 +663,14 @@ impl PartialEq<Frame> for Msf {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// A collection of [`TocEntry`]s, neatly grouped and sorted
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// A collection of [`TocEntry`]s, neatly grouped and sorted.
+///
+/// Construction is available via FromIterator<TocEntry> for io::Result<TocEntries>
 pub struct TocEntries {
-    /// Audio tracks, sorted by start position
-    pub audio: Vec<TocEntry>,
-    /// Data tracks, sorted by start position
-    pub data: Vec<TocEntry>,
-    /// Leadouts, sorted by start position
-    pub leadouts: Vec<TocEntry>,
+    entries: Vec<TocEntry>,
+    track_types: HashMap<TocEntryKind, usize>,
+    leadouts: Leadouts,
 }
 
 impl TocEntries {
