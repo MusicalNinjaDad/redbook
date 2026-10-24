@@ -940,6 +940,14 @@ impl FromIterator<TocEntry> for TocEntries {
     }
 }
 
+impl FromIterator<TocEntry> for io::Result<TocEntries> {
+    fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
+        let entries: TocEntries = iter.into_iter().collect();
+        let _leadouts = entries.validate_leadouts()?;
+        Ok(entries)
+    }
+}
+
 impl TryFrom<ReadTocDescriptors> for TocEntries {
     type Error = io::Error;
 
