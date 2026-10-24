@@ -988,8 +988,9 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 (Audio, Audio, _) => Ok(()),
                 (Audio, Data, Final) => Ok(()),
                 (Audio, AudioLeadout, _) => Ok(()),
-                (Data, DataLeadout, _) => Ok(()),
                 (Data, Audio, Final) => Ok(()),
+                (Data, Data, Final) => Ok(()),
+                (Data, DataLeadout, _) => Ok(()),
                 (AudioLeadout, _, PerSession(_)) => Ok(()),
                 (DataLeadout, _, PerSession(_)) => Ok(()),
                 _ => Err(io::Error::new(
