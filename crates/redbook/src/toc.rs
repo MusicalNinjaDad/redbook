@@ -749,17 +749,10 @@ pub enum Leadouts {
 impl<'entries> IntoIterator for &'entries TocEntries {
     type Item = &'entries TocEntry;
 
-    type IntoIter = TocEntriesIter<'entries>;
+    type IntoIter = std::slice::Iter<'entries, TocEntry>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let audio = self.audio.iter().peekable();
-        let data = self.data.iter().peekable();
-        let leadouts = self.leadouts.iter().peekable();
-        TocEntriesIter {
-            audio,
-            data,
-            leadouts,
-        }
+        self.entries.iter()
     }
 }
 
