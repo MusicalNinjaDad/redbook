@@ -865,6 +865,14 @@ where
     }
 }
 
+impl TryFrom<TocEntries> for Toc {
+    type Error = io::Error;
+
+    fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
+        Self::try_from(&entries)
+    }
+}
+
 impl TryFrom<&TocEntries> for Toc {
     type Error = io::Error;
 

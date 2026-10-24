@@ -6,7 +6,8 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, Msf, Track, tagging::PictureExt, toc::ReadTocDescriptors, toc::TocEntry,
+    Frame, LEADIN, Msf, TocEntries, Track, tagging::PictureExt,
+    test_fixtures::track_descriptor::RawTocDescriptors, toc::TocEntry,
 };
 
 /// Test album identifier for parameterized tests
@@ -85,8 +86,10 @@ impl TestAlbum {
     pub fn expected_toc(&self) -> cdtoc::Toc {
         let path = self.toc_path();
         let toc_dump = super::load_hex_file(&path);
-        let entries = ReadTocDescriptors::new(toc_dump).unwrap();
-        cdtoc::Toc::try_from(entries).unwrap()
+        RawTocDescriptors::new(toc_dump)
+            .and_then(TocEntries::try_from)
+            .and_then(cdtoc::Toc::try_from)
+            .unwrap()
     }
 
     /// Expected first track number for this album
