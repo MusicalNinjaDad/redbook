@@ -5,6 +5,7 @@ use std::{
     hint::cold_path,
     io::{self, ErrorKind},
     iter::Peekable,
+    num::NonZeroUsize,
     ops::{Add, AddAssign, Mul, Rem, Sub, SubAssign},
     slice,
     time::Duration,
@@ -196,6 +197,28 @@ impl TocEntry {
         // TODO: #122 Tracknumbers: types & consts
         self.control.is_data() && self.track <= 0x63
     }
+
+    /// Returns the kind of track (based on control code & track number)
+    pub fn kind(&self) -> TocEntryKind {
+        match (self.control.is_data(), self.track) {
+            (true, ..=0x63) => TocEntryKind::Data,
+            (false, ..=0x63) => TocEntryKind::Audio,
+            (true, _) => TocEntryKind::DataLeadout,
+            (false, _) => TocEntryKind::AudioLeadout,
+        }
+    }
+}
+
+/// The kind of TocEntry. Returned by [TocEntry::kind] and used in [TocEntries::validate_leadouts]
+pub enum TocEntryKind {
+    /// An audio track
+    Audio,
+    /// A data track
+    Data,
+    /// The leadout for an audio session
+    AudioLeadout,
+    /// The leadout for a data session
+    DataLeadout,
 }
 
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
@@ -706,6 +729,78 @@ impl TocEntries {
             .flatten()
             .next()
     }
+
+    /// Ensures that there is either a leadout between each session, or only one final leadout.
+    ///
+    /// On success returns the number of sessions identified.
+    ///
+    /// # Note
+    /// - Constructors in this crate ensure that the correct number of leadouts are present. Downstream
+    ///   users should not blindly rely on this as foreign crates may incorrectly implement `TryFrom`
+    ///   without such validation.
+    /// - Many data sources only include information on the final leadout and drop intra-session
+    ///   leadouts.
+    /// - Discs with multiple audio-sessions are not supported see TODO #110
+    pub fn validate_leadouts(&self) -> io::Result<Leadouts> {
+        use crate::toc::{Leadouts::*, TocEntryKind::*};
+        let sessions = self.data.len() + 1;
+
+        let leadouts: Leadouts = match self.leadouts.len() {
+            1 => Leadouts::Final,
+            s if s == sessions => Leadouts::PerSession(
+                NonZeroUsize::try_from(sessions)
+                    .map_err(|_| io::Error::new(ErrorKind::InvalidData, "no tracks present"))?,
+            ),
+            _ => {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "incorrect number of leadouts. Expected 1 or {sessions} found {n}",
+                        n = self.leadouts.len()
+                    ),
+                ));
+            }
+        };
+
+        self.iter()
+            .next()
+            .is_some_and(|track| track.is_audio_track() || track.is_data_track())
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track is a leadout"))?;
+
+        self.iter().map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
+        .try_for_each(|(this_entry, next_entry)| {
+            match (this_entry.kind(), next_entry.kind(), leadouts) {
+                (Audio, Audio, _) => Ok(()),
+                (Audio, Data, Final) => Ok(()),
+                (Audio, AudioLeadout, _) => Ok(()),
+                (Data, DataLeadout, _) => Ok(()),
+                (Data, Audio, Final) => Ok(()),
+                (AudioLeadout, _, PerSession(_)) => Ok(()),
+                (DataLeadout, _, PerSession(_)) => Ok(()),
+                _ => Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "invalid toc entry order. {this_entry} cannot be followed by {next_entry}"
+                    ),
+                )),
+            }})?;
+
+        Ok(leadouts)
+    }
+}
+
+/// Whether only the final leadout is present, or leadouts are available for every session.
+///
+/// # Interpretation
+/// - `Session(1)`: Only one session is present
+/// - `Final`: More than one session is present, intra-session leadout positions are unknown
+/// - `Session(n)`: More than one session is present,  intra-session leadout positions are available
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Leadouts {
+    /// Multiple sessions exist but only the final leadout is available
+    Final,
+    /// Every session has a leadout available, includes the number of sessions found.
+    PerSession(NonZeroUsize),
 }
 
 impl<'entries> IntoIterator for &'entries TocEntries {
@@ -730,6 +825,9 @@ impl<'entries> IntoIterator for &'entries TocEntries {
 /// This `struct` is created by the `into_iter()` method on a *borrowed* [`&TocEntries`][TocEntries]
 /// (provided by the [`Iterator`] trait) and the [`iter`][TocEntries::iter] helper method on a
 /// [`TocEntries`].
+///
+/// # TODO
+/// - TODO: #123 peekable / peek for TocEntriesIter
 pub struct TocEntriesIter<'entries> {
     audio: Peekable<slice::Iter<'entries, TocEntry>>,
     data: Peekable<slice::Iter<'entries, TocEntry>>,
@@ -846,11 +944,13 @@ impl TryFrom<ReadTocDescriptors> for TocEntries {
     type Error = io::Error;
 
     fn try_from(descriptors: ReadTocDescriptors) -> Result<Self, Self::Error> {
-        descriptors
+        let tocentries: Self = descriptors
             .0
             .into_iter()
             .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(&entry).transpose())
-            .try_collect()
+            .try_collect()?;
+        tocentries.validate_leadouts()?;
+        Ok(tocentries)
     }
 }
 
