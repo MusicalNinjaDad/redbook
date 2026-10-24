@@ -18,9 +18,17 @@ use tracing_result::Trace;
 
 use crate::{LEADIN, Track};
 
-/// 0b0010 format track identifier for Leadout
-#[expect(dead_code, reason = "TODO: #122 constants, track numbers etc.")]
-pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
+pub mod b0000 {
+    /// 0b0010 format track identifier for Leadout
+    pub const LEADOUT_TRACK_ID: u8 = 0xAA;
+}
+
+pub mod b0010 {
+    pub const FIRST_TRACK_ID: u8 = 0xA0;
+    pub const LAST_TRACK_ID: u8 = 0xA1;
+    /// 0b0010 format track identifier for Leadout
+    pub const LEADOUT_TRACK_ID: u8 = 0xA2;
+}
 
 /// Entry in a CD TOC (Table of Contents) for an audio track.
 ///
@@ -132,10 +140,12 @@ impl TocEntry {
     /// | 10    | Start Frames |
     ///
     /// # Note
-    /// This will also parse the special TOC entries as "tracks"
+    /// This will also parse the following (adr = 1) special TOC entries as "tracks"
     /// - 0xA0: first track number = Start Mins
     /// - 0xA1: last track number = Start Mins
     /// - 0xA2: leadout
+    ///
+    /// But will filter out the entries related to disc layout & recording (adr = 5)
     pub fn from_scsi_readtoc_0010b(data: &[u8]) -> io::Result<Option<Self>> {
         let _error = tracing::error_span!("TocEntry::from_scsi_readtoc_0010b", data).entered();
 
@@ -204,8 +214,17 @@ impl TocEntry {
         match (self.control.is_data(), self.track) {
             (true, ..=0x63) => TocEntryKind::Data,
             (false, ..=0x63) => TocEntryKind::Audio,
-            (true, _) => TocEntryKind::DataLeadout,
-            (false, _) => TocEntryKind::AudioLeadout,
+            (true, b0000::LEADOUT_TRACK_ID) | (true, b0010::LEADOUT_TRACK_ID) => {
+                TocEntryKind::DataLeadout
+            }
+            (false, b0000::LEADOUT_TRACK_ID) | (false, b0010::LEADOUT_TRACK_ID) => {
+                TocEntryKind::AudioLeadout
+            }
+            (true, b0010::FIRST_TRACK_ID) => TocEntryKind::FirstDataTrack,
+            (false, b0010::FIRST_TRACK_ID) => TocEntryKind::FirstAudioTrack,
+            (true, b0010::LAST_TRACK_ID) => TocEntryKind::LastDataTrack,
+            (false, b0010::LAST_TRACK_ID) => TocEntryKind::LastAudioTrack,
+            _ => TocEntryKind::Unknown,
         }
     }
 }
@@ -221,6 +240,16 @@ pub enum TocEntryKind {
     AudioLeadout,
     /// The leadout for a data session
     DataLeadout,
+    /// First track number, encoded as start minute
+    FirstAudioTrack,
+    /// Last track number, encoded as start minute
+    LastAudioTrack,
+    /// First track number, encoded as start minute
+    FirstDataTrack,
+    /// Last track number, encoded as start minute
+    LastDataTrack,
+    /// An entry type which we don't expect and don't understand
+    Unknown,
 }
 
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
