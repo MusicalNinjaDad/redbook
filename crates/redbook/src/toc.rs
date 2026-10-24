@@ -782,48 +782,6 @@ impl<'entries> IntoIterator for &'entries TocEntries {
     }
 }
 
-/// An iterator over the all entries in the order they appear on the CD.
-///
-/// This `struct` is created by the `into_iter()` method on a *borrowed* [`&TocEntries`][TocEntries]
-/// (provided by the [`Iterator`] trait) and the [`iter`][TocEntries::iter] helper method on a
-/// [`TocEntries`].
-///
-/// # TODO
-/// - TODO: #123 peekable / peek for TocEntriesIter
-pub struct TocEntriesIter<'entries> {
-    audio: Peekable<slice::Iter<'entries, TocEntry>>,
-    data: Peekable<slice::Iter<'entries, TocEntry>>,
-    leadouts: Peekable<slice::Iter<'entries, TocEntry>>,
-}
-
-impl<'entries> Iterator for TocEntriesIter<'entries> {
-    type Item = &'entries TocEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next_audio = self
-            .audio
-            .peek()
-            .map(|entry| entry.start)
-            .unwrap_or(Frame::MAX);
-        let next_data = self
-            .data
-            .peek()
-            .map(|entry| entry.start)
-            .unwrap_or(Frame::MAX);
-        let next_leadout = self
-            .leadouts
-            .peek()
-            .map(|entry| entry.start)
-            .unwrap_or(Frame::MAX);
-        let next_start = next_audio.min(next_data).min(next_leadout);
-
-        self.audio
-            .next_if(|entry| entry.start == next_start)
-            .or(self.data.next_if(|entry| entry.start == next_start))
-            .or(self.leadouts.next_if(|entry| entry.start == next_start))
-    }
-}
-
 impl<'meta, V> PartialEq<V> for TocEntries
 where
     for<'v> &'v V: IntoIterator<Item = &'v Track<'meta>>,
