@@ -741,6 +741,24 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + DoubleEndedIterato
             .map(|entry| Msf::from(entry.start).min)
             .next()
     }
+
+    fn last_audio_info(self) -> Option<u8> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::LastAudioTrack))
+            .map(|entry| Msf::from(entry.start).min)
+            .next()
+    }
+
+    fn first_data_info(self) -> Option<u8> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::FirstDataTrack))
+            .map(|entry| Msf::from(entry.start).min)
+            .next()
+    }
+
+    fn last_data_info(self) -> Option<u8> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::LastDataTrack))
+            .map(|entry| Msf::from(entry.start).min)
+            .next()
+    }
 }
 
 impl<'e, I> TocEntryFilter<'e> for I where
@@ -907,6 +925,27 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             (first_audio_info == first_audio).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
                 format!("info entry claims first audio track is number {first_audio_info:?}, but first audio track found is number {first_audio:?}")
+            ))?;
+
+            let last_audio_info = info.iter().last_audio_info();
+            let last_audio = entries.iter().rev().audio().next().map(|entry| entry.track);
+            (last_audio_info == last_audio).ok_or_else(|| io::Error::new(
+                ErrorKind::InvalidData,
+                format!("info entry claims last audio track is number {last_audio_info:?}, but last audio track found is number {last_audio:?}")
+            ))?;
+
+            let first_data_info = info.iter().first_data_info();
+            let first_data = entries.iter().data().next().map(|entry| entry.track);
+            (first_audio_info == first_audio).ok_or_else(|| io::Error::new(
+                ErrorKind::InvalidData,
+                format!("info entry claims first data track is number {first_data_info:?}, but first audio track found is number {first_data:?}")
+            ))?;
+
+            let last_data_info = info.iter().last_data_info();
+            let last_data = entries.iter().rev().data().next().map(|entry| entry.track);
+            (last_audio_info == last_audio).ok_or_else(|| io::Error::new(
+                ErrorKind::InvalidData,
+                format!("info entry claims last data track is number {last_data_info:?}, but last audio track found is number {last_data:?}")
             ))?;
         }
 
