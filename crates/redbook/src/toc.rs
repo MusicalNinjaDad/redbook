@@ -952,13 +952,11 @@ impl TryFrom<ReadTocDescriptors> for TocEntries {
     type Error = io::Error;
 
     fn try_from(descriptors: ReadTocDescriptors) -> Result<Self, Self::Error> {
-        let tocentries: Self = descriptors
+        descriptors
             .0
             .into_iter()
             .filter_map(|entry| TocEntry::from_scsi_readtoc_0010b(&entry).transpose())
-            .try_collect()?;
-        tocentries.validate_leadouts()?;
-        Ok(tocentries)
+            .try_collect()?
     }
 }
 
