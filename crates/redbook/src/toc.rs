@@ -5,7 +5,6 @@ use std::{
     fmt::Display,
     hint::cold_path,
     io::{self, ErrorKind},
-    iter::Peekable,
     num::NonZeroUsize,
     ops::{Add, AddAssign, Mul, Rem, Sub, SubAssign},
     slice,
@@ -20,6 +19,7 @@ use tracing_result::Trace;
 use crate::{LEADIN, Track};
 
 /// 0b0010 format track identifier for Leadout
+#[expect(dead_code, reason = "TODO: #122 constants, track numbers etc.")]
 pub const LEADOUT_TRACK_NUMBER: u8 = 0xA2;
 
 /// Entry in a CD TOC (Table of Contents) for an audio track.
@@ -842,14 +842,14 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 
         let mut entries: Vec<_> = iter.into_iter().collect();
 
-        (entries.len() > 0).ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
+        (!entries.is_empty())
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
 
         // INVARIANT: all fields are expected to be sorted by start position
         entries.sort_by_key(|entry| entry.start);
 
         entries
-            .iter()
-            .next()
+            .first()
             .is_some_and(|track| track.is_audio_track() || track.is_data_track())
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track is a leadout"))?;
 
