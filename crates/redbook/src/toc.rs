@@ -675,6 +675,32 @@ pub struct TocEntries {
     leadouts: Leadouts,
 }
 
+pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + DoubleEndedIterator + Sized {
+    fn audio(self) -> impl Iterator<Item = &'e TocEntry> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::Audio))
+    }
+
+    fn data(self) -> impl Iterator<Item = &'e TocEntry> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::Data))
+    }
+
+    fn leadouts(self) -> impl Iterator<Item = &'e TocEntry> {
+        self.filter(|entry| {
+            matches!(entry.kind(), TocEntryKind::AudioLeadout)
+                || matches!(entry.kind(), TocEntryKind::DataLeadout)
+        })
+    }
+
+    fn final_leadout(self) -> Option<&'e TocEntry> {
+        self.rev().leadouts().next()
+    }
+}
+
+impl<'e, I> TocEntryFilter<'e> for I where
+    I: Iterator<Item = &'e TocEntry> + DoubleEndedIterator + Sized
+{
+}
+
 impl TocEntries {
     /// Provides an iterator over *borrowed* [&TocEntry][TocEntry]s.
     ///
@@ -683,7 +709,7 @@ impl TocEntries {
     /// [TocEntries] does not directly implement [IntoIterator], but `&TocEntries` does.
     /// Either use `TocEntries.iter()` or `&TocEntries` in a for loop or anywhere else which
     /// expects an `IntoIterator`.
-    pub fn iter(&self) -> TocEntriesIter<'_> {
+    pub fn iter(&self) -> slice::Iter<'_, TocEntry> {
         self.into_iter()
     }
 
@@ -821,23 +847,24 @@ impl TryFrom<&TocEntries> for Toc {
 
     fn try_from(entries: &TocEntries) -> Result<Self, Self::Error> {
         // TODO: Don't panic! (via #106)
-        // TODO: last() or first()?? Check downstream docs
-        // TODO: should this be other or InvalidData?
         let audio = entries
-            .audio
             .iter()
+            .audio()
             .map(|entry| entry.start.as_usize().strict_cast::<u32>())
             .collect();
         let data = entries
-            .data
-            .last()
+            .iter()
+            .rev()
+            .data()
+            .next()
             .map(|entry| entry.start.as_usize().strict_cast::<u32>());
         let leadout = entries
-            .leadouts
-            .last()
+            .iter()
+            .final_leadout()
             .map(|entry| entry.start.as_usize().strict_cast::<u32>())
-            .unwrap();
-        Toc::from_parts(audio, data, leadout).map_err(io::Error::other)
+            .expect("Must have at least one leadout or construction would have failed");
+        Toc::from_parts(audio, data, leadout)
+            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
     }
 }
 
