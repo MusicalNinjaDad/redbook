@@ -252,6 +252,18 @@ pub enum TocEntryKind {
     Unknown,
 }
 
+impl TocEntryKind {
+    pub fn is_info(&self) -> bool {
+        !matches!(
+            self,
+            TocEntryKind::Audio
+                | TocEntryKind::Data
+                | TocEntryKind::AudioLeadout
+                | TocEntryKind::DataLeadout
+        )
+    }
+}
+
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
 ///
 /// A frame represents a single unit of CD audio data, which is 1/75th of a second.
@@ -723,6 +735,12 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + DoubleEndedIterato
     fn final_leadout(self) -> Option<&'e TocEntry> {
         self.rev().leadouts().next()
     }
+
+    fn first_audio_info(self) -> Option<u8> {
+        self.filter(|entry| matches!(entry.kind(), TocEntryKind::FirstAudioTrack))
+            .map(|entry| Msf::from(entry.start).min)
+            .next()
+    }
 }
 
 impl<'e, I> TocEntryFilter<'e> for I where
@@ -869,7 +887,8 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
         use Leadouts::*;
         use TocEntryKind::*;
 
-        let mut entries: Vec<_> = iter.into_iter().collect();
+        let (info, mut entries): (Vec<_>, Vec<_>) =
+            iter.into_iter().partition(|entry| entry.kind().is_info());
 
         (!entries.is_empty())
             .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
@@ -881,6 +900,15 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .first()
             .is_some_and(|track| track.is_audio_track() || track.is_data_track())
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track is a leadout"))?;
+
+        if !info.is_empty() {
+            let first_audio_info = info.iter().first_audio_info();
+            let first_audio = entries.iter().audio().next().map(|entry| entry.track);
+            (first_audio_info == first_audio).ok_or_else(|| io::Error::new(
+                ErrorKind::InvalidData,
+                format!("info entry claims first audio track is number {first_audio_info:?}, but first audio track found is number {first_audio:?}")
+            ))?;
+        }
 
         let track_types = entries.iter().map(|entry| entry.kind()).counts();
 
