@@ -914,32 +914,6 @@ impl TryFrom<ReadTocDescriptors> for Toc {
     }
 }
 
-impl FromIterator<TocEntry> for TocEntries {
-    fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
-        let mut entries: Vec<_> = iter.into_iter().collect();
-
-        // INVARIANT: all fields are expected to be sorted by start position
-        entries.sort_by_key(|entry| entry.start);
-
-        let data = entries
-            .extract_if(.., |entry| entry.is_data_track())
-            .collect();
-        let leadouts = entries
-            // TODO: 0b0001 & 0b0010 use different IDs for Leadout!
-            .extract_if(.., |entry| entry.track == LEADOUT_TRACK_NUMBER)
-            .collect();
-        let audio = {
-            entries.retain_mut(|entry| entry.is_audio_track());
-            entries
-        };
-        TocEntries {
-            audio,
-            data,
-            leadouts,
-        }
-    }
-}
-
 impl FromIterator<TocEntry> for io::Result<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
         let mut entries: Vec<_> = iter.into_iter().collect();
