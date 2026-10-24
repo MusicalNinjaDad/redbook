@@ -1,6 +1,7 @@
 //! Support for Tables of Contents & Frame-based time
 
 use std::{
+    collections::HashMap,
     fmt::Display,
     hint::cold_path,
     io::{self, ErrorKind},
@@ -210,6 +211,7 @@ impl TocEntry {
 }
 
 /// The kind of TocEntry. Returned by [TocEntry::kind] and used in [TocEntries::validate_leadouts]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TocEntryKind {
     /// An audio track
     Audio,
@@ -915,28 +917,79 @@ impl TryFrom<ReadTocDescriptors> for Toc {
 
 impl FromIterator<TocEntry> for io::Result<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
+        use Leadouts::*;
+        use TocEntryKind::*;
+
         let mut entries: Vec<_> = iter.into_iter().collect();
+
+        (entries.len() > 0).ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
 
         // INVARIANT: all fields are expected to be sorted by start position
         entries.sort_by_key(|entry| entry.start);
 
-        let data = entries
-            .extract_if(.., |entry| entry.is_data_track())
-            .collect();
-        let leadouts = entries
-            // TODO: 0b0001 & 0b0010 use different IDs for Leadout!
-            .extract_if(.., |entry| entry.track == LEADOUT_TRACK_NUMBER)
-            .collect();
-        let audio = {
-            entries.retain_mut(|entry| entry.is_audio_track());
-            entries
+        entries
+            .iter()
+            .next()
+            .is_some_and(|track| track.is_audio_track() || track.is_data_track())
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track is a leadout"))?;
+
+        let track_types = entries.iter().map(|entry| entry.kind()).counts();
+
+        let sessions = track_types
+            .get(&TocEntryKind::Data)
+            .copied()
+            .unwrap_or_default()
+            + 1;
+
+        let leadout_count = track_types
+            .get(&TocEntryKind::DataLeadout)
+            .copied()
+            .unwrap_or_default()
+            + track_types
+                .get(&TocEntryKind::AudioLeadout)
+                .copied()
+                .unwrap_or_default();
+
+        let leadouts = match leadout_count {
+            1 => Leadouts::Final,
+            s if s == sessions => Leadouts::PerSession(
+                NonZeroUsize::try_from(sessions)
+                    .map_err(|_| io::Error::new(ErrorKind::InvalidData, "no tracks present"))?,
+            ),
+            _ => {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "incorrect number of leadouts. Expected 1 or {sessions} found {leadout_count}"
+                    ),
+                ));
+            }
         };
+
+        entries.iter().map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
+        .try_for_each(|(this_entry, next_entry)| {
+            match (this_entry.kind(), next_entry.kind(), leadouts) {
+                (Audio, Audio, _) => Ok(()),
+                (Audio, Data, Final) => Ok(()),
+                (Audio, AudioLeadout, _) => Ok(()),
+                (Data, DataLeadout, _) => Ok(()),
+                (Data, Audio, Final) => Ok(()),
+                (AudioLeadout, _, PerSession(_)) => Ok(()),
+                (DataLeadout, _, PerSession(_)) => Ok(()),
+                _ => Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "invalid toc entry order. {this_entry} cannot be followed by {next_entry}"
+                    ),
+                )),
+            }})?;
+
         let tocentries = TocEntries {
-            audio,
-            data,
+            entries,
+            track_types,
             leadouts,
         };
-        let _leadouts = tocentries.validate_leadouts()?;
+
         Ok(tocentries)
     }
 }
