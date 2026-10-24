@@ -730,64 +730,6 @@ impl TocEntries {
             .flatten()
             .next()
     }
-
-    /// Ensures that there is either a leadout between each session, or only one final leadout.
-    ///
-    /// On success returns the number of sessions identified.
-    ///
-    /// # Note
-    /// - Constructors in this crate ensure that the correct number of leadouts are present. Downstream
-    ///   users should not blindly rely on this as foreign crates may incorrectly implement `TryFrom`
-    ///   without such validation.
-    /// - Many data sources only include information on the final leadout and drop intra-session
-    ///   leadouts.
-    /// - Discs with multiple audio-sessions are not supported see TODO #110
-    pub fn validate_leadouts(&self) -> io::Result<Leadouts> {
-        use crate::toc::{Leadouts::*, TocEntryKind::*};
-        let sessions = self.data.len() + 1;
-
-        let leadouts: Leadouts = match self.leadouts.len() {
-            1 => Leadouts::Final,
-            s if s == sessions => Leadouts::PerSession(
-                NonZeroUsize::try_from(sessions)
-                    .map_err(|_| io::Error::new(ErrorKind::InvalidData, "no tracks present"))?,
-            ),
-            _ => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "incorrect number of leadouts. Expected 1 or {sessions} found {n}",
-                        n = self.leadouts.len()
-                    ),
-                ));
-            }
-        };
-
-        self.iter()
-            .next()
-            .is_some_and(|track| track.is_audio_track() || track.is_data_track())
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "first track is a leadout"))?;
-
-        self.iter().map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
-        .try_for_each(|(this_entry, next_entry)| {
-            match (this_entry.kind(), next_entry.kind(), leadouts) {
-                (Audio, Audio, _) => Ok(()),
-                (Audio, Data, Final) => Ok(()),
-                (Audio, AudioLeadout, _) => Ok(()),
-                (Data, DataLeadout, _) => Ok(()),
-                (Data, Audio, Final) => Ok(()),
-                (AudioLeadout, _, PerSession(_)) => Ok(()),
-                (DataLeadout, _, PerSession(_)) => Ok(()),
-                _ => Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "invalid toc entry order. {this_entry} cannot be followed by {next_entry}"
-                    ),
-                )),
-            }})?;
-
-        Ok(leadouts)
-    }
 }
 
 /// Whether only the final leadout is present, or leadouts are available for every session.
