@@ -579,7 +579,7 @@ impl Disc {
         self.thumbnails.get(release_id)
     }
 
-    /// Get all tumbnails from Coverart Archive
+    /// Get all thumbnails from Coverart Archive
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {

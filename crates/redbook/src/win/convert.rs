@@ -1,4 +1,4 @@
-//! Conversion wrappers around windows ideosyncracies
+//! Conversion wrappers around windows idiosyncrasies
 
 use std::{
     fmt::{Debug, Display},

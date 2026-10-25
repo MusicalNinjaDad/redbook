@@ -53,8 +53,8 @@ pub trait Device: Sized {
 /// to allow for mid-rip termination and status updates.
 ///
 /// Implementors of `Drive` are more likely to store cached versions of data such as their path and
-/// ToC, where implementors of only [`Device`] are likely to be low-level entities which directy access
-/// hardware.
+/// ToC, where implementors of only [`Device`] are likely to be low-level entities which directly
+/// access hardware.
 pub trait Drive: Sized {
     /// The type of [`Device`] which this `Drive` uses to access a disc
     type Device: Device;
