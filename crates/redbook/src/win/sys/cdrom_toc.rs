@@ -40,9 +40,8 @@ impl CDROM_TOC {
         self.TrackData.iter().take(entries_size)
     }
 
-    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
-    /// and will pad with \0 allowing round-tripping with
-    /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
+    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects either only the relevant bytes
+    /// and will pad with `\0`, or a full set of bytes to fill a `CDROM_TOC`.
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]

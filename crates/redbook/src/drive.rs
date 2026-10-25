@@ -44,8 +44,8 @@ pub trait Device: Sized {
     /// Read the Table of Contents from the disc and provide a raw_bytes representation of the
     /// returned data. The exact format of this data may be platform specific.
     ///
-    /// Unless you are providing low-level or debug functionality, you probably want to use [read_toc]
-    /// instead which will provide a platform-independent [TocEntries]
+    /// Unless you are providing low-level or debug functionality, you probably want to use
+    /// [read_toc][Device::read_toc] instead which will provide a platform-independent [TocEntries]
     fn raw_toc(&self) -> io::Result<Vec<u8>>;
 }
 
