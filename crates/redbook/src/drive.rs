@@ -201,7 +201,7 @@ pub struct CdDrive<DEV: Device> {
 
 impl<DEV: Device> CdDrive<DEV> {
     /// Construct a new CdDrive from constituent parts. You will almost never want to call this directly
-    /// unless implementing `From`/`TryFrom`. Use [`open`][Device::open] instead.
+    /// unless implementing `From`/`TryFrom`. Use [`open`][Drive::open] instead.
     pub fn new(
         path: PathBuf,
         device: DEV,
