@@ -433,14 +433,6 @@ impl From<Msf> for std::time::Duration {
     }
 }
 
-impl Sub<std::time::Duration> for Msf {
-    type Output = Self;
-
-    fn sub(self, rhs: std::time::Duration) -> Self::Output {
-        let as_frames = Frame::from(self) - Frame::from(rhs);
-        as_frames.into()
-    }
-}
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
