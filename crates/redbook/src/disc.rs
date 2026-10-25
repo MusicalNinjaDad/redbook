@@ -398,6 +398,9 @@ impl Disc {
     ///
     /// Automatically sets to `Some(0)` for single-disc releases, or `None` for multi-disc
     /// releases where the disc must be identified manually.
+    /// 
+    /// # TODOs
+    /// - TODO #128 Tidy disc index, and release index functions
     pub fn reset_disc_index(&mut self) -> Option<usize> {
         let release = self.release()?;
         let media = release.media.as_ref()?;
@@ -463,7 +466,7 @@ impl Disc {
     ///
     /// Release and disc index are automatically selected when uniquely identifiable.
     /// Otherwise, the relevant values will be `None` and must be set manually using
-    /// [`set_release()`][Self::set_release] and [`reset_disc_index()`][Self::reset_disc_index].
+    /// [`set_release()`][Self::set_release].
     ///
     /// # Errors
     ///
