@@ -22,6 +22,8 @@
 #![cfg_attr(unstable_os_str_split_at, feature(os_str_split_at))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![feature(const_cmp)]
+#![feature(const_convert)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -137,7 +139,8 @@
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
 //! - [`Control`][toc::Control] - technical control code associated with a TOC entry
 //! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
-//! - [`Msf`]           - Minutes, seconds, frames: the time-based unit of measure for audio CDs
+//! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on
+//!   a physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
 //!
 //! ## Platform specifics
 //!
@@ -255,7 +258,9 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
-pub use toc::{Frame, Msf, TocEntries};
+pub use frame::Frame;
+#[doc(inline)]
+pub use toc::TocEntries;
 pub use track::*;
 
 use crate::win::DriveHandle;
@@ -268,6 +273,9 @@ pub mod disc;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+#[forbid(unsafe_code)]
+pub mod frame;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]

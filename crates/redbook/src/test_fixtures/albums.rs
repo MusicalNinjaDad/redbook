@@ -6,7 +6,7 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, Msf, TocEntries, Track, tagging::PictureExt,
+    Frame, LEADIN, TocEntries, Track, frame::Msf, tagging::PictureExt,
     test_fixtures::track_descriptor::RawTocDescriptors, toc::TocEntry,
 };
 

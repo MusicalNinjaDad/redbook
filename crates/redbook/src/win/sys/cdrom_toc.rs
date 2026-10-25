@@ -238,7 +238,7 @@ mod tests {
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         for track in toc.track_entries() {
-            use crate::Msf;
+            use crate::frame::Msf;
 
             dbg!(track.TrackNumber);
             dbg!(track.Reserved);

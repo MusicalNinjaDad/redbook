@@ -7,7 +7,8 @@ use std::io::{self, ErrorKind};
 use tracing_result::Trace;
 
 use crate::{
-    Frame, Msf, TocEntries,
+    Frame, TocEntries,
+    frame::Msf,
     toc::{Control, TocEntry},
 };
 
