@@ -365,17 +365,6 @@ impl From<(u32, u8, u8)> for Msf {
     }
 }
 
-impl From<std::time::Duration> for Frame {
-    fn from(duration: std::time::Duration) -> Self {
-        tracing::trace!(
-            target: "frame_conversion",
-            secs = duration.as_secs(),
-            "Frame::from(Duration)"
-        );
-        Msf::from(duration).into()
-    }
-}
-
 impl From<Frame> for std::time::Duration {
     fn from(frames: Frame) -> Self {
         tracing::trace!(
@@ -384,35 +373,6 @@ impl From<Frame> for std::time::Duration {
             "Duration::from(Frame)"
         );
         Msf::from(frames).into()
-    }
-}
-
-impl From<std::time::Duration> for Msf {
-    /// Converts a [`Duration`] to an [`Msf`].
-    ///
-    /// # Notes
-    ///
-    /// - Works on nano-second accuracy
-    /// - The conversion **truncates** fractional frames for safety
-    ///
-    /// # TODOs
-    /// - TODO #126 remove From conversion with time::Duration and implement _lossy equivalents
-    fn from(duration: std::time::Duration) -> Self {
-        tracing::trace!(
-            target: "frame_conversion",
-            secs = duration.as_secs(),
-            "Msf::from(Duration)"
-        );
-        let ms = duration.as_millis();
-        let secs = ms / 1000;
-        let min = secs / 60;
-        let secs = secs % 60;
-        let frames = (ms % 1000) * 75 / 1000;
-        Self {
-            min: min as u8,
-            sec: secs as u8,
-            frame: frames as u8,
-        }
     }
 }
 
@@ -435,13 +395,10 @@ impl From<Msf> for std::time::Duration {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
 
     #[test]
     fn leadin_conversion() {
-        let dur = Duration::from_secs(2);
         let msf = Msf {
             min: 0,
             sec: 2,
@@ -449,12 +406,8 @@ mod tests {
         };
         let frames = LEADIN;
 
-        assert_eq!(Msf::from(dur), msf);
         assert_eq!(Msf::from(frames), msf);
         assert_eq!(Frame::from(msf), frames);
-        assert_eq!(Frame::from(dur), frames);
-        assert_eq!(Duration::from(msf), dur);
-        assert_eq!(Duration::from(frames), dur);
     }
 
     #[test]
