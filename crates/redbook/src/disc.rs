@@ -308,7 +308,7 @@ impl Disc {
 
     /// Set the release, or reset to `None`.
     ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    /// Providing an invalid release will make no change. Returns `self` for chaining.
     pub fn set_release(&mut self, release: Option<&Release>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release", ?release).entered();
         self.release_index = release.and_then(|release| {
@@ -333,7 +333,7 @@ impl Disc {
 
     /// Set the release, or reset to `None`.
     ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    /// Providing an invalid id will make no change. Returns `self` for chaining.
     pub fn set_release_by_id(&mut self, release: Option<&str>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_by_id", ?release).entered();
         self.release_index = release.and_then(|release| {
@@ -348,13 +348,7 @@ impl Disc {
         self
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "everyone should be using set_release or set_release_by_id for sanity"
-        )
-    )]
+    #[cfg(test)]
     fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_index", index = ?index).entered();
         self.release_index = match index {
