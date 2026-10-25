@@ -467,10 +467,6 @@ impl Disc {
     /// Release and disc index are automatically selected when uniquely identifiable.
     /// Otherwise, the relevant values will be `None` and must be set manually using
     /// [`set_release()`][Self::set_release].
-    ///
-    /// # Errors
-    ///
-    /// Returns an `io::Error` if the network request or parsing fails.
     pub fn update_musicbrainz(&mut self) -> io::Result<()> {
         let discid = self.toc.musicbrainz_id().to_string();
 
