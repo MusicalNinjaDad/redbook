@@ -459,6 +459,8 @@ impl TryFrom<&DriveHandle> for TestAlbum {
 }
 
 #[derive(Debug)]
+/// Wrapper around [`HDEVINFO`] (provided by [`SetupDiGetClassDevsW`]) with `Drop` implementation
+/// to close handle & additional knowledge of the requersted class [`Guid`].
 pub struct DeviceInfoSet {
     handle: HDEVINFO,
     class: Guid,
