@@ -44,10 +44,6 @@ mod safety {
     /// - Stored handle is not publicly accessible.
     /// - Handle is closed on Drop.
     /// - Can only be publically created via [open][Self::open] which validates the handle.
-    ///
-    /// # TODO
-    /// - Consider how https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
-    ///   could help provide Clone, etc.
     #[derive(Debug, PartialEq, Eq)]
     pub struct DriveHandle(HANDLE);
 
