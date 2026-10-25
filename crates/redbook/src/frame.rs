@@ -365,34 +365,6 @@ impl From<(u32, u8, u8)> for Msf {
     }
 }
 
-impl From<Frame> for std::time::Duration {
-    fn from(frames: Frame) -> Self {
-        tracing::trace!(
-            target: "frame_conversion",
-            frames = frames.as_usize(),
-            "Duration::from(Frame)"
-        );
-        Msf::from(frames).into()
-    }
-}
-
-impl From<Msf> for std::time::Duration {
-    /// Converts an [`Msf`] to a [`Duration`].
-    ///
-    /// # Notes
-    ///
-    /// - Frames are converted to nanoseconds (1 frame = 1/75 second = ~13_333_333 nanoseconds)
-    /// - The conversion uses integer arithmetic for precision
-    ///
-    /// # TODOs
-    /// - TODO #126 remove From conversion with time::Duration and implement _lossy equivalents
-    fn from(msf: Msf) -> Self {
-        let secs = (msf.min * 60) + msf.sec;
-        let nanos = msf.frame as u64 * 1_000_000_000 / 75;
-        Self::new(secs as u64, nanos as u32)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
