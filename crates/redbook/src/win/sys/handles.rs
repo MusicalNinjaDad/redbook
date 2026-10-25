@@ -126,7 +126,6 @@ mod safety {
 // SAFETY: See documentation comment
 unsafe impl Send for DriveHandle {}
 
-// TODO: FIX SAFETY requirements of as_handle, as_handle_mut, CreateFile2
 impl Drop for DriveHandle {
     fn drop(&mut self) {
         #[expect(unsafe_code, reason = "ffi call")]
