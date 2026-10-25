@@ -66,8 +66,7 @@ pub trait Drive: Sized {
     /// [read_track][Drive::read_track] can be cancelled and provide status updates.
     fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self>;
 
-    /// Retrieve the thread [Context]. If no context was provided via [with_context]
-    /// or [add_context] then this will be a dummy, default context.
+    /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
 
     /// Read an entire track of data allowing cancellation mid-read and providing status updates
