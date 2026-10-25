@@ -342,8 +342,6 @@ where
 
 // ===================================
 // Inter-conversion with foreign types
-//
-// TODO #126 - drop conversions with time::Duration
 // ===================================
 
 impl PartialEq<cdtoc::Duration> for Frame {
