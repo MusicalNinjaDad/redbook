@@ -169,15 +169,6 @@ impl TRACK_DATA {
 impl From<&TRACK_DATA> for TocEntry {
     /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
     ///
-    /// # Arguments
-    ///
-    /// * `track_data` - Raw track data from the Windows CDROM_TOC
-    ///
-    /// # Notes
-    ///
-    /// - The address is read as big-endian and converted to a frame position
-    /// - The lead-in offset is added to get the absolute frame position
-    ///
     /// # TODOs
     ///
     /// - Consider making this fallible with `TryFrom` for better error handling
