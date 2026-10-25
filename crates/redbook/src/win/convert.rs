@@ -135,8 +135,6 @@ impl WinString {
     /// Create a [`PCWSTR`] - note this is a raw pointer.
     ///
     /// You must ensure that the returned [`PCWSTR`] is not used after self is dropped.
-    /// It is recommended to call this directly in the call to a WinAPI unsafe function,
-    /// see [win::drive][super::drive] for examples.
     pub fn as_pcwstr(&self) -> PCWSTR {
         self.words.as_ptr()
     }
