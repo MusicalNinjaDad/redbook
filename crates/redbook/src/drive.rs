@@ -16,7 +16,8 @@ pub trait Device: Sized {
     /// The type of Iterator available that provides all available devices on the system
     type Iter: Iterator<Item = Self>;
 
-    /// Open the device represented by the path
+    /// Open the device represented by the path. See [AudioCd::open][crate::AudioCd::open] for
+    /// details on acceptable path formats.
     fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self>;
 
     /// Get an iterator over all available cd devices on the system
@@ -58,9 +59,11 @@ pub trait Drive: Sized {
     /// The type of [`Device`] which this `Drive` uses to access a disc
     type Device: Device;
 
-    /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
-    /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
-    /// updates.
+    /// Opens a Drive for the given *device path*. See [AudioCd::open][crate::AudioCd::open] for
+    /// details of accepted paths.
+    ///
+    /// Requires a thread [Context] to be provided so that long-running reads via
+    /// [read_track][Drive::read_track] can be cancelled and provide status updates.
     fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self>;
 
     /// Retrieve the thread [Context]. If no context was provided via [with_context]

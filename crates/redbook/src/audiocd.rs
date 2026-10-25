@@ -22,9 +22,17 @@ use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
 ///
 /// # Construction
 ///
-/// **Direct construction** is possible from a path which represents the file-system entry for the device.
-/// On windows, this is the drive letter (`E:`), on linux it is the `/dev/...` entry (*not* a related
-/// mount point).
+/// ## Direct construction
+///
+/// **Direct construction** is possible from a path which represents the file-system entry for the
+/// *device*. On windows, this is either:
+///
+/// **For CDs with no data sessions** ("normal" CDs)
+/// - the drive letter (`E:`)
+///
+/// **For CDs with audio & data sessions** ("enhanced CDs")
+/// - the device-type path (e.g. `CDROM0`), for any CD
+/// - the full device path (e.g. `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d555642414e313035a920&0#{53f56308-b7bf-11d0-95f2-00a0e91efb8b}`
 ///
 /// ```rust no_run
 /// # use std::io;
@@ -32,6 +40,8 @@ use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
 /// let mut cd = AudioCd::open("E:", Default::default())?;
 /// # io::Result::Ok(())
 /// ```
+///
+/// ## Indirect construction
 ///
 /// **Indirect construction** is possible for cases where you do not know the correct path to provide.
 /// [`CdDrives`][crate::CdDrives] provides an iterator over all available drives, and `AudioCd` implements
