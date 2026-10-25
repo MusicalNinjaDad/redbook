@@ -178,6 +178,17 @@ pub trait VorbisTagExt {
 
     /// Write tags to the given file
     fn add_to<P: AsRef<Path>>(self, path: &P) -> io::Result<()>;
+
+    fn discno(&self) -> Option<String>;
+
+    fn total_discs(&self) -> Option<String>;
+
+    fn set_discno(&mut self, discno: usize);
+
+    fn set_total_discs(&mut self, discs: usize);
+
+    /// Album 1 - Album 2 [Disc 2]
+    fn full_album(&self) -> Option<String>;
 }
 
 impl VorbisTagExt for VorbisComment {
@@ -193,8 +204,7 @@ impl VorbisTagExt for VorbisComment {
             .map(|artists| artists.join(" "))
             .unwrap_or_else(|| "Unknown artist".to_string());
         let title = self
-            .album()
-            .map(|titles| titles.join(" "))
+            .full_album()
             .unwrap_or_else(|| "Unknown album".to_string());
         PathBuf::from(sanitise(&artist)).join(sanitise(&title))
     }
@@ -224,6 +234,43 @@ impl VorbisTagExt for VorbisComment {
             })
             .or_warn("saving tags to file")?;
         Ok(())
+    }
+
+    fn discno(&self) -> Option<String> {
+        self.get("DISCNUMBER").map(|n| n.join("-"))
+    }
+
+    fn total_discs(&self) -> Option<String> {
+        self.get("TOTALDISCS")
+            .or_else(|| self.get("DISCTOTAL"))
+            .map(|n| n.join("-"))
+    }
+
+    fn full_album(&self) -> Option<String> {
+        self.album().map(|titles| {
+            let discno = self
+                .discno()
+                .and_then(|n| n.parse::<usize>().ok())
+                .unwrap_or_default();
+            let discs = self
+                .total_discs()
+                .and_then(|n| n.parse::<usize>().ok())
+                .unwrap_or_default();
+            let title = titles.join(" - ");
+            match (discno, discs) {
+                (2.., _) | (_, 2..) => format!("{title} [Disc {discno}]"),
+                _ => title,
+            }
+        })
+    }
+
+    fn set_discno(&mut self, discno: usize) {
+        self.set("DISCNUMBER", vec![discno.to_string()]);
+    }
+
+    fn set_total_discs(&mut self, discs: usize) {
+        self.set("TOTALDISCS", vec![discs.to_string()]);
+        self.set("DISCTOTAL", vec![discs.to_string()]);
     }
 }
 
@@ -313,8 +360,51 @@ fn sanitise(pathsegment: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
+    mod full_album {
+        use super::*;
+
+        #[test]
+        fn one_title() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            assert_eq!(vorbis.full_album().unwrap(), "an album");
+        }
+
+        #[test]
+        fn two_titles() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album", "with a subtitle"]);
+            assert_eq!(vorbis.full_album().unwrap(), "an album - with a subtitle");
+        }
+
+        #[test]
+        fn disc1_of_1() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(1);
+            vorbis.set_total_discs(1);
+            assert_eq!(vorbis.full_album().unwrap(), "an album");
+        }
+
+        #[test]
+        fn disc1_of_2() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(1);
+            vorbis.set_total_discs(2);
+            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 1]");
+        }
+
+        #[test]
+        fn disc2() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(2);
+            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 2]");
+        }
+    }
 
     #[test]
     fn sanitise_paths() {

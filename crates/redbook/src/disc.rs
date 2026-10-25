@@ -398,7 +398,7 @@ impl Disc {
     ///
     /// Automatically sets to `Some(0)` for single-disc releases, or `None` for multi-disc
     /// releases where the disc must be identified manually.
-    /// 
+    ///
     /// # TODOs
     /// - TODO #128 Tidy disc index, and release index functions
     pub fn reset_disc_index(&mut self) -> Option<usize> {
@@ -773,6 +773,7 @@ impl Disc {
                     vorbis.set("TRACKTOTAL", vec![track_count.to_string()]);
                 };
             }
+            // TODO #130 - validate is index correct, or is there a field for discno?
             if let Some(disc_number) = self.disc_index {
                 vorbis.set("DISCNUMBER", vec![(disc_number + 1).to_string()]);
             }
