@@ -261,7 +261,8 @@ pub use drive::{Device, Drive};
 pub use frame::Frame;
 #[doc(inline)]
 pub use toc::TocEntries;
-pub use track::*;
+#[doc(inline)]
+pub use track::{RippedTrack, Track};
 
 use crate::win::DriveHandle;
 
@@ -289,7 +290,7 @@ pub mod tagging;
 pub mod test_fixtures;
 
 #[forbid(unsafe_code)]
-mod toc;
+pub mod toc;
 
 #[forbid(unsafe_code)]
 mod track;

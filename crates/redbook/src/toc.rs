@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "TODO docs")]
 //! Support for Tables of Contents & Frame-based time
 
 use std::{
