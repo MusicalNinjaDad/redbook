@@ -16,8 +16,9 @@ pub trait Device: Sized {
     /// The type of Iterator available that provides all available devices on the system
     type Iter: Iterator<Item = Self>;
 
-    /// Open the device represented by the path
-    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>;
+    /// Open the device represented by the path. See [AudioCd::open][crate::AudioCd::open] for
+    /// details on acceptable path formats.
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self>;
 
     /// Get an iterator over all available cd devices on the system
     fn all() -> io::Result<Self::Iter>;
@@ -43,8 +44,8 @@ pub trait Device: Sized {
     /// Read the Table of Contents from the disc and provide a raw_bytes representation of the
     /// returned data. The exact format of this data may be platform specific.
     ///
-    /// Unless you are providing low-level or debug functionality, you probably want to use [read_toc]
-    /// instead which will provide a platform-independent [TocEntries]
+    /// Unless you are providing low-level or debug functionality, you probably want to use
+    /// [read_toc][Device::read_toc] instead which will provide a platform-independent [TocEntries]
     fn raw_toc(&self) -> io::Result<Vec<u8>>;
 }
 
@@ -52,19 +53,20 @@ pub trait Device: Sized {
 /// to allow for mid-rip termination and status updates.
 ///
 /// Implementors of `Drive` are more likely to store cached versions of data such as their path and
-/// ToC, where implementors of only [`Device`] are likely to be low-level entities which directy access
-/// hardware.
+/// ToC, where implementors of only [`Device`] are likely to be low-level entities which directly
+/// access hardware.
 pub trait Drive: Sized {
     /// The type of [`Device`] which this `Drive` uses to access a disc
     type Device: Device;
 
-    /// Constructor for multi-threaded applications. Allows a thread [Context] to be provided
-    /// so that long-running reads via [rip] & [read_track] can be cancelled and provide status
-    /// updates.
-    fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self>;
+    /// Opens a Drive for the given *device path*. See [AudioCd::open][crate::AudioCd::open] for
+    /// details of accepted paths.
+    ///
+    /// Requires a thread [Context] to be provided so that long-running reads via
+    /// [read_track][Drive::read_track] can be cancelled and provide status updates.
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self>;
 
-    /// Retrieve the thread [Context]. If no context was provided via [with_context]
-    /// or [add_context] then this will be a dummy, default context.
+    /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
 
     /// Read an entire track of data allowing cancellation mid-read and providing status updates
@@ -79,7 +81,7 @@ pub trait Drive: Sized {
         let track = self
             .toc()
             .track(track_number)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "invalid track number"))
+            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "invalid track number"))
             .or_warn("")?;
 
         dbg_span.record("track_details", format_args!("{track}"));
@@ -199,7 +201,7 @@ pub struct CdDrive<DEV: Device> {
 
 impl<DEV: Device> CdDrive<DEV> {
     /// Construct a new CdDrive from constituent parts. You will almost never want to call this directly
-    /// unless implementing `From`/`TryFrom`. Use [`open`][Device::open] instead.
+    /// unless implementing `From`/`TryFrom`. Use [`open`][Drive::open] instead.
     pub fn new(
         path: PathBuf,
         device: DEV,
@@ -218,7 +220,7 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Drive for CdDrive<DEV> {
     type Device = DEV;
 
-    fn open<P: AsRef<Path>>(path: P, cx: Context<RipProgress>) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();

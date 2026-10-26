@@ -100,7 +100,7 @@ pub unsafe fn SetupDiDestroyDeviceInfoList(
 /// Creates or opens a file or I/O device. (See also [Ms Learn][docs_CreateFile2])
 ///
 /// # SAFETY:
-/// - `lpfilename` must be a valid pointer to a `&[16]` which can be interpreted as
+/// - `lpfilename` must be a valid pointer to a `&[u16]` which can be interpreted as
 ///   a null-terminated, utf-16 encoded String, of at most [MAX_PATH_CHARS].
 ///   The best way to achieve this is by passing the result of [`WinString::as_pcwstr()`]
 /// - The returned handle must be closed via [CloseHandle] when no longer needed. It is recommended
@@ -113,7 +113,7 @@ pub unsafe fn SetupDiDestroyDeviceInfoList(
 /// # Returns / `last_os_error`
 /// - on success: A handle that can be passed to [DeviceIoControl]
 /// - on failure: [INVALID_HANDLE_VALUE][super::INVALID_HANDLE_VALUE].
-///   To get extended error information, call [`last_os_error`][io::Error::last_os_error].
+///   To get extended error information, call [`last_os_error`][std::io::Error::last_os_error].
 ///
 /// # Arguments
 /// - `[in] lpfilename`: The name of the file or device to be created or opened.
@@ -235,6 +235,8 @@ pub unsafe fn CreateFile2(
 /// - `[in, out, optional] lpOverlapped`: A pointer to an OVERLAPPED structure. Currently not supported
 ///   must be NULL
 ///
+/// # TODO: #117 Mock reading audio data
+///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
 /// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
@@ -311,12 +313,12 @@ pub unsafe fn DeviceIoControl(
 /// # SAFETY
 /// Safety remarks & mock only provided for use with file handles within a single process.
 ///
-/// - `hsourcehandle` must be a valid pointer to a `HANDLE` as defined at [`std::ptr::read`]
+/// - `hsourcehandle` must be a `HANDLE` which is a valid pointer to  as defined at [`std::ptr::read`]
 /// - `lpTargetHandle` does not point to a valid open `HANDLE`, as this handle will be lost and
 ///   will not be closed. The mock enforces this by checking that `lpTargetHandle` points to an
 ///   `INVALID_HANDLE_VALUE`.
 /// - The returned handle must be properly closed via [CloseHandle] when no longer required.
-/// - The pointer to the returned handle (`lpTargetHandle`) must not be `null` as the handle will
+/// - The pointer to the returned handle (`lpTargetHandle`) must not be `null` as the handle will be
 ///   duplicated but not returned. You will lose system resources until the target process terminates.
 ///
 /// # Notes
@@ -406,7 +408,7 @@ pub unsafe fn DuplicateHandle(
 /// processes. This handle has the `PROCESS_ALL_ACCESS` access right to the process object.
 ///
 /// # SAFETY
-/// No particular safety invariants must be upheld. `unsafe` is simply applyed by default to the
+/// No particular safety invariants must be upheld. `unsafe` is simply applied by default to the
 /// generated ffi binding.
 ///
 /// # Note

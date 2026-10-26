@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 pub mod albums;
+pub mod track_descriptor;
 
 /// Load a hex file and parse it as raw bytes
 pub fn load_hex_file(path: &PathBuf) -> Vec<u8> {

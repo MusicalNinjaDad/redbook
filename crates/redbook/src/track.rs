@@ -5,28 +5,17 @@ use std::fmt::Display;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
-use crate::{Frame, TocEntry};
+use crate::{Frame, toc::TocEntry};
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 /// A track on a CD with associated metadata.
 ///
 /// This struct represents a single track on an audio CD, combining low-level
 /// TOC (Table of Contents) information with optional metadata from MusicBrainz.
 ///
-/// # Type Parameters
-///
-/// * `'meta` - Lifetime of the referenced MusicBrainz metadata
-///
 /// # Notes
 ///
-/// - This type is cheap to clone: all fields are `Copy` except the metadata reference
-/// - The borrow checker ensures metadata validity for lifetime `'meta'`
 /// - Typically constructed as `<'static>` and then cloned when referencing metadata
-/// - The `meta` field is private; use [`meta()`](method@Self::meta) to access it
-///
-/// # Examples
-///
-///  TODO New docs
 pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
     pub toc_entry: TocEntry,
@@ -66,24 +55,11 @@ impl Track<'static> {
 
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn track_number(&self) -> u8 {
         self.toc_entry.track
     }
 
     /// Returns the track title from MusicBrainz metadata, if available.
-    ///
-    /// # Returns
-    ///
-    /// `Some(String)` if MusicBrainz metadata is loaded and contains a title,
-    /// `None` otherwise.
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn title(&self) -> Option<String> {
         self.meta.map(|track| track.title.clone())
     }
@@ -92,19 +68,11 @@ impl<'meta> Track<'meta> {
     /// written on the back of the CD. The only adjustments we make are to ensure that numerical
     /// track numbers are always 2 digits long, in order to allow alphabetical sorting to work.
     ///
-    /// # Returns
-    ///
-    /// A string suitable for use as a filename, e.g., "05 Columbia", "A1 Speak to Me"
-    ///
     /// # Notes
     ///
     /// - Uses the text representation for track number from MusicBrainz if available
     /// - Falls back to the two-digit track number if MusicBrainz data is not available
-    /// - Numerical track numbers are always formatted as 2 digits (e.g., "05" instead of "5")
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
+    /// - Numerical track numbers are always formatted as 2 digits (e.g., "05")
     pub fn filename(&self) -> String {
         let track_num = self
             .meta()
@@ -120,38 +88,27 @@ impl<'meta> Track<'meta> {
     }
 
     /// Returns a reference to the MusicBrainz track metadata, if available.
-    ///
-    /// # Returns
-    ///
-    /// `Some(&musicbrainz::Track)` if MusicBrainz metadata is loaded for this track,
-    /// `None` otherwise.
-    ///
-    /// # Notes
-    ///
-    /// - This provides access to the full MusicBrainz track data, including artist, album, etc.
-    /// - The lifetime of the returned reference is tied to the `'meta` lifetime parameter
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn meta(&self) -> Option<&'meta musicbrainz_rs::entity::release::Track> {
         self.meta
     }
 }
 
+impl PartialEq<cdtoc::Track> for Track<'_> {
+    fn eq(&self, toc_track: &cdtoc::Track) -> bool {
+        (&self.toc_entry == toc_track) && (self.duration == toc_track.duration())
+    }
+}
+
 /// A ripped audio track containing raw CD data and metadata.
 ///
-/// This struct wraps the raw audio data from a CD track along with its track number.
+/// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
+/// (tags) and the cover art.
 /// It provides methods for encoding the raw data to various formats.
 ///
 /// # Notes
 ///
 /// - The raw data is in CDDA format (2352 bytes per frame)
-/// - Use [`to_flac`](method@Self::to_flac) or [`to_wav`](method@Self::to_wav) to encode to compressed or uncompressed formats
-///
-/// # Examples
-///
-///  TODO New docs
+/// - Use [`to_flac`](method@Self::to_flac) or [`to_wav`](method@Self::to_wav) to encode
 #[derive(Debug, Clone)]
 pub struct RippedTrack {
     /// Track details
@@ -164,20 +121,6 @@ pub struct RippedTrack {
 
 impl RippedTrack {
     /// Encodes the raw CD audio data to FLAC format.
-    ///
-    /// # Returns
-    ///
-    /// A [`MemSink<u8>`] containing the FLAC-encoded audio data.
-    ///
-    /// # Notes
-    ///
-    /// - The audio is encoded as 16-bit stereo at 44.1 kHz
-    /// - FLAC is a lossless compression format, typically reducing CD audio to ~60% of original size
-    /// - The returned type can be converted to a byte vector using `.into_inner()`
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn to_flac(&self) -> MemSink<u8> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
@@ -206,21 +149,6 @@ impl RippedTrack {
     }
 
     /// Encodes the raw CD audio data to WAV format.
-    ///
-    /// # Returns
-    ///
-    /// A byte vector containing the WAV-encoded audio data.
-    ///
-    /// # Notes
-    ///
-    /// - The audio is encoded as 16-bit stereo at 44.1 kHz (standard CD audio)
-    /// - WAV is an uncompressed format, so the output will be the same size as the input
-    /// - The WAV header is written with the correct RIFF format specifications
-    /// - Inspired by implementations from the rust-cd-da-reader project
-    ///
-    /// # Examples
-    ///
-    ///  TODO New docs
     pub fn to_wav(&self) -> Vec<u8> {
         let pcm = &self.raw_data;
 

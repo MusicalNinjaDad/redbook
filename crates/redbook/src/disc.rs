@@ -5,11 +5,12 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{self, Write},
+    io::{self, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
 use cdtoc::Toc;
+use itertools::Itertools;
 use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::{
     Fetch,
@@ -21,16 +22,16 @@ use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
-    Msf, Track,
+    Track,
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
 #[derive(Debug, Clone, PartialEq)]
-/// Represents a physical CD with its table of contents, tracks, and metadata.
+/// Represents a logical CD with additional metadata such as track names and cover art.
 ///
 /// This is the main starting point for all data and actions you take on the CD itself.
-/// It is usually stored in some kind of drive struct which implements
-/// [`AudioCdExt`][crate::AudioCdExt] and therefore knows how to get data from the CD.
+/// It is usually stored in an [`AudioCd`][crate::AudioCd] which provides access to the physical
+/// disc.
 ///
 /// # Example
 ///
@@ -90,14 +91,14 @@ pub struct Disc {
 }
 
 impl Disc {
-    /// Creates a new [`Disc`] from a table of contents, tracks, and leadout frame.
+    /// Creates a new [`Disc`] from a table of contents and an interator of tracks.
     ///
     /// # Notes
     ///
     /// This constructor validates that all provided data is consistent:
-    /// - The leadout frame must match the TOC's leadout value
-    /// - Each track's start position (MSF) must match its corresponding TOC entry
-    /// - Each track's duration must match the duration calculated from its TOC entry
+    /// - The number of tracks must match between both inputs
+    /// - Each track's start frame must match the corresponding TOC entry
+    /// - Each track's duration must match the duration calculated from the TOC
     ///
     /// # Examples
     ///
@@ -120,28 +121,28 @@ impl Disc {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
-        for track in tracks.iter() {
-            let track_span = tracing::info_span!("validating", ?track, cdtoc = Empty).entered();
-
-            let track_number = track.toc_entry.track as usize;
-            let toc_track = toc
-                .audio_track(track_number)
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
-                .or_warn("track number")?;
-            track_span.record("cdtoc", format_args!("{toc_track:?}"));
-
-            let (min, sec, frame) = toc_track.msf();
-            if Msf::new(min as u8, sec, frame) != Msf::from(track.toc_entry.start) {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch")).or_warn("start")?;
-            }
-
-            let (d, h, min, sec, frame) = toc_track.duration().dhmsf();
-            let min = (((d * 24) + h as u64) * 60) + min as u64;
-            if Msf::new(min as u8, sec, frame) != Msf::from(track.duration) {
-                Err(io::Error::new(io::ErrorKind::InvalidData, "TocMismatch"))
-                    .or_warn("duration")?;
-            }
-        }
+        tracks
+            .iter()
+            .zip_longest(toc.audio_tracks())
+            .try_for_each(|zipped| match zipped {
+                itertools::EitherOrBoth::Both(track, toc_track) if track == &toc_track => Ok(()),
+                itertools::EitherOrBoth::Both(track, toc_track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("track mismatch: toc {toc_track:?} vs tracks {track}"),
+                )),
+                itertools::EitherOrBoth::Left(track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "provided tracks contains more entries than toc. first additional entry {track}"
+                    ),
+                )),
+                itertools::EitherOrBoth::Right(toc_track) => Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "toc contains more entries than provided tracks. first additional entry {toc_track:?}"
+                    ),
+                )),
+            }).or_warn("mismatch between provided TOC & provided tracks")?;
 
         Ok(Self {
             toc,
@@ -307,7 +308,7 @@ impl Disc {
 
     /// Set the release, or reset to `None`.
     ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    /// Providing an invalid release will make no change. Returns `self` for chaining.
     pub fn set_release(&mut self, release: Option<&Release>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release", ?release).entered();
         self.release_index = release.and_then(|release| {
@@ -332,7 +333,7 @@ impl Disc {
 
     /// Set the release, or reset to `None`.
     ///
-    /// Providing an invalid index will make no change. Returns `self` for chaining.
+    /// Providing an invalid id will make no change. Returns `self` for chaining.
     pub fn set_release_by_id(&mut self, release: Option<&str>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_by_id", ?release).entered();
         self.release_index = release.and_then(|release| {
@@ -347,13 +348,7 @@ impl Disc {
         self
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "everyone should be using set_release or set_release_by_id for sanity"
-        )
-    )]
+    #[cfg(test)]
     fn set_release_index(&mut self, index: Option<usize>) -> &mut Self {
         let _debug = tracing::debug_span!("Disc::set_release_index", index = ?index).entered();
         self.release_index = match index {
@@ -403,6 +398,9 @@ impl Disc {
     ///
     /// Automatically sets to `Some(0)` for single-disc releases, or `None` for multi-disc
     /// releases where the disc must be identified manually.
+    ///
+    /// # TODOs
+    /// - TODO #128 Tidy disc index, and release index functions
     pub fn reset_disc_index(&mut self) -> Option<usize> {
         let release = self.release()?;
         let media = release.media.as_ref()?;
@@ -468,11 +466,7 @@ impl Disc {
     ///
     /// Release and disc index are automatically selected when uniquely identifiable.
     /// Otherwise, the relevant values will be `None` and must be set manually using
-    /// [`set_release()`][Self::set_release] and [`reset_disc_index()`][Self::reset_disc_index].
-    ///
-    /// # Errors
-    ///
-    /// Returns an `io::Error` if the network request or parsing fails.
+    /// [`set_release()`][Self::set_release].
     pub fn update_musicbrainz(&mut self) -> io::Result<()> {
         let discid = self.toc.musicbrainz_id().to_string();
 
@@ -585,7 +579,7 @@ impl Disc {
         self.thumbnails.get(release_id)
     }
 
-    /// Get all tumbnails from Coverart Archive
+    /// Get all thumbnails from Coverart Archive
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
     pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {
@@ -696,7 +690,7 @@ impl Disc {
         Some(written_to_path)
     }
 
-    /// Generate Vorbis comments for a track.
+    /// Generate Vorbis comments for a track. This does not include any related images.
     ///
     /// Creates a [`VorbisComment`] with track and album metadata including MusicBrainz identifiers.
     ///
@@ -775,6 +769,7 @@ impl Disc {
                     vorbis.set("TRACKTOTAL", vec![track_count.to_string()]);
                 };
             }
+            // TODO #130 - validate is index correct, or is there a field for discno?
             if let Some(disc_number) = self.disc_index {
                 vorbis.set("DISCNUMBER", vec![(disc_number + 1).to_string()]);
             }

@@ -1,6 +1,10 @@
+use std::io;
+
 use crate::{
-    Control, Frame, LEADIN, TocEntries, TocEntry,
+    Frame, LEADIN, TocEntries,
     test_fixtures::{albums::TestAlbum, load_hex_file},
+    toc::Control,
+    toc::TocEntry,
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -36,9 +40,8 @@ impl CDROM_TOC {
         self.TrackData.iter().take(entries_size)
     }
 
-    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects the relevant bytes
-    /// and will pad with \0 allowing round-tripping with
-    /// [CdDrive::toc_as_raw_bytes][super::drive::CdDrive::toc_as_raw_bytes].
+    /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects either only the relevant bytes
+    /// and will pad with `\0`, or a full set of bytes to fill a `CDROM_TOC`.
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
@@ -144,16 +147,14 @@ impl From<TestAlbum> for CDROM_TOC {
     }
 }
 
-impl From<CDROM_TOC> for TocEntries {
-    fn from(toc: CDROM_TOC) -> Self {
-        let audio = toc.iter_audio().collect();
-        let data = toc.iter_data().collect();
-        let leadouts = toc.iter_leadouts().collect();
-        TocEntries {
-            audio,
-            data,
-            leadouts,
-        }
+impl TryFrom<CDROM_TOC> for TocEntries {
+    type Error = io::Error;
+
+    fn try_from(toc: CDROM_TOC) -> Result<Self, Self::Error> {
+        let audio = toc.iter_audio();
+        let data = toc.iter_data();
+        let leadouts = toc.iter_leadouts();
+        audio.chain(data).chain(leadouts).collect()
     }
 }
 
@@ -167,15 +168,6 @@ impl TRACK_DATA {
 
 impl From<&TRACK_DATA> for TocEntry {
     /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
-    ///
-    /// # Arguments
-    ///
-    /// * `track_data` - Raw track data from the Windows CDROM_TOC
-    ///
-    /// # Notes
-    ///
-    /// - The address is read as big-endian and converted to a frame position
-    /// - The lead-in offset is added to get the absolute frame position
     ///
     /// # TODOs
     ///
@@ -204,11 +196,14 @@ mod tests {
     use cdtoc::Toc;
     use rstest::rstest;
 
-    use crate::test_fixtures::albums::TestAlbum::{self, *};
+    use crate::{
+        test_fixtures::albums::TestAlbum::{self, *},
+        toc::TocEntryFilter,
+    };
 
     impl CDROM_TOC {
         fn to_toc(self) -> io::Result<Toc> {
-            let tocentries = &TocEntries::from(self);
+            let tocentries = &TocEntries::try_from(self)?;
             tocentries.try_into()
         }
 
@@ -233,7 +228,7 @@ mod tests {
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         for track in toc.track_entries() {
-            use crate::Msf;
+            use crate::frame::Msf;
 
             dbg!(track.TrackNumber);
             dbg!(track.Reserved);
@@ -305,8 +300,11 @@ mod tests {
     #[case(TheBoyWhoKnewTooMuch)]
     fn toc_entries_from_cdrom_toc(#[case] album: TestAlbum) {
         let wintoc = CDROM_TOC::from(album);
-        let entries = TocEntries::from(wintoc);
-        assert_eq!(entries.audio, album.expected_audio_toc_entries());
+        let entries = TocEntries::try_from(wintoc).unwrap();
+        assert_eq!(
+            entries.iter().audio().cloned().collect::<Vec<_>>(),
+            album.expected_audio_toc_entries()
+        );
         assert_eq!(
             entries.audio_tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()

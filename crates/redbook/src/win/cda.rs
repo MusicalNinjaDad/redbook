@@ -8,7 +8,7 @@ use std::{
 
 use tracing_result::Trace;
 
-use crate::{Frame, LEADIN, Msf, TocEntry, Track};
+use crate::{Frame, LEADIN, Track, frame::Msf, toc::TocEntry};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;

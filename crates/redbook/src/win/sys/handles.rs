@@ -30,6 +30,7 @@ use super::{
 };
 
 pub use safety::DriveHandle;
+#[doc(inline)]
 use safety::IntoDriveHandle;
 
 #[cfg(test)]
@@ -44,10 +45,6 @@ mod safety {
     /// - Stored handle is not publicly accessible.
     /// - Handle is closed on Drop.
     /// - Can only be publically created via [open][Self::open] which validates the handle.
-    ///
-    /// # TODO
-    /// - Consider how https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
-    ///   could help provide Clone, etc.
     #[derive(Debug, PartialEq, Eq)]
     pub struct DriveHandle(HANDLE);
 
@@ -120,6 +117,9 @@ mod safety {
 /// # SAFETY
 /// - `DriveHandle`s are safe to [`Send`] to other threads as only one thread can ever access the
 ///   underlying device at any time.
+///
+/// # TODO
+/// TODO: #118 can `DriveHandle` also be `Sync`?
 #[expect(
     unsafe_code,
     reason = "Want to be able to rip in one thread and encode in another"
@@ -127,7 +127,6 @@ mod safety {
 // SAFETY: See documentation comment
 unsafe impl Send for DriveHandle {}
 
-// TODO: FIX SAFETY requirements of as_handle, as_handle_mut, CreateFile2
 impl Drop for DriveHandle {
     fn drop(&mut self) {
         #[expect(unsafe_code, reason = "ffi call")]
@@ -289,7 +288,7 @@ impl DriveHandle {
 impl Device for DriveHandle {
     type Iter = DeviceInfoSetIter;
 
-    fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self> {
         let path = PathBuf::from(path.as_ref());
         let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
 
@@ -412,7 +411,7 @@ impl Device for DriveHandle {
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {
         let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
-        Ok(self.cdrom_toc()?.into())
+        self.cdrom_toc()?.try_into()
     }
 
     fn raw_toc(&self) -> io::Result<Vec<u8>> {
@@ -460,6 +459,8 @@ impl TryFrom<&DriveHandle> for TestAlbum {
 }
 
 #[derive(Debug)]
+/// Wrapper around [`HDEVINFO`] (provided by [`SetupDiGetClassDevsW`]) with `Drop` implementation
+/// to close handle & additional knowledge of the requersted class [`Guid`].
 pub struct DeviceInfoSet {
     handle: HDEVINFO,
     class: Guid,

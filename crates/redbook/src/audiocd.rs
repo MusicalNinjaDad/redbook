@@ -1,5 +1,5 @@
 #![expect(missing_docs, reason = "WIP")]
-//! Provides a logical representation of an audio CD on the windows platform.
+//! Provides [`AudioCd`] & associated [`RipProgress`]
 
 use std::{
     io::{self, ErrorKind},
@@ -13,6 +13,49 @@ use tracing_result::Trace;
 use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
 
 #[derive(Debug)]
+/// A CD loaded into a physical drive. This combines the ability to access the physical disc with
+/// additional data about the contents which is not stored on the disc itself.
+///
+/// This is the main entry point for the crate and the struct which binaries will most likely interact
+/// with. It makes use of the platform-specific [`CdDrive`] and will always be well-behaved for the
+/// target OS.
+///
+/// # Construction
+///
+/// ## Direct construction
+///
+/// **Direct construction** is possible from a path which represents the file-system entry for the
+/// *device*. On windows, this is either:
+///
+/// **For CDs with no data sessions** ("normal" CDs)
+/// - the drive letter (`E:`)
+///
+/// **For CDs with audio & data sessions** ("enhanced CDs")
+/// - the device-type path (e.g. `CDROM0`), for any CD
+/// - the full device path (e.g. `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d555642414e313035a920&0#{53f56308-b7bf-11d0-95f2-00a0e91efb8b}`
+///
+/// ```rust no_run
+/// # use std::io;
+/// # use redbook::AudioCd;
+/// let mut cd = AudioCd::open("E:", Default::default())?;
+/// # io::Result::Ok(())
+/// ```
+///
+/// ## Indirect construction
+///
+/// **Indirect construction** is possible for cases where you do not know the correct path to provide.
+/// [`CdDrives`][crate::CdDrives] provides an iterator over all available drives, and `AudioCd` implements
+/// `TryFrom<CdDrive>`.
+///
+/// ```
+/// # use std::io;
+/// # use redbook::{AudioCd, CdDrives};
+/// let first_drive = CdDrives::all(Default::default())?
+///     .next()
+///     .ok_or(io::Error::other("no drives found"))?;
+/// let mut cd = AudioCd::try_from(first_drive)?;
+/// # io::Result::Ok(())
+/// ```
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,
@@ -37,7 +80,7 @@ impl TryFrom<CdDrive> for AudioCd {
 }
 
 impl AudioCd {
-    pub fn open<P: AsRef<Path>>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
+    pub fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
         let drive = CdDrive::open(path, cx)?;
         Self::try_from(drive)
     }
@@ -80,8 +123,8 @@ impl AudioCd {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// A status update which is provided in the `reply` channel of a [thread_safely::Context] during
-/// [rip][AudioCdExt::rip] and [read_track][AudioCdExt::read_track]
+/// A status update which is provided in the `reply` channel of a [`thread_safely::Context`] during
+/// calls to [`rip`][AudioCd::rip] and [`read_track`][Drive::read_track]
 ///
 /// TODO: #114 Include device identifier in RipProgress
 #[expect(missing_docs, reason = "well named fields")]
