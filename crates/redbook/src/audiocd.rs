@@ -10,7 +10,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
+use crate::{CdDrive, Disc, Drive, Frame, RippedTrack, TocEntries};
 
 #[derive(Debug)]
 /// A CD loaded into a physical drive. This combines the ability to access the physical disc with
@@ -130,8 +130,8 @@ impl AudioCd {
 #[expect(missing_docs, reason = "well named fields")]
 pub struct RipProgress {
     pub track_number: usize,
-    pub bytes_processed: usize,
-    pub total_bytes: usize,
+    pub processed: Frame,
+    pub total: Frame,
 }
 
 #[cfg(test)]

@@ -14,11 +14,18 @@ use crate::LEADIN;
 /// A frame represents a single unit of CD audio data, which is 1/75th of a second.
 /// This is the fundamental unit of time measurement for CD audio.
 ///
+/// # Note
+///
+/// Internally frames are stored as u32. The maximum frame size in a real-world situation
+/// is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
+/// (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small and
+/// anything over u32 is oversized.
+///
 /// # TODOs
 /// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct Frame(usize);
+pub struct Frame(u32);
 
 /// TODO: #124 currently outputs "Frame n" should probably just be "n", or 2 types: position & duration
 impl Display for Frame {
@@ -29,21 +36,20 @@ impl Display for Frame {
 
 impl Frame {
     /// Given [constant improvements in manufacturing][wiki], this represent the maximum Frame value
-    /// which can be stored on the current architecture (`usize::MAX`) and *not* the current
-    /// maximum number of frames which can be squeezed onto a single physical CD.
-    ///
-    /// TODO: #125 change Frame::MAX to be max referencable in TOC via MSF(u8,u8,u8)
+    /// which can be represented in a TOC or other sub-channel data which stores times as
+    /// MSF(u8,u8,u8). It is certainly slightly oversized, but some crazy person may choose to ignore
+    /// that there are only 60 seconds in a minute and store an MSF of (FF, FF, FF) for some reason.
     ///
     /// [wiki]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Storage_capacity_and_playing_time
-    pub const MAX: Self = Frame(usize::MAX);
+    pub const MAX: Self = Frame((0xFF * 60 * 75) + (0xFF * 75) + 0xFF);
 
     /// Creates a new `Frame` from a frame count.
-    pub const fn new(frames: usize) -> Self {
+    pub const fn new(frames: u32) -> Self {
         Self(frames)
     }
 
-    /// Returns the frame count as a `usize`.
-    pub const fn as_usize(self) -> usize {
+    /// Returns the frame count as a `u32`.
+    pub const fn as_u32(self) -> u32 {
         self.0
     }
 
@@ -59,6 +65,62 @@ impl Frame {
     /// (0m:1s:72f) will return frame 0 relative to leadin.
     pub const fn relative_to_leadin(self) -> Self {
         max(self - LEADIN, Frame(0))
+    }
+
+    /// Creates a new `Frame` from a `usize`, panicking if the value is above [`Frame::MAX`]
+    ///
+    /// This also helps to avoid excessive casting when creating a `Frame` from a `usize`.
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the resulting value is above the maximum which can be semantically
+    /// represented as a `Frame`. (See [`Frame::MAX`])
+    pub fn strict_new(frames: usize) -> Self {
+        let f = Frame(frames.strict_cast());
+        assert!(
+            f <= Self::MAX,
+            "requested frames cannot be represented for an audio CD"
+        );
+        f
+    }
+
+    /// Strict addition. Computes self + rhs, panicking if the value is above [`Frame::MAX`].
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the resulting value is above the maximum which can be semantically
+    /// represented as a `Frame`. (See [`Frame::MAX`])
+    pub fn strict_add(self, rhs: Self) -> Self {
+        let f = Frame(self.0.strict_add(rhs.0));
+        assert!(
+            f <= Self::MAX,
+            "requested frames cannot be represented for an audio CD"
+        );
+        f
+    }
+
+    /// Strict multiplication. Computes self * rhs, panicking if the value is above [`Frame::MAX`].
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the resulting value is above the maximum which can be semantically
+    /// represented as a `Frame`. (See [`Frame::MAX`])
+    pub fn strict_mul(self, rhs: Self) -> Self {
+        let f = Frame(self.0.strict_mul(rhs.0));
+        assert!(
+            f <= Self::MAX,
+            "requested frames cannot be represented for an audio CD"
+        );
+        f
     }
 }
 
@@ -128,7 +190,10 @@ impl Msf {
 
 const impl From<Msf> for Frame {
     fn from(msf: Msf) -> Self {
-        Self((((msf.min as usize * 60) + msf.sec as usize) * 75) + msf.frame as usize)
+        let mins = u32::from(msf.min).saturating_mul(60).saturating_mul(75);
+        let secs = u32::from(msf.sec).saturating_mul(75);
+        let frames = u32::from(msf.frame);
+        Self(mins.saturating_add(secs).saturating_add(frames))
     }
 }
 
@@ -140,7 +205,7 @@ const impl From<&Msf> for Frame {
 
 const impl From<Frame> for Msf {
     fn from(frames: Frame) -> Self {
-        let frames = frames.as_usize();
+        let frames = frames.as_u32();
         let secs = frames / 75;
         let min = secs / 60;
         let secs = secs % 60;
@@ -278,7 +343,7 @@ const impl Rem<Msf> for Frame {
 
 impl<N> Add<N> for Frame
 where
-    usize: Add<N, Output = usize>,
+    u32: Add<N, Output = u32>,
 {
     type Output = Self;
 
@@ -299,7 +364,7 @@ where
 
 impl<N> Sub<N> for Frame
 where
-    usize: Sub<N, Output = usize>,
+    u32: Sub<N, Output = u32>,
 {
     type Output = Self;
 
@@ -320,7 +385,7 @@ where
 
 impl<N> Rem<N> for Frame
 where
-    usize: Rem<N, Output = usize>,
+    u32: Rem<N, Output = u32>,
 {
     type Output = Self;
 
@@ -331,7 +396,7 @@ where
 
 impl<N> Mul<N> for Frame
 where
-    usize: Mul<N, Output = usize>,
+    u32: Mul<N, Output = u32>,
 {
     type Output = Self;
 
@@ -347,7 +412,7 @@ where
 impl PartialEq<cdtoc::Duration> for Frame {
     fn eq(&self, duration: &cdtoc::Duration) -> bool {
         let (s, f) = duration.seconds_frames();
-        self.as_usize().strict_cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
+        self.as_u32().strict_cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
     }
 }
 

@@ -362,18 +362,18 @@ impl TryFrom<&TocEntries> for Toc {
         let audio = entries
             .iter()
             .audio()
-            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .map(|entry| entry.start.as_u32())
             .collect();
         let data = entries
             .iter()
             .rev()
             .data()
             .next()
-            .map(|entry| entry.start.as_usize().strict_cast::<u32>());
+            .map(|entry| entry.start.as_u32());
         let leadout = entries
             .iter()
             .final_leadout()
-            .map(|entry| entry.start.as_usize().strict_cast::<u32>())
+            .map(|entry| entry.start.as_u32())
             .expect("Must have at least one leadout or construction would have failed");
         Toc::from_parts(audio, data, leadout)
             .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))

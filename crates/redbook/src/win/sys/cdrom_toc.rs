@@ -174,7 +174,7 @@ impl From<&TRACK_DATA> for TocEntry {
     /// - Consider making this fallible with `TryFrom` for better error handling
     fn from(track_data: &TRACK_DATA) -> Self {
         let relative = u32::from_be_bytes(track_data.Address);
-        let start = Frame::new(relative as usize) + LEADIN;
+        let start = Frame::new(relative).strict_add(LEADIN);
         let track = track_data.TrackNumber;
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control = Control::from_bits_truncate(track_data._bitfield);
@@ -259,10 +259,7 @@ mod tests {
     fn leadout(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         let leadout = toc.to_toc().unwrap().leadout();
-        assert_eq!(
-            leadout,
-            album.expected_leadout().as_usize().strict_cast::<u32>()
-        );
+        assert_eq!(leadout, album.expected_leadout().as_u32());
     }
 
     #[rstest]

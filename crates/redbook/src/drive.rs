@@ -88,14 +88,14 @@ pub trait Drive: Sized {
 
         let track_size = track
             .duration
-            .as_usize()
+            .as_u32()
             .checked_mul(FRAME_SIZE)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::FileTooLarge,
                     format!(
                         "track too long. {size} bytes but can only handle {max}",
-                        size = (track.duration.as_usize() as u128) * (FRAME_SIZE as u128),
+                        size = (track.duration.as_u32() as u128) * (FRAME_SIZE as u128),
                         max = usize::MAX
                     ),
                 )
@@ -107,7 +107,16 @@ pub trait Drive: Sized {
             .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
-        let mut data = vec![0_u8; track_size];
+        let mut data = vec![
+            0_u8;
+            track_size
+                .checked_cast()
+                .ok_or_else(|| io::Error::new(
+                    ErrorKind::OutOfMemory,
+                    "cannot allocate enough space for the track data on this architecture"
+                ))
+                .or_error("Track too large")?
+        ];
 
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
         let mut frames_read_so_far = Frame::new(0);
@@ -118,19 +127,19 @@ pub trait Drive: Sized {
             self.cx()
                 .reply(RipProgress {
                     track_number,
-                    bytes_processed: frames_read_so_far.as_usize(),
-                    total_bytes: track.duration.as_usize(),
+                    processed: frames_read_so_far,
+                    total: track.duration,
                 })
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
 
             debug_assert_eq!(
-                frames_read_so_far.as_usize(),
-                i.strict_mul(MAX_CHUNK_FRAMES),
+                frames_read_so_far,
+                Frame::strict_new(i).strict_mul(MAX_CHUNK_FRAMES),
                 "now reading chunk {i} but have only read {frames_read_so_far} frames so far"
             );
 
-            let offset = Frame::new(i * MAX_CHUNK_FRAMES);
+            let offset = Frame::strict_new(i).strict_mul(MAX_CHUNK_FRAMES);
 
             debug_assert_eq!(
                 offset, frames_read_so_far,
@@ -143,7 +152,7 @@ pub trait Drive: Sized {
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
-        let offset = Frame::new(bufs.len() * MAX_CHUNK_FRAMES);
+        let offset = Frame::strict_new(bufs.len()).strict_mul(MAX_CHUNK_FRAMES);
         debug_assert_eq!(
             offset, frames_read_so_far,
             "about to read last chunk. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
@@ -154,8 +163,8 @@ pub trait Drive: Sized {
             self.cx()
                 .reply(RipProgress {
                     track_number,
-                    bytes_processed: frames_read_so_far.as_usize(),
-                    total_bytes: track.duration.as_usize(),
+                    processed: frames_read_so_far,
+                    total: track.duration,
                 })
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
@@ -169,8 +178,8 @@ pub trait Drive: Sized {
         self.cx()
             .reply(RipProgress {
                 track_number,
-                bytes_processed: frames_read_so_far.as_usize(),
-                total_bytes: track.duration.as_usize(),
+                processed: frames_read_so_far,
+                total: track.duration,
             })
             .map_err(io::Error::other)
             .or_error("sending progress update")?;

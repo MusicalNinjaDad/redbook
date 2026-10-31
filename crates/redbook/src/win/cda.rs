@@ -125,8 +125,8 @@ impl CdaFile {
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
         let starting_frame =
-            Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize) + LEADIN;
-        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()) as usize);
+            Frame::new(u32::from_le_bytes(data.next_chunk().unwrap())).strict_add(LEADIN);
+        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()));
 
         let start_frame = data.next().unwrap();
         let start_sec = data.next().unwrap();
