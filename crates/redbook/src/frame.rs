@@ -747,16 +747,30 @@ const impl From<&Msf> for Frame {
 }
 
 const impl From<Frame> for Msf {
+    /// Converts a [`Frame`] into an [`Msf`], saturating each component at `0xFF`.
+    ///
+    /// Normal frames (up to `Msf(0xFF, 59, 74)`) convert with `sec <= 59` and `frame <= 74`.
+    /// Degenerate frames above that first saturate `sec` (`0x60..=0xFF`) while keeping
+    /// `frame` sane (`0..=0x4A`), then saturate `frame` (`0x4B..=0xFF`), so that
+    /// `Msf -> Frame -> Msf` round-trips for every representable [`Frame`] (including
+    /// [`Frame::MAX`], which maps to `Msf(0xFF, 0xFF, 0xFF)`).
     fn from(frames: Frame) -> Self {
-        let frames = frames.cast::<u32>();
-        let secs = frames / 75;
-        let min = secs / 60;
-        let secs = secs % 60;
-        let frames = frames % 75;
+        let mut remaining = frames.cast::<u32>();
+        let mut min = remaining / (60 * 75);
+        if min > 0xFF {
+            min = 0xFF;
+        }
+        remaining -= min * (60 * 75);
+        let mut sec = remaining / 75;
+        if sec > 0xFF {
+            sec = 0xFF;
+        }
+        remaining -= sec * 75;
+        let frame = if remaining > 0xFF { 0xFF } else { remaining };
         Self {
             min: min as u8,
-            sec: secs as u8,
-            frame: frames as u8,
+            sec: sec as u8,
+            frame: frame as u8,
         }
     }
 }
@@ -835,6 +849,9 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The last "normal" MSF frame count: `Msf(0xFF, 59, 74)` (`min` at max, `sec<=59`, `frame<=74`).
+    const NORMAL_MAX: u32 = 0xFF * 60 * 75 + 59 * 75 + 74;
 
     /// Shorthand for constructing a known-valid `Frame` constant in tests.
     fn f(n: u32) -> Frame {
@@ -986,5 +1003,80 @@ mod tests {
         );
         assert!(Msf::try_from((256_u32, 0_u8, 0_u8)).is_err());
         assert!(Msf::try_from((u32::from(u8::MAX), 0_u8, 0_u8)).is_ok());
+    }
+
+    // ============================================
+    // Round-trip invariant: Msf -> Frame -> Msf
+    // ============================================
+
+    #[test]
+    fn msf_frame_msf_roundtrips_required_cases() {
+        for msf in [
+            Msf::new(0, 0, 0),
+            Msf::new(0, 2, 0),
+            Msf::new(0, 2, 33),
+            Msf::new(0xFF, 0xFF, 0xFF),
+        ] {
+            let frame = Frame::from(msf);
+            assert!(frame.cast::<u32>() <= Frame::MAX.0);
+            assert_eq!(Msf::from(frame), msf, "roundtrip failed for {msf:?}");
+        }
+    }
+
+    #[test]
+    fn msf_frame_msf_roundtrips_degenerate_and_near_degenerate() {
+        let cases = [
+            Msf::new(0xFF, 59, 74), // last normal value (0xFF, 0d59, 0d74)
+            Msf::new(0xFF, 60, 0),  // first degenerate: secs saturate from 0d60
+            Msf::new(0xFF, 60, 74), // secs saturated, frames still sane
+            Msf::new(0xFF, 0xFE, 74),
+            Msf::new(0xFF, 0xFF, 0), // sec fully saturated
+            Msf::new(0xFF, 0xFF, 74),
+            Msf::new(0xFF, 0xFF, 75), // frames now saturate 0d75..=0xFF
+            Msf::new(0xFF, 0xFF, 0xFE),
+            Msf::new(0xFF, 0xFF, 0xFF), // Frame::MAX
+        ];
+        for msf in cases {
+            let frame = Frame::from(msf);
+            assert_eq!(
+                Msf::from(frame),
+                msf,
+                "degenerate roundtrip failed for {msf:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn frame_msf_frame_roundtrips_exhaustively() {
+        // Frame -> Msf -> Frame must hold for every representable frame.
+        // Normal range keeps sec<=59 and frame<=74; degenerate range saturates min at 0xFF.
+        let mut f: u32 = 0;
+        while f <= Frame::MAX.0 {
+            let frame = Frame::strict_new(f);
+            let msf = Msf::from(frame);
+            assert_eq!(Frame::from(msf), frame, "Frame->Msf->Frame failed at {f}");
+            if f <= NORMAL_MAX {
+                assert!(msf.sec <= 59, "sec too large at {f}: {msf:?}");
+                assert!(msf.frame <= 74, "frame too large at {f}: {msf:?}");
+            } else {
+                assert_eq!(msf.min, 0xFF, "min not saturated at {f}: {msf:?}");
+            }
+            f += 1;
+        }
+    }
+
+    #[test]
+    fn degenerate_frame_to_msf_saturates_secs_then_frames() {
+        // just above normal -> secs start at 0d60, frames sane
+        let msf = Msf::from(Frame::strict_new(NORMAL_MAX + 1));
+        assert_eq!(msf, Msf::new(0xFF, 60, 0));
+        // sec fully saturated, frame still sane (0..=0d74)
+        let msf = Msf::from(Frame::strict_new(0xFF_u32 * 60 * 75 + 0xFF * 75 + 74));
+        assert_eq!(msf, Msf::new(0xFF, 0xFF, 74));
+        // then frames saturate 0d75..=0xFF
+        let msf = Msf::from(Frame::strict_new(0xFF_u32 * 60 * 75 + 0xFF * 75 + 75));
+        assert_eq!(msf, Msf::new(0xFF, 0xFF, 75));
+        let msf = Msf::from(Frame::MAX);
+        assert_eq!(msf, Msf::new(0xFF, 0xFF, 0xFF));
     }
 }
