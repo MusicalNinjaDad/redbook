@@ -321,7 +321,7 @@ pub const FRAME_SIZE: u32 = 2352;
 /// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
 ///
 /// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::strict_new(150);
+pub const LEADIN: Frame = Frame::strict_new(150_u32);
 
 /// Maximum number of bytes that can be read in a single chunk.
 ///

@@ -84,10 +84,12 @@ impl Frame {
         }
     }
 
-    /// Creates a new `Frame` from a `u32`, panicking if the value is above [`Frame::MAX`].
+    /// Creates a new `Frame` from any integer type `N` where `u32: From<N>` (e.g. `u8`, `u16`,
+    /// `u32`), panicking if the value is above [`Frame::MAX`].
     ///
     /// This is the const constructor of choice: when used in a const context the validation
-    /// happens at compile time.
+    /// happens at compile time. Because the conversion from `N` to `u32` is infallible
+    /// (`From`, not `TryFrom`), the only failure mode is a value above [`Frame::MAX`].
     ///
     /// # Panics
     /// ## Overflow behavior
@@ -96,7 +98,11 @@ impl Frame {
     /// ## Semantic behaviour
     /// This function will panic if the resulting value is above the maximum which can be
     /// semantically represented as a `Frame`. (See [`Frame::MAX`])
-    pub const fn strict_new(frames: u32) -> Self {
+    pub const fn strict_new<N>(frames: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        let frames = u32::from(frames);
         assert!(
             frames <= Self::MAX.0,
             "requested frames cannot be represented for an audio CD"
@@ -862,6 +868,20 @@ mod tests {
         const MAX_OK: Frame = Frame::strict_new(Frame::MAX.0);
         assert_eq!(LEADIN_FRAMES, LEADIN);
         assert_eq!(MAX_OK, Frame::MAX);
+    }
+
+    #[test]
+    fn strict_new_accepts_any_u32_convertible_scalar() {
+        assert_eq!(Frame::strict_new(150_u8), LEADIN);
+        assert_eq!(Frame::strict_new(150_u16), LEADIN);
+        assert_eq!(Frame::strict_new(150_u32), LEADIN);
+        assert_eq!(Frame::strict_new(Frame::MAX.0), Frame::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot be represented for an audio CD")]
+    fn strict_new_panics_above_max() {
+        let _: Frame = Frame::strict_new(Frame::MAX.0 + 1);
     }
 
     #[test]

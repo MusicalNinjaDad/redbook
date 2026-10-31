@@ -441,7 +441,7 @@ impl TocEntries {
     /// # TODO
     /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
     pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
+        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400_u32);
 
         self.iter()
             // .filter_map_windows() does not exist.
@@ -460,7 +460,7 @@ impl TocEntries {
 
     /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
     pub fn track(&self, track: TrackNo) -> Option<Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
+        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400_u32);
 
         self.iter()
             .skip_while(|entry| entry.track != track)
