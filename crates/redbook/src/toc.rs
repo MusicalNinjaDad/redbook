@@ -515,14 +515,14 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 
             let first_data_info = info.iter().first_data_info();
             let first_data_found = entries.iter().data().next().map(|entry| entry.track);
-            (first_audio_info == first_audio_found).ok_or_else(|| io::Error::new(
+            (first_data_info == first_data_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
                 format!("info entry claims first data track is number {first_data_info:?}, but first audio track found is number {first_data_found:?}")
             ))?;
 
             let last_data_info = info.iter().last_data_info();
             let last_data_found = entries.iter().rev().data().next().map(|entry| entry.track);
-            (last_audio_info == last_audio_found).ok_or_else(|| io::Error::new(
+            (last_data_info == last_data_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
                 format!("info entry claims last data track is number {last_data_info:?}, but last audio track found is number {last_data_found:?}")
             ))?;
