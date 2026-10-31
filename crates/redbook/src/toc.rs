@@ -448,9 +448,9 @@ impl TocEntries {
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
-                    let mut duration = next_track.start.strict_sub(this_track.start);
+                    let mut duration = next_track.start.saturating_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration = duration.strict_sub(OFFSET_BEFORE_DATA)
+                        duration = duration.saturating_sub(OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })
@@ -468,9 +468,9 @@ impl TocEntries {
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
-                    let mut duration = next_track.start.strict_sub(this_track.start);
+                    let mut duration = next_track.start.saturating_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration = duration.strict_sub(OFFSET_BEFORE_DATA)
+                        duration = duration.saturating_sub(OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })

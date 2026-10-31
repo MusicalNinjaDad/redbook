@@ -121,7 +121,7 @@ pub trait Drive: Sized {
         ];
 
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
-        let mut frames_read_so_far = Frame::new(0_u32).unwrap();
+        let mut frames_read_so_far = Frame::default();
         trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
 
         for (i, buf) in bufs.iter_mut().enumerate() {
@@ -135,32 +135,40 @@ pub trait Drive: Sized {
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
 
+            let offset = Frame::new(i)
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk index too large"))
+                .or_error("constructing chunk index")?
+                .checked_mul(MAX_CHUNK_FRAMES.cast::<u32>())
+                .ok_or_else(|| {
+                    io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max")
+                })
+                .or_error("computing chunk offset")?;
+
             debug_assert_eq!(
-                frames_read_so_far,
-                Frame::new(i)
-                    .unwrap()
-                    .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>()),
+                frames_read_so_far, offset,
                 "now reading chunk {i} but have only read {frames_read_so_far} frames so far"
             );
 
-            let offset = Frame::new(i)
-                .unwrap()
-                .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
-
-            debug_assert_eq!(
-                offset, frames_read_so_far,
-                "about to read chunk {i}. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
-            );
-
-            let start = track.toc_entry.start.strict_add(offset);
+            let start = track
+                .toc_entry
+                .start
+                .checked_add(offset)
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
+                .or_error("computing read start")?;
             let frames_read = self.device().read_cdda(start, buf)?;
-            frames_read_so_far = frames_read_so_far.strict_add(frames_read);
+            frames_read_so_far = frames_read_so_far
+                .checked_add(frames_read)
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "frames read exceeds CD max"))
+                .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
         let offset = Frame::new(bufs.len())
-            .unwrap()
-            .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk count too large"))
+            .or_error("constructing chunk count")?
+            .checked_mul(MAX_CHUNK_FRAMES.cast::<u32>())
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max"))
+            .or_error("computing last chunk offset")?;
         debug_assert_eq!(
             offset, frames_read_so_far,
             "about to read last chunk. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
@@ -177,10 +185,18 @@ pub trait Drive: Sized {
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
 
-            let start = track.toc_entry.start.strict_add(offset);
+            let start = track
+                .toc_entry
+                .start
+                .checked_add(offset)
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
+                .or_error("computing last read start")?;
 
             let frames_read = self.device().read_cdda(start, last_buf)?;
-            frames_read_so_far = frames_read_so_far.strict_add(frames_read);
+            frames_read_so_far = frames_read_so_far
+                .checked_add(frames_read)
+                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "frames read exceeds CD max"))
+                .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
         self.cx()
