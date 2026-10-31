@@ -61,28 +61,27 @@ impl Frame {
     /// being convertible to an [`Msf`] is upheld.
     const RANGE: u32 = Self::MAX.0 + 1;
 
-    /// Creates a new `Frame` from any integer type, panicking if the value does not fit in a
-    /// `u32` or is above [`Frame::MAX`].
+    /// Creates a new `Frame` from any integer type, returning `None` if the value does not fit
+    /// in a `u32` or is above [`Frame::MAX`].
     ///
-    /// This is the validated constructor: it is not blind. Accepting any integer type also helps
-    /// to avoid excessive casting when creating a `Frame` from e.g. a `usize`. For a `const`
-    /// constructor use [`Frame::strict_new`].
+    /// This is the validated, non-panicking constructor: it is not blind. Accepting any integer
+    /// type also helps to avoid excessive casting when creating a `Frame` from e.g. a `usize`.
+    /// For a panicking `const` constructor use [`Frame::strict_new`].
     ///
-    /// # Panics
-    /// ## Overflow behavior
-    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
-    ///
-    /// ## Semantic behaviour
-    /// This function will panic if the value does not fit in a `u32`, or if the resulting value
-    /// is above the maximum which can be semantically represented as a `Frame`. (See [`Frame::MAX`])
-    pub fn new<N>(frames: N) -> Self
+    /// # Returns
+    /// - `Some(frame)` if `frames` fits in a `u32` and is `<=` [`Frame::MAX`]
+    /// - `None` if `frames` does not fit in a `u32`, or if the resulting value is above the
+    ///   maximum which can be semantically represented as a `Frame`. (See [`Frame::MAX`])
+    pub fn new<N>(frames: N) -> Option<Self>
     where
         u32: TryFrom<N>,
     {
-        let Ok(frames) = u32::try_from(frames) else {
-            panic!("requested frames do not fit in a u32");
-        };
-        Self::strict_new(frames)
+        let frames = u32::try_from(frames).ok()?;
+        if frames <= Self::MAX.0 {
+            Some(Self(frames))
+        } else {
+            None
+        }
     }
 
     /// Creates a new `Frame` from a `u32`, panicking if the value is above [`Frame::MAX`].
@@ -831,6 +830,11 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 mod tests {
     use super::*;
 
+    /// Shorthand for constructing a known-valid `Frame` constant in tests.
+    fn f(n: u32) -> Frame {
+        Frame::strict_new(n)
+    }
+
     #[test]
     fn leadin_conversion() {
         let msf = Msf {
@@ -846,97 +850,92 @@ mod tests {
 
     #[test]
     fn leadin_compensation() {
-        let starting_frames = Frame::new(183);
+        let starting_frames = f(183);
         let starting_time = Msf::new(0, 2, 33);
-        assert_eq!(starting_frames.relative_to_leadin(), Frame::new(33));
+        assert_eq!(starting_frames.relative_to_leadin(), f(33));
         assert_eq!(starting_time.relative_to_leadin(), Msf::new(0, 0, 33));
     }
 
     #[test]
     fn strict_new_is_const_and_validated() {
-        const LEADIN_FRAMES: Frame = Frame::strict_new(150);
+        const LEADIN_FRAMES: Frame = Frame::strict_new(150_u32);
         const MAX_OK: Frame = Frame::strict_new(Frame::MAX.0);
         assert_eq!(LEADIN_FRAMES, LEADIN);
         assert_eq!(MAX_OK, Frame::MAX);
-        assert_eq!(Frame::new(150_usize), LEADIN);
     }
 
     #[test]
-    #[should_panic(expected = "cannot be represented for an audio CD")]
-    fn new_rejects_values_above_max() {
-        let _: Frame = Frame::new(Frame::MAX.0 + 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "do not fit in a u32")]
-    fn new_rejects_values_too_large_for_u32() {
-        let _: Frame = Frame::new(u64::from(u32::MAX) + 1);
+    fn new_is_fallible_and_validated() {
+        // valid values -> Some
+        assert_eq!(Frame::new(0_u32), Some(f(0)));
+        assert_eq!(Frame::new(150_usize), Some(LEADIN));
+        assert_eq!(Frame::new(Frame::MAX.0), Some(Frame::MAX));
+        assert_eq!(Frame::new(u64::from(Frame::MAX.0)), Some(Frame::MAX));
+        // above MAX -> None
+        assert_eq!(Frame::new(Frame::MAX.0 + 1), None);
+        // does not fit in a u32 -> None
+        assert_eq!(Frame::new(u64::from(u32::MAX) + 1), None);
+        assert_eq!(Frame::new(-1_i32), None);
     }
 
     #[test]
     fn frame_add_sub_rem_flavours() {
         // add: rhs may be Frame or Msf
-        assert_eq!(Frame::new(1).strict_add(Frame::new(2)), Frame::new(3));
-        assert_eq!(Frame::new(1).strict_add(Msf::new(0, 0, 2)), Frame::new(3));
-        assert_eq!(Frame::MAX.checked_add(Frame::new(1)), None);
-        assert_eq!(
-            Frame::new(1).checked_add(Msf::new(0, 0, 1)),
-            Some(Frame::new(2))
-        );
-        assert_eq!(Frame::MAX.saturating_add(Frame::new(1)), Frame::MAX);
-        assert_eq!(Frame::MAX.wrapping_add(Frame::new(1)), Frame::new(0));
+        assert_eq!(f(1).strict_add(f(2)), f(3));
+        assert_eq!(f(1).strict_add(Msf::new(0, 0, 2)), f(3));
+        assert_eq!(Frame::MAX.checked_add(f(1)), None);
+        assert_eq!(f(1).checked_add(Msf::new(0, 0, 1)), Some(f(2)));
+        assert_eq!(Frame::MAX.saturating_add(f(1)), Frame::MAX);
+        assert_eq!(Frame::MAX.wrapping_add(f(1)), f(0));
 
         // sub
-        assert_eq!(Frame::new(5).strict_sub(Frame::new(3)), Frame::new(2));
-        assert_eq!(Frame::new(5).strict_sub(Msf::new(0, 0, 3)), Frame::new(2));
-        assert_eq!(Frame::new(1).checked_sub(Frame::new(2)), None);
-        assert_eq!(Frame::new(1).saturating_sub(Frame::new(2)), Frame::new(0));
-        assert_eq!(Frame::new(0).wrapping_sub(Frame::new(1)), Frame::MAX);
+        assert_eq!(f(5).strict_sub(f(3)), f(2));
+        assert_eq!(f(5).strict_sub(Msf::new(0, 0, 3)), f(2));
+        assert_eq!(f(1).checked_sub(f(2)), None);
+        assert_eq!(f(1).saturating_sub(f(2)), f(0));
+        assert_eq!(f(0).wrapping_sub(f(1)), Frame::MAX);
 
         // rem
-        assert_eq!(Frame::new(150).strict_rem(Msf::new(0, 0, 7)), Frame::new(3));
-        assert_eq!(Frame::new(150).checked_rem(Frame::new(0)), None);
-        assert_eq!(Frame::new(150).wrapping_rem(Frame::new(7)), Frame::new(3));
+        assert_eq!(f(150).strict_rem(Msf::new(0, 0, 7)), f(3));
+        assert_eq!(f(150).checked_rem(f(0)), None);
+        assert_eq!(f(150).wrapping_rem(f(7)), f(3));
     }
 
     #[test]
     fn frame_mul_div_flavours_take_scalars_only() {
-        assert_eq!(Frame::new(2).strict_mul(75_u8), Frame::new(150));
-        assert_eq!(Frame::new(2).strict_mul(75_u16), Frame::new(150));
-        assert_eq!(Frame::new(150).strict_div(75_u32), Frame::new(2));
+        assert_eq!(f(2).strict_mul(75_u8), f(150));
+        assert_eq!(f(2).strict_mul(75_u16), f(150));
+        assert_eq!(f(150).strict_div(75_u32), f(2));
         assert_eq!(Frame::MAX.checked_mul(2_u32), None);
         assert_eq!(Frame::MAX.saturating_mul(2_u32), Frame::MAX);
-        assert_eq!(Frame::new(7).wrapping_mul(3_u32), Frame::new(21));
-        assert_eq!(Frame::new(150).checked_div(0_u32), None);
-        assert_eq!(Frame::new(150).saturating_div(75_u8), Frame::new(2));
-        assert_eq!(Frame::new(150).wrapping_div(75_u8), Frame::new(2));
+        assert_eq!(f(7).wrapping_mul(3_u32), f(21));
+        assert_eq!(f(150).checked_div(0_u32), None);
+        assert_eq!(f(150).saturating_div(75_u8), f(2));
+        assert_eq!(f(150).wrapping_div(75_u8), f(2));
     }
 
     #[test]
     #[should_panic(expected = "cannot be represented for an audio CD")]
     fn strict_add_panics_above_max() {
-        let _: Frame = Frame::MAX.strict_add(Frame::new(1));
+        let _: Frame = Frame::MAX.strict_add(f(1));
     }
 
     #[test]
     #[should_panic(expected = "attempt to subtract with overflow")]
     fn strict_sub_panics_on_underflow() {
-        let _: Frame = Frame::new(1).strict_sub(Frame::new(2));
+        let _: Frame = f(1).strict_sub(f(2));
     }
 
     #[test]
     #[should_panic(expected = "attempt to divide by zero")]
     fn strict_div_panics_on_zero() {
-        let _: Frame = Frame::new(1).strict_div(0_u32);
+        let _: Frame = f(1).strict_div(0_u32);
     }
 
     #[test]
     fn msf_arithmetic_is_computed_via_frame() {
         assert_eq!(Msf::new(0, 2, 0).strict_add(LEADIN), Msf::new(0, 4, 0));
-        assert_eq!(
-            Msf::new(0, 2, 0).strict_add(Frame::new(150)),
-            Msf::new(0, 4, 0)
-        );
+        assert_eq!(Msf::new(0, 2, 0).strict_add(f(150)), Msf::new(0, 4, 0));
         assert_eq!(
             Msf::new(0, 4, 0).strict_sub(Msf::new(0, 2, 0)),
             Msf::new(0, 2, 0)
@@ -944,10 +943,7 @@ mod tests {
         assert_eq!(Msf::new(0, 0, 33).saturating_sub(LEADIN), Msf::new(0, 0, 0));
         assert_eq!(Msf::new(0, 0, 33).checked_sub(LEADIN), None);
         // results are normalised via Frame
-        assert_eq!(
-            Msf::new(1, 60, 75).strict_add(Frame::new(0)),
-            Msf::new(2, 1, 0)
-        );
+        assert_eq!(Msf::new(1, 60, 75).strict_add(f(0)), Msf::new(2, 1, 0));
         // mul / div take a u8 scalar
         assert_eq!(Msf::new(1, 0, 0).strict_mul(2_u8), Msf::new(2, 0, 0));
         assert_eq!(Msf::new(2, 0, 0).strict_div(2_u8), Msf::new(1, 0, 0));

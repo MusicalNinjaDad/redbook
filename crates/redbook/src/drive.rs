@@ -121,7 +121,7 @@ pub trait Drive: Sized {
         ];
 
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
-        let mut frames_read_so_far = Frame::new(0);
+        let mut frames_read_so_far = Frame::new(0_u32).unwrap();
         trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
 
         for (i, buf) in bufs.iter_mut().enumerate() {
@@ -137,11 +137,15 @@ pub trait Drive: Sized {
 
             debug_assert_eq!(
                 frames_read_so_far,
-                Frame::new(i).strict_mul(MAX_CHUNK_FRAMES.cast::<u32>()),
+                Frame::new(i)
+                    .unwrap()
+                    .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>()),
                 "now reading chunk {i} but have only read {frames_read_so_far} frames so far"
             );
 
-            let offset = Frame::new(i).strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
+            let offset = Frame::new(i)
+                .unwrap()
+                .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
 
             debug_assert_eq!(
                 offset, frames_read_so_far,
@@ -154,7 +158,9 @@ pub trait Drive: Sized {
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
-        let offset = Frame::new(bufs.len()).strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
+        let offset = Frame::new(bufs.len())
+            .unwrap()
+            .strict_mul(MAX_CHUNK_FRAMES.cast::<u32>());
         debug_assert_eq!(
             offset, frames_read_so_far,
             "about to read last chunk. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"

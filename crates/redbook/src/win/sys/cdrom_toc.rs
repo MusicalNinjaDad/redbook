@@ -173,7 +173,7 @@ impl From<&TRACK_DATA> for TocEntry {
     /// - Consider making this fallible with `TryFrom` for better error handling
     fn from(track_data: &TRACK_DATA) -> Self {
         let relative = u32::from_be_bytes(track_data.Address);
-        let start = Frame::new(relative).strict_add(LEADIN);
+        let start = Frame::strict_new(relative).strict_add(LEADIN);
         let track = TrackNo(track_data.TrackNumber);
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control = Control::from_bits_truncate(track_data._bitfield);
@@ -238,7 +238,9 @@ mod tests {
             eprintln!("control: {}", track.control());
             dbg!(track.Address);
             dbg!(u32::from_be_bytes(track.Address));
-            dbg!(Msf::from(Frame::new(u32::from_be_bytes(track.Address))));
+            dbg!(Msf::from(Frame::strict_new(u32::from_be_bytes(
+                track.Address
+            ))));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
         assert_eq!(

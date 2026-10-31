@@ -124,7 +124,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => Frame::from(Msf::new(0x27, 0x0E, 0x0A)),
             TestAlbum::TheWallDisc2 => Frame::from(Msf::new(0x29, 0x3a, 0x19)),
             TestAlbum::BatOutOfHellRevamped => Frame::from(Msf::new(0x32, 0x39, 0x07)),
-            TestAlbum::TheBoyWhoKnewTooMuch => Frame::new(202248).strict_add(LEADIN),
+            TestAlbum::TheBoyWhoKnewTooMuch => Frame::strict_new(202248_u32).strict_add(LEADIN),
         }
     }
 
@@ -146,7 +146,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x00, 0x02, 0x21)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(24242),
+                    duration: Frame::strict_new(24242_u32),
                     ..Default::default()
                 },
                 Track {
@@ -155,7 +155,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x05, 0x19, 0x32)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(23138),
+                    duration: Frame::strict_new(23138_u32),
                     ..Default::default()
                 },
                 Track {
@@ -164,7 +164,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0A, 0x22, 0x0D)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(20762),
+                    duration: Frame::strict_new(20762_u32),
                     ..Default::default()
                 },
                 Track {
@@ -173,7 +173,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0F, 0x0B, 0x00)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(20168),
+                    duration: Frame::strict_new(20168_u32),
                     ..Default::default()
                 },
                 Track {
@@ -182,7 +182,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x13, 0x27, 0x44)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(28272),
+                    duration: Frame::strict_new(28272_u32),
                     ..Default::default()
                 },
                 Track {
@@ -191,7 +191,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x19, 0x38, 0x41)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(21280),
+                    duration: Frame::strict_new(21280_u32),
                     ..Default::default()
                 },
                 Track {
@@ -200,7 +200,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x1E, 0x28, 0x2D)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(19338),
+                    duration: Frame::strict_new(19338_u32),
                     ..Default::default()
                 },
                 Track {
@@ -209,7 +209,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x22, 0x3A, 0x21)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(21700),
+                    duration: Frame::strict_new(21700_u32),
                     ..Default::default()
                 },
                 Track {
@@ -218,7 +218,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x27, 0x2F, 0x3A)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(11425),
+                    duration: Frame::strict_new(11425_u32),
                     ..Default::default()
                 },
                 Track {
@@ -227,7 +227,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x2A, 0x14, 0x08)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(29455),
+                    duration: Frame::strict_new(29455_u32),
                     ..Default::default()
                 },
                 Track {
@@ -236,7 +236,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x30, 0x34, 0x3F)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(14440),
+                    duration: Frame::strict_new(14440_u32),
                     ..Default::default()
                 },
             ],
@@ -247,7 +247,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(14967),
+                    duration: Frame::strict_new(14967_u32),
                     ..Default::default()
                 },
                 Track {
@@ -256,7 +256,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x03, 0x15, 0x2A)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(11240),
+                    duration: Frame::strict_new(11240_u32),
                     ..Default::default()
                 },
                 Track {
@@ -265,7 +265,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x05, 0x33, 0x20)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(14248),
+                    duration: Frame::strict_new(14248_u32),
                     ..Default::default()
                 },
                 Track {
@@ -274,7 +274,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x09, 0x01, 0x1E)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(8287),
+                    duration: Frame::strict_new(8287_u32),
                     ..Default::default()
                 },
                 Track {
@@ -283,7 +283,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0A, 0x33, 0x43)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(17960),
+                    duration: Frame::strict_new(17960_u32),
                     ..Default::default()
                 },
                 Track {
@@ -292,7 +292,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0E, 0x33, 0x1B)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(25040),
+                    duration: Frame::strict_new(25040_u32),
                     ..Default::default()
                 },
                 Track {
@@ -301,7 +301,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x14, 0x19, 0x11)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(12568),
+                    duration: Frame::strict_new(12568_u32),
                     ..Default::default()
                 },
                 Track {
@@ -310,7 +310,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x17, 0x0C, 0x3C)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(9625),
+                    duration: Frame::strict_new(9625_u32),
                     ..Default::default()
                 },
                 Track {
@@ -319,7 +319,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x19, 0x15, 0x0A)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(15832),
+                    duration: Frame::strict_new(15832_u32),
                     ..Default::default()
                 },
                 Track {
@@ -328,7 +328,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x1C, 0x34, 0x11)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(16240),
+                    duration: Frame::strict_new(16240_u32),
                     ..Default::default()
                 },
                 Track {
@@ -337,7 +337,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x20, 0x1C, 0x39)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(19230),
+                    duration: Frame::strict_new(19230_u32),
                     ..Default::default()
                 },
                 Track {
@@ -346,7 +346,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x24, 0x2D, 0x0C)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(5603),
+                    duration: Frame::strict_new(5603_u32),
                     ..Default::default()
                 },
                 Track {
@@ -355,7 +355,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x25, 0x3B, 0x41)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(5570),
+                    duration: Frame::strict_new(5570_u32),
                     ..Default::default()
                 },
             ],
@@ -366,7 +366,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(21115),
+                    duration: Frame::strict_new(21115_u32),
                     ..Default::default()
                 },
                 Track {
@@ -375,7 +375,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x04, 0x2B, 0x28)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(12020),
+                    duration: Frame::strict_new(12020_u32),
                     ..Default::default()
                 },
                 Track {
@@ -384,7 +384,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x07, 0x17, 0x3C)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(15340),
+                    duration: Frame::strict_new(15340_u32),
                     ..Default::default()
                 },
                 Track {
@@ -393,7 +393,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0A, 0x30, 0x19)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(6980),
+                    duration: Frame::strict_new(6980_u32),
                     ..Default::default()
                 },
                 Track {
@@ -402,7 +402,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0C, 0x15, 0x1E)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(6537),
+                    duration: Frame::strict_new(6537_u32),
                     ..Default::default()
                 },
                 Track {
@@ -411,7 +411,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x0D, 0x30, 0x2A)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(28628),
+                    duration: Frame::strict_new(28628_u32),
                     ..Default::default()
                 },
                 Track {
@@ -420,7 +420,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x14, 0x0A, 0x14)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(7210),
+                    duration: Frame::strict_new(7210_u32),
                     ..Default::default()
                 },
                 Track {
@@ -429,7 +429,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x15, 0x2E, 0x1E)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(19255),
+                    duration: Frame::strict_new(19255_u32),
                     ..Default::default()
                 },
                 Track {
@@ -438,7 +438,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x1A, 0x03, 0x0A)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(19780),
+                    duration: Frame::strict_new(19780_u32),
                     ..Default::default()
                 },
                 Track {
@@ -447,7 +447,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x1E, 0x1A, 0x41)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(17877),
+                    duration: Frame::strict_new(17877_u32),
                     ..Default::default()
                 },
                 Track {
@@ -456,7 +456,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x22, 0x19, 0x11)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(2268),
+                    duration: Frame::strict_new(2268_u32),
                     ..Default::default()
                 },
                 Track {
@@ -465,7 +465,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x22, 0x37, 0x23)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(23980),
+                    duration: Frame::strict_new(23980_u32),
                     ..Default::default()
                 },
                 Track {
@@ -474,7 +474,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x28, 0x0F, 0x0F)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(7735),
+                    duration: Frame::strict_new(7735_u32),
                     ..Default::default()
                 },
             ],
@@ -677,7 +677,7 @@ impl TestAlbum {
                         start: Frame::from(Msf::new(0x25, 0x31, 0x05)),
                         control: Default::default(),
                     },
-                    duration: Frame::new(15221),
+                    duration: Frame::strict_new(15221_u32),
                     ..Default::default()
                 },
             ],

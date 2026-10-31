@@ -41,10 +41,10 @@ use crate::{
 ///
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
-///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
-///     Track::new(TrackNo(2), Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b)),
-///     Track::new(TrackNo(3), Frame::new(0x6256), Frame::new(0xb327 - 0x6256)),
-///     Track::new(TrackNo(4), Frame::new(0xb327), Frame::new(0xd84a - 0xb327)),
+///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
+///     Track::new(TrackNo(2), Frame::strict_new(0x2d2b_u32), Frame::strict_new(0x6256_u32 - 0x2d2b)),
+///     Track::new(TrackNo(3), Frame::strict_new(0x6256_u32), Frame::strict_new(0xb327_u32 - 0x6256)),
+///     Track::new(TrackNo(4), Frame::strict_new(0xb327_u32), Frame::strict_new(0xd84a_u32 - 0xb327)),
 /// ];
 ///
 /// // validates TOC, Tracks & leadout match
@@ -108,7 +108,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
     ///
     /// let disc = Disc::new(toc, tracks).unwrap();
@@ -183,7 +183,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
     /// let mut disc = Disc::new(toc, tracks).unwrap();
     /// disc.update_musicbrainz()?;
@@ -708,7 +708,7 @@ impl Disc {
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
     /// let mut disc = Disc::new(toc, tracks).unwrap();
     /// disc.update_musicbrainz()?;

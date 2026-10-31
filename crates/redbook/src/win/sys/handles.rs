@@ -406,7 +406,9 @@ impl Device for DriveHandle {
         .validate(Some(bytes_to_read), bytes_read)
         .or_warn("raw CDDA data read failed")?;
 
-        Ok(Frame::new(frames_to_read))
+        Ok(Frame::new(frames_to_read)
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "frames read exceeds CD max"))
+            .or_error("constructing Frame from sector count")?)
     }
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {

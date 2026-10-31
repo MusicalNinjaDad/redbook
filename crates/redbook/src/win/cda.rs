@@ -128,9 +128,20 @@ impl CdaFile {
         let windows_identifier = u32::from_le_bytes(data.next_chunk().unwrap());
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
-        let starting_frame =
-            Frame::new(u32::from_le_bytes(data.next_chunk().unwrap())).strict_add(LEADIN);
-        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()));
+        let starting_frame = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "starting frame too large"))
+            .or_warn("parsing starting frame")?
+            .checked_add(LEADIN)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "starting frame exceeds CD maximum",
+                )
+            })
+            .or_warn("adding lead-in to starting frame")?;
+        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "duration too large"))
+            .or_warn("parsing duration")?;
 
         let start_frame = data.next().unwrap();
         let start_sec = data.next().unwrap();
