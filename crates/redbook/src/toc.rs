@@ -58,18 +58,59 @@ pub mod b0010 {
 pub struct TrackNo(pub u8);
 
 impl TrackNo {
-    /// Redbook defines the valid range for "normal" track numbers as 1..=99
+    /// The minimum "normal" track number: track 1
+    ///
+    /// Redbook defines the valid range for "normal" track numbers as 0..=99
+    pub const MIN_NORMAL: Self = Self(1);
+
+    /// The maximum "normal" track number: track 99
+    ///
+    /// Redbook defines the valid range for "normal" track numbers as 0..=99
+    pub const MAX_NORMAL: Self = Self(99);
+
+    /// Construct a "normal" [`TrackNo`] from any integer type.
+    ///
+    /// Returns `None` if the value either:
+    /// - does not fit in a `u8` (track numbers are stored on disc in a single byte), or
+    /// - is not a "normal" track number, i.e. outside
+    ///   [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
+    ///
+    /// # Notes
+    /// - Track 0 and values above 99 have various "special" meanings depending on context
+    ///   (e.g. the lead-out track is 0xAA). Construct those directly, e.g. via
+    ///   [`b0000::LEADOUT_TRACK_ID`]
+    ///
+    /// # Examples
+    /// ```
+    /// use redbook::TrackNo;
+    ///
+    /// assert_eq!(TrackNo::new_normal(7_u16), Some(TrackNo(7)));
+    /// assert_eq!(TrackNo::new_normal(0_u8), None);
+    /// assert_eq!(TrackNo::new_normal(100_u8), None);
+    /// assert_eq!(TrackNo::new_normal(256_u16), None);
+    /// ```
+    pub fn new_normal<T>(value: T) -> Option<Self>
+    where
+        u8: TryFrom<T>,
+    {
+        let track_no = u8::try_from(value).ok()?;
+        Some(Self(track_no)).filter(Self::is_normal)
+    }
+
+    /// Whether this is a "special" track number, i.e. outside
+    /// [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
     ///
     /// Track 0 and > 99 have various "special" meanings depending on context
     pub const fn is_special(&self) -> bool {
         !self.is_normal()
     }
 
-    /// Redbook defines the valid range for "normal" track numbers as 1..=99
+    /// Whether this is a "normal" track number, i.e. within
+    /// [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
     ///
     /// Track 0 and > 99 have various "special" meanings depending on context
     pub const fn is_normal(&self) -> bool {
-        matches!(self.0, 1..=99)
+        self.0 >= Self::MIN_NORMAL.0 && self.0 <= Self::MAX_NORMAL.0
     }
 
     /// Cast to another integer type (except i8)
@@ -633,6 +674,10 @@ mod tests {
         const EQ: bool = ONE == TrackNo(1);
         const NE: bool = ONE != TrackNo(2);
         const LT: bool = ONE < TrackNo(2);
+        const MIN_IS_NORMAL: bool = TrackNo::MIN_NORMAL.is_normal();
+        const MAX_IS_NORMAL: bool = TrackNo::MAX_NORMAL.is_normal();
+        const ZERO_IS_SPECIAL: bool = TrackNo(0).is_special();
+        const HUNDRED_IS_SPECIAL: bool = TrackNo(100).is_special();
 
         // cross-check the const-evaluated values against runtime evaluation
         let one = TrackNo(1);
@@ -643,5 +688,27 @@ mod tests {
         assert_eq!(EQ, one == TrackNo(1));
         assert_eq!(NE, one != TrackNo(2));
         assert_eq!(LT, one < TrackNo(2));
+        assert_eq!(MIN_IS_NORMAL, TrackNo::MIN_NORMAL.is_normal());
+        assert_eq!(MAX_IS_NORMAL, TrackNo::MAX_NORMAL.is_normal());
+        assert_eq!(ZERO_IS_SPECIAL, TrackNo(0).is_special());
+        assert_eq!(HUNDRED_IS_SPECIAL, TrackNo(100).is_special());
+    }
+
+    #[test]
+    fn new_normal_only_accepts_normal_track_numbers() {
+        assert_eq!(TrackNo::new_normal(0_u8), None);
+        assert_eq!(TrackNo::new_normal(1_u8), Some(TrackNo::MIN_NORMAL));
+        assert_eq!(TrackNo::new_normal(42_u8), Some(TrackNo(42)));
+        assert_eq!(TrackNo::new_normal(99_u8), Some(TrackNo::MAX_NORMAL));
+        assert_eq!(TrackNo::new_normal(100_u8), None);
+        assert_eq!(TrackNo::new_normal(0xAA_u8), None);
+
+        // wider integers are accepted via TryFrom, rejected if they do not fit in a u8
+        assert_eq!(TrackNo::new_normal(1_u16), Some(TrackNo(1)));
+        assert_eq!(TrackNo::new_normal(99_u32), Some(TrackNo(99)));
+        assert_eq!(TrackNo::new_normal(100_u16), None);
+        assert_eq!(TrackNo::new_normal(256_u16), None);
+        assert_eq!(TrackNo::new_normal(u16::MAX), None);
+        assert_eq!(TrackNo::new_normal(-1_i32), None);
     }
 }

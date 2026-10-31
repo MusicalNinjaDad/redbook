@@ -177,17 +177,27 @@ impl CdaFile {
     }
 }
 
-impl From<CdaFile> for Track<'static> {
-    fn from(cda: CdaFile) -> Self {
-        Self {
+impl TryFrom<CdaFile> for Track<'static> {
+    type Error = io::Error;
+
+    fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
+        let track = TrackNo::new_normal(cda.track_number)
+            .ok_or_else(|| {
+                io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!("invalid track number {} in cda file", cda.track_number),
+                )
+            })
+            .or_warn("cda file does not describe a normal audio track")?;
+        Ok(Self {
             toc_entry: TocEntry {
-                track: TrackNo(cda.track_number.strict_cast()),
+                track,
                 start: cda.start.into(),
                 control: Default::default(),
             },
             duration: cda.duration.into(),
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -210,7 +220,11 @@ pub fn tracks<P: AsRef<Path>>(path: &P) -> io::Result<Vec<Track<'_>>> {
     });
     let cda_files =
         valid_paths.filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok());
-    let tracks = cda_files.map(Track::from);
+    let tracks = cda_files.filter_map(|cda| {
+        Track::try_from(cda)
+            .or_warn("cda file does not describe a normal audio track")
+            .ok()
+    });
     Ok(tracks.collect())
 }
 
@@ -218,6 +232,9 @@ pub fn tracks<P: AsRef<Path>>(path: &P) -> io::Result<Vec<Track<'_>>> {
 #[forbid(unsafe_code)]
 mod tests {
     use super::*;
+
+    use std::assert_matches;
+
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
     use rstest::rstest;
@@ -237,13 +254,37 @@ mod tests {
         for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
             assert_eq!(
-                TrackNo(cda.track_number.strict_cast::<u8>()),
-                track.track_number()
+                TrackNo::new_normal(cda.track_number),
+                Some(track.track_number())
             );
             assert_eq!(cda.start, track.toc_entry.start);
             assert_eq!(cda.duration, track.duration);
+            assert_matches!(Track::try_from(cda), Ok(_));
             // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
+        }
+    }
+
+    #[test]
+    fn try_from_rejects_special_track_numbers() {
+        let album = DefinitelyMaybe;
+        let cdas = album.assets_path().join("*.cda");
+        let cda_file = glob(&cdas.to_string_lossy())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let special_track_numbers = [
+            crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>(),
+            0,
+            TrackNo::MAX_NORMAL.cast::<u16>() + 1,
+        ];
+        for track_number in special_track_numbers {
+            let mut cda = CdaFile::from_path(&cda_file).unwrap();
+            cda.track_number = track_number;
+            let err = Track::try_from(cda).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::InvalidData);
         }
     }
 }
