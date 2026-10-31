@@ -6,6 +6,7 @@ use std::{
     fmt::Display,
     hint::cold_path,
     io::{self, ErrorKind},
+    marker::StructuralPartialEq,
     num::{NonZeroUsize, ParseIntError},
     ops::{Deref, DerefMut},
     slice,
@@ -52,32 +53,59 @@ pub mod b0010 {
 /// # Equality & Ordering
 /// - `PartialEq` & `PartialOrd` are deliberately not implemented between `TrackNo` & `u8` to ensure
 ///   comparisons don't inadvertantly compare a TrackNo with something semantically different
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
+#[derive(Debug, Clone, Copy, Hash, Default)]
 pub struct TrackNo(pub u8);
 
 impl TrackNo {
     /// Redbook defines the valid range for "normal" track numbers as 1..=99
     ///
     /// Track 0 and > 99 have various "special" meanings depending on context
-    pub fn is_special(&self) -> bool {
+    pub const fn is_special(&self) -> bool {
         !self.is_normal()
     }
 
     /// Redbook defines the valid range for "normal" track numbers as 1..=99
     ///
     /// Track 0 and > 99 have various "special" meanings depending on context
-    pub fn is_normal(&self) -> bool {
-        (1..=99).contains(&self.0)
+    pub const fn is_normal(&self) -> bool {
+        matches!(self.0, 1..=99)
     }
 
     /// Cast to another integer type (except i8)
-    pub fn cast<N>(self) -> N
+    pub const fn cast<N>(self) -> N
     where
-        N: From<u8>,
+        N: [const] From<u8>,
     {
         N::from(self.0)
     }
 }
+
+// ==========================================
+// TrackNo - const comparison & conversion ops
+// ==========================================
+
+const impl Ord for TrackNo {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+const impl PartialOrd for TrackNo {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+const impl Eq for TrackNo {}
+
+const impl PartialEq for TrackNo {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl StructuralPartialEq for TrackNo {}
 
 impl Deref for TrackNo {
     type Target = u8;
@@ -99,13 +127,13 @@ impl Display for TrackNo {
     }
 }
 
-impl From<u8> for TrackNo {
+const impl From<u8> for TrackNo {
     fn from(n: u8) -> Self {
         TrackNo(n)
     }
 }
 
-impl From<TrackNo> for u8 {
+const impl From<TrackNo> for u8 {
     fn from(track_no: TrackNo) -> Self {
         track_no.0
     }
@@ -587,5 +615,33 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
         };
 
         Ok(tocentries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usable_in_const_context() {
+        // compile-time proof: these only compile if TrackNo is usable in const contexts
+        const ONE: TrackNo = TrackNo::from(1);
+        const IS_NORMAL: bool = ONE.is_normal();
+        const IS_SPECIAL: bool = TrackNo(0xAA).is_special();
+        const CAST: usize = ONE.cast();
+        const AS_U8: u8 = u8::from(ONE);
+        const EQ: bool = ONE == TrackNo(1);
+        const NE: bool = ONE != TrackNo(2);
+        const LT: bool = ONE < TrackNo(2);
+
+        // cross-check the const-evaluated values against runtime evaluation
+        let one = TrackNo(1);
+        assert_eq!(IS_NORMAL, one.is_normal());
+        assert_eq!(IS_SPECIAL, TrackNo(0xAA).is_special());
+        assert_eq!(CAST, one.cast::<usize>());
+        assert_eq!(AS_U8, u8::from(one));
+        assert_eq!(EQ, one == TrackNo(1));
+        assert_eq!(NE, one != TrackNo(2));
+        assert_eq!(LT, one < TrackNo(2));
     }
 }

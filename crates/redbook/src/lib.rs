@@ -24,6 +24,7 @@
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
 #![feature(const_cmp)]
 #![feature(const_convert)]
+#![feature(structural_match)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
