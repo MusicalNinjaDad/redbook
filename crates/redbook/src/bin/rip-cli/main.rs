@@ -1,4 +1,5 @@
-#![allow(stable_features)]
+#![allow(stable_features)] // in binary only
+#![allow(unused_features)] // in binary only
 #![allow(clippy::arbitrary_source_item_ordering)]
 #![allow(clippy::allow_attributes_without_reason)]
 #![feature(integer_casts)]
