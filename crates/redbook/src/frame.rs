@@ -16,10 +16,10 @@ use crate::LEADIN;
 ///
 /// # Note
 ///
-/// Internally frames are stored as u32. The maximum frame size in a real-world situation
-/// is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
-/// (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small and
-/// anything over u32 is oversized.
+/// - Internally frames are stored as u32. The maximum frame size in a real-world situation
+///   is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
+///   (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small and
+///   anything over u32 is oversized.
 ///
 /// # TODOs
 /// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...

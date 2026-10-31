@@ -39,11 +39,18 @@ pub mod b0010 {
 /// - Track numbers are stored on physical discs in a single 1-byte
 /// - This is "simply" a type-safe wrapper to portray semantics & provide a clear statement that
 ///   track numbers are inherently u8
+/// - No additional invariants are upheld. A TrackNo may be a "normal" track (1 to 99 as per
+///   redbook) or a "special" number as regularly (ab)used in the redbook spec.
+///   e.g. 0xAA ([`b0000::LEADOUT_TRACK_ID`]) or 0xA2 ([`b0010::LEADOUT_TRACK_ID`]).
+/// - [`is_normal()`][Self::is_normal] & [`is_special()`][Self::is_special] are available for
+///   identification, while [`new_normal()`][Self::new_normal] can be used as a validating constrcutor
+///   if needed.
+/// - Basic construction is via `TrackNo(n)` for simplicity.
 /// - As such `TrackNo` implements `Deref` & `DerefMut` with `Target = u8` and can be used
 ///   interchangably with a `u8`
 ///
 /// # Converting to other integers
-/// - Use the provided `track_no.cast()` for a more readable alternative to `(*track_no).into()`.
+/// - Use the provided `track_no.cast()` which is nicer to read than `track_no.0.into()`
 ///
 /// # Arithmetic operations
 /// - `+`, `-`, etc. are deliberately not implemented for TrackNo. While you *could* simply do
