@@ -326,7 +326,7 @@ pub const LEADIN: Frame = Frame::new(150);
 ///
 /// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
 const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES
-    .as_u32()
+    .cast::<u32>()
     .strict_mul(FRAME_SIZE)
     .strict_cast();
 

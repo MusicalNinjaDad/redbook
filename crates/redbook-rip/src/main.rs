@@ -323,7 +323,7 @@ fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
         total,
     } = progress;
     // Not strict math - if this fails the status bar looks wonky but nothing worth a panic!
-    let progress = processed.as_u32() as f32 / total.as_u32() as f32;
+    let progress = processed.cast::<u32>() as f32 / total.cast::<u32>() as f32;
     app.upgrade_in_event_loop(move |app| {
         let tracks = app.get_tracks();
         let mut track = tracks.row_data(track_number.cast::<usize>() - 1).unwrap();

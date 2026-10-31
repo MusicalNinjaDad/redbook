@@ -258,7 +258,7 @@ mod tests {
     fn leadout(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         let leadout = toc.to_toc().unwrap().leadout();
-        assert_eq!(leadout, album.expected_leadout().as_u32());
+        assert_eq!(leadout, album.expected_leadout().cast::<u32>());
     }
 
     #[rstest]

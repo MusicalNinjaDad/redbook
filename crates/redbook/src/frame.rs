@@ -48,9 +48,12 @@ impl Frame {
         Self(frames)
     }
 
-    /// Returns the frame count as a `u32`.
-    pub const fn as_u32(self) -> u32 {
-        self.0
+    /// Cast to another integer type (where `N: From<u32>`).
+    pub const fn cast<N>(self) -> N
+    where
+        N: [const] From<u32>,
+    {
+        N::from(self.0)
     }
 
     /// Returns a frame relative to the lead-in position.
@@ -205,7 +208,7 @@ const impl From<&Msf> for Frame {
 
 const impl From<Frame> for Msf {
     fn from(frames: Frame) -> Self {
-        let frames = frames.as_u32();
+        let frames = frames.cast::<u32>();
         let secs = frames / 75;
         let min = secs / 60;
         let secs = secs % 60;
@@ -412,7 +415,7 @@ where
 impl PartialEq<cdtoc::Duration> for Frame {
     fn eq(&self, duration: &cdtoc::Duration) -> bool {
         let (s, f) = duration.seconds_frames();
-        self.as_u32().strict_cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
+        self.cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
     }
 }
 

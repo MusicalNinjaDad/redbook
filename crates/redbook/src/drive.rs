@@ -90,14 +90,14 @@ pub trait Drive: Sized {
 
         let track_size = track
             .duration
-            .as_u32()
+            .cast::<u32>()
             .checked_mul(FRAME_SIZE)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::FileTooLarge,
                     format!(
                         "track too long. {size} bytes but can only handle {max}",
-                        size = (track.duration.as_u32() as u128) * (FRAME_SIZE as u128),
+                        size = track.duration.cast::<u128>() * (FRAME_SIZE as u128),
                         max = usize::MAX
                     ),
                 )

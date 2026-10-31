@@ -65,7 +65,7 @@ pub struct Sector(i64);
 impl Sector {
     /// Construct from an absolute frame number (including lead-in)
     pub fn from_frame(frame: Frame) -> Self {
-        Self(frame.relative_to_leadin().as_u32().into())
+        Self(frame.relative_to_leadin().cast::<i64>())
     }
 
     /// For passing to `DeviceIoControl(..,IOCTL_CDROM_RAW_READ,..)`
