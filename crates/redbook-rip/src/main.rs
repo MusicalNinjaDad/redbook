@@ -25,7 +25,7 @@ use metaflac::{
     block::{Picture, PictureType},
 };
 use redbook::{
-    AudioCd, Disc, RipProgress, RippedTrack,
+    AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
     tagging::{PictureExt, VorbisTagExt},
 };
 use thread_safely::Controller;
@@ -304,6 +304,7 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
+        let track_number = TrackNo(track_number.strict_cast());
         let track = disc.track(track_number);
         tracing::info!(ripping = ?track);
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
@@ -325,10 +326,10 @@ fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
     let progress = processed.as_u32() as f32 / total.as_u32() as f32;
     app.upgrade_in_event_loop(move |app| {
         let tracks = app.get_tracks();
-        let mut track = tracks.row_data(track_number - 1).unwrap();
-        assert_eq!(track_number as i32, track.number);
+        let mut track = tracks.row_data(track_number.cast::<usize>() - 1).unwrap();
+        assert_eq!(track_number.cast::<i32>(), track.number);
         track.rip_progress = progress;
-        tracks.set_row_data(track_number - 1, track);
+        tracks.set_row_data(track_number.cast::<usize>() - 1, track);
     })
     .unwrap();
 }

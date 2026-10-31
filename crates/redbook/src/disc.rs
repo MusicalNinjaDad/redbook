@@ -22,7 +22,7 @@ use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
-    Track,
+    Track, TrackNo,
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
@@ -37,14 +37,14 @@ use crate::{
 ///
 /// ```no_run
 /// use cdtoc::Toc;
-/// use redbook::{Disc, Frame, Track};
+/// use redbook::{Disc, Frame, Track, TrackNo};
 ///
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
-///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
-///     Track::new(2, Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b)),
-///     Track::new(3, Frame::new(0x6256), Frame::new(0xb327 - 0x6256)),
-///     Track::new(4, Frame::new(0xb327), Frame::new(0xd84a - 0xb327)),
+///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+///     Track::new(TrackNo(2), Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b)),
+///     Track::new(TrackNo(3), Frame::new(0x6256), Frame::new(0xb327 - 0x6256)),
+///     Track::new(TrackNo(4), Frame::new(0xb327), Frame::new(0xd84a - 0xb327)),
 /// ];
 ///
 /// // validates TOC, Tracks & leadout match
@@ -58,7 +58,7 @@ use crate::{
 ///
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
-/// let track1_details = disc.tag_for(1).unwrap();
+/// let track1_details = disc.tag_for(TrackNo(1)).unwrap();
 /// # std::io::Result::Ok(())
 /// ```
 pub struct Disc {
@@ -103,12 +103,12 @@ impl Disc {
     /// # Examples
     ///
     /// ```
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     ///
     /// let disc = Disc::new(toc, tracks).unwrap();
@@ -178,12 +178,12 @@ impl Disc {
     /// # Example
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let mut disc = Disc::new(toc, tracks).unwrap();
     /// disc.update_musicbrainz()?;
@@ -255,9 +255,9 @@ impl Disc {
     /// Holding on to the returned track will block any mutation to `self` in order
     /// to maintain validity of the metadata. Modifying the returned track will NOT
     /// modify the copy stored in `self`.
-    pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
-        let _debug = tracing::debug_span!("Disc::track", track_number = track_number).entered();
-        let mut track = self.tracks.get(track_number - 1).cloned()?;
+    pub fn track(&self, track_number: TrackNo) -> Option<Track<'_>> {
+        let _debug = tracing::debug_span!("Disc::track", %track_number).entered();
+        let mut track = self.tracks.get(track_number.cast::<usize>() - 1).cloned()?;
         track.meta = self
             .release()
             .and_then(|r| r.media.as_ref())
@@ -702,30 +702,30 @@ impl Disc {
     /// # Examples
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
     /// use metaflac::block::VorbisComment;
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo(1), Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
     /// ];
     /// let mut disc = Disc::new(toc, tracks).unwrap();
     /// disc.update_musicbrainz()?;
     ///
     /// // Generate tags for the first track
-    /// if let Some(tags) = disc.tag_for(1) {
+    /// if let Some(tags) = disc.tag_for(TrackNo(1)) {
     ///     // Use tags for encoding
     ///     let _title = tags.title();
     /// }
     /// # Ok::<(), std::io::Error>(())
     /// ```
-    pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
-        let _debug = tracing::debug_span!("Disc::tag_for", track_number = track_number).entered();
+    pub fn tag_for(&self, track_number: TrackNo) -> Option<VorbisComment> {
+        let _debug = tracing::debug_span!("Disc::tag_for", %track_number).entered();
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 
-        vorbis.set_track(track.track_number() as u32);
+        vorbis.set_track(track.track_number().cast());
 
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);
@@ -841,7 +841,7 @@ impl<'meta> Iterator for Tracks<'meta> {
     fn next(&mut self) -> Option<Self::Item> {
         // disc.track() uses 1-indexing so we can be very lazy
         self.i += 1;
-        self.disc.track(self.i)
+        self.disc.track(TrackNo(self.i.checked_cast()?))
     }
 }
 

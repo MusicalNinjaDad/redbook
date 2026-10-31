@@ -3,8 +3,7 @@ use std::io;
 use crate::{
     Frame, LEADIN, TocEntries,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::Control,
-    toc::TocEntry,
+    toc::{Control, TocEntry, TrackNo},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -175,7 +174,7 @@ impl From<&TRACK_DATA> for TocEntry {
     fn from(track_data: &TRACK_DATA) -> Self {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::new(relative).strict_add(LEADIN);
-        let track = track_data.TrackNumber;
+        let track = TrackNo(track_data.TrackNumber);
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control = Control::from_bits_truncate(track_data._bitfield);
         Self {

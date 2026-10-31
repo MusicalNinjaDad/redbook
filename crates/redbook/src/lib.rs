@@ -60,7 +60,7 @@
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::{self, Write}};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, tagging::{PictureExt, VorbisTagExt}};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, tagging::{PictureExt, VorbisTagExt}};
 //! use thread_safely::Controller;
 //!
 //! // Allow for status updates & cancellation mid-rip
@@ -75,7 +75,7 @@
 //! cd.disc_mut().update_musicbrainz()?;
 //!
 //! // Rip a track
-//! let track_1 = cd.rip(1)?;
+//! let track_1 = cd.rip(TrackNo(1))?;
 //!
 //! // Encode to flac
 //! let flac = track_1.to_flac();
@@ -260,7 +260,7 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
-pub use toc::TocEntries;
+pub use toc::{TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{RippedTrack, Track};
 

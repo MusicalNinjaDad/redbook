@@ -10,7 +10,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, Frame, RippedTrack, TocEntries};
+use crate::{CdDrive, Disc, Drive, Frame, RippedTrack, TocEntries, TrackNo};
 
 #[derive(Debug)]
 /// A CD loaded into a physical drive. This combines the ability to access the physical disc with
@@ -85,8 +85,8 @@ impl AudioCd {
         Self::try_from(drive)
     }
 
-    pub fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
-        let _error = tracing::error_span!("AudioCdExt::rip", track_number).entered();
+    pub fn rip(&self, track_number: TrackNo) -> io::Result<RippedTrack> {
+        let _error = tracing::error_span!("AudioCdExt::rip", %track_number).entered();
         let tags = self
             .disc
             .tag_for(track_number)
@@ -129,7 +129,7 @@ impl AudioCd {
 /// TODO: #114 Include device identifier in RipProgress
 #[expect(missing_docs, reason = "well named fields")]
 pub struct RipProgress {
-    pub track_number: usize,
+    pub track_number: TrackNo,
     pub processed: Frame,
     pub total: Frame,
 }

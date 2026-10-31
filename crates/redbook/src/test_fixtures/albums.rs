@@ -6,8 +6,11 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries, Track, frame::Msf, tagging::PictureExt,
-    test_fixtures::track_descriptor::RawTocDescriptors, toc::TocEntry,
+    Frame, LEADIN, TocEntries, Track,
+    frame::Msf,
+    tagging::PictureExt,
+    test_fixtures::track_descriptor::RawTocDescriptors,
+    toc::{TocEntry, TrackNo},
 };
 
 /// Test album identifier for parameterized tests
@@ -139,7 +142,7 @@ impl TestAlbum {
             TestAlbum::DefinitelyMaybe => vec![
                 Track {
                     toc_entry: TocEntry {
-                        track: 1,
+                        track: TrackNo(1),
                         start: Frame::from(Msf::new(0x00, 0x02, 0x21)),
                         control: Default::default(),
                     },
@@ -148,7 +151,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 2,
+                        track: TrackNo(2),
                         start: Frame::from(Msf::new(0x05, 0x19, 0x32)),
                         control: Default::default(),
                     },
@@ -157,7 +160,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 3,
+                        track: TrackNo(3),
                         start: Frame::from(Msf::new(0x0A, 0x22, 0x0D)),
                         control: Default::default(),
                     },
@@ -166,7 +169,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 4,
+                        track: TrackNo(4),
                         start: Frame::from(Msf::new(0x0F, 0x0B, 0x00)),
                         control: Default::default(),
                     },
@@ -175,7 +178,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 5,
+                        track: TrackNo(5),
                         start: Frame::from(Msf::new(0x13, 0x27, 0x44)),
                         control: Default::default(),
                     },
@@ -184,7 +187,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 6,
+                        track: TrackNo(6),
                         start: Frame::from(Msf::new(0x19, 0x38, 0x41)),
                         control: Default::default(),
                     },
@@ -193,7 +196,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 7,
+                        track: TrackNo(7),
                         start: Frame::from(Msf::new(0x1E, 0x28, 0x2D)),
                         control: Default::default(),
                     },
@@ -202,7 +205,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 8,
+                        track: TrackNo(8),
                         start: Frame::from(Msf::new(0x22, 0x3A, 0x21)),
                         control: Default::default(),
                     },
@@ -211,7 +214,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 9,
+                        track: TrackNo(9),
                         start: Frame::from(Msf::new(0x27, 0x2F, 0x3A)),
                         control: Default::default(),
                     },
@@ -220,7 +223,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 10,
+                        track: TrackNo(10),
                         start: Frame::from(Msf::new(0x2A, 0x14, 0x08)),
                         control: Default::default(),
                     },
@@ -229,7 +232,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 11,
+                        track: TrackNo(11),
                         start: Frame::from(Msf::new(0x30, 0x34, 0x3F)),
                         control: Default::default(),
                     },
@@ -240,7 +243,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => vec![
                 Track {
                     toc_entry: TocEntry {
-                        track: 1,
+                        track: TrackNo(1),
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
@@ -249,7 +252,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 2,
+                        track: TrackNo(2),
                         start: Frame::from(Msf::new(0x03, 0x15, 0x2A)),
                         control: Default::default(),
                     },
@@ -258,7 +261,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 3,
+                        track: TrackNo(3),
                         start: Frame::from(Msf::new(0x05, 0x33, 0x20)),
                         control: Default::default(),
                     },
@@ -267,7 +270,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 4,
+                        track: TrackNo(4),
                         start: Frame::from(Msf::new(0x09, 0x01, 0x1E)),
                         control: Default::default(),
                     },
@@ -276,7 +279,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 5,
+                        track: TrackNo(5),
                         start: Frame::from(Msf::new(0x0A, 0x33, 0x43)),
                         control: Default::default(),
                     },
@@ -285,7 +288,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 6,
+                        track: TrackNo(6),
                         start: Frame::from(Msf::new(0x0E, 0x33, 0x1B)),
                         control: Default::default(),
                     },
@@ -294,7 +297,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 7,
+                        track: TrackNo(7),
                         start: Frame::from(Msf::new(0x14, 0x19, 0x11)),
                         control: Default::default(),
                     },
@@ -303,7 +306,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 8,
+                        track: TrackNo(8),
                         start: Frame::from(Msf::new(0x17, 0x0C, 0x3C)),
                         control: Default::default(),
                     },
@@ -312,7 +315,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 9,
+                        track: TrackNo(9),
                         start: Frame::from(Msf::new(0x19, 0x15, 0x0A)),
                         control: Default::default(),
                     },
@@ -321,7 +324,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 10,
+                        track: TrackNo(10),
                         start: Frame::from(Msf::new(0x1C, 0x34, 0x11)),
                         control: Default::default(),
                     },
@@ -330,7 +333,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 11,
+                        track: TrackNo(11),
                         start: Frame::from(Msf::new(0x20, 0x1C, 0x39)),
                         control: Default::default(),
                     },
@@ -339,7 +342,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 12,
+                        track: TrackNo(12),
                         start: Frame::from(Msf::new(0x24, 0x2D, 0x0C)),
                         control: Default::default(),
                     },
@@ -348,7 +351,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 13,
+                        track: TrackNo(13),
                         start: Frame::from(Msf::new(0x25, 0x3B, 0x41)),
                         control: Default::default(),
                     },
@@ -359,7 +362,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc2 => vec![
                 Track {
                     toc_entry: TocEntry {
-                        track: 1,
+                        track: TrackNo(1),
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
@@ -368,7 +371,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 2,
+                        track: TrackNo(2),
                         start: Frame::from(Msf::new(0x04, 0x2B, 0x28)),
                         control: Default::default(),
                     },
@@ -377,7 +380,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 3,
+                        track: TrackNo(3),
                         start: Frame::from(Msf::new(0x07, 0x17, 0x3C)),
                         control: Default::default(),
                     },
@@ -386,7 +389,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 4,
+                        track: TrackNo(4),
                         start: Frame::from(Msf::new(0x0A, 0x30, 0x19)),
                         control: Default::default(),
                     },
@@ -395,7 +398,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 5,
+                        track: TrackNo(5),
                         start: Frame::from(Msf::new(0x0C, 0x15, 0x1E)),
                         control: Default::default(),
                     },
@@ -404,7 +407,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 6,
+                        track: TrackNo(6),
                         start: Frame::from(Msf::new(0x0D, 0x30, 0x2A)),
                         control: Default::default(),
                     },
@@ -413,7 +416,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 7,
+                        track: TrackNo(7),
                         start: Frame::from(Msf::new(0x14, 0x0A, 0x14)),
                         control: Default::default(),
                     },
@@ -422,7 +425,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 8,
+                        track: TrackNo(8),
                         start: Frame::from(Msf::new(0x15, 0x2E, 0x1E)),
                         control: Default::default(),
                     },
@@ -431,7 +434,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 9,
+                        track: TrackNo(9),
                         start: Frame::from(Msf::new(0x1A, 0x03, 0x0A)),
                         control: Default::default(),
                     },
@@ -440,7 +443,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 10,
+                        track: TrackNo(10),
                         start: Frame::from(Msf::new(0x1E, 0x1A, 0x41)),
                         control: Default::default(),
                     },
@@ -449,7 +452,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 11,
+                        track: TrackNo(11),
                         start: Frame::from(Msf::new(0x22, 0x19, 0x11)),
                         control: Default::default(),
                     },
@@ -458,7 +461,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 12,
+                        track: TrackNo(12),
                         start: Frame::from(Msf::new(0x22, 0x37, 0x23)),
                         control: Default::default(),
                     },
@@ -467,7 +470,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 13,
+                        track: TrackNo(13),
                         start: Frame::from(Msf::new(0x28, 0x0F, 0x0F)),
                         control: Default::default(),
                     },
@@ -478,7 +481,7 @@ impl TestAlbum {
             TestAlbum::BatOutOfHellRevamped => vec![
                 Track {
                     toc_entry: TocEntry {
-                        track: 1,
+                        track: TrackNo(1),
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
@@ -488,7 +491,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 2,
+                        track: TrackNo(2),
                         start: Frame::from(Msf::new(0x09, 0x34, 0x16)),
                         control: Default::default(),
                     },
@@ -498,7 +501,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 3,
+                        track: TrackNo(3),
                         start: Frame::from(Msf::new(0x0e, 0x38, 0x34)),
                         control: Default::default(),
                     },
@@ -508,7 +511,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 4,
+                        track: TrackNo(4),
                         start: Frame::from(Msf::new(0x13, 0x25, 0x19)),
                         control: Default::default(),
                     },
@@ -518,7 +521,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 5,
+                        track: TrackNo(5),
                         start: Frame::from(Msf::new(0x17, 0x39, 0x00)),
                         control: Default::default(),
                     },
@@ -528,7 +531,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 6,
+                        track: TrackNo(6),
                         start: Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
                         control: Default::default(),
                     },
@@ -538,7 +541,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 7,
+                        track: TrackNo(7),
                         start: Frame::from(Msf::new(0x25, 0x32, 0x05)),
                         control: Default::default(),
                     },
@@ -548,7 +551,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 8,
+                        track: TrackNo(8),
                         start: Frame::from(Msf::new(0x2e, 0x21, 0x19)),
                         control: Default::default(),
                     },
@@ -560,7 +563,7 @@ impl TestAlbum {
             TestAlbum::TheBoyWhoKnewTooMuch => vec![
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x01,
+                        track: TrackNo(0x01),
                         start: Frame::from(Msf::new(0x00, 0x02, 0x00)),
                         control: Default::default(),
                     },
@@ -570,7 +573,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x02,
+                        track: TrackNo(0x02),
                         start: Frame::from(Msf::new(0x04, 0x00, 0x07)),
                         control: Default::default(),
                     },
@@ -580,7 +583,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x03,
+                        track: TrackNo(0x03),
                         start: Frame::from(Msf::new(0x07, 0x22, 0x2B)),
                         control: Default::default(),
                     },
@@ -590,7 +593,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x04,
+                        track: TrackNo(0x04),
                         start: Frame::from(Msf::new(0x0B, 0x12, 0x18)),
                         control: Default::default(),
                     },
@@ -600,7 +603,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x05,
+                        track: TrackNo(0x05),
                         start: Frame::from(Msf::new(0x0F, 0x02, 0x1E)),
                         control: Default::default(),
                     },
@@ -610,7 +613,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x06,
+                        track: TrackNo(0x06),
                         start: Frame::from(Msf::new(0x13, 0x12, 0x44)),
                         control: Default::default(),
                     },
@@ -620,7 +623,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x07,
+                        track: TrackNo(0x07),
                         start: Frame::from(Msf::new(0x16, 0x09, 0x0D)),
                         control: Default::default(),
                     },
@@ -630,7 +633,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x08,
+                        track: TrackNo(0x08),
                         start: Frame::from(Msf::new(0x19, 0x0B, 0x07)),
                         control: Default::default(),
                     },
@@ -640,7 +643,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x09,
+                        track: TrackNo(0x09),
                         start: Frame::from(Msf::new(0x1C, 0x1F, 0x06)),
                         control: Default::default(),
                     },
@@ -650,7 +653,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x0A,
+                        track: TrackNo(0x0A),
                         start: Frame::from(Msf::new(0x1F, 0x34, 0x15)),
                         control: Default::default(),
                     },
@@ -660,7 +663,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x0B,
+                        track: TrackNo(0x0B),
                         start: Frame::from(Msf::new(0x22, 0x33, 0x02)),
                         control: Default::default(),
                     },
@@ -670,7 +673,7 @@ impl TestAlbum {
                 },
                 Track {
                     toc_entry: TocEntry {
-                        track: 0x0C,
+                        track: TrackNo(0x0C),
                         start: Frame::from(Msf::new(0x25, 0x31, 0x05)),
                         control: Default::default(),
                     },

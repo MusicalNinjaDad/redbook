@@ -8,7 +8,11 @@ use std::{
 
 use tracing_result::Trace;
 
-use crate::{Frame, LEADIN, Track, frame::Msf, toc::TocEntry};
+use crate::{
+    Frame, LEADIN, Track,
+    frame::Msf,
+    toc::{TocEntry, TrackNo},
+};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -177,7 +181,7 @@ impl From<CdaFile> for Track<'static> {
     fn from(cda: CdaFile) -> Self {
         Self {
             toc_entry: TocEntry {
-                track: cda.track_number as u8,
+                track: TrackNo(cda.track_number.strict_cast()),
                 start: cda.start.into(),
                 control: Default::default(),
             },
@@ -232,7 +236,10 @@ mod tests {
 
         for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
-            assert_eq!(cda.track_number as u8, track.track_number());
+            assert_eq!(
+                TrackNo(cda.track_number.strict_cast::<u8>()),
+                track.track_number()
+            );
             assert_eq!(cda.start, track.toc_entry.start);
             assert_eq!(cda.duration, track.duration);
             // Cannot check windows_identifier without making _minimal more than minimal

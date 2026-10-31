@@ -6,8 +6,10 @@ use std::{
     fmt::Display,
     hint::cold_path,
     io::{self, ErrorKind},
-    num::NonZeroUsize,
+    num::{NonZeroUsize, ParseIntError},
+    ops::{Deref, DerefMut},
     slice,
+    str::FromStr,
 };
 
 use bitflags::bitflags;
@@ -17,15 +19,104 @@ use itertools::{EitherOrBoth, Itertools};
 use crate::{Frame, Track, frame::Msf};
 
 pub mod b0000 {
+    use super::TrackNo;
     /// 0b0010 format track identifier for Leadout
-    pub const LEADOUT_TRACK_ID: u8 = 0xAA;
+    pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xAA);
 }
 
 pub mod b0010 {
-    pub const FIRST_TRACK_ID: u8 = 0xA0;
-    pub const LAST_TRACK_ID: u8 = 0xA1;
+    use super::TrackNo;
+    pub const FIRST_TRACK_ID: TrackNo = TrackNo(0xA0);
+    pub const LAST_TRACK_ID: TrackNo = TrackNo(0xA1);
     /// 0b0010 format track identifier for Leadout
-    pub const LEADOUT_TRACK_ID: u8 = 0xA2;
+    pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xA2);
+}
+
+/// A valid track number.
+///
+/// # Notes
+/// - Track numbers are stored on physical discs in a single 1-byte
+/// - This is "simply" a type-safe wrapper to portray semantics & provide a clear statement that
+///   track numbers are inherently u8
+/// - As such `TrackNo` implements `Deref` & `DerefMut` with `Target = u8` and can be used
+///   interchangably with a `u8`
+///
+/// # Converting to other integers
+/// - Use the provided `track_no.cast()` for a more readable alternative to `(*track_no).into()`.
+///
+/// # Arithmetic operations
+/// - `+`, `-`, etc. are deliberately not implemented for TrackNo. While you *could* simply do
+///   `TrackNo(trackno.0 + 3)`, `Deref<Target=u8>` provides all the `strict_`, `checked_`,
+///   `saturating_` and `wrapping_` operations from `u8`. You are strongly advised to use these.
+///
+/// # Equality & Ordering
+/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `TrackNo` & `u8` to ensure
+///   comparisons don't inadvertantly compare a TrackNo with something semantically different
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct TrackNo(pub u8);
+
+impl TrackNo {
+    /// Redbook defines the valid range for "normal" track numbers as 1..=99
+    ///
+    /// Track 0 and > 99 have various "special" meanings depending on context
+    pub fn is_special(&self) -> bool {
+        !self.is_normal()
+    }
+
+    /// Redbook defines the valid range for "normal" track numbers as 1..=99
+    ///
+    /// Track 0 and > 99 have various "special" meanings depending on context
+    pub fn is_normal(&self) -> bool {
+        (1..=99).contains(&self.0)
+    }
+
+    /// Cast to another integer type (except i8)
+    pub fn cast<N>(self) -> N
+    where
+        N: From<u8>,
+    {
+        N::from(self.0)
+    }
+}
+
+impl Deref for TrackNo {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TrackNo {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for TrackNo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "track: {n}", n = self.0)
+    }
+}
+
+impl From<u8> for TrackNo {
+    fn from(n: u8) -> Self {
+        TrackNo(n)
+    }
+}
+
+impl From<TrackNo> for u8 {
+    fn from(track_no: TrackNo) -> Self {
+        track_no.0
+    }
+}
+
+impl FromStr for TrackNo {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
 }
 
 /// Entry in a CD TOC (Table of Contents) for an audio track.
@@ -45,7 +136,7 @@ pub mod b0010 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TocEntry {
     /// The 1-indexed track number.
-    pub track: u8,
+    pub track: TrackNo,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     ///
     /// TODO: #127 Store Msf in TocEntry (to match technical impl on discs & cover wierd A0 etc)
@@ -58,7 +149,7 @@ impl Display for TocEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "track: {n}, start: {start}, control codes: {ctl}",
+            "{n}, start: {start}, control codes: {ctl}",
             n = self.track,
             start = self.start,
             ctl = self.control
@@ -68,7 +159,7 @@ impl Display for TocEntry {
 
 impl PartialEq<cdtoc::Track> for TocEntry {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (self.track == toc_track.number()) && (self.start == Msf::from(toc_track.msf()))
+        (self.track == TrackNo(toc_track.number())) && (self.start == Msf::from(toc_track.msf()))
     }
 }
 
@@ -123,20 +214,18 @@ impl Display for Control {
 impl TocEntry {
     /// Is an audio track (based on control code & track number)
     pub fn is_audio_track(&self) -> bool {
-        self.control.is_audio() && self.track <= 0x63
+        self.control.is_audio() && self.track.is_normal()
     }
 
     /// Is an data track (based on control code & track number)
     pub fn is_data_track(&self) -> bool {
         // TODO: #122 Tracknumbers: types & consts
-        self.control.is_data() && self.track <= 0x63
+        self.control.is_data() && self.track.is_normal()
     }
 
     /// Returns the kind of track (based on control code & track number)
     pub fn kind(&self) -> TocEntryKind {
         match (self.control.is_data(), self.track) {
-            (true, ..=0x63) => TocEntryKind::Data,
-            (false, ..=0x63) => TocEntryKind::Audio,
             (true, b0000::LEADOUT_TRACK_ID) | (true, b0010::LEADOUT_TRACK_ID) => {
                 TocEntryKind::DataLeadout
             }
@@ -147,6 +236,8 @@ impl TocEntry {
             (false, b0010::FIRST_TRACK_ID) => TocEntryKind::FirstAudioTrack,
             (true, b0010::LAST_TRACK_ID) => TocEntryKind::LastDataTrack,
             (false, b0010::LAST_TRACK_ID) => TocEntryKind::LastAudioTrack,
+            (true, n) if n.is_normal() => TocEntryKind::Data,
+            (false, n) if n.is_normal() => TocEntryKind::Audio,
             _ => TocEntryKind::Unknown,
         }
     }
@@ -217,27 +308,35 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + DoubleEndedIterato
         self.rev().leadouts().next()
     }
 
-    fn first_audio_info(self) -> Option<u8> {
+    /// Parse the entry detailing the track number of the first audio track, if present
+    fn first_audio_info(self) -> Option<TrackNo> {
         self.filter(|entry| matches!(entry.kind(), TocEntryKind::FirstAudioTrack))
             .map(|entry| Msf::from(entry.start).min)
+            .map(Into::into)
             .next()
     }
 
-    fn last_audio_info(self) -> Option<u8> {
+    /// Parse the entry detailing the track number of the first last track, if present
+    fn last_audio_info(self) -> Option<TrackNo> {
         self.filter(|entry| matches!(entry.kind(), TocEntryKind::LastAudioTrack))
             .map(|entry| Msf::from(entry.start).min)
+            .map(Into::into)
             .next()
     }
 
-    fn first_data_info(self) -> Option<u8> {
+    /// Parse the entry detailing the track number of the first data track, if present
+    fn first_data_info(self) -> Option<TrackNo> {
         self.filter(|entry| matches!(entry.kind(), TocEntryKind::FirstDataTrack))
             .map(|entry| Msf::from(entry.start).min)
+            .map(Into::into)
             .next()
     }
 
-    fn last_data_info(self) -> Option<u8> {
+    /// Parse the entry detailing the track number of the last data track, if present
+    fn last_data_info(self) -> Option<TrackNo> {
         self.filter(|entry| matches!(entry.kind(), TocEntryKind::LastDataTrack))
             .map(|entry| Msf::from(entry.start).min)
+            .map(Into::into)
             .next()
     }
 }
@@ -283,11 +382,11 @@ impl TocEntries {
     }
 
     /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
-    pub fn track(&self, track: usize) -> Option<Track<'static>> {
+    pub fn track(&self, track: TrackNo) -> Option<Track<'static>> {
         const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
 
         self.iter()
-            .skip_while(|entry| entry.track.strict_cast::<usize>() != track)
+            .skip_while(|entry| entry.track != track)
             // .filter_map_windows() does not exist.
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
@@ -401,31 +500,31 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 
         if !info.is_empty() {
             let first_audio_info = info.iter().first_audio_info();
-            let first_audio = entries.iter().audio().next().map(|entry| entry.track);
-            (first_audio_info == first_audio).ok_or_else(|| io::Error::new(
+            let first_audio_found = entries.iter().audio().next().map(|entry| entry.track);
+            (first_audio_info == first_audio_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
-                format!("info entry claims first audio track is number {first_audio_info:?}, but first audio track found is number {first_audio:?}")
+                format!("info entry claims first audio track is number {first_audio_info:?}, but first audio track found is number {first_audio_found:?}")
             ))?;
 
             let last_audio_info = info.iter().last_audio_info();
-            let last_audio = entries.iter().rev().audio().next().map(|entry| entry.track);
-            (last_audio_info == last_audio).ok_or_else(|| io::Error::new(
+            let last_audio_found = entries.iter().rev().audio().next().map(|entry| entry.track);
+            (last_audio_info == last_audio_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
-                format!("info entry claims last audio track is number {last_audio_info:?}, but last audio track found is number {last_audio:?}")
+                format!("info entry claims last audio track is number {last_audio_info:?}, but last audio track found is number {last_audio_found:?}")
             ))?;
 
             let first_data_info = info.iter().first_data_info();
-            let first_data = entries.iter().data().next().map(|entry| entry.track);
-            (first_audio_info == first_audio).ok_or_else(|| io::Error::new(
+            let first_data_found = entries.iter().data().next().map(|entry| entry.track);
+            (first_audio_info == first_audio_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
-                format!("info entry claims first data track is number {first_data_info:?}, but first audio track found is number {first_data:?}")
+                format!("info entry claims first data track is number {first_data_info:?}, but first audio track found is number {first_data_found:?}")
             ))?;
 
             let last_data_info = info.iter().last_data_info();
-            let last_data = entries.iter().rev().data().next().map(|entry| entry.track);
-            (last_audio_info == last_audio).ok_or_else(|| io::Error::new(
+            let last_data_found = entries.iter().rev().data().next().map(|entry| entry.track);
+            (last_audio_info == last_audio_found).ok_or_else(|| io::Error::new(
                 ErrorKind::InvalidData,
-                format!("info entry claims last data track is number {last_data_info:?}, but last audio track found is number {last_data:?}")
+                format!("info entry claims last data track is number {last_data_info:?}, but last audio track found is number {last_data_found:?}")
             ))?;
         }
 

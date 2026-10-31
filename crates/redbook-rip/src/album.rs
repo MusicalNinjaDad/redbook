@@ -95,7 +95,7 @@ impl ReleaseDetails {
 impl From<Track<'_>> for TrackDetails {
     fn from(track: Track) -> Self {
         Self {
-            number: track.track_number().into(),
+            number: track.track_number().cast(),
             title: track.title().unwrap_or_default().into(),
             rip: true,
             rip_progress: 0.0,

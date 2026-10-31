@@ -10,7 +10,9 @@ use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
-use crate::{FRAME_SIZE, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries};
+use crate::{
+    FRAME_SIZE, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo,
+};
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
     /// The type of Iterator available that provides all available devices on the system
@@ -71,8 +73,8 @@ pub trait Drive: Sized {
 
     /// Read an entire track of data allowing cancellation mid-read and providing status updates
     /// via the thread [Context].
-    fn read_track(&self, track_number: usize) -> io::Result<Vec<u8>> {
-        let _err_span = tracing::error_span!("", track_number).entered();
+    fn read_track(&self, track_number: TrackNo) -> io::Result<Vec<u8>> {
+        let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();
         let trace_span = tracing::trace_span!("", frames_read = Empty).entered();
 

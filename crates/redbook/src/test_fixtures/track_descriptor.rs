@@ -9,7 +9,7 @@ use tracing_result::Trace;
 use crate::{
     Frame, TocEntries,
     frame::Msf,
-    toc::{Control, TocEntry},
+    toc::{Control, TocEntry, TrackNo},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -115,7 +115,7 @@ impl TryFrom<TrackDescriptor> for Option<TocEntry> {
             )
         })?;
 
-        let track = descriptor.point;
+        let track = TrackNo(descriptor.point);
         let start: Frame = Msf::new(descriptor.min, descriptor.sec, descriptor.frame).into();
         let control = descriptor.control();
         Ok(Some(TocEntry {

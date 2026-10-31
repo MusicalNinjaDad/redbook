@@ -5,7 +5,10 @@ use std::fmt::Display;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
-use crate::{Frame, toc::TocEntry};
+use crate::{
+    Frame,
+    toc::{TocEntry, TrackNo},
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
 /// A track on a CD with associated metadata.
@@ -39,7 +42,7 @@ impl<'meta> Display for Track<'meta> {
 
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
-    pub fn new(track_number: u8, start: Frame, duration: Frame) -> Self {
+    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
         let toc_entry = TocEntry {
             track: track_number,
             start,
@@ -55,7 +58,7 @@ impl Track<'static> {
 
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
-    pub fn track_number(&self) -> u8 {
+    pub fn track_number(&self) -> TrackNo {
         self.toc_entry.track
     }
 
