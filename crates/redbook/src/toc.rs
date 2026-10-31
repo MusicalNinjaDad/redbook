@@ -235,7 +235,8 @@ impl Display for TocEntry {
 
 impl PartialEq<cdtoc::Track> for TocEntry {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (self.track == TrackNo(toc_track.number())) && (self.start == Msf::from(toc_track.msf()))
+        (self.track == TrackNo(toc_track.number()))
+            && Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf)
     }
 }
 
@@ -440,16 +441,16 @@ impl TocEntries {
     /// # TODO
     /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
     pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
+        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
 
         self.iter()
             // .filter_map_windows() does not exist.
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
-                    let mut duration = next_track.start - this_track.start;
+                    let mut duration = next_track.start.strict_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration -= OFFSET_BEFORE_DATA
+                        duration = duration.strict_sub(OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })
@@ -459,7 +460,7 @@ impl TocEntries {
 
     /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
     pub fn track(&self, track: TrackNo) -> Option<Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::new(11400);
+        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
 
         self.iter()
             .skip_while(|entry| entry.track != track)
@@ -467,9 +468,9 @@ impl TocEntries {
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
                 this_track.is_audio_track().then(|| {
-                    let mut duration = next_track.start - this_track.start;
+                    let mut duration = next_track.start.strict_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration -= OFFSET_BEFORE_DATA
+                        duration = duration.strict_sub(OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })

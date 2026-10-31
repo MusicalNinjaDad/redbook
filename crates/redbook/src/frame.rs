@@ -1,11 +1,7 @@
 //! Time units: Audio CDs measure time in 1/75 second "frames". Provides `Frame` & `Msf`
 //! (min, sec, frame).
 
-use std::{
-    cmp::max,
-    fmt::Display,
-    ops::{Add, AddAssign, Mul, Rem, Sub, SubAssign},
-};
+use std::{fmt::Display, num::TryFromIntError};
 
 use crate::LEADIN;
 
@@ -20,6 +16,21 @@ use crate::LEADIN;
 ///   is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
 ///   (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small and
 ///   anything over u32 is oversized.
+///
+/// # Invariant
+///
+/// A `Frame` can always be converted into an [`Msf`] representation: the stored value is always
+/// `<=` [`Frame::MAX`]. This is upheld by validating construction ([`Frame::new`] &
+/// [`Frame::strict_new`]) and by every arithmetic method below, so that [`From<Frame> for Msf`]
+/// is always well-defined.
+///
+/// # Arithmetic
+///
+/// `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented for `Frame` (or [`Msf`]).
+/// Instead use the `saturating_*`, `wrapping_*`, `checked_` & `strict_*` methods, which accept
+/// only `rhs: Frame` or `rhs: Msf` for add/sub/rem, and only a scalar `N` (where `u32: From<N>`)
+/// for mul/div. If an integer result is required, use [`Frame::cast`] first and then the
+/// corresponding `u32` method.
 ///
 /// # TODOs
 /// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
@@ -43,8 +54,54 @@ impl Frame {
     /// [wiki]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Storage_capacity_and_playing_time
     pub const MAX: Self = Frame((0xFF * 60 * 75) + (0xFF * 75) + 0xFF);
 
-    /// Creates a new `Frame` from a frame count.
-    pub const fn new(frames: u32) -> Self {
+    /// The number of representable frame values (`MAX + 1`).
+    ///
+    /// Used by the `wrapping_*` methods, which wrap around within the representable range
+    /// (`0..=MAX`) rather than the full `u32` range, so that the [`Frame`] invariant of always
+    /// being convertible to an [`Msf`] is upheld.
+    const RANGE: u32 = Self::MAX.0 + 1;
+
+    /// Creates a new `Frame` from any integer type, panicking if the value does not fit in a
+    /// `u32` or is above [`Frame::MAX`].
+    ///
+    /// This is the validated constructor: it is not blind. Accepting any integer type also helps
+    /// to avoid excessive casting when creating a `Frame` from e.g. a `usize`. For a `const`
+    /// constructor use [`Frame::strict_new`].
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the value does not fit in a `u32`, or if the resulting value
+    /// is above the maximum which can be semantically represented as a `Frame`. (See [`Frame::MAX`])
+    pub fn new<N>(frames: N) -> Self
+    where
+        u32: TryFrom<N>,
+    {
+        let Ok(frames) = u32::try_from(frames) else {
+            panic!("requested frames do not fit in a u32");
+        };
+        Self::strict_new(frames)
+    }
+
+    /// Creates a new `Frame` from a `u32`, panicking if the value is above [`Frame::MAX`].
+    ///
+    /// This is the const constructor of choice: when used in a const context the validation
+    /// happens at compile time.
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the resulting value is above the maximum which can be
+    /// semantically represented as a `Frame`. (See [`Frame::MAX`])
+    pub const fn strict_new(frames: u32) -> Self {
+        assert!(
+            frames <= Self::MAX.0,
+            "requested frames cannot be represented for an audio CD"
+        );
         Self(frames)
     }
 
@@ -67,63 +124,288 @@ impl Frame {
     /// never return negative. So a badly constructed TOC with track 1 starting at frame 147
     /// (0m:1s:72f) will return frame 0 relative to leadin.
     pub const fn relative_to_leadin(self) -> Self {
-        max(self - LEADIN, Frame(0))
+        self.saturating_sub(LEADIN)
     }
 
-    /// Creates a new `Frame` from a `usize`, panicking if the value is above [`Frame::MAX`]
+    // ============================
+    // Arithmetic: add / sub / rem
+    //
+    // rhs may be a Frame or an Msf (anything which converts into a Frame — and the only such
+    // conversions are between Frame & Msf).
+    // ============================
+
+    /// Strict addition. Computes `self + rhs`, panicking if the result is above [`Frame::MAX`].
     ///
-    /// This also helps to avoid excessive casting when creating a `Frame` from a `usize`.
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
     ///
     /// # Panics
     /// ## Overflow behavior
     /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
     ///
     /// ## Semantic behaviour
-    /// This function will panic if the resulting value is above the maximum which can be semantically
-    /// represented as a `Frame`. (See [`Frame::MAX`])
-    pub fn strict_new(frames: usize) -> Self {
-        let f = Frame(frames.strict_cast());
+    /// This function will panic if the resulting value is above the maximum which can be
+    /// semantically represented as a `Frame`. (See [`Frame::MAX`])
+    pub const fn strict_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        let rhs = Frame::from(rhs).0;
+        let f = Self(self.0.strict_add(rhs));
         assert!(
-            f <= Self::MAX,
+            f.0 <= Self::MAX.0,
             "requested frames cannot be represented for an audio CD"
         );
         f
     }
 
-    /// Strict addition. Computes self + rhs, panicking if the value is above [`Frame::MAX`].
+    /// Checked addition. Computes `self + rhs`, returning `None` if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_add<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        let rhs = Frame::from(rhs).0;
+        match self.0.checked_add(rhs) {
+            Some(f) if f <= Self::MAX.0 => Some(Self(f)),
+            _ => None,
+        }
+    }
+
+    /// Saturating addition. Computes `self + rhs`, saturating at [`Frame::MAX`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn saturating_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        let rhs = Frame::from(rhs).0;
+        let f = self.0.saturating_add(rhs);
+        if f > Self::MAX.0 { Self::MAX } else { Self(f) }
+    }
+
+    /// Wrapping addition. Computes `self + rhs`, wrapping around within the representable range
+    /// (`0..=MAX`, i.e. modulo `MAX + 1`) so the result can always be converted to an [`Msf`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn wrapping_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        let rhs = Frame::from(rhs).0;
+        Self(((self.0 as u64 + rhs as u64) % Self::RANGE as u64) as u32)
+    }
+
+    /// Strict subtraction. Computes `self - rhs`, panicking if `rhs` is greater than `self`.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// This function will always panic on underflow, regardless of whether overflow checks are enabled.
+    pub const fn strict_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self(self.0.strict_sub(Frame::from(rhs).0))
+    }
+
+    /// Checked subtraction. Computes `self - rhs`, returning `None` if `rhs` is greater than `self`.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_sub<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        match self.0.checked_sub(Frame::from(rhs).0) {
+            Some(f) => Some(Self(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating subtraction. Computes `self - rhs`, saturating at zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn saturating_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self(self.0.saturating_sub(Frame::from(rhs).0))
+    }
+
+    /// Wrapping subtraction. Computes `self - rhs`, wrapping around within the representable
+    /// range (`0..=MAX`, i.e. modulo `MAX + 1`) so the result can always be converted to an [`Msf`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn wrapping_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        let rhs = Frame::from(rhs).0;
+        Self(((self.0 as u64 + Self::RANGE as u64 - rhs as u64) % Self::RANGE as u64) as u32)
+    }
+
+    /// Strict remainder. Computes `self % rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// This function will always panic on division by zero, regardless of whether overflow checks
+    /// are enabled.
+    pub const fn strict_rem<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self(self.0.strict_rem(Frame::from(rhs).0))
+    }
+
+    /// Checked remainder. Computes `self % rhs`, returning `None` if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_rem<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        match self.0.checked_rem(Frame::from(rhs).0) {
+            Some(f) => Some(Self(f)),
+            None => None,
+        }
+    }
+
+    /// Wrapping remainder. Computes `self % rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// This function will always panic on division by zero, regardless of whether overflow checks
+    /// are enabled.
+    pub const fn wrapping_rem<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self(self.0.wrapping_rem(Frame::from(rhs).0))
+    }
+
+    // ============================
+    // Arithmetic: mul / div
+    //
+    // rhs may only be a scalar N where u32: From<N> (e.g. u8, u16, u32) — deliberately not a
+    // Frame or Msf. Use .cast() first if you have a Frame/Msf scalar.
+    // ============================
+
+    /// Strict multiplication. Computes `self * rhs`, panicking if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
     ///
     /// # Panics
     /// ## Overflow behavior
     /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
     ///
     /// ## Semantic behaviour
-    /// This function will panic if the resulting value is above the maximum which can be semantically
-    /// represented as a `Frame`. (See [`Frame::MAX`])
-    pub fn strict_add(self, rhs: Self) -> Self {
-        let f = Frame(self.0.strict_add(rhs.0));
+    /// This function will panic if the resulting value is above the maximum which can be
+    /// semantically represented as a `Frame`. (See [`Frame::MAX`])
+    pub const fn strict_mul<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        let f = Self(self.0.strict_mul(u32::from(rhs)));
         assert!(
-            f <= Self::MAX,
+            f.0 <= Self::MAX.0,
             "requested frames cannot be represented for an audio CD"
         );
         f
     }
 
-    /// Strict multiplication. Computes self * rhs, panicking if the value is above [`Frame::MAX`].
+    /// Checked multiplication. Computes `self * rhs`, returning `None` if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    pub const fn checked_mul<N>(self, rhs: N) -> Option<Self>
+    where
+        u32: [const] From<N>,
+    {
+        match self.0.checked_mul(u32::from(rhs)) {
+            Some(f) if f <= Self::MAX.0 => Some(Self(f)),
+            _ => None,
+        }
+    }
+
+    /// Saturating multiplication. Computes `self * rhs`, saturating at [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    pub const fn saturating_mul<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        let f = self.0.saturating_mul(u32::from(rhs));
+        if f > Self::MAX.0 { Self::MAX } else { Self(f) }
+    }
+
+    /// Wrapping multiplication. Computes `self * rhs`, wrapping around within the representable
+    /// range (`0..=MAX`, i.e. modulo `MAX + 1`) so the result can always be converted to an [`Msf`].
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    pub const fn wrapping_mul<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        Self(((self.0 as u64 * u32::from(rhs) as u64) % Self::RANGE as u64) as u32)
+    }
+
+    /// Strict division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
     ///
     /// # Panics
-    /// ## Overflow behavior
-    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    /// This function will always panic on division by zero, regardless of whether overflow checks
+    /// are enabled.
+    pub const fn strict_div<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        Self(self.0.strict_div(u32::from(rhs)))
+    }
+
+    /// Checked division. Computes `self / rhs`, returning `None` if `rhs` is zero.
     ///
-    /// ## Semantic behaviour
-    /// This function will panic if the resulting value is above the maximum which can be semantically
-    /// represented as a `Frame`. (See [`Frame::MAX`])
-    pub fn strict_mul(self, rhs: Self) -> Self {
-        let f = Frame(self.0.strict_mul(rhs.0));
-        assert!(
-            f <= Self::MAX,
-            "requested frames cannot be represented for an audio CD"
-        );
-        f
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    pub const fn checked_div<N>(self, rhs: N) -> Option<Self>
+    where
+        u32: [const] From<N>,
+    {
+        match self.0.checked_div(u32::from(rhs)) {
+            Some(f) => Some(Self(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    ///
+    /// # Panics
+    /// This function will always panic on division by zero, regardless of whether overflow checks
+    /// are enabled.
+    pub const fn saturating_div<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        Self(self.0.saturating_div(u32::from(rhs)))
+    }
+
+    /// Wrapping division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u32: From<N>` (e.g. `u8`, `u16`, `u32`).
+    ///
+    /// # Panics
+    /// This function will always panic on division by zero, regardless of whether overflow checks
+    /// are enabled.
+    pub const fn wrapping_div<N>(self, rhs: N) -> Self
+    where
+        u32: [const] From<N>,
+    {
+        Self(self.0.wrapping_div(u32::from(rhs)))
     }
 }
 
@@ -145,6 +427,14 @@ impl Frame {
 ///   technically correct but semantically invalid cases, such as the example above.
 /// - It is recommended to use [`Frame`] as the primary timescale to avoid such semantic
 ///   concerns leading to hidden logic errors.
+///
+/// # Arithmetic
+///
+/// `+`, `-`, `*`, `/`, `%` etc. are deliberately not implemented for `Msf`. Use the
+/// `saturating_*`, `wrapping_*`, `checked_` & `strict_*` methods instead. These accept only
+/// `rhs: Frame` or `rhs: Msf` for add/sub/rem, and only a scalar `N` (where `u8: From<N>`) for
+/// mul/div. Arithmetic is computed via [`Frame`], so results are always normalised
+/// (e.g. `Msf::new(1, 60, 75).strict_add(...)`) and any [`Frame::MAX`] bound is respected.
 ///
 ///  # TODO
 /// - impl Display
@@ -182,13 +472,258 @@ impl Msf {
     ///
     /// - this leverages [Frame::relative_to_leadin], and will also never return negative. See
     ///   the comment there for more details.
-    pub fn relative_to_leadin(self) -> Self {
-        Self::from(Frame::from(self).relative_to_leadin())
+    pub const fn relative_to_leadin(self) -> Self {
+        Self::from(<Frame as From<Msf>>::from(self).relative_to_leadin())
+    }
+
+    // ============================
+    // Arithmetic: add / sub / rem
+    //
+    // rhs may be a Frame or an Msf. Computed via Frame so results are normalised and the
+    // Frame::MAX bound is respected.
+    // ============================
+
+    /// Strict addition. Computes `self + rhs`, panicking if the result is above [`Frame::MAX`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::strict_add`].
+    pub const fn strict_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).strict_add(rhs))
+    }
+
+    /// Checked addition. Computes `self + rhs`, returning `None` if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_add<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        match <Frame as From<Msf>>::from(self).checked_add(rhs) {
+            Some(f) => Some(Self::from(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating addition. Computes `self + rhs`, saturating at [`Frame::MAX`].
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn saturating_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).saturating_add(rhs))
+    }
+
+    /// Wrapping addition. Computes `self + rhs`, wrapping around within the representable range.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn wrapping_add<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).wrapping_add(rhs))
+    }
+
+    /// Strict subtraction. Computes `self - rhs`, panicking if `rhs` is greater than `self`.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::strict_sub`].
+    pub const fn strict_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).strict_sub(rhs))
+    }
+
+    /// Checked subtraction. Computes `self - rhs`, returning `None` if `rhs` is greater than `self`.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_sub<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        match <Frame as From<Msf>>::from(self).checked_sub(rhs) {
+            Some(f) => Some(Self::from(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating subtraction. Computes `self - rhs`, saturating at zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn saturating_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).saturating_sub(rhs))
+    }
+
+    /// Wrapping subtraction. Computes `self - rhs`, wrapping around within the representable range.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn wrapping_sub<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).wrapping_sub(rhs))
+    }
+
+    /// Strict remainder. Computes `self % rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::strict_rem`].
+    pub const fn strict_rem<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).strict_rem(rhs))
+    }
+
+    /// Checked remainder. Computes `self % rhs`, returning `None` if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    pub const fn checked_rem<R>(self, rhs: R) -> Option<Self>
+    where
+        Frame: [const] From<R>,
+    {
+        match <Frame as From<Msf>>::from(self).checked_rem(rhs) {
+            Some(f) => Some(Self::from(f)),
+            None => None,
+        }
+    }
+
+    /// Wrapping remainder. Computes `self % rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::wrapping_rem`].
+    pub const fn wrapping_rem<R>(self, rhs: R) -> Self
+    where
+        Frame: [const] From<R>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).wrapping_rem(rhs))
+    }
+
+    // ============================
+    // Arithmetic: mul / div
+    //
+    // rhs may only be a scalar N where u8: From<N> (i.e. a u8) — deliberately not a Frame or Msf.
+    // ============================
+
+    /// Strict multiplication. Computes `self * rhs`, panicking if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::strict_mul`].
+    pub const fn strict_mul<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).strict_mul(u32::from(u8::from(rhs))))
+    }
+
+    /// Checked multiplication. Computes `self * rhs`, returning `None` if the result is above
+    /// [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    pub const fn checked_mul<N>(self, rhs: N) -> Option<Self>
+    where
+        u8: [const] From<N>,
+    {
+        match <Frame as From<Msf>>::from(self).checked_mul(u32::from(u8::from(rhs))) {
+            Some(f) => Some(Self::from(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating multiplication. Computes `self * rhs`, saturating at [`Frame::MAX`].
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    pub const fn saturating_mul<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).saturating_mul(u32::from(u8::from(rhs))))
+    }
+
+    /// Wrapping multiplication. Computes `self * rhs`, wrapping around within the representable range.
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    pub const fn wrapping_mul<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).wrapping_mul(u32::from(u8::from(rhs))))
+    }
+
+    /// Strict division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::strict_div`].
+    pub const fn strict_div<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).strict_div(u32::from(u8::from(rhs))))
+    }
+
+    /// Checked division. Computes `self / rhs`, returning `None` if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    pub const fn checked_div<N>(self, rhs: N) -> Option<Self>
+    where
+        u8: [const] From<N>,
+    {
+        match <Frame as From<Msf>>::from(self).checked_div(u32::from(u8::from(rhs))) {
+            Some(f) => Some(Self::from(f)),
+            None => None,
+        }
+    }
+
+    /// Saturating division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::saturating_div`].
+    pub const fn saturating_div<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).saturating_div(u32::from(u8::from(rhs))))
+    }
+
+    /// Wrapping division. Computes `self / rhs`, panicking if `rhs` is zero.
+    ///
+    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    ///
+    /// # Panics
+    /// Panics under the same conditions as [`Frame::wrapping_div`].
+    pub const fn wrapping_div<N>(self, rhs: N) -> Self
+    where
+        u8: [const] From<N>,
+    {
+        Self::from(<Frame as From<Msf>>::from(self).wrapping_div(u32::from(u8::from(rhs))))
     }
 }
 
 // ===============================================
-// Frame & Msf - const interconversion & basic ops
+// Frame & Msf - const interconversion & comparison
 // ===============================================
 
 const impl From<Msf> for Frame {
@@ -265,149 +800,6 @@ const impl PartialEq<Frame> for Msf {
     }
 }
 
-const impl Add<Frame> for Frame {
-    type Output = Self;
-
-    fn add(self, rhs: Frame) -> Self::Output {
-        Self(self.0 + rhs.0)
-    }
-}
-
-const impl Add<Msf> for Frame {
-    type Output = Frame;
-
-    fn add(self, msf: Msf) -> Self::Output {
-        self + Frame::from(msf)
-    }
-}
-
-// --------------------------------
-// Deliberately not implemented
-//
-// const impl Add<Frame> for Msf {}
-//
-// Frame should be primary unit of
-// time (see note in Msf docs)
-// --------------------------------
-
-const impl Sub<Frame> for Frame {
-    type Output = Self;
-
-    fn sub(self, rhs: Frame) -> Self::Output {
-        Self(self.0 - rhs.0)
-    }
-}
-
-const impl Sub<Msf> for Frame {
-    type Output = Frame;
-
-    fn sub(self, msf: Msf) -> Self::Output {
-        self - Frame::from(msf)
-    }
-}
-
-// --------------------------------
-// Deliberately not implemented
-//
-// const impl Sub<Frame> for Msf {}
-//
-// Frame should be primary unit of
-// time (see note in Msf docs)
-// --------------------------------
-
-const impl Rem<Frame> for Frame {
-    type Output = Self;
-
-    fn rem(self, rhs: Self) -> Self::Output {
-        Self(self.0 % rhs.0)
-    }
-}
-
-const impl Rem<Msf> for Frame {
-    type Output = Frame;
-
-    fn rem(self, msf: Msf) -> Self::Output {
-        self % Frame::from(msf)
-    }
-}
-
-// --------------------------------
-// Deliberately not implemented
-//
-// const impl Rem<Frame> for Msf {}
-//
-// Frame should be primary unit of
-// time (see note in Msf docs)
-// --------------------------------
-
-// =======================
-// Non-const blanket impls
-// =======================
-
-impl<N> Add<N> for Frame
-where
-    u32: Add<N, Output = u32>,
-{
-    type Output = Self;
-
-    fn add(self, rhs: N) -> Self::Output {
-        Self(self.0 + rhs)
-    }
-}
-
-impl<N> AddAssign<N> for Frame
-where
-    Frame: Add<N, Output = Frame>,
-{
-    fn add_assign(&mut self, rhs: N) {
-        let f = *self + rhs;
-        self.0 = f.0
-    }
-}
-
-impl<N> Sub<N> for Frame
-where
-    u32: Sub<N, Output = u32>,
-{
-    type Output = Self;
-
-    fn sub(self, rhs: N) -> Self::Output {
-        Self(self.0 - rhs)
-    }
-}
-
-impl<N> SubAssign<N> for Frame
-where
-    Frame: Sub<N, Output = Frame>,
-{
-    fn sub_assign(&mut self, rhs: N) {
-        let f = *self - rhs;
-        self.0 = f.0
-    }
-}
-
-impl<N> Rem<N> for Frame
-where
-    u32: Rem<N, Output = u32>,
-{
-    type Output = Self;
-
-    fn rem(self, rhs: N) -> Self::Output {
-        Self(self.0 % rhs)
-    }
-}
-
-impl<N> Mul<N> for Frame
-where
-    u32: Mul<N, Output = u32>,
-{
-    type Output = Self;
-
-    fn mul(self, rhs: N) -> Self::Output {
-        Self(self.0 * rhs)
-    }
-}
-
 // ===================================
 // Inter-conversion with foreign types
 // ===================================
@@ -420,14 +812,18 @@ impl PartialEq<cdtoc::Duration> for Frame {
 }
 
 /// This is the format returned by cdtoc for [Track::msf()][cdtoc::Track::msf]
-impl From<(u32, u8, u8)> for Msf {
-    fn from(msf: (u32, u8, u8)) -> Self {
-        let (m, sec, frame) = msf;
-        Self {
-            min: m.strict_cast(),
+impl TryFrom<(u32, u8, u8)> for Msf {
+    type Error = TryFromIntError;
+
+    /// Converts a `(min, sec, frame)` tuple into an [`Msf`], failing if `min` does not fit in
+    /// the `u8` used to store minutes on a disc.
+    fn try_from(msf: (u32, u8, u8)) -> Result<Self, Self::Error> {
+        let (min, sec, frame) = msf;
+        Ok(Self {
+            min: u8::try_from(min)?,
             sec,
             frame,
-        }
+        })
     }
 }
 
@@ -454,5 +850,125 @@ mod tests {
         let starting_time = Msf::new(0, 2, 33);
         assert_eq!(starting_frames.relative_to_leadin(), Frame::new(33));
         assert_eq!(starting_time.relative_to_leadin(), Msf::new(0, 0, 33));
+    }
+
+    #[test]
+    fn strict_new_is_const_and_validated() {
+        const LEADIN_FRAMES: Frame = Frame::strict_new(150);
+        const MAX_OK: Frame = Frame::strict_new(Frame::MAX.0);
+        assert_eq!(LEADIN_FRAMES, LEADIN);
+        assert_eq!(MAX_OK, Frame::MAX);
+        assert_eq!(Frame::new(150_usize), LEADIN);
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot be represented for an audio CD")]
+    fn new_rejects_values_above_max() {
+        let _: Frame = Frame::new(Frame::MAX.0 + 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "do not fit in a u32")]
+    fn new_rejects_values_too_large_for_u32() {
+        let _: Frame = Frame::new(u64::from(u32::MAX) + 1);
+    }
+
+    #[test]
+    fn frame_add_sub_rem_flavours() {
+        // add: rhs may be Frame or Msf
+        assert_eq!(Frame::new(1).strict_add(Frame::new(2)), Frame::new(3));
+        assert_eq!(Frame::new(1).strict_add(Msf::new(0, 0, 2)), Frame::new(3));
+        assert_eq!(Frame::MAX.checked_add(Frame::new(1)), None);
+        assert_eq!(
+            Frame::new(1).checked_add(Msf::new(0, 0, 1)),
+            Some(Frame::new(2))
+        );
+        assert_eq!(Frame::MAX.saturating_add(Frame::new(1)), Frame::MAX);
+        assert_eq!(Frame::MAX.wrapping_add(Frame::new(1)), Frame::new(0));
+
+        // sub
+        assert_eq!(Frame::new(5).strict_sub(Frame::new(3)), Frame::new(2));
+        assert_eq!(Frame::new(5).strict_sub(Msf::new(0, 0, 3)), Frame::new(2));
+        assert_eq!(Frame::new(1).checked_sub(Frame::new(2)), None);
+        assert_eq!(Frame::new(1).saturating_sub(Frame::new(2)), Frame::new(0));
+        assert_eq!(Frame::new(0).wrapping_sub(Frame::new(1)), Frame::MAX);
+
+        // rem
+        assert_eq!(Frame::new(150).strict_rem(Msf::new(0, 0, 7)), Frame::new(3));
+        assert_eq!(Frame::new(150).checked_rem(Frame::new(0)), None);
+        assert_eq!(Frame::new(150).wrapping_rem(Frame::new(7)), Frame::new(3));
+    }
+
+    #[test]
+    fn frame_mul_div_flavours_take_scalars_only() {
+        assert_eq!(Frame::new(2).strict_mul(75_u8), Frame::new(150));
+        assert_eq!(Frame::new(2).strict_mul(75_u16), Frame::new(150));
+        assert_eq!(Frame::new(150).strict_div(75_u32), Frame::new(2));
+        assert_eq!(Frame::MAX.checked_mul(2_u32), None);
+        assert_eq!(Frame::MAX.saturating_mul(2_u32), Frame::MAX);
+        assert_eq!(Frame::new(7).wrapping_mul(3_u32), Frame::new(21));
+        assert_eq!(Frame::new(150).checked_div(0_u32), None);
+        assert_eq!(Frame::new(150).saturating_div(75_u8), Frame::new(2));
+        assert_eq!(Frame::new(150).wrapping_div(75_u8), Frame::new(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot be represented for an audio CD")]
+    fn strict_add_panics_above_max() {
+        let _: Frame = Frame::MAX.strict_add(Frame::new(1));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn strict_sub_panics_on_underflow() {
+        let _: Frame = Frame::new(1).strict_sub(Frame::new(2));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to divide by zero")]
+    fn strict_div_panics_on_zero() {
+        let _: Frame = Frame::new(1).strict_div(0_u32);
+    }
+
+    #[test]
+    fn msf_arithmetic_is_computed_via_frame() {
+        assert_eq!(Msf::new(0, 2, 0).strict_add(LEADIN), Msf::new(0, 4, 0));
+        assert_eq!(
+            Msf::new(0, 2, 0).strict_add(Frame::new(150)),
+            Msf::new(0, 4, 0)
+        );
+        assert_eq!(
+            Msf::new(0, 4, 0).strict_sub(Msf::new(0, 2, 0)),
+            Msf::new(0, 2, 0)
+        );
+        assert_eq!(Msf::new(0, 0, 33).saturating_sub(LEADIN), Msf::new(0, 0, 0));
+        assert_eq!(Msf::new(0, 0, 33).checked_sub(LEADIN), None);
+        // results are normalised via Frame
+        assert_eq!(
+            Msf::new(1, 60, 75).strict_add(Frame::new(0)),
+            Msf::new(2, 1, 0)
+        );
+        // mul / div take a u8 scalar
+        assert_eq!(Msf::new(1, 0, 0).strict_mul(2_u8), Msf::new(2, 0, 0));
+        assert_eq!(Msf::new(2, 0, 0).strict_div(2_u8), Msf::new(1, 0, 0));
+        assert_eq!(
+            Msf::new(0, 2, 33).strict_rem(Msf::new(0, 0, 7)),
+            Msf::new(0, 0, 1)
+        );
+        assert_eq!(
+            Msf::new(1, 0, 0).checked_mul(255_u8),
+            Some(Msf::new(0xFF, 0, 0))
+        ); // 4500 * 255 = 1_147_500
+        assert_eq!(Msf::new(0xFF, 0xFF, 0xFF).checked_mul(2_u8), None); // Frame::MAX * 2 is over the max
+    }
+
+    #[test]
+    fn msf_try_from_tuple() {
+        assert_eq!(
+            Msf::try_from((2_u32, 34_u8, 13_u8)).unwrap(),
+            Msf::new(2, 34, 13)
+        );
+        assert!(Msf::try_from((256_u32, 0_u8, 0_u8)).is_err());
+        assert!(Msf::try_from((u32::from(u8::MAX), 0_u8, 0_u8)).is_ok());
     }
 }

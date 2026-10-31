@@ -238,9 +238,7 @@ mod tests {
             eprintln!("control: {}", track.control());
             dbg!(track.Address);
             dbg!(u32::from_be_bytes(track.Address));
-            dbg!(Msf::from(Frame::new(
-                u32::from_be_bytes(track.Address).strict_cast()
-            )));
+            dbg!(Msf::from(Frame::new(u32::from_be_bytes(track.Address))));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
         assert_eq!(

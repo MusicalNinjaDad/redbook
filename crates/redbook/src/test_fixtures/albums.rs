@@ -124,7 +124,7 @@ impl TestAlbum {
             TestAlbum::TheWallDisc1 => Frame::from(Msf::new(0x27, 0x0E, 0x0A)),
             TestAlbum::TheWallDisc2 => Frame::from(Msf::new(0x29, 0x3a, 0x19)),
             TestAlbum::BatOutOfHellRevamped => Frame::from(Msf::new(0x32, 0x39, 0x07)),
-            TestAlbum::TheBoyWhoKnewTooMuch => Frame::new(202248) + LEADIN,
+            TestAlbum::TheBoyWhoKnewTooMuch => Frame::new(202248).strict_add(LEADIN),
         }
     }
 
@@ -486,7 +486,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x09, 0x34, 0x16))
-                        - Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        .strict_sub(Msf::new(0x00, 0x02, 0x00)),
                     ..Default::default()
                 },
                 Track {
@@ -496,7 +496,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x0e, 0x38, 0x34))
-                        - Frame::from(Msf::new(0x09, 0x34, 0x16)),
+                        .strict_sub(Msf::new(0x09, 0x34, 0x16)),
                     ..Default::default()
                 },
                 Track {
@@ -506,7 +506,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x13, 0x25, 0x19))
-                        - Frame::from(Msf::new(0x0e, 0x38, 0x34)),
+                        .strict_sub(Msf::new(0x0e, 0x38, 0x34)),
                     ..Default::default()
                 },
                 Track {
@@ -516,7 +516,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x17, 0x39, 0x00))
-                        - Frame::from(Msf::new(0x13, 0x25, 0x19)),
+                        .strict_sub(Msf::new(0x13, 0x25, 0x19)),
                     ..Default::default()
                 },
                 Track {
@@ -526,7 +526,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x1D, 0x16, 0x0A))
-                        - Frame::from(Msf::new(0x17, 0x39, 0x00)),
+                        .strict_sub(Msf::new(0x17, 0x39, 0x00)),
                     ..Default::default()
                 },
                 Track {
@@ -536,7 +536,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x25, 0x32, 0x05))
-                        - Frame::from(Msf::new(0x1D, 0x16, 0x0A)),
+                        .strict_sub(Msf::new(0x1D, 0x16, 0x0A)),
                     ..Default::default()
                 },
                 Track {
@@ -546,7 +546,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x2e, 0x21, 0x19))
-                        - Frame::from(Msf::new(0x25, 0x32, 0x05)),
+                        .strict_sub(Msf::new(0x25, 0x32, 0x05)),
                     ..Default::default()
                 },
                 Track {
@@ -556,7 +556,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x32, 0x39, 0x07))
-                        - Frame::from(Msf::new(0x2e, 0x21, 0x19)),
+                        .strict_sub(Msf::new(0x2e, 0x21, 0x19)),
                     ..Default::default()
                 },
             ],
@@ -568,7 +568,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x04, 0x00, 0x07))
-                        - Frame::from(Msf::new(0x00, 0x02, 0x00)),
+                        .strict_sub(Msf::new(0x00, 0x02, 0x00)),
                     ..Default::default()
                 },
                 Track {
@@ -578,7 +578,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x07, 0x22, 0x2B))
-                        - Frame::from(Msf::new(0x04, 0x00, 0x07)),
+                        .strict_sub(Msf::new(0x04, 0x00, 0x07)),
                     ..Default::default()
                 },
                 Track {
@@ -588,7 +588,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x0B, 0x12, 0x18))
-                        - Frame::from(Msf::new(0x07, 0x22, 0x2B)),
+                        .strict_sub(Msf::new(0x07, 0x22, 0x2B)),
                     ..Default::default()
                 },
                 Track {
@@ -598,7 +598,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x0F, 0x02, 0x1E))
-                        - Frame::from(Msf::new(0x0B, 0x12, 0x18)),
+                        .strict_sub(Msf::new(0x0B, 0x12, 0x18)),
                     ..Default::default()
                 },
                 Track {
@@ -608,7 +608,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x13, 0x12, 0x44))
-                        - Frame::from(Msf::new(0x0F, 0x02, 0x1E)),
+                        .strict_sub(Msf::new(0x0F, 0x02, 0x1E)),
                     ..Default::default()
                 },
                 Track {
@@ -618,7 +618,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x16, 0x09, 0x0D))
-                        - Frame::from(Msf::new(0x13, 0x12, 0x44)),
+                        .strict_sub(Msf::new(0x13, 0x12, 0x44)),
                     ..Default::default()
                 },
                 Track {
@@ -628,7 +628,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x19, 0x0B, 0x07))
-                        - Frame::from(Msf::new(0x16, 0x09, 0x0D)),
+                        .strict_sub(Msf::new(0x16, 0x09, 0x0D)),
                     ..Default::default()
                 },
                 Track {
@@ -638,7 +638,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x1C, 0x1F, 0x06))
-                        - Frame::from(Msf::new(0x19, 0x0B, 0x07)),
+                        .strict_sub(Msf::new(0x19, 0x0B, 0x07)),
                     ..Default::default()
                 },
                 Track {
@@ -648,7 +648,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x1F, 0x34, 0x15))
-                        - Frame::from(Msf::new(0x1C, 0x1F, 0x06)),
+                        .strict_sub(Msf::new(0x1C, 0x1F, 0x06)),
                     ..Default::default()
                 },
                 Track {
@@ -658,7 +658,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x22, 0x33, 0x02))
-                        - Frame::from(Msf::new(0x1F, 0x34, 0x15)),
+                        .strict_sub(Msf::new(0x1F, 0x34, 0x15)),
                     ..Default::default()
                 },
                 Track {
@@ -668,7 +668,7 @@ impl TestAlbum {
                         control: Default::default(),
                     },
                     duration: Frame::from(Msf::new(0x25, 0x31, 0x05))
-                        - Frame::from(Msf::new(0x22, 0x33, 0x02)),
+                        .strict_sub(Msf::new(0x22, 0x33, 0x02)),
                     ..Default::default()
                 },
                 Track {

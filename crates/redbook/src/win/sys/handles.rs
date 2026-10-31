@@ -406,7 +406,7 @@ impl Device for DriveHandle {
         .validate(Some(bytes_to_read), bytes_read)
         .or_warn("raw CDDA data read failed")?;
 
-        Ok(Frame::new(frames_to_read.strict_cast()))
+        Ok(Frame::new(frames_to_read))
     }
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {
