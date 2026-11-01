@@ -128,10 +128,8 @@ pub trait Drive: Sized {
                 .map_err(io::Error::other)
                 .or_error("sending progress update")?;
 
-            let offset = Frame::new(i)
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk index too large"))
-                .or_error("constructing chunk index")?
-                .checked_mul(MAX_CHUNK_FRAMES.cast::<u32>())
+            let offset = MAX_CHUNK_FRAMES
+                .checked_mul(i)
                 .ok_or_else(|| {
                     io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max")
                 })
@@ -148,6 +146,7 @@ pub trait Drive: Sized {
                 .checked_add(offset)
                 .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
                 .or_error("computing read start")?;
+
             let frames_read = self.device().read_cdda(start, buf)?;
             frames_read_so_far = frames_read_so_far
                 .checked_add(frames_read)
@@ -156,10 +155,8 @@ pub trait Drive: Sized {
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
-        let offset = Frame::new(bufs.len())
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk count too large"))
-            .or_error("constructing chunk count")?
-            .checked_mul(MAX_CHUNK_FRAMES.cast::<u32>())
+        let offset = MAX_CHUNK_FRAMES
+            .checked_mul(bufs.len())
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max"))
             .or_error("computing last chunk offset")?;
         debug_assert_eq!(
