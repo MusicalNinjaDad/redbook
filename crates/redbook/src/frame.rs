@@ -2,7 +2,7 @@
 //! (min, sec, frame).
 
 use std::{
-    convert::BoundedCastFromInt,
+    convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::{Debug, Display},
     marker::Destruct,
     num::TryFromIntError,
@@ -67,7 +67,7 @@ impl Frame {
     /// - Used by the `wrapping_*` methods, which wrap around within the representable range
     ///   (`0..=MAX`) rather than the full `u32` range, so that the [`Frame`] invariant of always
     ///   being convertible to an [`Msf`] is upheld.
-    const MAX_PLUS_ONE: u32 = Self::MAX.0 + 1;
+    const MAX_PLUS_ONE: u32 = Self::MAX.cast::<u32>() + 1;
 
     /// Validate that Self can be round-trip converted with `Msf`.
     ///
@@ -105,10 +105,9 @@ impl Frame {
     /// - For a panicking constructor use [`Frame::strict_new`] directly, not `Frame::new().unwrap()`
     pub const fn new<N>(frames: N) -> Option<Self>
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
     {
-        let f = u32::try_from(frames).ok()?;
+        let f = u32::checked_cast_from(frames)?;
         Self(f).validate()
     }
 
@@ -127,10 +126,9 @@ impl Frame {
     /// semantically represented as a `Frame`. (See [`Frame::MAX`])
     pub const fn strict_new<N>(frames: N) -> Self
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
     {
-        let f = u32::try_from(frames).unwrap_or(Self::MAX_PLUS_ONE);
+        let f = u32::strict_cast_from(frames);
         Self(f).assert_valid()
     }
 
@@ -315,8 +313,7 @@ impl Frame {
     /// semantically represented as a `Frame`. (See [`Frame::MAX`])
     pub const fn strict_mul<N>(self, rhs: N) -> Self
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
         N: [const] Destruct,
     {
         // If rhs won't fit in Frames and self non-zero, then product is too large
@@ -334,8 +331,7 @@ impl Frame {
     /// `rhs` may be any scalar integer.
     pub const fn checked_mul<N>(self, rhs: N) -> Option<Self>
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
         N: [const] Destruct,
     {
         // If rhs won't fit in Frames and self non-zero, then product is too large
@@ -634,8 +630,7 @@ impl Msf {
     /// Panics under the same conditions as [`Frame::strict_mul`].
     pub const fn strict_mul<N>(self, rhs: N) -> Self
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
         N: [const] Destruct,
     {
         let lhs = Frame::from(self);
@@ -649,8 +644,7 @@ impl Msf {
     /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
     pub const fn checked_mul<N>(self, rhs: N) -> Option<Self>
     where
-        u32: [const] TryFrom<N>,
-        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        u32: [const] CheckedCastFromInt<N>,
         N: [const] Destruct,
     {
         let lhs = Frame::from(self);
