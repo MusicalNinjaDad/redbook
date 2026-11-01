@@ -281,7 +281,7 @@ pub mod disc;
 #[forbid(unsafe_code)]
 pub mod drive;
 
-#[forbid(unsafe_code)]
+// #[forbid(unsafe_code)]
 pub mod frame;
 
 #[forbid(unsafe_code)]

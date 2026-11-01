@@ -741,6 +741,120 @@ impl bcd8 {
     pub const MAX: Self = Self(99);
 }
 
+/// A semantic wrapper around a primitive int type, which has a specific upper bound, lower than
+/// the wrapped type.
+pub const trait UpperBounded
+where
+    Self: Sized + [const] PartialOrd + [const] Destruct,
+    <Self as UpperBounded>::Inner: [const] std::marker::Destruct,
+{
+    /// The underlying int primitive
+    type Inner;
+    /// The maximum value which is semantically valid. Note this MUST be lower than Inner::MAX
+    const MAX: Self;
+
+    /// Return the underlying inner representation.
+    ///
+    /// For clarity it is recommended to use [cast][Self::cast] even when casting to the inner type.
+    fn into_inner(self) -> Self::Inner;
+
+    /// Cast to any integer type which the inner representation allows without risk.
+    fn cast<N>(self) -> N
+    where
+        N: [const] From<Self::Inner>,
+    {
+        N::from(self.into_inner())
+    }
+
+    /// Validate Self is within upper bounds
+    fn is_valid(&self) -> bool {
+        self <= &Self::MAX
+    }
+
+    /// Validate Self and return `None` if invalid
+    fn validate(self) -> Option<Self> {
+        self.is_valid().then_some(self)
+    }
+
+    /// Validate Self and return [`Self::MAX`] if invalid
+    fn assert_valid(self) -> Self {
+        assert!(self.is_valid(), "semantic overflow");
+        self
+    }
+
+    /// Replace invalid values with MAX. No need to saturate at `0` as this is covered by internal
+    /// representation / not-(yet)-implemented trait LowerBounded.
+    fn saturate(self) -> Self {
+        match self.is_valid() {
+            true => self,
+            false => Self::MAX,
+        }
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "need new_unchecked to allow default impls for new_*"
+    )]
+    /// Create a new value without validating bounds.
+    ///
+    /// # SAFETY
+    /// The caller must ensure that the bounds are valid.
+    unsafe fn new_unchecked(inner: Self::Inner) -> Self;
+
+    /// Creates a new value from any integer type, returning `None` if the value is above
+    /// [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// - For a saturating constructor us [`Self::saturating_new`]
+    fn new<N>(value: N) -> Option<Self>
+    where
+        Self::Inner: [const] CheckedCastFromInt<N>,
+    {
+        let inner = Self::Inner::checked_cast_from(value)?;
+        #[expect(unsafe_code, reason = "default impl")]
+        // SAFETY: We validate immediately
+        unsafe { Self::new_unchecked(inner) }.validate()
+    }
+
+    /// Creates a new value from any integer type, panicking if the value is above [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a non-panicking constructor use [`Self::new`] or [`Self::saturating_new`]
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the resulting value is above the maximum which can be
+    /// semantically represented. (See [`Self::MAX`])
+    fn strict_new<N>(value: N) -> Self
+    where
+        Self::Inner: [const] CheckedCastFromInt<N>,
+    {
+        let inner = Self::Inner::strict_cast_from(value);
+        #[expect(unsafe_code, reason = "default impl")]
+        // SAFETY: We assert validity immediately
+        unsafe { Self::new_unchecked(inner) }.assert_valid()
+    }
+
+    /// Creates a new value from any integer type, replacing any values above [`Self::MAX`] with [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a validating constructor use [`Frame::new`] or for a panicking constructor
+    ///   use [`Frame::strict_new`]
+    fn saturating_new<N>(frames: N) -> Self
+    where
+        Self::Inner: [const] BoundedCastFromInt<N>,
+    {
+        let inner = Self::Inner::saturating_cast_from(frames);
+        #[expect(unsafe_code, reason = "default impl")]
+        // SAFETY: We saturate immediately
+        unsafe { Self::new_unchecked(inner) }.saturate()
+    }
+}
+
 // ===============================================
 // Frame & Msf - const interconversion & comparison
 // ===============================================
