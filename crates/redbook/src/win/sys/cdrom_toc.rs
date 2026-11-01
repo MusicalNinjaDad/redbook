@@ -2,6 +2,7 @@ use std::io;
 
 use crate::{
     Frame, LEADIN, TocEntries,
+    frame::UpperBounded,
     test_fixtures::{albums::TestAlbum, load_hex_file},
     toc::{Control, TocEntry, TrackNo},
 };

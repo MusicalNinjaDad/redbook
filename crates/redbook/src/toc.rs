@@ -17,7 +17,10 @@ use bitflags::bitflags;
 use cdtoc::Toc;
 use itertools::{EitherOrBoth, Itertools};
 
-use crate::{Frame, Track, frame::Msf};
+use crate::{
+    Frame, Track,
+    frame::{Msf, UpperBounded},
+};
 
 pub mod b0000 {
     use super::TrackNo;

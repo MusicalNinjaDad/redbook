@@ -27,7 +27,6 @@
 #![feature(const_convert)]
 #![feature(const_destruct)]
 #![feature(const_option_ops)]
-#![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(structural_match)]
 
@@ -264,7 +263,7 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
-pub use frame::Frame;
+pub use frame::{Frame, UpperBounded};
 #[doc(inline)]
 pub use toc::{TocEntries, TrackNo};
 #[doc(inline)]

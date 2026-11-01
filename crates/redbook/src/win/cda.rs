@@ -10,7 +10,7 @@ use tracing_result::Trace;
 
 use crate::{
     Frame, LEADIN, Track,
-    frame::Msf,
+    frame::{Msf, UpperBounded},
     toc::{TocEntry, TrackNo},
 };
 

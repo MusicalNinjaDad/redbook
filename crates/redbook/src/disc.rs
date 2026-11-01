@@ -37,7 +37,7 @@ use crate::{
 ///
 /// ```no_run
 /// use cdtoc::Toc;
-/// use redbook::{Disc, Frame, Track, TrackNo};
+/// use redbook::{Disc, Frame, Track, TrackNo, UpperBounded};
 ///
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
@@ -103,7 +103,7 @@ impl Disc {
     /// # Examples
     ///
     /// ```
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, UpperBounded};
     /// use cdtoc::Toc;
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
@@ -178,7 +178,7 @@ impl Disc {
     /// # Example
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, UpperBounded};
     /// use cdtoc::Toc;
     ///
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
@@ -702,7 +702,7 @@ impl Disc {
     /// # Examples
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, UpperBounded};
     /// use cdtoc::Toc;
     /// use metaflac::block::VorbisComment;
     ///

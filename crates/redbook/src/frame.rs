@@ -51,15 +51,28 @@ impl Display for Frame {
     }
 }
 
-impl Frame {
+const impl UpperBounded for Frame {
+    type Inner = u32;
+
     /// Given [constant improvements in manufacturing][wiki], this represent the maximum Frame value
     /// which can be represented in a TOC or other sub-channel data which stores times as
     /// MSF(u8,u8,u8). It is certainly slightly oversized, but some crazy person may choose to ignore
     /// that there are only 60 seconds in a minute and store an MSF of (FF, FF, FF) for some reason.
     ///
     /// [wiki]: https://en.wikipedia.org/wiki/Compact_Disc_Digital_Audio#Storage_capacity_and_playing_time
-    pub const MAX: Self = Frame((0xFF * 60 * 75) + (0xFF * 75) + 0xFF);
+    const MAX: Self = Frame((0xFF * 60 * 75) + (0xFF * 75) + 0xFF);
 
+    fn into_inner(self) -> Self::Inner {
+        self.0
+    }
+
+    #[expect(unsafe_code, reason = "default impls")]
+    unsafe fn new_unchecked(inner: Self::Inner) -> Self {
+        Self(inner)
+    }
+}
+
+impl Frame {
     /// The number of representable frame values (`MAX + 1`) / The lowest invalid Frames value.
     ///
     /// # Note
@@ -68,91 +81,6 @@ impl Frame {
     ///   (`0..=MAX`) rather than the full `u32` range, so that the [`Frame`] invariant of always
     ///   being convertible to an [`Msf`] is upheld.
     const MAX_PLUS_ONE: u32 = Self::MAX.cast::<u32>() + 1;
-
-    /// Validate that Self can be round-trip converted with `Msf`.
-    ///
-    /// Make this pub if we ever add `pub const unsafe fn new_unchecked`
-    const fn is_valid(&self) -> bool {
-        self <= &Self::MAX
-    }
-
-    const fn validate(self) -> Option<Self> {
-        self.is_valid().then_some(self)
-    }
-
-    const fn assert_valid(self) -> Self {
-        assert!(
-            self.is_valid(),
-            "requested frames cannot be represented for an audio CD"
-        );
-        self
-    }
-
-    /// Replace invalid values with MAX. No need to saturate at `0` as this is covered by internal
-    /// *u*32 representation.
-    const fn saturate(self) -> Self {
-        match self.is_valid() {
-            true => self,
-            false => Self::MAX,
-        }
-    }
-
-    /// Creates a new `Frame` from any integer type, returning `None` if the value is above
-    /// [`Frame::MAX`].
-    ///
-    /// # Note
-    /// - [`Frame::MAX`] is defined to ensure valid interconversion with [`Msf`]
-    /// - For a panicking constructor use [`Frame::strict_new`] directly, not `Frame::new().unwrap()`
-    pub const fn new<N>(frames: N) -> Option<Self>
-    where
-        u32: [const] CheckedCastFromInt<N>,
-    {
-        let f = u32::checked_cast_from(frames)?;
-        Self(f).validate()
-    }
-
-    /// Creates a new `Frame` from any integer type, panicking if the value is above [`Frame::MAX`].
-    ///
-    /// # Note
-    /// - [`Frame::MAX`] is defined to ensure valid interconversion with [`Msf`]
-    /// - For a non-panicking constructor use [`Frame::strict_new`]
-    ///
-    /// # Panics
-    /// ## Overflow behavior
-    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
-    ///
-    /// ## Semantic behaviour
-    /// This function will panic if the resulting value is above the maximum which can be
-    /// semantically represented as a `Frame`. (See [`Frame::MAX`])
-    pub const fn strict_new<N>(frames: N) -> Self
-    where
-        u32: [const] CheckedCastFromInt<N>,
-    {
-        let f = u32::strict_cast_from(frames);
-        Self(f).assert_valid()
-    }
-
-    /// Creates a new `Frame` from any integer type, panicking if the value is above [`Frame::MAX`].
-    ///
-    /// # Note
-    /// - [`Frame::MAX`] is defined to ensure valid interconversion with [`Msf`]
-    /// - For a validating constructor use [`Frame::new`], for a panicking constructor
-    ///   use [`Frame::strict_new`]
-    pub const fn saturating_new<N>(frames: N) -> Self
-    where
-        u32: [const] BoundedCastFromInt<N>,
-    {
-        let f = u32::saturating_cast_from(frames);
-        Self(f).saturate()
-    }
-
-    /// Cast to another integer type (where `N: From<u32>`).
-    pub const fn cast<N>(self) -> N
-    where
-        N: [const] From<u32>,
-    {
-        N::from(self.0)
-    }
 
     /// Returns a frame relative to the lead-in position.
     ///
@@ -1024,7 +952,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "cannot be represented for an audio CD")]
+    #[should_panic(expected = "semantic overflow")]
     fn strict_new_panics_above_max() {
         let _: Frame = Frame::strict_new(Frame::MAX.0 + 1);
     }
@@ -1080,7 +1008,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "cannot be represented for an audio CD")]
+    #[should_panic(expected = "semantic overflow")]
     fn strict_add_panics_above_max() {
         let _: Frame = Frame::MAX.strict_add(f(1));
     }
