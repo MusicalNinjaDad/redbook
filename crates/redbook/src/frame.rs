@@ -364,12 +364,45 @@ impl Msf {
 
 /// Msf is stored as 1-byte binary-encoded-decimal.
 #[expect(non_camel_case_types, reason = "like i8, u8")]
-#[expect(unused, reason = "WIP")]
+#[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
+#[derive(Debug, Clone, Copy, Hash, Default)]
 pub struct bcd8(u8);
 
-impl bcd8 {
-    /// BCD encodes 0..=9 in 4-bits. Therefore a 1-byte Bcd can represent 0..=99.
-    pub const MAX: Self = Self(99);
+impl UpperBounded for bcd8 {
+    type Inner = u8;
+
+    const MAX: Self = bcd8(99);
+
+    const ZERO: Self = bcd8(0);
+
+    fn into_inner(self) -> Self::Inner {
+        self.0
+    }
+
+    #[expect(unsafe_code, reason = "default impls")]
+    unsafe fn new_unchecked(inner: Self::Inner) -> Self {
+        Self(inner)
+    }
+}
+
+const impl Eq for bcd8 {}
+
+const impl PartialEq for bcd8 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+const impl Ord for bcd8 {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+const impl PartialOrd for bcd8 {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /// Integer types that implement checked_, saturating_, etc such that they are suitable for
@@ -397,6 +430,52 @@ where
     fn strict_mul(self, rhs: Self) -> Self;
     fn checked_div(self, rhs: Self) -> Option<Self>;
     fn checked_rem(self, rhs: Self) -> Option<Self>;
+}
+
+const impl CheckedMath for u8 {
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        self.checked_add(rhs)
+    }
+
+    fn saturating_add(self, rhs: Self) -> Self {
+        self.saturating_add(rhs)
+    }
+
+    fn strict_add(self, rhs: Self) -> Self {
+        self.strict_add(rhs)
+    }
+
+    fn checked_sub(self, rhs: Self) -> Option<Self> {
+        self.checked_sub(rhs)
+    }
+
+    fn saturating_sub(self, rhs: Self) -> Self {
+        self.saturating_sub(rhs)
+    }
+
+    fn strict_sub(self, rhs: Self) -> Self {
+        self.strict_sub(rhs)
+    }
+
+    fn checked_mul(self, rhs: Self) -> Option<Self> {
+        self.checked_mul(rhs)
+    }
+
+    fn saturating_mul(self, rhs: Self) -> Self {
+        self.saturating_mul(rhs)
+    }
+
+    fn strict_mul(self, rhs: Self) -> Self {
+        self.strict_mul(rhs)
+    }
+
+    fn checked_div(self, rhs: Self) -> Option<Self> {
+        self.checked_div(rhs)
+    }
+
+    fn checked_rem(self, rhs: Self) -> Option<Self> {
+        self.checked_rem(rhs)
+    }
 }
 
 const impl CheckedMath for u32 {
