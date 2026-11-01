@@ -380,11 +380,7 @@ impl bcd8 {
 #[expect(missing_docs, reason = "shadowing inherent methods")]
 pub const trait CheckedMath
 where
-    Self: Sized
-        + [const] CheckedCastFromInt<Self>
-        + [const] BoundedCastFromInt<Self>
-        + [const] Div<Self, Output = Self>
-        + [const] Rem<Self, Output = Self>,
+    Self: Sized,
 {
     fn checked_add(self, rhs: Self) -> Option<Self>;
     fn saturating_add(self, rhs: Self) -> Self;
@@ -452,7 +448,12 @@ where
     Self: Sized + [const] PartialOrd + [const] Destruct,
 {
     /// The underlying int primitive
-    type Inner: [const] std::marker::Destruct + [const] CheckedMath;
+    type Inner: [const] std::marker::Destruct
+        + [const] CheckedMath
+        + [const] CheckedCastFromInt<Self::Inner>
+        + [const] BoundedCastFromInt<Self::Inner>
+        + [const] Div<Self::Inner, Output = Self::Inner>
+        + [const] Rem<Self::Inner, Output = Self::Inner>;
     /// The maximum value which is semantically valid. Note this MUST be lower than Inner::MAX
     const MAX: Self;
 
