@@ -731,6 +731,16 @@ impl Msf {
     }
 }
 
+/// Msf is stored as 1-byte binary-encoded-decimal.
+#[expect(non_camel_case_types, reason = "like i8, u8")]
+#[expect(unused, reason = "WIP")]
+pub struct bcd8(u8);
+
+impl bcd8 {
+    /// BCD encodes 0..=9 in 4-bits. Therefore a 1-byte Bcd can represent 0..=99.
+    pub const MAX: Self = Self(99);
+}
+
 // ===============================================
 // Frame & Msf - const interconversion & comparison
 // ===============================================
