@@ -424,6 +424,9 @@ impl<'e, I> TocEntryFilter<'e> for I where
 }
 
 impl TocEntries {
+    // There is a fixed offset between audio & data sessions
+    const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
+
     /// Provides an iterator over *borrowed* [&TocEntry][TocEntry]s.
     ///
     /// # Note
@@ -441,8 +444,6 @@ impl TocEntries {
     /// # TODO
     /// - TODO: #110 handle discs with data before audio, or multiple audio sessions
     pub fn audio_tracks(&self) -> impl Iterator<Item = Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400_u32);
-
         self.iter()
             // .filter_map_windows() does not exist.
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
@@ -450,7 +451,7 @@ impl TocEntries {
                 this_track.is_audio_track().then(|| {
                     let mut duration = next_track.start.saturating_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration = duration.saturating_sub(OFFSET_BEFORE_DATA)
+                        duration = duration.saturating_sub(Self::OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })
@@ -460,8 +461,6 @@ impl TocEntries {
 
     /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
     pub fn track(&self, track: TrackNo) -> Option<Track<'static>> {
-        const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400_u32);
-
         self.iter()
             .skip_while(|entry| entry.track != track)
             // .filter_map_windows() does not exist.
@@ -470,7 +469,7 @@ impl TocEntries {
                 this_track.is_audio_track().then(|| {
                     let mut duration = next_track.start.saturating_sub(this_track.start);
                     if next_track.is_data_track() {
-                        duration = duration.saturating_sub(OFFSET_BEFORE_DATA)
+                        duration = duration.saturating_sub(Self::OFFSET_BEFORE_DATA)
                     }
                     Track::new(this_track.track, this_track.start, duration)
                 })

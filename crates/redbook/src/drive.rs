@@ -88,10 +88,12 @@ pub trait Drive: Sized {
 
         dbg_span.record("track_details", format_args!("{track}"));
 
-        let track_size = track
+        // TODO: #159 Frame::size in bytes as usize
+        let track_size: usize = track
             .duration
             .cast::<u32>()
             .checked_mul(FRAME_SIZE)
+            .and_then(u32::checked_cast)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::FileTooLarge,
@@ -109,16 +111,7 @@ pub trait Drive: Sized {
             .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
-        let mut data = vec![
-            0_u8;
-            track_size
-                .checked_cast()
-                .ok_or_else(|| io::Error::new(
-                    ErrorKind::OutOfMemory,
-                    "cannot allocate enough space for the track data on this architecture"
-                ))
-                .or_error("Track too large")?
-        ];
+        let mut data = vec![0_u8; track_size];
 
         let (bufs, last_buf) = data.as_chunks_mut::<MAX_CHUNK_BYTES>();
         let mut frames_read_so_far = Frame::default();

@@ -320,20 +320,22 @@ pub type CdDrives = drive::CdDrives<DriveHandle>;
 /// of raw audio data.
 pub const FRAME_SIZE: u32 = 2352;
 
+const KB: u32 = 1024;
+
 /// Standard CD lead-in duration in frames.
 ///
 /// According to the RedBook standard, CD audio has a 2-second lead-in area
 /// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
 ///
 /// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::strict_new(150_u32);
+pub const LEADIN: Frame = Frame::strict_new(150);
 
 /// Maximum number of bytes that can be read in a single chunk.
 ///
 /// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
 const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES
-    .cast::<u32>()
-    .strict_mul(FRAME_SIZE)
+    .cast::<u64>()
+    .strict_mul(FRAME_SIZE.strict_cast())
     .strict_cast();
 
 /// Maximum number of frames that can be read in a single chunk.
@@ -345,4 +347,8 @@ const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES
 /// # TODOs
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(64_u32.strict_mul(1024).strict_div(FRAME_SIZE));
+const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
+    64_u64
+        .strict_mul(KB.strict_cast())
+        .strict_div(FRAME_SIZE.strict_cast()),
+);
