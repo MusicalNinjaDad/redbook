@@ -991,6 +991,16 @@ mod tests {
     }
 
     #[test]
+    fn bcd() {
+        let oob = bcd8::new(100);
+        assert!(oob.is_none());
+        let oob = bcd8::MAX.checked_add(bcd8::strict_new(1));
+        assert!(oob.is_none());
+        let sat = bcd8::strict_new(25).saturating_add(bcd8::strict_new(85));
+        assert_eq!(sat, bcd8::MAX);
+    }
+
+    #[test]
     fn strict_new_is_const_and_validated() {
         const LEADIN_FRAMES: Frame = Frame::strict_new(150_u32);
         const MAX_OK: Frame = Frame::strict_new(Frame::MAX.0);
