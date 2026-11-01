@@ -26,10 +26,10 @@
 #![feature(const_cmp)]
 #![feature(const_convert)]
 #![feature(const_destruct)]
+#![feature(const_option_ops)]
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(structural_match)]
-#![feature(try_from_int_error_kind)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!

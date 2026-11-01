@@ -506,45 +506,55 @@ impl Msf {
     // ============================
     // Arithmetic: add / sub / rem
     //
-    // rhs may be a Frame or an Msf. Computed via Frame so results are normalised and the
-    // Frame::MAX bound is respected.
+    // rhs is restricted by From
+    // which only allows Frame & Msf
+    //
+    // Subordinates to Frame to handle
+    // degenerate cases where secs / frames
+    // need to saturate above 60 / 75
     // ============================
 
-    /// Strict addition. Computes `self + rhs`, panicking if the result is above [`Frame::MAX`].
+    /// Strict addition. Computes `self + rhs`, panicking on overflow.
     ///
-    /// `rhs` may be a [`Frame`] or an [`Msf`].
+    /// # Note
+    /// - `rhs` may be a [`Frame`] or an [`Msf`].
+    /// -  "degenerate" cases will saturate as described TODO #156 denegerate docs
     ///
     /// # Panics
-    /// Panics under the same conditions as [`Frame::strict_add`].
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
     pub const fn strict_add<R>(self, rhs: R) -> Self
     where
         Frame: [const] From<R>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).strict_add(rhs))
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.strict_add(rhs);
+        Self::from(frames)
     }
 
     /// Checked addition. Computes `self + rhs`, returning `None` if the result is above
-    /// [`Frame::MAX`].
+    /// `Msf(FF,FF,FF)`
     ///
     /// `rhs` may be a [`Frame`] or an [`Msf`].
     pub const fn checked_add<R>(self, rhs: R) -> Option<Self>
     where
         Frame: [const] From<R>,
     {
-        match <Frame as From<Msf>>::from(self).checked_add(rhs) {
-            Some(f) => Some(Self::from(f)),
-            None => None,
-        }
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.checked_add(rhs);
+        frames.map(Into::into)
     }
 
-    /// Saturating addition. Computes `self + rhs`, saturating at [`Frame::MAX`].
+    /// Saturating addition. Computes `self + rhs`, saturating at `Msf(FF,FF,FF)`.
     ///
     /// `rhs` may be a [`Frame`] or an [`Msf`].
     pub const fn saturating_add<R>(self, rhs: R) -> Self
     where
         Frame: [const] From<R>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).saturating_add(rhs))
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.saturating_add(rhs);
+        Self::from(frames)
     }
 
     /// Wrapping addition. Computes `self + rhs`, wrapping around within the representable range.
@@ -567,7 +577,9 @@ impl Msf {
     where
         Frame: [const] From<R>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).strict_sub(rhs))
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.strict_sub(rhs);
+        Self::from(frames)
     }
 
     /// Checked subtraction. Computes `self - rhs`, returning `None` if `rhs` is greater than `self`.
@@ -577,10 +589,9 @@ impl Msf {
     where
         Frame: [const] From<R>,
     {
-        match <Frame as From<Msf>>::from(self).checked_sub(rhs) {
-            Some(f) => Some(Self::from(f)),
-            None => None,
-        }
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.checked_sub(rhs);
+        frames.map(Into::into)
     }
 
     /// Saturating subtraction. Computes `self - rhs`, saturating at zero.
@@ -590,7 +601,9 @@ impl Msf {
     where
         Frame: [const] From<R>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).saturating_sub(rhs))
+        let lhs = <Frame as From<Msf>>::from(self);
+        let frames = lhs.saturating_sub(rhs);
+        Self::from(frames)
     }
 
     /// Wrapping subtraction. Computes `self - rhs`, wrapping around within the representable range.
@@ -603,49 +616,13 @@ impl Msf {
         Self::from(<Frame as From<Msf>>::from(self).wrapping_sub(rhs))
     }
 
-    /// Strict remainder. Computes `self % rhs`, panicking if `rhs` is zero.
-    ///
-    /// `rhs` may be a [`Frame`] or an [`Msf`].
-    ///
-    /// # Panics
-    /// Panics under the same conditions as [`Frame::strict_rem`].
-    pub const fn strict_rem<R>(self, rhs: R) -> Self
-    where
-        Frame: [const] From<R>,
-    {
-        Self::from(<Frame as From<Msf>>::from(self).strict_rem(rhs))
-    }
-
-    /// Checked remainder. Computes `self % rhs`, returning `None` if `rhs` is zero.
-    ///
-    /// `rhs` may be a [`Frame`] or an [`Msf`].
-    pub const fn checked_rem<R>(self, rhs: R) -> Option<Self>
-    where
-        Frame: [const] From<R>,
-    {
-        match <Frame as From<Msf>>::from(self).checked_rem(rhs) {
-            Some(f) => Some(Self::from(f)),
-            None => None,
-        }
-    }
-
-    /// Wrapping remainder. Computes `self % rhs`, panicking if `rhs` is zero.
-    ///
-    /// `rhs` may be a [`Frame`] or an [`Msf`].
-    ///
-    /// # Panics
-    /// Panics under the same conditions as [`Frame::wrapping_rem`].
-    pub const fn wrapping_rem<R>(self, rhs: R) -> Self
-    where
-        Frame: [const] From<R>,
-    {
-        Self::from(<Frame as From<Msf>>::from(self).wrapping_rem(rhs))
-    }
-
     // ============================
     // Arithmetic: mul / div
     //
-    // rhs may only be a scalar N where u8: From<N> (i.e. a u8) — deliberately not a Frame or Msf.
+    // rhs may only be a scalar N
+    // deliberately not Frame/Msf as
+    // we don't expect acceleration
+    // calulations
     // ============================
 
     /// Strict multiplication. Computes `self * rhs`, panicking if the result is above
@@ -657,9 +634,13 @@ impl Msf {
     /// Panics under the same conditions as [`Frame::strict_mul`].
     pub const fn strict_mul<N>(self, rhs: N) -> Self
     where
-        u8: [const] From<N>,
+        u32: [const] TryFrom<N>,
+        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        N: [const] Destruct,
     {
-        Self::from(<Frame as From<Msf>>::from(self).strict_mul(u32::from(u8::from(rhs))))
+        let lhs = Frame::from(self);
+        let frames = lhs.strict_mul(rhs);
+        Self::from(frames)
     }
 
     /// Checked multiplication. Computes `self * rhs`, returning `None` if the result is above
@@ -668,12 +649,13 @@ impl Msf {
     /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
     pub const fn checked_mul<N>(self, rhs: N) -> Option<Self>
     where
-        u8: [const] From<N>,
+        u32: [const] TryFrom<N>,
+        <u32 as TryFrom<N>>::Error: [const] Destruct,
+        N: [const] Destruct,
     {
-        match <Frame as From<Msf>>::from(self).checked_mul(u32::from(u8::from(rhs))) {
-            Some(f) => Some(Self::from(f)),
-            None => None,
-        }
+        let lhs = Frame::from(self);
+        let frames = lhs.checked_mul(rhs);
+        frames.map(Into::into)
     }
 
     /// Saturating multiplication. Computes `self * rhs`, saturating at [`Frame::MAX`].
@@ -681,9 +663,12 @@ impl Msf {
     /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
     pub const fn saturating_mul<N>(self, rhs: N) -> Self
     where
-        u8: [const] From<N>,
+        u32: [const] BoundedCastFromInt<N>,
+        N: [const] Destruct,
     {
-        Self::from(<Frame as From<Msf>>::from(self).saturating_mul(u32::from(u8::from(rhs))))
+        let lhs = Frame::from(self);
+        let frames = lhs.saturating_mul(rhs);
+        Self::from(frames)
     }
 
     /// Wrapping multiplication. Computes `self * rhs`, wrapping around within the representable range.
@@ -696,17 +681,18 @@ impl Msf {
         Self::from(<Frame as From<Msf>>::from(self).wrapping_mul(u32::from(u8::from(rhs))))
     }
 
-    /// Strict division. Computes `self / rhs`, panicking if `rhs` is zero.
+    /// Basic division. Computes `self / rhs`, panicking if `rhs` is zero.
     ///
-    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
-    ///
-    /// # Panics
-    /// Panics under the same conditions as [`Frame::strict_div`].
-    pub const fn strict_div<N>(self, rhs: N) -> Self
+    /// # Note
+    /// - This replaces both saturating_div & strict_div, as self is valid and the result of
+    ///   divison must always be 0..=self
+    pub const fn div<N>(self, rhs: N) -> Self
     where
-        u8: [const] From<N>,
+        u32: [const] BoundedCastFromInt<N>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).strict_div(u32::from(u8::from(rhs))))
+        let lhs = Frame::from(self);
+        let frames = lhs.div(rhs);
+        Self::from(frames)
     }
 
     /// Checked division. Computes `self / rhs`, returning `None` if `rhs` is zero.
@@ -714,38 +700,40 @@ impl Msf {
     /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
     pub const fn checked_div<N>(self, rhs: N) -> Option<Self>
     where
-        u8: [const] From<N>,
+        u32: [const] BoundedCastFromInt<N>,
     {
-        match <Frame as From<Msf>>::from(self).checked_div(u32::from(u8::from(rhs))) {
-            Some(f) => Some(Self::from(f)),
-            None => None,
-        }
+        let lhs = Frame::from(self);
+        let frames = lhs.checked_div(rhs);
+        frames.map(Into::into)
     }
 
-    /// Saturating division. Computes `self / rhs`, panicking if `rhs` is zero.
+    /// Basic remainder. Computes `self % rhs`, panicking if `rhs` is zero.
     ///
-    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
-    ///
-    /// # Panics
-    /// Panics under the same conditions as [`Frame::saturating_div`].
-    pub const fn saturating_div<N>(self, rhs: N) -> Self
+    /// # Note
+    /// - This replaces both saturating_rem & strict_rem, as self is valid and the remainder from
+    ///   divison must always be 0..=self
+    pub const fn rem<N>(self, rhs: N) -> Self
     where
-        u8: [const] From<N>,
+        u32: [const] BoundedCastFromInt<N>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).saturating_div(u32::from(u8::from(rhs))))
+        let lhs = Frame::from(self);
+        let frames = lhs.rem(rhs);
+        Self::from(frames)
     }
 
-    /// Wrapping division. Computes `self / rhs`, panicking if `rhs` is zero.
+    /// Checked remainder. Computes `self % rhs`, returning `None` if `rhs` is zero.
     ///
-    /// `rhs` may be any scalar `N` where `u8: From<N>` (i.e. a `u8`).
+    /// `rhs` may be any scalar integer.
     ///
-    /// # Panics
-    /// Panics under the same conditions as [`Frame::wrapping_div`].
-    pub const fn wrapping_div<N>(self, rhs: N) -> Self
+    /// # Note
+    /// - This is the only specialised remainder. Use `rem` if you can accept a panic on div by zero.
+    pub const fn checked_rem<N>(self, rhs: N) -> Option<Self>
     where
-        u8: [const] From<N>,
+        u32: [const] BoundedCastFromInt<N>,
     {
-        Self::from(<Frame as From<Msf>>::from(self).wrapping_div(u32::from(u8::from(rhs))))
+        let lhs = Frame::from(self);
+        let frames = lhs.checked_rem(rhs);
+        frames.map(Into::into)
     }
 }
 
