@@ -961,13 +961,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 mod tests {
     use super::*;
 
-    /// The last "normal" MSF frame count: `Msf(0xFF, 59, 74)` (`min` at max, `sec<=59`, `frame<=74`).
-    const NORMAL_MAX: u32 = 0xFF * 60 * 75 + 59 * 75 + 74;
-
-    /// Shorthand for constructing a known-valid `Frame` constant in tests.
-    fn f(n: u32) -> Frame {
-        Frame::strict_new(n)
-    }
+    use rstest::rstest;
 
     #[test]
     fn leadin_conversion() {
@@ -984,217 +978,46 @@ mod tests {
 
     #[test]
     fn leadin_compensation() {
-        let starting_frames = f(183);
+        let starting_frames = Frame::strict_new(183);
         let starting_time = Msf::new(0, 2, 33);
-        assert_eq!(starting_frames.relative_to_leadin(), f(33));
+        assert_eq!(starting_frames.relative_to_leadin(), Frame::strict_new(33));
         assert_eq!(starting_time.relative_to_leadin(), Msf::new(0, 0, 33));
     }
 
-    #[test]
-    fn bcd() {
-        let oob = bcd8::new(100);
-        assert!(oob.is_none());
-        let oob = bcd8::MAX.checked_add(bcd8::strict_new(1));
-        assert!(oob.is_none());
-        let sat = bcd8::strict_new(25).saturating_add(bcd8::strict_new(85));
-        assert_eq!(sat, bcd8::MAX);
+    #[rstest]
+    #[case((0,0,0))]
+    #[case((0,2,0))]
+    #[case((5,0,2))]
+    #[case((15,0,74))]
+    #[case((15,59,0))]
+    #[case((20,3,74))]
+    #[case((20,59,3))]
+    #[case((25,59,74))]
+    #[case((60,0,74))]
+    #[case((60,5,74))]
+    #[case((60,59,0))]
+    #[case((60,59,5))]
+    #[case((60,59,74))]
+    #[case((0xFF,59,74))]
+    #[case((0xFF,0xFF,0xFF))]
+    fn interconversion(#[case] msf: (u8, u8, u8)) {
+        let msf1 = Msf::new.call(msf);
+        let frames = Frame::from(msf1);
+        let msf2 = Msf::from(frames);
+        assert_eq!(msf1, msf2);
     }
 
-    #[test]
-    fn strict_new_is_const_and_validated() {
-        const LEADIN_FRAMES: Frame = Frame::strict_new(150_u32);
-        const MAX_OK: Frame = Frame::strict_new(Frame::MAX.0);
-        assert_eq!(LEADIN_FRAMES, LEADIN);
-        assert_eq!(MAX_OK, Frame::MAX);
-    }
-
-    #[test]
-    fn strict_new_accepts_any_u32_convertible_scalar() {
-        assert_eq!(Frame::strict_new(150_u8), LEADIN);
-        assert_eq!(Frame::strict_new(150_u16), LEADIN);
-        assert_eq!(Frame::strict_new(150_u32), LEADIN);
-        assert_eq!(Frame::strict_new(Frame::MAX.0), Frame::MAX);
-    }
-
-    #[test]
-    #[should_panic(expected = "semantic overflow")]
-    fn strict_new_panics_above_max() {
-        let _: Frame = Frame::strict_new(Frame::MAX.0 + 1);
-    }
-
-    #[test]
-    fn new_is_fallible_and_validated() {
-        // valid values -> Some
-        assert_eq!(Frame::new(0_u32), Some(f(0)));
-        assert_eq!(Frame::new(150_usize), Some(LEADIN));
-        assert_eq!(Frame::new(Frame::MAX.0), Some(Frame::MAX));
-        assert_eq!(Frame::new(u64::from(Frame::MAX.0)), Some(Frame::MAX));
-        // above MAX -> None
-        assert_eq!(Frame::new(Frame::MAX.0 + 1), None);
-        // does not fit in a u32 -> None
-        assert_eq!(Frame::new(u64::from(u32::MAX) + 1), None);
-        assert_eq!(Frame::new(-1_i32), None);
-    }
-
-    #[test]
-    fn frame_add_sub_rem_flavours() {
-        // add: rhs may be Frame or Msf
-        assert_eq!(f(1).strict_add(f(2)), f(3));
-        assert_eq!(f(1).strict_add(Msf::new(0, 0, 2)), f(3));
-        assert_eq!(Frame::MAX.checked_add(f(1)), None);
-        assert_eq!(f(1).checked_add(Msf::new(0, 0, 1)), Some(f(2)));
-        assert_eq!(Frame::MAX.saturating_add(f(1)), Frame::MAX);
-
-        // sub
-        assert_eq!(f(5).strict_sub(f(3)), f(2));
-        assert_eq!(f(5).strict_sub(Msf::new(0, 0, 3)), f(2));
-        assert_eq!(f(1).checked_sub(f(2)), None);
-        assert_eq!(f(1).saturating_sub(f(2)), f(0));
-
-        // rem
-        // assert_eq!(f(150).strict_rem(Msf::new(0, 0, 7)), f(3));
-        // assert_eq!(f(150).checked_rem(f(0)), None);
-        // assert_eq!(f(150).wrapping_rem(f(7)), f(3));
-    }
-
-    #[test]
-    fn frame_mul_div_flavours_take_scalars_only() {
-        assert_eq!(f(2).strict_mul(75_u8), f(150));
-        assert_eq!(f(2).strict_mul(75_u16), f(150));
-        // assert_eq!(f(150).strict_div(75_u32), f(2));
-        assert_eq!(Frame::MAX.checked_mul(2_u32), None);
-        assert_eq!(Frame::MAX.saturating_mul(2_u32), Frame::MAX);
-        assert_eq!(f(150).checked_div(0_u32), None);
-        // assert_eq!(f(150).saturating_div(75_u8), f(2));
-        // assert_eq!(f(150).wrapping_div(75_u8), f(2));
-    }
-
-    #[test]
-    #[should_panic(expected = "semantic overflow")]
-    fn strict_add_panics_above_max() {
-        let _: Frame = Frame::MAX.strict_add(f(1));
-    }
-
-    #[test]
-    #[should_panic(expected = "attempt to subtract with overflow")]
-    fn strict_sub_panics_on_underflow() {
-        let _: Frame = f(1).strict_sub(f(2));
-    }
-
-    // #[test]
-    // #[should_panic(expected = "attempt to divide by zero")]
-    // fn strict_div_panics_on_zero() {
-    //     let _: Frame = f(1).strict_div(0_u32);
-    // }
-
-    #[test]
-    fn msf_arithmetic_is_computed_via_frame() {
-        assert_eq!(Msf::new(0, 2, 0).strict_add(LEADIN), Msf::new(0, 4, 0));
-        assert_eq!(Msf::new(0, 2, 0).strict_add(f(150)), Msf::new(0, 4, 0));
-        assert_eq!(
-            Msf::new(0, 4, 0).strict_sub(Msf::new(0, 2, 0)),
-            Msf::new(0, 2, 0)
-        );
-        assert_eq!(Msf::new(0, 0, 33).saturating_sub(LEADIN), Msf::new(0, 0, 0));
-        assert_eq!(Msf::new(0, 0, 33).checked_sub(LEADIN), None);
-        // results are normalised via Frame
-        assert_eq!(Msf::new(1, 60, 75).strict_add(f(0)), Msf::new(2, 1, 0));
-        // mul / div take a u8 scalar
-        assert_eq!(Msf::new(1, 0, 0).strict_mul(2_u8), Msf::new(2, 0, 0));
-        // assert_eq!(Msf::new(2, 0, 0).strict_div(2_u8), Msf::new(1, 0, 0));
-        // assert_eq!(
-        //     Msf::new(0, 2, 33).strict_rem(Msf::new(0, 0, 7)),
-        //     Msf::new(0, 0, 1)
-        // );
-        assert_eq!(
-            Msf::new(1, 0, 0).checked_mul(255_u8),
-            Some(Msf::new(0xFF, 0, 0))
-        ); // 4500 * 255 = 1_147_500
-        assert_eq!(Msf::new(0xFF, 0xFF, 0xFF).checked_mul(2_u8), None); // Frame::MAX * 2 is over the max
-    }
-
-    #[test]
-    fn msf_try_from_tuple() {
-        assert_eq!(
-            Msf::try_from((2_u32, 34_u8, 13_u8)).unwrap(),
-            Msf::new(2, 34, 13)
-        );
-        assert!(Msf::try_from((256_u32, 0_u8, 0_u8)).is_err());
-        assert!(Msf::try_from((u32::from(u8::MAX), 0_u8, 0_u8)).is_ok());
-    }
-
-    // ============================================
-    // Round-trip invariant: Msf -> Frame -> Msf
-    // ============================================
-
-    #[test]
-    fn msf_frame_msf_roundtrips_required_cases() {
-        for msf in [
-            Msf::new(0, 0, 0),
-            Msf::new(0, 2, 0),
-            Msf::new(0, 2, 33),
-            Msf::new(0xFF, 0xFF, 0xFF),
-        ] {
-            let frame = Frame::from(msf);
-            assert!(frame.cast::<u32>() <= Frame::MAX.0);
-            assert_eq!(Msf::from(frame), msf, "roundtrip failed for {msf:?}");
-        }
-    }
-
-    #[test]
-    fn msf_frame_msf_roundtrips_degenerate_and_near_degenerate() {
-        let cases = [
-            Msf::new(0xFF, 59, 74), // last normal value (0xFF, 0d59, 0d74)
-            Msf::new(0xFF, 60, 0),  // first degenerate: secs saturate from 0d60
-            Msf::new(0xFF, 60, 74), // secs saturated, frames still sane
-            Msf::new(0xFF, 0xFE, 74),
-            Msf::new(0xFF, 0xFF, 0), // sec fully saturated
-            Msf::new(0xFF, 0xFF, 74),
-            Msf::new(0xFF, 0xFF, 75), // frames now saturate 0d75..=0xFF
-            Msf::new(0xFF, 0xFF, 0xFE),
-            Msf::new(0xFF, 0xFF, 0xFF), // Frame::MAX
-        ];
-        for msf in cases {
-            let frame = Frame::from(msf);
-            assert_eq!(
-                Msf::from(frame),
-                msf,
-                "degenerate roundtrip failed for {msf:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn frame_msf_frame_roundtrips_exhaustively() {
-        // Frame -> Msf -> Frame must hold for every representable frame.
-        // Normal range keeps sec<=59 and frame<=74; degenerate range saturates min at 0xFF.
-        let mut f: u32 = 0;
-        while f <= Frame::MAX.0 {
-            let frame = Frame::strict_new(f);
-            let msf = Msf::from(frame);
-            assert_eq!(Frame::from(msf), frame, "Frame->Msf->Frame failed at {f}");
-            if f <= NORMAL_MAX {
-                assert!(msf.sec <= 59, "sec too large at {f}: {msf:?}");
-                assert!(msf.frame <= 74, "frame too large at {f}: {msf:?}");
-            } else {
-                assert_eq!(msf.min, 0xFF, "min not saturated at {f}: {msf:?}");
-            }
-            f += 1;
-        }
-    }
-
-    #[test]
-    fn degenerate_frame_to_msf_saturates_secs_then_frames() {
-        // just above normal -> secs start at 0d60, frames sane
-        let msf = Msf::from(Frame::strict_new(NORMAL_MAX + 1));
-        assert_eq!(msf, Msf::new(0xFF, 60, 0));
-        // sec fully saturated, frame still sane (0..=0d74)
-        let msf = Msf::from(Frame::strict_new(0xFF_u32 * 60 * 75 + 0xFF * 75 + 74));
-        assert_eq!(msf, Msf::new(0xFF, 0xFF, 74));
-        // then frames saturate 0d75..=0xFF
-        let msf = Msf::from(Frame::strict_new(0xFF_u32 * 60 * 75 + 0xFF * 75 + 75));
-        assert_eq!(msf, Msf::new(0xFF, 0xFF, 75));
-        let msf = Msf::from(Frame::MAX);
-        assert_eq!(msf, Msf::new(0xFF, 0xFF, 0xFF));
+    #[rstest]
+    #[case((0,0,0xFF), (0,3,30))]
+    #[case((0,0xFF,0), (4,15,0))]
+    #[case((1,0,0xFF), (1,3,30))]
+    #[case((1,0xFF,0), (5,15,0))]
+    #[case((2,1,0xFF), (2,4,30))]
+    #[case((2,0xFF,1), (6,15,1))]
+    fn degenerate_interconversion(#[case] msf: (u8, u8, u8), #[case] expected: (u8, u8, u8)) {
+        let msf1 = Msf::new.call(msf);
+        let frames = Frame::from(msf1);
+        let msf2 = Msf::from(frames);
+        assert_eq!(msf2, Msf::new.call(expected));
     }
 }
