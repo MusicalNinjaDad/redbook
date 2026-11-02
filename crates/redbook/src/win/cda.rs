@@ -11,7 +11,7 @@ use tracing_result::Trace;
 use crate::{
     Frame, LEADIN, Track,
     frame::{Msf, UpperBounded},
-    toc::{TocEntry, TrackNo},
+    toc::{TrackEntry, TrackNo},
 };
 
 /// size of `.cda` files
@@ -201,10 +201,11 @@ impl TryFrom<CdaFile> for Track<'static> {
             })
             .or_warn("cda file does not describe a normal audio track")?;
         Ok(Self {
-            toc_entry: TocEntry {
+            toc_entry: TrackEntry {
                 track,
                 start: cda.start.into(),
                 control: Default::default(),
+                session: Default::default(),
             },
             duration: cda.duration.into(),
             ..Default::default()

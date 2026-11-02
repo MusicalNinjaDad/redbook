@@ -4,7 +4,7 @@ use crate::{
     Frame, LEADIN, TocEntries,
     frame::UpperBounded,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::{Control, TocEntry, TrackNo},
+    toc::{Control, Ctrl, LeadoutEntry, TocEntry, TrackEntry, TrackNo, b0000},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -119,24 +119,6 @@ impl CDROM_TOC {
 
         Vec::from(bytes)
     }
-
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
-            .map(TocEntry::from)
-    }
-
-    fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
-            .map(TocEntry::from)
-    }
-
-    fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| track.TrackNumber == 170)
-            .map(TocEntry::from)
-    }
 }
 
 impl From<TestAlbum> for CDROM_TOC {
@@ -150,15 +132,14 @@ impl From<TestAlbum> for CDROM_TOC {
 impl TryFrom<CDROM_TOC> for TocEntries {
     type Error = io::Error;
 
-    fn try_from(toc: CDROM_TOC) -> Result<Self, Self::Error> {
-        let audio = toc.iter_audio();
-        let data = toc.iter_data();
-        let leadouts = toc.iter_leadouts();
-        audio.chain(data).chain(leadouts).collect()
+    fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
+        toc.track_entries()
+            .filter_map(Option::<TocEntry>::from)
+            .collect()
     }
 }
 
-impl TRACK_DATA {
+impl Ctrl for TRACK_DATA {
     fn control(&self) -> Control {
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control_code = self._bitfield;
@@ -166,22 +147,32 @@ impl TRACK_DATA {
     }
 }
 
-impl From<&TRACK_DATA> for TocEntry {
-    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
+impl From<&TRACK_DATA> for Option<TocEntry> {
+    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA. Returns `None` if the entry is
+    /// empty.
     ///
     /// # TODOs
     ///
     /// - Consider making this fallible with `TryFrom` for better error handling
-    fn from(track_data: &TRACK_DATA) -> Self {
+    fn from(track_data: &TRACK_DATA) -> Option<TocEntry> {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::strict_new(relative).strict_add(LEADIN);
-        let track = TrackNo(track_data.TrackNumber);
-        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
-        let control = Control::from_bits_truncate(track_data._bitfield);
-        Self {
-            track,
-            start,
-            control,
+        let point = TrackNo(track_data.TrackNumber);
+        let control = track_data.control();
+
+        match point {
+            TrackNo(0) => None,
+            b0000::LEADOUT_TRACK_ID => Some(TocEntry::Leadout(LeadoutEntry {
+                start,
+                control,
+                session: None,
+            })),
+            _ => Some(TocEntry::Track(TrackEntry {
+                track: point,
+                start,
+                control,
+                session: None,
+            })),
         }
     }
 }
@@ -198,7 +189,7 @@ mod tests {
 
     use crate::{
         test_fixtures::albums::TestAlbum::{self, *},
-        toc::TocEntryFilter,
+        toc::{TocEntry, TocEntryFilter},
     };
 
     impl CDROM_TOC {
@@ -262,18 +253,6 @@ mod tests {
         assert_eq!(leadout, album.expected_leadout().cast::<u32>());
     }
 
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn audio(#[case] album: TestAlbum) {
-        let toc = CDROM_TOC::from(album);
-        let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
-        assert_eq!(audio_tracks, album.expected_audio_toc_entries());
-    }
-
     #[test_log::test]
     #[rstest]
     #[case(DefinitelyMaybe)]
@@ -299,7 +278,12 @@ mod tests {
         let wintoc = CDROM_TOC::from(album);
         let entries = TocEntries::try_from(wintoc).unwrap();
         assert_eq!(
-            entries.iter().audio().cloned().collect::<Vec<_>>(),
+            entries
+                .iter()
+                .filter_audio()
+                .filter_map(TocEntry::trackentry)
+                .cloned()
+                .collect::<Vec<_>>(),
             album.expected_audio_toc_entries()
         );
         assert_eq!(

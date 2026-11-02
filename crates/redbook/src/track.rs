@@ -7,7 +7,7 @@ use metaflac::block::{Picture, VorbisComment};
 
 use crate::{
     Frame,
-    toc::{TocEntry, TrackNo},
+    toc::{TrackEntry, TrackNo},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
@@ -21,7 +21,7 @@ use crate::{
 /// - Typically constructed as `<'static>` and then cloned when referencing metadata
 pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
-    pub toc_entry: TocEntry,
+    pub toc_entry: TrackEntry,
     /// Duration of this track in frames.
     pub duration: Frame,
     /// Optional reference to MusicBrainz track metadata.
@@ -43,10 +43,11 @@ impl<'meta> Display for Track<'meta> {
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
     pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
-        let toc_entry = TocEntry {
+        let toc_entry = TrackEntry {
             track: track_number,
             start,
             control: Default::default(),
+            session: Default::default(),
         };
         Self {
             toc_entry,

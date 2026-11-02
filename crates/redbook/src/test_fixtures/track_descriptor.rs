@@ -7,9 +7,9 @@ use std::io::{self, ErrorKind};
 use tracing_result::Trace;
 
 use crate::{
-    Frame, TocEntries,
+    TocEntries,
     frame::Msf,
-    toc::{Control, TocEntry, TrackNo},
+    toc::{Control, RawTocEntry, TocEntry, TrackNo},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,10 +35,13 @@ struct TrackDescriptor {
     adr_control: u8,
     tno: u8,
     point: u8,
-    zeros: [u8; 4],
     min: u8,
     sec: u8,
     frame: u8,
+    zero: u8,
+    pmin: u8,
+    psec: u8,
+    pframe: u8,
 }
 
 impl TrackDescriptor {
@@ -57,72 +60,43 @@ impl TrackDescriptor {
         let adr_control = iter.next().unwrap();
         let tno = iter.next().unwrap();
         let point = iter.next().unwrap();
-        let zeros = iter.next_chunk().unwrap();
         let min = iter.next().unwrap();
         let sec = iter.next().unwrap();
         let frame = iter.next().unwrap();
+        let zero = iter.next().unwrap();
+        let pmin = iter.next().unwrap();
+        let psec = iter.next().unwrap();
+        let pframe = iter.next().unwrap();
 
         Self {
             session,
             adr_control,
             tno,
             point,
-            zeros,
             min,
             sec,
             frame,
+            zero,
+            pmin,
+            psec,
+            pframe,
         }
     }
 }
 
-/// Validates data format returning:
-/// - `Err` (`ErrorKind::InvalidData`) for malformed Track Descriptors
-/// - `None` for adr 5 (additional info descriptors for multi-session discs)
-impl TryFrom<TrackDescriptor> for Option<TocEntry> {
-    type Error = io::Error;
-
-    fn try_from(descriptor: TrackDescriptor) -> Result<Self, Self::Error> {
-        match descriptor.adr() {
-            1 => (),
-            0 | 5 => return Ok(None),
-            adr => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "invalid adr value in Track Descriptor: {adr} (valid values are `1`, `5`)"
-                    ),
-                ));
-            }
-        }
-
-        (descriptor.tno == 0).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "invalid TNO in Track Descriptor: expected `0` got {tno}",
-                    tno = descriptor.tno
-                ),
-            )
-        })?;
-
-        (descriptor.zeros == [0; 4]).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "expected `0000` in bytes 4-7 of Track Descriptor: got {:?}",
-                    descriptor.zeros
-                ),
-            )
-        })?;
-
-        let track = TrackNo(descriptor.point);
-        let start: Frame = Msf::new(descriptor.min, descriptor.sec, descriptor.frame).into();
-        let control = descriptor.control();
-        Ok(Some(TocEntry {
-            track,
-            start,
-            control,
-        }))
+impl From<TrackDescriptor> for TocEntry {
+    fn from(d: TrackDescriptor) -> TocEntry {
+        let raw = RawTocEntry {
+            session: Some(d.session),
+            adr: d.adr(),
+            control: d.control(),
+            tno: d.tno,
+            point: TrackNo(d.point),
+            msf: Msf::new(d.min, d.sec, d.frame),
+            zero: d.zero,
+            pmsf: Msf::new(d.pmin, d.psec, d.pframe),
+        };
+        TocEntry::from(raw)
     }
 }
 
@@ -158,8 +132,7 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .0
             .into_iter()
             .map(TrackDescriptor::from_bytes)
-            .map(Option::<TocEntry>::try_from)
-            .filter_map(Result::transpose)
-            .try_collect()?
+            .map(TocEntry::from)
+            .collect()
     }
 }
