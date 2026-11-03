@@ -780,28 +780,19 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + Sized {
             // .filter_map_windows() does not exist.
             // `map().flatten()` is equivalent - see example in docs for `flatten()`
             .map_windows(|[this_track, next_track]| {
-                this_track.is_audio_track().then(|| {
-                    let mut duration = next_track
-                        .start()
-                        .expect("track & leadout entries have a start value")
-                        .saturating_sub(
-                            this_track
-                                .start()
-                                .expect("track entries have a start value"),
-                        );
-                    if next_track.is_data_track() {
-                        duration = duration.saturating_sub(TocEntries::OFFSET_BEFORE_DATA)
-                    }
-                    Track::new(
-                        this_track
-                            .trackno()
-                            .expect("track entries have a track number"),
-                        this_track
-                            .start()
-                            .expect("track entries have a start value"),
-                        duration,
-                    )
-                })
+                this_track.is_audio_track().then_some(())?;
+
+                let mut duration = next_track.start()?.saturating_sub(this_track.start()?);
+
+                if next_track.is_data_track() {
+                    duration = duration.saturating_sub(TocEntries::OFFSET_BEFORE_DATA)
+                }
+
+                Some(Track::new(
+                    this_track.trackno()?,
+                    this_track.start()?,
+                    duration,
+                ))
             })
             .flatten()
     }
