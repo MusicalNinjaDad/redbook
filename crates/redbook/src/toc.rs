@@ -20,7 +20,7 @@ use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
 use crate::{
-    Frame, Track,
+    Frame, LEADIN, Track,
     frame::{Msf, UpperBounded},
 };
 
@@ -217,18 +217,55 @@ impl FromStr for TrackNo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TrackEntry {
     /// The 1-indexed track number.
-    pub track: TrackNo,
+    track: TrackNo,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
     ///
     /// TODO: #127 Store Msf in TocEntry (to match technical impl on discs & cover wierd A0 etc)
-    pub start: Frame,
+    start: Frame,
     /// The control code, identifying track type
-    pub control: Control,
+    control: Control,
     /// The session this entry relates to, if known
-    pub session: Option<u8>,
+    session: Option<u8>,
 }
 
 impl TrackEntry {
+    /// Construct a new [`TrackEntry`], validating the invariants of a track entry.
+    ///
+    /// Returns `None` unless:
+    /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99. "Special"
+    ///   point values (e.g. 0xA0..=0xA2, 0xAA) are lead-out / track-info entries and belong in
+    ///   the other [`TocEntry`] variants.
+    /// - `start` is at or beyond the lead-in ([`LEADIN`]): track positions are absolute and
+    ///   include the 150-frame lead-in, so a track can never start within the lead-in.
+    pub fn new(
+        track: TrackNo,
+        start: Frame,
+        control: Control,
+        session: Option<u8>,
+    ) -> Option<Self> {
+        (track.is_normal() && start >= LEADIN).then_some(Self {
+            track,
+            start,
+            control,
+            session,
+        })
+    }
+
+    /// Absolute start position of this track on the disc, including lead-in (150 frames).
+    pub fn start(&self) -> Frame {
+        self.start
+    }
+
+    /// The 1-indexed track number.
+    pub fn trackno(&self) -> TrackNo {
+        self.track
+    }
+
+    /// The session this entry relates to, if known.
+    pub fn session(&self) -> Option<u8> {
+        self.session
+    }
+
     /// Is an audio track (based on control code & track number)
     pub fn is_audio_track(&self) -> bool {
         self.is_audio() && self.track.is_normal()
@@ -258,14 +295,6 @@ impl TrackEntry {
             _ => TocEntryKind::Unknown,
         }
     }
-
-    pub fn start(&self) -> Frame {
-        self.start
-    }
-
-    pub fn trackno(&self) -> TrackNo {
-        self.track
-    }
 }
 
 impl Ctrl for TrackEntry {
@@ -294,14 +323,35 @@ impl PartialOrd for TrackEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct LeadoutEntry {
-    pub start: Frame,
-    pub control: Control,
-    pub session: Option<u8>,
+    /// Absolute start position of the lead-out on the disc, including lead-in (150 frames).
+    start: Frame,
+    /// The control code, identifying track type
+    control: Control,
+    /// The session this entry relates to, if known
+    session: Option<u8>,
 }
 
 impl LeadoutEntry {
+    /// Construct a new [`LeadoutEntry`], validating the invariants of a lead-out entry.
+    ///
+    /// Returns `None` unless `start` is beyond the lead-in ([`LEADIN`]): the lead-out always
+    /// follows the last track, which itself starts at or beyond [`LEADIN`].
+    pub fn new(start: Frame, control: Control, session: Option<u8>) -> Option<Self> {
+        (start > LEADIN).then_some(Self {
+            start,
+            control,
+            session,
+        })
+    }
+
+    /// Absolute start position of the lead-out on the disc, including lead-in (150 frames).
     pub fn start(&self) -> Frame {
         self.start
+    }
+
+    /// The session this entry relates to, if known.
+    pub fn session(&self) -> Option<u8> {
+        self.session
     }
 }
 
@@ -334,15 +384,49 @@ impl Ctrl for LeadoutEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InfoEntry {
+    /// The session this entry relates to. 1-indexed, so never 0.
     session: u8,
+    /// The first or last track number of the session, as encoded in the start minute.
     track: TrackNo,
+    /// The control code, identifying track type
     control: Control,
+    /// Whether this holds the first or the last track number of the session.
     info_type: FirstLast,
 }
 
 impl InfoEntry {
+    /// Construct a new [`InfoEntry`] (first/last track number info), validating its invariants.
+    ///
+    /// Returns `None` unless:
+    /// - `session` is a valid session number, i.e. 1..=255 (session numbers are 1-indexed)
+    /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99
+    pub fn new(
+        session: u8,
+        track: TrackNo,
+        control: Control,
+        info_type: FirstLast,
+    ) -> Option<Self> {
+        ((session > 0) && track.is_normal()).then_some(Self {
+            session,
+            track,
+            control,
+            info_type,
+        })
+    }
+
+    /// The session this entry relates to.
+    pub fn session(&self) -> u8 {
+        self.session
+    }
+
+    /// The first or last track number of the session.
     pub fn trackno(&self) -> TrackNo {
         self.track
+    }
+
+    /// Whether this holds the first or the last track number of the session.
+    pub fn info_type(&self) -> FirstLast {
+        self.info_type
     }
 }
 
@@ -379,14 +463,89 @@ impl PartialOrd for InfoEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawTocEntry {
-    pub session: Option<u8>,
-    pub adr: u8,
-    pub control: Control,
-    pub tno: u8,
-    pub point: TrackNo,
-    pub msf: Msf,
-    pub zero: u8,
-    pub pmsf: Msf,
+    /// The session this entry relates to, if known. 1-indexed, so never 0 when present.
+    session: Option<u8>,
+    /// The ADR (address mode) field of the Q sub-channel.
+    adr: u8,
+    /// The control code, identifying track type
+    control: Control,
+    /// The track number this entry relates to (TNO field).
+    tno: u8,
+    /// The POINT field: a track number or a special code (e.g. 0xA0..=0xA2, 0xAA).
+    point: TrackNo,
+    /// The MSF (min, sec, frame) field.
+    msf: Msf,
+    /// The "zero" byte of the track descriptor.
+    zero: u8,
+    /// The PMSF (point min, sec, frame) field: the payload data for POINT.
+    pmsf: Msf,
+}
+
+impl RawTocEntry {
+    /// Construct a new [`RawTocEntry`] from raw Q sub-channel / READ TOC data.
+    ///
+    /// As this is a raw, not-yet-classified entry there is little to validate. Returns `None`
+    /// only if `session` is `Some(0)`, as session numbers are 1-indexed.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "arguments mirror the fields of a raw READ TOC track descriptor one-to-one"
+    )]
+    pub fn new(
+        session: Option<u8>,
+        adr: u8,
+        control: Control,
+        tno: u8,
+        point: TrackNo,
+        msf: Msf,
+        zero: u8,
+        pmsf: Msf,
+    ) -> Option<Self> {
+        session.is_none_or(|session| session > 0).then_some(Self {
+            session,
+            adr,
+            control,
+            tno,
+            point,
+            msf,
+            zero,
+            pmsf,
+        })
+    }
+
+    /// The session this entry relates to, if known.
+    pub fn session(&self) -> Option<u8> {
+        self.session
+    }
+
+    /// The ADR (address mode) field of the Q sub-channel.
+    pub fn adr(&self) -> u8 {
+        self.adr
+    }
+
+    /// The track number this entry relates to (TNO field).
+    pub fn tno(&self) -> u8 {
+        self.tno
+    }
+
+    /// The POINT field: a track number or a special code (e.g. 0xA0..=0xA2, 0xAA).
+    pub fn point(&self) -> TrackNo {
+        self.point
+    }
+
+    /// The MSF (min, sec, frame) field.
+    pub fn msf(&self) -> Msf {
+        self.msf
+    }
+
+    /// The "zero" byte of the track descriptor.
+    pub fn zero(&self) -> u8 {
+        self.zero
+    }
+
+    /// The PMSF (point min, sec, frame) field: the payload data for POINT.
+    pub fn pmsf(&self) -> Msf {
+        self.pmsf
+    }
 }
 
 impl Ctrl for RawTocEntry {
@@ -467,34 +626,34 @@ impl From<RawTocEntry> for TocEntry {
         use FirstLast::*;
         use TocEntry::*;
 
-        match (entry.adr, entry.point) {
-            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => Leadout(LeadoutEntry {
-                start: entry.pmsf.into(),
-                control: entry.control,
-                session: entry.session,
-            }),
-            (1, b0010::FIRST_TRACK_ID) if let Some(session) = entry.session => {
-                TrackInfo(InfoEntry {
-                    session,
-                    track: entry.pmsf.min.into(),
-                    control: entry.control,
-                    info_type: First,
-                })
+        match (entry.adr(), entry.point()) {
+            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => {
+                LeadoutEntry::new(entry.pmsf().into(), entry.control(), entry.session())
+                    .map(Leadout)
+                    .unwrap_or(Unknown(entry))
             }
-            (1, b0010::LAST_TRACK_ID) if let Some(session) = entry.session => {
-                TrackInfo(InfoEntry {
-                    session,
-                    track: entry.pmsf.min.into(),
-                    control: entry.control,
-                    info_type: Last,
+            (1, b0010::FIRST_TRACK_ID) => entry
+                .session()
+                .and_then(|session| {
+                    InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), First)
                 })
-            }
-            (1, _) => Track(TrackEntry {
-                track: entry.point,
-                start: entry.pmsf.into(),
-                control: entry.control,
-                session: entry.session,
-            }),
+                .map(TrackInfo)
+                .unwrap_or(Unknown(entry)),
+            (1, b0010::LAST_TRACK_ID) => entry
+                .session()
+                .and_then(|session| {
+                    InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), Last)
+                })
+                .map(TrackInfo)
+                .unwrap_or(Unknown(entry)),
+            (1, _) => TrackEntry::new(
+                entry.point(),
+                entry.pmsf().into(),
+                entry.control(),
+                entry.session(),
+            )
+            .map(Track)
+            .unwrap_or(Unknown(entry)),
             _ => Unknown(entry),
         }
     }
@@ -548,18 +707,18 @@ impl Ctrl for TocEntry {
 impl TocEntry {
     pub fn session(&self) -> Option<u8> {
         match self {
-            TocEntry::Track(entry) => entry.session,
-            TocEntry::Leadout(entry) => entry.session,
-            TocEntry::TrackInfo(entry) => Some(entry.session),
-            TocEntry::Unknown(entry) => entry.session,
+            TocEntry::Track(entry) => entry.session(),
+            TocEntry::Leadout(entry) => entry.session(),
+            TocEntry::TrackInfo(entry) => Some(entry.session()),
+            TocEntry::Unknown(entry) => entry.session(),
         }
     }
 
     pub fn trackno(&self) -> Option<TrackNo> {
         match self {
-            TocEntry::Track(entry) => Some(entry.track),
+            TocEntry::Track(entry) => Some(entry.trackno()),
             TocEntry::Leadout(_) => None,
-            TocEntry::TrackInfo(entry) => Some(entry.track),
+            TocEntry::TrackInfo(entry) => Some(entry.trackno()),
             TocEntry::Unknown(_) => None,
         }
     }
@@ -603,8 +762,8 @@ impl TocEntry {
 
     pub fn start(&self) -> Option<Frame> {
         match self {
-            TocEntry::Track(entry) => Some(entry.start),
-            TocEntry::Leadout(entry) => Some(entry.start),
+            TocEntry::Track(entry) => Some(entry.start()),
+            TocEntry::Leadout(entry) => Some(entry.start()),
             TocEntry::TrackInfo(_) => None,
             TocEntry::Unknown(_) => None,
         }
@@ -792,11 +951,7 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + Sized {
                     duration = duration.saturating_sub(TocEntries::OFFSET_BEFORE_DATA)
                 }
 
-                Some(Track::new(
-                    this_track.trackno()?,
-                    this_track.start()?,
-                    duration,
-                ))
+                Track::new(this_track.trackno()?, this_track.start()?, duration)
             })
             .flatten()
     }
@@ -941,7 +1096,7 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .iter()
             .filter_audio()
             .filter_map(TocEntry::infoentry)
-            .find(|e| matches!(e.info_type, First))
+            .find(|e| matches!(e.info_type(), First))
             .map(InfoEntry::trackno)
         {
             let first_audio_found = entries
@@ -961,7 +1116,7 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .rev()
             .filter_audio()
             .filter_map(TocEntry::infoentry)
-            .find(|e| matches!(e.info_type, Last))
+            .find(|e| matches!(e.info_type(), Last))
             .map(InfoEntry::trackno)
         {
             let last_audio_found = entries
@@ -981,7 +1136,7 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .iter()
             .filter_data()
             .filter_map(TocEntry::infoentry)
-            .find(|e| matches!(e.info_type, First))
+            .find(|e| matches!(e.info_type(), First))
             .map(InfoEntry::trackno)
         {
             let first_data_found = entries
@@ -1001,7 +1156,7 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .rev()
             .filter_data()
             .filter_map(TocEntry::infoentry)
-            .find(|e| matches!(e.info_type, Last))
+            .find(|e| matches!(e.info_type(), Last))
             .map(InfoEntry::trackno)
         {
             let last_data_found = entries
@@ -1135,6 +1290,108 @@ mod tests {
         assert_eq!(MAX_IS_NORMAL, TrackNo::MAX_NORMAL.is_normal());
         assert_eq!(ZERO_IS_SPECIAL, TrackNo(0).is_special());
         assert_eq!(HUNDRED_IS_SPECIAL, TrackNo(100).is_special());
+    }
+
+    #[test]
+    fn track_entry_new_validates_invariants() {
+        let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(1));
+        assert_eq!(
+            entry.map(|e| (e.trackno(), e.start(), e.session())),
+            Some((TrackNo(1), LEADIN, Some(1)))
+        );
+
+        // special point values (lead-out / track-info codes) are not tracks
+        assert_eq!(
+            TrackEntry::new(b0000::LEADOUT_TRACK_ID, LEADIN, Control::default(), None),
+            None
+        );
+        assert_eq!(
+            TrackEntry::new(b0010::FIRST_TRACK_ID, LEADIN, Control::default(), None),
+            None
+        );
+        // a track can never start within the lead-in
+        assert_eq!(
+            TrackEntry::new(
+                TrackNo(1),
+                Frame::strict_new(149_u32),
+                Control::default(),
+                None
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn leadout_entry_new_validates_invariants() {
+        assert!(LeadoutEntry::new(Frame::strict_new(151_u32), Control::default(), None).is_some());
+        // the lead-out always follows the last track, so is strictly beyond the lead-in
+        assert_eq!(LeadoutEntry::new(LEADIN, Control::default(), None), None);
+    }
+
+    #[test]
+    fn info_entry_new_validates_invariants() {
+        assert!(InfoEntry::new(1, TrackNo(1), Control::default(), FirstLast::First).is_some());
+        // session numbers are 1-indexed
+        assert_eq!(
+            InfoEntry::new(0, TrackNo(1), Control::default(), FirstLast::First),
+            None
+        );
+        // first/last track info must reference a normal track number
+        assert_eq!(
+            InfoEntry::new(
+                1,
+                b0000::LEADOUT_TRACK_ID,
+                Control::default(),
+                FirstLast::Last
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn raw_toc_entry_new_validates_invariants() {
+        let msf = Msf::new(0, 2, 0);
+        assert!(
+            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).is_some()
+        );
+        // session numbers are 1-indexed
+        assert_eq!(
+            RawTocEntry::new(Some(0), 1, Control::default(), 0, TrackNo(1), msf, 0, msf),
+            None
+        );
+    }
+
+    #[test]
+    fn raw_entries_classify_via_validating_constructors() {
+        let msf = Msf::new(0, 2, 0x21);
+        let raw =
+            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
+        let entry = TocEntry::from(raw);
+        assert!(matches!(entry, TocEntry::Track(_)));
+        assert_eq!(entry.trackno(), Some(TrackNo(1)));
+        assert_eq!(entry.start(), Some(Frame::from(msf)));
+    }
+
+    #[test]
+    fn unclassifiable_raw_entries_become_unknown() {
+        let msf = Msf::new(0, 2, 0);
+        // A0 point without session info cannot form a valid InfoEntry
+        let raw = RawTocEntry::new(
+            None,
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
+        )
+        .unwrap();
+        assert!(matches!(TocEntry::from(raw), TocEntry::Unknown(_)));
+        // a point which is not a normal track number cannot form a valid TrackEntry
+        let raw =
+            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf).unwrap();
+        assert!(matches!(TocEntry::from(raw), TocEntry::Unknown(_)));
     }
 
     #[test]

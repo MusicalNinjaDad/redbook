@@ -7,7 +7,7 @@ use metaflac::block::{Picture, VorbisComment};
 
 use crate::{
     Frame,
-    toc::{TrackEntry, TrackNo},
+    toc::{Control, TrackEntry, TrackNo},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Default)]
@@ -42,25 +42,23 @@ impl<'meta> Display for Track<'meta> {
 
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
-    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
-        let toc_entry = TrackEntry {
-            track: track_number,
-            start,
-            control: Default::default(),
-            session: Default::default(),
-        };
-        Self {
-            toc_entry,
+    ///
+    /// Returns `None` if the TOC entry would be invalid, i.e. if `track_number` is not a
+    /// "normal" track number ([`TrackNo::is_normal`]) or `start` is within the lead-in.
+    /// See [`TrackEntry::new`].
+    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Option<Self> {
+        Some(Self {
+            toc_entry: TrackEntry::new(track_number, start, Control::default(), None)?,
             duration,
             meta: None,
-        }
+        })
     }
 }
 
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
     pub fn track_number(&self) -> TrackNo {
-        self.toc_entry.track
+        self.toc_entry.trackno()
     }
 
     /// Returns the track title from MusicBrainz metadata, if available.
@@ -87,7 +85,7 @@ impl<'meta> Track<'meta> {
                     _ => trk_num,
                 }
             })
-            .unwrap_or_else(|| format!("{:02}", self.toc_entry.track));
+            .unwrap_or_else(|| format!("{:02}", self.toc_entry.trackno()));
         [track_num, self.title().unwrap_or_default()].join(" ")
     }
 

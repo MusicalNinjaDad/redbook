@@ -143,7 +143,7 @@ pub trait Drive: Sized {
 
             let start = track
                 .toc_entry
-                .start
+                .start()
                 .checked_add(offset)
                 .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
                 .or_error("computing read start")?;
@@ -178,7 +178,7 @@ pub trait Drive: Sized {
 
             let start = track
                 .toc_entry
-                .start
+                .start()
                 .checked_add(offset)
                 .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
                 .or_error("computing last read start")?;

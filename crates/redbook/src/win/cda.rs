@@ -11,7 +11,7 @@ use tracing_result::Trace;
 use crate::{
     Frame, LEADIN, Track,
     frame::{Msf, UpperBounded},
-    toc::{TrackEntry, TrackNo},
+    toc::TrackNo,
 };
 
 /// size of `.cda` files
@@ -200,15 +200,11 @@ impl TryFrom<CdaFile> for Track<'static> {
                 )
             })
             .or_warn("cda file does not describe a normal audio track")?;
-        Ok(Self {
-            toc_entry: TrackEntry {
-                track,
-                start: cda.start.into(),
-                control: Default::default(),
-                session: Default::default(),
-            },
-            duration: cda.duration.into(),
-            ..Default::default()
+        Track::new(track, cda.start.into(), cda.duration.into()).ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "cda file has an invalid track start position (within the lead-in)",
+            )
         })
     }
 }
@@ -269,7 +265,7 @@ mod tests {
                 TrackNo::new_normal(cda.track_number),
                 Some(track.track_number())
             );
-            assert_eq!(cda.start, track.toc_entry.start);
+            assert_eq!(cda.start, track.toc_entry.start());
             assert_eq!(cda.duration, track.duration);
             assert_matches!(Track::try_from(cda), Ok(_));
             // Cannot check windows_identifier without making _minimal more than minimal

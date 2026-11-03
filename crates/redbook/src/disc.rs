@@ -39,6 +39,7 @@ use crate::{
 /// use cdtoc::Toc;
 /// use redbook::{Disc, Frame, Track, TrackNo, UpperBounded};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
 ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
@@ -46,6 +47,7 @@ use crate::{
 ///     Track::new(TrackNo(3), Frame::strict_new(0x6256_u32), Frame::strict_new(0xb327_u32 - 0x6256)),
 ///     Track::new(TrackNo(4), Frame::strict_new(0xb327_u32), Frame::strict_new(0xd84a_u32 - 0xb327)),
 /// ];
+/// let tracks: Vec<_> = tracks.into_iter().collect::<Option<_>>().ok_or("invalid track data")?;
 ///
 /// // validates TOC, Tracks & leadout match
 /// let mut disc = Disc::new(toc, tracks)?;
@@ -59,7 +61,8 @@ use crate::{
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
 /// let track1_details = disc.tag_for(TrackNo(1)).unwrap();
-/// # std::io::Result::Ok(())
+/// # Ok(())
+/// # }
 /// ```
 pub struct Disc {
     /// The table of contents for the CD.
@@ -106,13 +109,17 @@ impl Disc {
     /// use redbook::{Disc, Track, Frame, TrackNo, UpperBounded};
     /// use cdtoc::Toc;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
+    /// let tracks: Vec<_> = tracks.into_iter().collect::<Option<_>>().ok_or("invalid track data")?;
     ///
-    /// let disc = Disc::new(toc, tracks).unwrap();
+    /// let disc = Disc::new(toc, tracks)?;
     /// assert_eq!(disc.tracks().count(), 1);
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// For a more complete example showing how to set metadata retrieval after initialisation,
@@ -181,11 +188,13 @@ impl Disc {
     /// use redbook::{Disc, Track, Frame, TrackNo, UpperBounded};
     /// use cdtoc::Toc;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
-    /// let mut disc = Disc::new(toc, tracks).unwrap();
+    /// let tracks: Vec<_> = tracks.into_iter().collect::<Option<_>>().ok_or("invalid track data")?;
+    /// let mut disc = Disc::new(toc, tracks)?;
     /// disc.update_musicbrainz()?;
     ///
     /// // For rare discs with a single release, release is already selected
@@ -197,7 +206,8 @@ impl Disc {
     /// }
     ///
     /// let release = disc.release();
-    /// # Ok::<(), std::io::Error>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn release(&self) -> Option<&Release> {
         self.musicbrainz
@@ -706,11 +716,13 @@ impl Disc {
     /// use cdtoc::Toc;
     /// use metaflac::block::VorbisComment;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
-    /// let mut disc = Disc::new(toc, tracks).unwrap();
+    /// let tracks: Vec<_> = tracks.into_iter().collect::<Option<_>>().ok_or("invalid track data")?;
+    /// let mut disc = Disc::new(toc, tracks)?;
     /// disc.update_musicbrainz()?;
     ///
     /// // Generate tags for the first track
@@ -718,7 +730,8 @@ impl Disc {
     ///     // Use tags for encoding
     ///     let _title = tags.title();
     /// }
-    /// # Ok::<(), std::io::Error>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn tag_for(&self, track_number: TrackNo) -> Option<VorbisComment> {
         let _debug = tracing::debug_span!("Disc::tag_for", %track_number).entered();

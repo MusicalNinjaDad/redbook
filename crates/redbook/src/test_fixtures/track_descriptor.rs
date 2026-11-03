@@ -84,19 +84,27 @@ impl TrackDescriptor {
     }
 }
 
-impl From<TrackDescriptor> for TocEntry {
-    fn from(d: TrackDescriptor) -> TocEntry {
-        let raw = RawTocEntry {
-            session: Some(d.session),
-            adr: d.adr(),
-            control: d.control(),
-            tno: d.tno,
-            point: TrackNo(d.point),
-            msf: Msf::new(d.min, d.sec, d.frame),
-            zero: d.zero,
-            pmsf: Msf::new(d.pmin, d.psec, d.pframe),
-        };
-        TocEntry::from(raw)
+impl TryFrom<TrackDescriptor> for TocEntry {
+    type Error = io::Error;
+
+    fn try_from(d: TrackDescriptor) -> Result<Self, Self::Error> {
+        RawTocEntry::new(
+            Some(d.session),
+            d.adr(),
+            d.control(),
+            d.tno,
+            TrackNo(d.point),
+            Msf::new(d.min, d.sec, d.frame),
+            d.zero,
+            Msf::new(d.pmin, d.psec, d.pframe),
+        )
+        .map(TocEntry::from)
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "TOC entry has invalid session number 0",
+            )
+        })
     }
 }
 
@@ -132,7 +140,9 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .0
             .into_iter()
             .map(TrackDescriptor::from_bytes)
-            .map(TocEntry::from)
+            .map(TocEntry::try_from)
+            .collect::<io::Result<Vec<TocEntry>>>()?
+            .into_iter()
             .collect()
     }
 }
