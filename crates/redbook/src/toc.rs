@@ -473,18 +473,22 @@ impl From<RawTocEntry> for TocEntry {
                 control: entry.control,
                 session: entry.session,
             }),
-            (1, b0010::FIRST_TRACK_ID) if entry.session.is_some() => TrackInfo(InfoEntry {
-                session: entry.session.expect("is_some"),
-                track: entry.pmsf.min.into(),
-                control: entry.control,
-                info_type: First,
-            }),
-            (1, b0010::LAST_TRACK_ID) if entry.session.is_some() => TrackInfo(InfoEntry {
-                session: entry.session.expect("is_some"),
-                track: entry.pmsf.min.into(),
-                control: entry.control,
-                info_type: Last,
-            }),
+            (1, b0010::FIRST_TRACK_ID) if let Some(session) = entry.session => {
+                TrackInfo(InfoEntry {
+                    session,
+                    track: entry.pmsf.min.into(),
+                    control: entry.control,
+                    info_type: First,
+                })
+            }
+            (1, b0010::LAST_TRACK_ID) if let Some(session) = entry.session => {
+                TrackInfo(InfoEntry {
+                    session,
+                    track: entry.pmsf.min.into(),
+                    control: entry.control,
+                    info_type: Last,
+                })
+            }
             (1, _) => Track(TrackEntry {
                 track: entry.point,
                 start: entry.pmsf.into(),
@@ -1033,7 +1037,7 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 
         let sessions = has_session_info
             .then(|| entries.iter().map(|entry| entry.session()).dedup().count())
-            .map(|n| NonZeroUsize::new(n).expect("we have found session info"));
+            .and_then(NonZeroUsize::new);
 
         let leadout_count: NonZeroUsize = entries
             .iter()
