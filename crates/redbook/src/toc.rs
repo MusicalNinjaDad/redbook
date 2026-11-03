@@ -931,8 +931,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 
         let mut entries: Vec<_> = iter.into_iter().collect();
 
-        dbg!(&entries);
-
         (!entries.is_empty())
             .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
 
@@ -943,8 +941,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 "Entries appear to be from multiple discs",
             )
         })?;
-
-        dbg!(&entries);
 
         if let Some(first_audio_info) = entries
             .iter()
