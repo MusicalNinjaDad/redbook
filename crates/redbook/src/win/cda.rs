@@ -11,7 +11,7 @@ use tracing_result::Trace;
 use crate::{
     Frame, LEADIN, Track,
     frame::{Msf, UpperBounded},
-    toc::{TrackEntry, TrackNo},
+    toc::TrackNo,
 };
 
 /// size of `.cda` files
@@ -33,6 +33,14 @@ pub struct CdaFile {
     /// and the *relative* frame in cda files. By storing `start` as [`Msf`] we aim to avoid
     /// any confusion as we can store the *absolute* value without diverging from the
     /// file contents.
+    ///
+    /// Concretely the file stores the start twice: at 0x1c as a *relative* frame offset (LBN,
+    /// where 0 is the start of the program area = 00:02:00 absolute - Windows works in LBN
+    /// internally and merely adds the fixed 150-frame lead-in when rendering MSF), and at 0x24
+    /// as the *absolute* MSF taken from the disc TOC. [`CdaFile::new`] cross-checks the two
+    /// representations, so a well-formed file always has `start >= 00:02:00` (frame 150). The
+    /// exception is deliberate copy-protection breakage (e.g. a track at 00:01:74): the MSF is
+    /// kept, with a warning, instead of failing the cross-check.
     start: Msf,
     /// Duration of the track: minutes, seconds, frames
     duration: Msf,
@@ -128,17 +136,9 @@ impl CdaFile {
         let windows_identifier = u32::from_le_bytes(data.next_chunk().unwrap());
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
-        let starting_frame = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "starting frame too large"))
-            .or_warn("parsing starting frame")?
-            .checked_add(LEADIN)
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "starting frame exceeds CD maximum",
-                )
-            })
-            .or_warn("adding lead-in to starting frame")?;
+        // files (0x1c) alongside the absolute MSF (0x24). Normally they agree:
+        // relative frame + lead-in == absolute MSF, and we cross-check them below.
+        let relative_frame = u32::from_le_bytes(data.next_chunk().unwrap());
         let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "duration too large"))
             .or_warn("parsing duration")?;
@@ -148,11 +148,27 @@ impl CdaFile {
         let start_min = data.next().unwrap();
         let start = Msf::new(start_min, start_sec, start_frame);
 
-        (start == starting_frame)
+        let msf_frames = Frame::from(start);
+        let relative_start = Frame::new(relative_frame).and_then(|frame| frame.checked_add(LEADIN));
+
+        // Escape hatch for deliberate TOC breakage (copy protection): "More Music from The Fast
+        // and the Furious" (CP-2 in the cdcopy-drm02 paper) has a track start of 00:01:74, below
+        // the lead-in, which has no valid relative-frame representation. The MSF straight from
+        // the disc TOC is the more viable value there, so warn and keep it instead of failing.
+        let start_below_leadin = msf_frames < LEADIN;
+        let _warn_issued = (start_below_leadin && relative_start != Some(msf_frames)).then(|| {
+            tracing::warn!(
+                name: "cda start below the lead-in; trusting the MSF over the relative frame",
+                relative_frame,
+                ?start
+            )
+        });
+
+        (relative_start == Some(msf_frames) || start_below_leadin)
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("mismatched start: frame {starting_frame:?} / {start:?}"),
+                    format!("mismatched start: relative frame {relative_frame} / msf {start:?}"),
                 )
             })
             .or_warn("")?;
@@ -200,15 +216,11 @@ impl TryFrom<CdaFile> for Track<'static> {
                 )
             })
             .or_warn("cda file does not describe a normal audio track")?;
-        Ok(Self {
-            toc_entry: TrackEntry {
-                track,
-                start: cda.start.into(),
-                control: Default::default(),
-                session: Default::default(),
-            },
-            duration: cda.duration.into(),
-            ..Default::default()
+        Track::new(track, cda.start.into(), cda.duration.into()).ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "cda file does not describe a valid track",
+            )
         })
     }
 }
@@ -269,12 +281,40 @@ mod tests {
                 TrackNo::new_normal(cda.track_number),
                 Some(track.track_number())
             );
-            assert_eq!(cda.start, track.toc_entry.start);
+            assert_eq!(cda.start, track.toc_entry.start());
             assert_eq!(cda.duration, track.duration);
             assert_matches!(Track::try_from(cda), Ok(_));
             // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
         }
+    }
+
+    #[test]
+    fn start_below_leadin_is_kept_with_a_warning() {
+        // Deliberate TOC breakage (copy protection): "More Music from The Fast and the Furious"
+        // (CP-2 in the cdcopy-drm02 paper) has a track start of 00:01:74, below the lead-in.
+        let cda_file = DefinitelyMaybe.assets_path().join("Track01.cda");
+        let mut contents = std::fs::read(&cda_file).unwrap();
+
+        // absolute MSF at 0x24 (frame, sec, min) = 00:01:74 (fields are binary, not BCD)
+        contents[0x24] = 0x4A;
+        contents[0x25] = 0x01;
+        contents[0x26] = 0x00;
+
+        // the relative frame at 0x1c has no valid representation for a start below the lead-in:
+        // Windows either clamps to 0 or wraps -1 to u32::MAX; both must parse, keeping the MSF
+        for relative_frame in [0, u32::MAX] {
+            contents[0x1c..0x20].copy_from_slice(&relative_frame.to_le_bytes());
+            let cda = CdaFile::new(contents.clone()).unwrap();
+            assert_eq!(cda.start, Msf::new(0x00, 0x01, 0x4A));
+        }
+
+        // a genuine mismatch at/above the lead-in still fails
+        contents[0x1c..0x20].copy_from_slice(&0_u32.to_le_bytes());
+        contents[0x24] = 0x00;
+        contents[0x25] = 0x03;
+        contents[0x26] = 0x00;
+        assert!(CdaFile::new(contents).is_err());
     }
 
     #[test]

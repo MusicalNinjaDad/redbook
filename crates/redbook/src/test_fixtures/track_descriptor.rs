@@ -2,7 +2,10 @@
 //!
 //! This is the format stored for test assets, which is independently obtained via cdrtools readcd
 
-use std::io::{self, ErrorKind};
+use std::{
+    io::{self, ErrorKind},
+    num::NonZeroU8,
+};
 
 use tracing_result::Trace;
 
@@ -84,19 +87,32 @@ impl TrackDescriptor {
     }
 }
 
-impl From<TrackDescriptor> for TocEntry {
-    fn from(d: TrackDescriptor) -> TocEntry {
-        let raw = RawTocEntry {
-            session: Some(d.session),
-            adr: d.adr(),
-            control: d.control(),
-            tno: d.tno,
-            point: TrackNo(d.point),
-            msf: Msf::new(d.min, d.sec, d.frame),
-            zero: d.zero,
-            pmsf: Msf::new(d.pmin, d.psec, d.pframe),
-        };
-        TocEntry::from(raw)
+impl TryFrom<TrackDescriptor> for TocEntry {
+    type Error = io::Error;
+
+    fn try_from(d: TrackDescriptor) -> Result<Self, Self::Error> {
+        let session = NonZeroU8::new(d.session).ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "TOC entry has invalid session number 0",
+            )
+        })?;
+        Option::<TocEntry>::from(RawTocEntry::new(
+            Some(session),
+            d.adr(),
+            d.control(),
+            d.tno,
+            TrackNo(d.point),
+            Msf::new(d.min, d.sec, d.frame),
+            d.zero,
+            Msf::new(d.pmin, d.psec, d.pframe),
+        ))
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "TOC entry is recognizably a track/leadout/info entry but invalid",
+            )
+        })
     }
 }
 
@@ -132,7 +148,9 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .0
             .into_iter()
             .map(TrackDescriptor::from_bytes)
-            .map(TocEntry::from)
+            .map(TocEntry::try_from)
+            .collect::<io::Result<Vec<TocEntry>>>()?
+            .into_iter()
             .collect()
     }
 }
