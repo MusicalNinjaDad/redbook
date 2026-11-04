@@ -229,9 +229,9 @@ pub struct TrackEntry {
 }
 
 impl TrackEntry {
-    /// Construct a new [`TrackEntry`], validating the invariants of a track entry.
+    /// Construct a new [`TrackEntry`].
     ///
-    /// Returns `None` unless:
+    /// # Validation
     /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99. "Special"
     ///   point values (e.g. 0xA0..=0xA2, 0xAA) are lead-out / track-info entries and belong in
     ///   the other [`TocEntry`] variants.
@@ -332,10 +332,11 @@ pub struct LeadoutEntry {
 }
 
 impl LeadoutEntry {
-    /// Construct a new [`LeadoutEntry`], validating the invariants of a lead-out entry.
+    /// Construct a new [`LeadoutEntry`].
     ///
-    /// Returns `None` unless `start` is beyond the lead-in ([`LEADIN`]): the lead-out always
-    /// follows the last track, which itself starts at or beyond [`LEADIN`].
+    /// # Validation
+    /// - `start` is beyond the lead-in ([`LEADIN`]): the lead-out always follows the last
+    ///   track, which itself starts at or beyond [`LEADIN`].
     pub fn new(start: Frame, control: Control, session: Option<u8>) -> Option<Self> {
         (start > LEADIN).then_some(Self {
             start,
@@ -395,9 +396,9 @@ pub struct InfoEntry {
 }
 
 impl InfoEntry {
-    /// Construct a new [`InfoEntry`] (first/last track number info), validating its invariants.
+    /// Construct a new [`InfoEntry`] (first/last track number info).
     ///
-    /// Returns `None` unless:
+    /// # Validation
     /// - `session` is a valid session number, i.e. 1..=255 (session numbers are 1-indexed)
     /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99
     pub fn new(
@@ -484,8 +485,10 @@ pub struct RawTocEntry {
 impl RawTocEntry {
     /// Construct a new [`RawTocEntry`] from raw Q sub-channel / READ TOC data.
     ///
-    /// As this is a raw, not-yet-classified entry there is little to validate. Returns `None`
-    /// only if `session` is `Some(0)`, as session numbers are 1-indexed.
+    /// As this is a raw, not-yet-classified entry there is little to validate.
+    ///
+    /// # Validation
+    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
     #[expect(
         clippy::too_many_arguments,
         reason = "arguments mirror the fields of a raw READ TOC track descriptor one-to-one"
