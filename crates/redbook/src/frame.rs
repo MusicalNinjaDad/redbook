@@ -362,49 +362,6 @@ impl Msf {
     }
 }
 
-/// Msf is stored as 1-byte binary-encoded-decimal.
-#[expect(non_camel_case_types, reason = "like i8, u8")]
-#[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
-#[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct bcd8(u8);
-
-impl UpperBounded for bcd8 {
-    type Inner = u8;
-
-    const MAX: Self = bcd8(99);
-
-    const ZERO: Self = bcd8(0);
-
-    fn into_inner(self) -> Self::Inner {
-        self.0
-    }
-
-    #[expect(unsafe_code, reason = "default impls")]
-    unsafe fn new_unchecked(inner: Self::Inner) -> Self {
-        Self(inner)
-    }
-}
-
-const impl Eq for bcd8 {}
-
-const impl PartialEq for bcd8 {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-const impl Ord for bcd8 {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-const impl PartialOrd for bcd8 {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 /// Integer types that implement checked_, saturating_, etc such that they are suitable for
 /// wrapping in an [`UpperBounded`]
 ///
