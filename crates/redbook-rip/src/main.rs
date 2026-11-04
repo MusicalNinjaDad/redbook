@@ -26,7 +26,6 @@ use metaflac::{
 };
 use redbook::{
     AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
-    frame::UpperBounded,
     tagging::{PictureExt, VorbisTagExt},
 };
 use thread_safely::Controller;

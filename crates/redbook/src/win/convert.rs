@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{Frame, frame::UpperBounded};
+use crate::Frame;
 
 use super::sys::{GUID, PCWSTR};
 

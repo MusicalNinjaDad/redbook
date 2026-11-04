@@ -19,10 +19,7 @@ use derive_more::Display;
 use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
-use crate::{
-    Frame, Track,
-    frame::{Msf, UpperBounded},
-};
+use crate::{Frame, Track, frame::Msf};
 
 pub mod b0000 {
     use super::TrackNo;

@@ -11,7 +11,6 @@ use tracing_result::Trace;
 
 use crate::{
     Device, FRAME_SIZE, Frame,
-    frame::UpperBounded,
     win::{
         MAX_PATH_CHARS,
         convert::{Guid, Sector, WinPath, WinString},

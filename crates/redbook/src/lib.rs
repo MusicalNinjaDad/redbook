@@ -264,7 +264,7 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
-pub use frame::{Frame, UpperBounded};
+pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{TocEntries, TrackNo};
 #[doc(inline)]

@@ -7,7 +7,7 @@ use metaflac::block::{Picture, PictureType};
 
 use crate::{
     Frame, LEADIN, TocEntries, Track,
-    frame::{Msf, UpperBounded},
+    frame::Msf,
     tagging::PictureExt,
     test_fixtures::track_descriptor::RawTocDescriptors,
     toc::{Control, TrackEntry, TrackNo},

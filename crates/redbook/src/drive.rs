@@ -12,7 +12,6 @@ use tracing_result::Trace;
 
 use crate::{
     FRAME_SIZE, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo,
-    frame::UpperBounded,
 };
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
