@@ -68,8 +68,7 @@ const impl UpperBounded for Frame {
         self.0
     }
 
-    #[expect(unsafe_code, reason = "default impls")]
-    unsafe fn new_unchecked(inner: Self::Inner) -> Self {
+    fn new_unchecked(inner: Self::Inner) -> Self {
         Self(inner)
     }
 }
@@ -483,6 +482,10 @@ const impl CheckedMath for u32 {
 
 /// A semantic wrapper around a primitive int type, which has a specific upper bound, lower than
 /// the wrapped type.
+///
+/// # Note
+/// While the primary constructors are designed to validate the upper bound, unsafe code MUST NOT
+/// rely on this.
 pub const trait UpperBounded
 where
     Self: Sized + [const] PartialOrd + [const] Destruct,
@@ -533,15 +536,8 @@ where
         }
     }
 
-    #[expect(
-        unsafe_code,
-        reason = "need new_unchecked to allow default impls for new_*"
-    )]
     /// Create a new value without validating bounds.
-    ///
-    /// # SAFETY
-    /// The caller must ensure that the bounds are valid.
-    unsafe fn new_unchecked(inner: Self::Inner) -> Self;
+    fn new_unchecked(inner: Self::Inner) -> Self;
 
     /// Creates a new value from any integer type, returning `None` if the value is above
     /// [`Self::MAX`].
@@ -554,9 +550,7 @@ where
         Self::Inner: [const] CheckedCastFromInt<N>,
     {
         let inner = Self::Inner::checked_cast_from(value)?;
-        #[expect(unsafe_code, reason = "default impl")]
-        // SAFETY: We validate immediately
-        unsafe { Self::new_unchecked(inner) }.validate()
+        Self::new_unchecked(inner).validate()
     }
 
     /// Creates a new value from any integer type, panicking if the value is above [`Self::MAX`].
@@ -576,9 +570,7 @@ where
         Self::Inner: [const] CheckedCastFromInt<N>,
     {
         let inner = Self::Inner::strict_cast_from(value);
-        #[expect(unsafe_code, reason = "default impl")]
-        // SAFETY: We assert validity immediately
-        unsafe { Self::new_unchecked(inner) }.assert_valid()
+        Self::new_unchecked(inner).assert_valid()
     }
 
     /// Creates a new value from any integer type, replacing any values above [`Self::MAX`] with [`Self::MAX`].
@@ -591,9 +583,7 @@ where
         Self::Inner: [const] BoundedCastFromInt<N>,
     {
         let inner = Self::Inner::saturating_cast_from(frames);
-        #[expect(unsafe_code, reason = "default impl")]
-        // SAFETY: We saturate immediately
-        unsafe { Self::new_unchecked(inner) }.saturate()
+        Self::new_unchecked(inner).saturate()
     }
 
     /// Strict addition. Computes `self + rhs`, panicking if the result is above [`Self::MAX`].
