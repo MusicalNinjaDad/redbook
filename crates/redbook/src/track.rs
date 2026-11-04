@@ -43,9 +43,9 @@ impl<'meta> Display for Track<'meta> {
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
     ///
-    /// Returns `None` if the TOC entry would be invalid, i.e. if `track_number` is not a
-    /// "normal" track number ([`TrackNo::is_normal`]) or `start` is within the lead-in.
-    /// See [`TrackEntry::new`].
+    /// # Validation
+    /// - delegates to [`TrackEntry::new`]: `track_number` must be a "normal" track number
+    ///   ([`TrackNo::is_normal`]) and `start` at or beyond the lead-in
     pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Option<Self> {
         Some(Self {
             toc_entry: TrackEntry::new(track_number, start, Control::default(), None)?,
