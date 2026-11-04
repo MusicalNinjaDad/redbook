@@ -107,8 +107,13 @@ impl TryFrom<TrackDescriptor> for TocEntry {
             d.zero,
             Msf::new(d.pmin, d.psec, d.pframe),
         )
-        .map(TocEntry::from)
-        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid raw TOC entry"))
+        .and_then(Option::<TocEntry>::from)
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "TOC entry is recognizably a track/leadout/info entry but invalid",
+            )
+        })
     }
 }
 

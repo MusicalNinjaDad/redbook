@@ -632,7 +632,13 @@ impl From<InfoEntry> for TocEntry {
     }
 }
 
-impl From<RawTocEntry> for TocEntry {
+/// Classifies a raw entry into a higher-level [`TocEntry`], returning `None` when the entry is
+/// recognizably a track / lead-out / track-info entry but invalid (e.g. an A0/A1 point without
+/// session info, or with a non-normal track number in PMIN).
+///
+/// [`TocEntry::Unknown`] is reserved for valid entries which the higher-level abstractions don't
+/// model (e.g. session boundary or writing-speed details).
+impl From<RawTocEntry> for Option<TocEntry> {
     fn from(entry: RawTocEntry) -> Self {
         use FirstLast::*;
         use TocEntry::*;
@@ -641,31 +647,24 @@ impl From<RawTocEntry> for TocEntry {
             (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => {
                 LeadoutEntry::new(entry.pmsf().into(), entry.control(), entry.session())
                     .map(Leadout)
-                    .unwrap_or(Unknown(entry))
             }
             (1, b0010::FIRST_TRACK_ID) => entry
                 .session()
                 .and_then(|session| {
                     InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), First)
                 })
-                .map(TrackInfo)
-                .unwrap_or(Unknown(entry)),
+                .map(TrackInfo),
             (1, b0010::LAST_TRACK_ID) => entry
                 .session()
                 .and_then(|session| {
                     InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), Last)
                 })
-                .map(TrackInfo)
-                .unwrap_or(Unknown(entry)),
-            (1, _) => TrackEntry::new(
-                entry.point(),
-                entry.pmsf().into(),
-                entry.control(),
-                entry.session(),
-            )
-            .map(Track)
-            .unwrap_or(Unknown(entry)),
-            _ => Unknown(entry),
+                .map(TrackInfo),
+            (1, point) if point.is_normal() => {
+                TrackEntry::new(point, entry.pmsf().into(), entry.control(), entry.session())
+                    .map(Track)
+            }
+            _ => Some(Unknown(entry)),
         }
     }
 }
@@ -1390,7 +1389,7 @@ mod tests {
         let msf = Msf::new(0, 2, 0x21);
         let raw =
             RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
-        let entry = TocEntry::from(raw);
+        let entry = Option::<TocEntry>::from(raw).unwrap();
         assert!(matches!(entry, TocEntry::Track(_)));
         assert_eq!(entry.trackno(), Some(TrackNo(1)));
         assert_eq!(entry.start(), Some(Frame::from(msf)));
@@ -1400,13 +1399,28 @@ mod tests {
         let msf = Msf::new(0, 0, 5);
         let raw =
             RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
-        assert!(matches!(TocEntry::from(raw), TocEntry::Track(_)));
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::Track(_))
+        ));
     }
 
     #[test]
-    fn unclassifiable_raw_entries_become_unknown() {
+    fn unmodelled_raw_entry_points_become_unknown() {
         let msf = Msf::new(0, 2, 0);
-        // A0 point without session info cannot form a valid InfoEntry
+        // a point which is not a normal track number / special code is valid but unmodelled
+        let raw =
+            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf).unwrap();
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::Unknown(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_track_info_entries_are_rejected_not_unknown() {
+        let msf = Msf::new(0, 2, 0);
+        // A0 point without session info is recognizably a track-info entry, but invalid
         let raw = RawTocEntry::new(
             None,
             1,
@@ -1418,11 +1432,20 @@ mod tests {
             Msf::new(1, 0, 0),
         )
         .unwrap();
-        assert!(matches!(TocEntry::from(raw), TocEntry::Unknown(_)));
-        // a point which is not a normal track number cannot form a valid TrackEntry
-        let raw =
-            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf).unwrap();
-        assert!(matches!(TocEntry::from(raw), TocEntry::Unknown(_)));
+        assert_eq!(Option::<TocEntry>::from(raw), None);
+        // A0 point with a non-normal track number in PMIN is likewise invalid
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(0xAA, 0, 0),
+        )
+        .unwrap();
+        assert_eq!(Option::<TocEntry>::from(raw), None);
     }
 
     #[test]
