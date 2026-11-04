@@ -45,7 +45,7 @@ impl Track<'static> {
     ///
     /// # Validation
     /// - delegates to [`TrackEntry::new`]: `track_number` must be a "normal" track number
-    ///   ([`TrackNo::is_normal`]) and `start` at or beyond the lead-in
+    ///   ([`TrackNo::is_normal`])
     pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Option<Self> {
         Some(Self {
             toc_entry: TrackEntry::new(track_number, start, Control::default(), None)?,

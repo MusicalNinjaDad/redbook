@@ -203,7 +203,7 @@ impl TryFrom<CdaFile> for Track<'static> {
         Track::new(track, cda.start.into(), cda.duration.into()).ok_or_else(|| {
             io::Error::new(
                 ErrorKind::InvalidData,
-                "cda file has an invalid track start position (within the lead-in)",
+                "cda file does not describe a valid track",
             )
         })
     }
