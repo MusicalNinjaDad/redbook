@@ -342,14 +342,12 @@ impl LeadoutEntry {
     /// - `start` is deliberately *not* validated against the lead-in, for the same reason as
     ///   [`TrackEntry::new`]: copy-protected discs store non-standard positions.
     /// - session validity is enforced at compile time: `session` is an `Option<NonZeroU8>`.
-    ///   There is currently nothing else to validate, so this always returns `Some`; the
-    ///   `Option` keeps the constructor signature uniform across [`TocEntry`] variant structs.
-    pub fn new(start: Frame, control: Control, session: Option<NonZeroU8>) -> Option<Self> {
-        Some(Self {
+    pub fn new(start: Frame, control: Control, session: Option<NonZeroU8>) -> Self {
+        Self {
             start,
             control,
             session,
-        })
+        }
     }
 
     /// Absolute start position of the lead-out on the disc, including lead-in (150 frames).
@@ -495,8 +493,7 @@ impl RawTocEntry {
     /// Construct a new [`RawTocEntry`] from raw Q sub-channel / READ TOC data.
     ///
     /// As this is a raw, not-yet-classified entry there is nothing to validate; session validity
-    /// is enforced at compile time via `Option<NonZeroU8>`. Always returns `Some` - the `Option`
-    /// keeps the constructor signature uniform across [`TocEntry`] variant structs.
+    /// is enforced at compile time via `Option<NonZeroU8>`.
     #[expect(
         clippy::too_many_arguments,
         reason = "arguments mirror the fields of a raw READ TOC track descriptor one-to-one"
@@ -510,8 +507,8 @@ impl RawTocEntry {
         msf: Msf,
         zero: u8,
         pmsf: Msf,
-    ) -> Option<Self> {
-        Some(Self {
+    ) -> Self {
+        Self {
             session,
             adr,
             control,
@@ -520,7 +517,7 @@ impl RawTocEntry {
             msf,
             zero,
             pmsf,
-        })
+        }
     }
 
     /// The session this entry relates to, if known.
@@ -644,10 +641,9 @@ impl From<RawTocEntry> for Option<TocEntry> {
         use TocEntry::*;
 
         match (entry.adr(), entry.point()) {
-            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => {
-                LeadoutEntry::new(entry.pmsf().into(), entry.control(), entry.session())
-                    .map(Leadout)
-            }
+            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => Some(Leadout(
+                LeadoutEntry::new(entry.pmsf().into(), entry.control(), entry.session()),
+            )),
             (1, b0010::FIRST_TRACK_ID) => entry
                 .session()
                 .and_then(|session| {
@@ -1335,9 +1331,13 @@ mod tests {
     }
 
     #[test]
-    fn leadout_entry_new_validates_invariants() {
+    fn leadout_entry_new_stores_all_fields() {
         // start is deliberately not validated against the lead-in (copy-protected discs)
-        assert!(LeadoutEntry::new(LEADIN, Control::default(), None).is_some());
+        let entry = LeadoutEntry::new(LEADIN, Control::default(), None);
+        assert_eq!(
+            (entry.start(), entry.control(), entry.session()),
+            (LEADIN, Control::default(), None)
+        );
     }
 
     #[test]
@@ -1364,31 +1364,47 @@ mod tests {
     }
 
     #[test]
-    fn raw_toc_entry_new_validates_invariants() {
+    fn raw_toc_entry_new_stores_all_fields() {
         let msf = Msf::new(0, 2, 0);
-        assert!(
-            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).is_some()
+        let pmsf = Msf::new(1, 2, 3);
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            2,
+            TrackNo(3),
+            msf,
+            0,
+            pmsf,
         );
-        assert!(
-            RawTocEntry::new(
+        assert_eq!(
+            (
+                raw.session(),
+                raw.adr(),
+                raw.control(),
+                raw.tno(),
+                raw.point(),
+                raw.msf(),
+                raw.zero(),
+                raw.pmsf()
+            ),
+            (
                 Some(NonZeroU8::MIN),
                 1,
                 Control::default(),
-                0,
-                TrackNo(1),
+                2,
+                TrackNo(3),
                 msf,
                 0,
-                msf
+                pmsf
             )
-            .is_some()
         );
     }
 
     #[test]
     fn raw_entries_classify_via_validating_constructors() {
         let msf = Msf::new(0, 2, 0x21);
-        let raw =
-            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
         let entry = Option::<TocEntry>::from(raw).unwrap();
         assert!(matches!(entry, TocEntry::Track(_)));
         assert_eq!(entry.trackno(), Some(TrackNo(1)));
@@ -1397,8 +1413,7 @@ mod tests {
         // a track start within the lead-in (as stored by copy-protected discs) must still
         // classify as a track rather than failing
         let msf = Msf::new(0, 0, 5);
-        let raw =
-            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Track(_))
@@ -1409,8 +1424,7 @@ mod tests {
     fn unmodelled_raw_entry_points_become_unknown() {
         let msf = Msf::new(0, 2, 0);
         // a point which is not a normal track number / special code is valid but unmodelled
-        let raw =
-            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf).unwrap();
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Unknown(_))
@@ -1430,8 +1444,7 @@ mod tests {
             msf,
             0,
             Msf::new(1, 0, 0),
-        )
-        .unwrap();
+        );
         assert_eq!(Option::<TocEntry>::from(raw), None);
         // A0 point with a non-normal track number in PMIN is likewise invalid
         let raw = RawTocEntry::new(
@@ -1443,8 +1456,7 @@ mod tests {
             msf,
             0,
             Msf::new(0xAA, 0, 0),
-        )
-        .unwrap();
+        );
         assert_eq!(Option::<TocEntry>::from(raw), None);
     }
 

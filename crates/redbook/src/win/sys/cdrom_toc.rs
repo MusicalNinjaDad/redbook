@@ -163,7 +163,7 @@ impl From<&TRACK_DATA> for Option<TocEntry> {
         match point {
             TrackNo(0) => None,
             b0000::LEADOUT_TRACK_ID => {
-                LeadoutEntry::new(start, control, None).map(TocEntry::Leadout)
+                Some(TocEntry::Leadout(LeadoutEntry::new(start, control, None)))
             }
             _ => TrackEntry::new(point, start, control, None).map(TocEntry::Track),
         }

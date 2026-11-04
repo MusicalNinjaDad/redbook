@@ -97,7 +97,7 @@ impl TryFrom<TrackDescriptor> for TocEntry {
                 "TOC entry has invalid session number 0",
             )
         })?;
-        RawTocEntry::new(
+        Option::<TocEntry>::from(RawTocEntry::new(
             Some(session),
             d.adr(),
             d.control(),
@@ -106,8 +106,7 @@ impl TryFrom<TrackDescriptor> for TocEntry {
             Msf::new(d.min, d.sec, d.frame),
             d.zero,
             Msf::new(d.pmin, d.psec, d.pframe),
-        )
-        .and_then(Option::<TocEntry>::from)
+        ))
         .ok_or_else(|| {
             io::Error::new(
                 ErrorKind::InvalidData,
