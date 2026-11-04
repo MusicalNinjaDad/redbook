@@ -33,6 +33,12 @@ pub struct CdaFile {
     /// and the *relative* frame in cda files. By storing `start` as [`Msf`] we aim to avoid
     /// any confusion as we can store the *absolute* value without diverging from the
     /// file contents.
+    ///
+    /// Concretely the file stores the start twice: at 0x1c as a *relative* frame offset (LBN,
+    /// where 0 is the start of the program area = 00:02:00 absolute - Windows works in LBN
+    /// internally and merely adds the fixed 150-frame lead-in when rendering MSF), and at 0x24
+    /// as the *absolute* MSF taken from the disc TOC. [`CdaFile::new`] cross-checks the two
+    /// representations, so a well-formed file always has `start >= 00:02:00` (frame 150).
     start: Msf,
     /// Duration of the track: minutes, seconds, frames
     duration: Msf,
