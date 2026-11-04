@@ -20,7 +20,7 @@ use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
 use crate::{
-    Frame, LEADIN, Track,
+    Frame, Track,
     frame::{Msf, UpperBounded},
 };
 
@@ -235,15 +235,19 @@ impl TrackEntry {
     /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99. "Special"
     ///   point values (e.g. 0xA0..=0xA2, 0xAA) are lead-out / track-info entries and belong in
     ///   the other [`TocEntry`] variants.
-    /// - `start` is at or beyond the lead-in ([`LEADIN`]): track positions are absolute and
-    ///   include the 150-frame lead-in, so a track can never start within the lead-in.
+    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
+    ///
+    /// # Notes
+    /// - `start` is deliberately *not* validated against the lead-in: copy-protected discs
+    ///   (e.g. Cactus Data Shield, Key2Audio) deliberately store non-standard track positions,
+    ///   and input from any reasonable source must be handled without failing.
     pub fn new(
         track: TrackNo,
         start: Frame,
         control: Control,
         session: Option<u8>,
     ) -> Option<Self> {
-        (track.is_normal() && start >= LEADIN).then_some(Self {
+        (track.is_normal() && is_valid_session(session)).then_some(Self {
             track,
             start,
             control,
@@ -335,10 +339,13 @@ impl LeadoutEntry {
     /// Construct a new [`LeadoutEntry`].
     ///
     /// # Validation
-    /// - `start` is beyond the lead-in ([`LEADIN`]): the lead-out always follows the last
-    ///   track, which itself starts at or beyond [`LEADIN`].
+    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
+    ///
+    /// # Notes
+    /// - `start` is deliberately *not* validated against the lead-in, for the same reason as
+    ///   [`TrackEntry::new`]: copy-protected discs store non-standard positions.
     pub fn new(start: Frame, control: Control, session: Option<u8>) -> Option<Self> {
-        (start > LEADIN).then_some(Self {
+        is_valid_session(session).then_some(Self {
             start,
             control,
             session,
@@ -503,7 +510,7 @@ impl RawTocEntry {
         zero: u8,
         pmsf: Msf,
     ) -> Option<Self> {
-        session.is_none_or(|session| session > 0).then_some(Self {
+        is_valid_session(session).then_some(Self {
             session,
             adr,
             control,
@@ -1260,9 +1267,17 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
     }
 }
 
+/// Whether an optional session number is valid: session numbers are 1-indexed, so `Some(0)` is
+/// invalid while `None` (unknown) is fine.
+fn is_valid_session(session: Option<u8>) -> bool {
+    session.is_none_or(|session| session > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::LEADIN;
 
     #[test]
     fn usable_in_const_context() {
@@ -1312,23 +1327,30 @@ mod tests {
             TrackEntry::new(b0010::FIRST_TRACK_ID, LEADIN, Control::default(), None),
             None
         );
-        // a track can never start within the lead-in
+        // session numbers are 1-indexed
         assert_eq!(
+            TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(0)),
+            None
+        );
+        // start is deliberately not validated against the lead-in: copy-protected discs
+        // (e.g. Cactus Data Shield, Key2Audio) store track starts within the lead-in
+        assert!(
             TrackEntry::new(
                 TrackNo(1),
                 Frame::strict_new(149_u32),
                 Control::default(),
                 None
-            ),
-            None
+            )
+            .is_some()
         );
     }
 
     #[test]
     fn leadout_entry_new_validates_invariants() {
-        assert!(LeadoutEntry::new(Frame::strict_new(151_u32), Control::default(), None).is_some());
-        // the lead-out always follows the last track, so is strictly beyond the lead-in
-        assert_eq!(LeadoutEntry::new(LEADIN, Control::default(), None), None);
+        // start is deliberately not validated against the lead-in (copy-protected discs)
+        assert!(LeadoutEntry::new(LEADIN, Control::default(), None).is_some());
+        // session numbers are 1-indexed
+        assert_eq!(LeadoutEntry::new(LEADIN, Control::default(), Some(0)), None);
     }
 
     #[test]
@@ -1373,6 +1395,13 @@ mod tests {
         assert!(matches!(entry, TocEntry::Track(_)));
         assert_eq!(entry.trackno(), Some(TrackNo(1)));
         assert_eq!(entry.start(), Some(Frame::from(msf)));
+
+        // a track start within the lead-in (as stored by copy-protected discs) must still
+        // classify as a track rather than failing
+        let msf = Msf::new(0, 0, 5);
+        let raw =
+            RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).unwrap();
+        assert!(matches!(TocEntry::from(raw), TocEntry::Track(_)));
     }
 
     #[test]
