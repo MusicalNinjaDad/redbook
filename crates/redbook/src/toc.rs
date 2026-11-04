@@ -7,7 +7,7 @@ use std::{
     hint::cold_path,
     io::{self, ErrorKind},
     marker::StructuralPartialEq,
-    num::{NonZeroUsize, ParseIntError},
+    num::{NonZeroU8, NonZeroUsize, ParseIntError},
     ops::{Deref, DerefMut},
     slice,
     str::FromStr,
@@ -224,8 +224,8 @@ pub struct TrackEntry {
     start: Frame,
     /// The control code, identifying track type
     control: Control,
-    /// The session this entry relates to, if known
-    session: Option<u8>,
+    /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
+    session: Option<NonZeroU8>,
 }
 
 impl TrackEntry {
@@ -235,19 +235,19 @@ impl TrackEntry {
     /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99. "Special"
     ///   point values (e.g. 0xA0..=0xA2, 0xAA) are lead-out / track-info entries and belong in
     ///   the other [`TocEntry`] variants.
-    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
     ///
     /// # Notes
     /// - `start` is deliberately *not* validated against the lead-in: copy-protected discs
     ///   (e.g. Cactus Data Shield, Key2Audio) deliberately store non-standard track positions,
     ///   and input from any reasonable source must be handled without failing.
+    /// - session validity is enforced at compile time: `session` is an `Option<NonZeroU8>`
     pub fn new(
         track: TrackNo,
         start: Frame,
         control: Control,
-        session: Option<u8>,
+        session: Option<NonZeroU8>,
     ) -> Option<Self> {
-        (track.is_normal() && is_valid_session(session)).then_some(Self {
+        track.is_normal().then_some(Self {
             track,
             start,
             control,
@@ -266,7 +266,7 @@ impl TrackEntry {
     }
 
     /// The session this entry relates to, if known.
-    pub fn session(&self) -> Option<u8> {
+    pub fn session(&self) -> Option<NonZeroU8> {
         self.session
     }
 
@@ -331,21 +331,21 @@ pub struct LeadoutEntry {
     start: Frame,
     /// The control code, identifying track type
     control: Control,
-    /// The session this entry relates to, if known
-    session: Option<u8>,
+    /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
+    session: Option<NonZeroU8>,
 }
 
 impl LeadoutEntry {
     /// Construct a new [`LeadoutEntry`].
     ///
-    /// # Validation
-    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
-    ///
     /// # Notes
     /// - `start` is deliberately *not* validated against the lead-in, for the same reason as
     ///   [`TrackEntry::new`]: copy-protected discs store non-standard positions.
-    pub fn new(start: Frame, control: Control, session: Option<u8>) -> Option<Self> {
-        is_valid_session(session).then_some(Self {
+    /// - session validity is enforced at compile time: `session` is an `Option<NonZeroU8>`.
+    ///   There is currently nothing else to validate, so this always returns `Some`; the
+    ///   `Option` keeps the constructor signature uniform across [`TocEntry`] variant structs.
+    pub fn new(start: Frame, control: Control, session: Option<NonZeroU8>) -> Option<Self> {
+        Some(Self {
             start,
             control,
             session,
@@ -358,7 +358,7 @@ impl LeadoutEntry {
     }
 
     /// The session this entry relates to, if known.
-    pub fn session(&self) -> Option<u8> {
+    pub fn session(&self) -> Option<NonZeroU8> {
         self.session
     }
 }
@@ -392,8 +392,8 @@ impl Ctrl for LeadoutEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InfoEntry {
-    /// The session this entry relates to. 1-indexed, so never 0.
-    session: u8,
+    /// The session this entry relates to (`NonZeroU8`: session numbers are 1-indexed).
+    session: NonZeroU8,
     /// The first or last track number of the session, as encoded in the start minute.
     track: TrackNo,
     /// The control code, identifying track type
@@ -406,15 +406,17 @@ impl InfoEntry {
     /// Construct a new [`InfoEntry`] (first/last track number info).
     ///
     /// # Validation
-    /// - `session` is a valid session number, i.e. 1..=255 (session numbers are 1-indexed)
     /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99
+    ///
+    /// # Notes
+    /// - session validity is enforced at compile time: `session` is a [`NonZeroU8`]
     pub fn new(
-        session: u8,
+        session: NonZeroU8,
         track: TrackNo,
         control: Control,
         info_type: FirstLast,
     ) -> Option<Self> {
-        ((session > 0) && track.is_normal()).then_some(Self {
+        track.is_normal().then_some(Self {
             session,
             track,
             control,
@@ -423,7 +425,7 @@ impl InfoEntry {
     }
 
     /// The session this entry relates to.
-    pub fn session(&self) -> u8 {
+    pub fn session(&self) -> NonZeroU8 {
         self.session
     }
 
@@ -471,8 +473,8 @@ impl PartialOrd for InfoEntry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawTocEntry {
-    /// The session this entry relates to, if known. 1-indexed, so never 0 when present.
-    session: Option<u8>,
+    /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
+    session: Option<NonZeroU8>,
     /// The ADR (address mode) field of the Q sub-channel.
     adr: u8,
     /// The control code, identifying track type
@@ -492,16 +494,15 @@ pub struct RawTocEntry {
 impl RawTocEntry {
     /// Construct a new [`RawTocEntry`] from raw Q sub-channel / READ TOC data.
     ///
-    /// As this is a raw, not-yet-classified entry there is little to validate.
-    ///
-    /// # Validation
-    /// - `session` is `None` or non-zero (session numbers are 1-indexed)
+    /// As this is a raw, not-yet-classified entry there is nothing to validate; session validity
+    /// is enforced at compile time via `Option<NonZeroU8>`. Always returns `Some` - the `Option`
+    /// keeps the constructor signature uniform across [`TocEntry`] variant structs.
     #[expect(
         clippy::too_many_arguments,
         reason = "arguments mirror the fields of a raw READ TOC track descriptor one-to-one"
     )]
     pub fn new(
-        session: Option<u8>,
+        session: Option<NonZeroU8>,
         adr: u8,
         control: Control,
         tno: u8,
@@ -510,7 +511,7 @@ impl RawTocEntry {
         zero: u8,
         pmsf: Msf,
     ) -> Option<Self> {
-        is_valid_session(session).then_some(Self {
+        Some(Self {
             session,
             adr,
             control,
@@ -523,7 +524,7 @@ impl RawTocEntry {
     }
 
     /// The session this entry relates to, if known.
-    pub fn session(&self) -> Option<u8> {
+    pub fn session(&self) -> Option<NonZeroU8> {
         self.session
     }
 
@@ -715,7 +716,7 @@ impl Ctrl for TocEntry {
 }
 
 impl TocEntry {
-    pub fn session(&self) -> Option<u8> {
+    pub fn session(&self) -> Option<NonZeroU8> {
         match self {
             TocEntry::Track(entry) => entry.session(),
             TocEntry::Leadout(entry) => entry.session(),
@@ -1267,12 +1268,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
     }
 }
 
-/// Whether an optional session number is valid: session numbers are 1-indexed, so `Some(0)` is
-/// invalid while `None` (unknown) is fine.
-fn is_valid_session(session: Option<u8>) -> bool {
-    session.is_none_or(|session| session > 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1312,10 +1307,10 @@ mod tests {
 
     #[test]
     fn track_entry_new_validates_invariants() {
-        let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(1));
+        let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(NonZeroU8::MIN));
         assert_eq!(
             entry.map(|e| (e.trackno(), e.start(), e.session())),
-            Some((TrackNo(1), LEADIN, Some(1)))
+            Some((TrackNo(1), LEADIN, Some(NonZeroU8::MIN)))
         );
 
         // special point values (lead-out / track-info codes) are not tracks
@@ -1325,11 +1320,6 @@ mod tests {
         );
         assert_eq!(
             TrackEntry::new(b0010::FIRST_TRACK_ID, LEADIN, Control::default(), None),
-            None
-        );
-        // session numbers are 1-indexed
-        assert_eq!(
-            TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(0)),
             None
         );
         // start is deliberately not validated against the lead-in: copy-protected discs
@@ -1349,22 +1339,23 @@ mod tests {
     fn leadout_entry_new_validates_invariants() {
         // start is deliberately not validated against the lead-in (copy-protected discs)
         assert!(LeadoutEntry::new(LEADIN, Control::default(), None).is_some());
-        // session numbers are 1-indexed
-        assert_eq!(LeadoutEntry::new(LEADIN, Control::default(), Some(0)), None);
     }
 
     #[test]
     fn info_entry_new_validates_invariants() {
-        assert!(InfoEntry::new(1, TrackNo(1), Control::default(), FirstLast::First).is_some());
-        // session numbers are 1-indexed
-        assert_eq!(
-            InfoEntry::new(0, TrackNo(1), Control::default(), FirstLast::First),
-            None
+        assert!(
+            InfoEntry::new(
+                NonZeroU8::MIN,
+                TrackNo(1),
+                Control::default(),
+                FirstLast::First
+            )
+            .is_some()
         );
         // first/last track info must reference a normal track number
         assert_eq!(
             InfoEntry::new(
-                1,
+                NonZeroU8::MIN,
                 b0000::LEADOUT_TRACK_ID,
                 Control::default(),
                 FirstLast::Last
@@ -1379,10 +1370,18 @@ mod tests {
         assert!(
             RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf).is_some()
         );
-        // session numbers are 1-indexed
-        assert_eq!(
-            RawTocEntry::new(Some(0), 1, Control::default(), 0, TrackNo(1), msf, 0, msf),
-            None
+        assert!(
+            RawTocEntry::new(
+                Some(NonZeroU8::MIN),
+                1,
+                Control::default(),
+                0,
+                TrackNo(1),
+                msf,
+                0,
+                msf
+            )
+            .is_some()
         );
     }
 

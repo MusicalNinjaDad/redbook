@@ -2,7 +2,10 @@
 //!
 //! This is the format stored for test assets, which is independently obtained via cdrtools readcd
 
-use std::io::{self, ErrorKind};
+use std::{
+    io::{self, ErrorKind},
+    num::NonZeroU8,
+};
 
 use tracing_result::Trace;
 
@@ -88,8 +91,14 @@ impl TryFrom<TrackDescriptor> for TocEntry {
     type Error = io::Error;
 
     fn try_from(d: TrackDescriptor) -> Result<Self, Self::Error> {
+        let session = NonZeroU8::new(d.session).ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "TOC entry has invalid session number 0",
+            )
+        })?;
         RawTocEntry::new(
-            Some(d.session),
+            Some(session),
             d.adr(),
             d.control(),
             d.tno,
@@ -99,12 +108,7 @@ impl TryFrom<TrackDescriptor> for TocEntry {
             Msf::new(d.pmin, d.psec, d.pframe),
         )
         .map(TocEntry::from)
-        .ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                "TOC entry has invalid session number 0",
-            )
-        })
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid raw TOC entry"))
     }
 }
 
