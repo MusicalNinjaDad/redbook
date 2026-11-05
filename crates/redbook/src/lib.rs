@@ -145,6 +145,7 @@
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
 //! - [`Control`][toc::Control] - technical control code associated with a TOC entry
 //! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
+//! - [`ByteSize`]      - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or [`Frame::size`]
 //! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on
 //!   a physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
 //!
@@ -264,7 +265,7 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
-pub use frame::Frame;
+pub use frame::{ByteSize, Frame};
 #[doc(inline)]
 pub use toc::{TocEntries, TrackNo};
 #[doc(inline)]
@@ -314,12 +315,6 @@ pub type CdDrive = drive::CdDrive<DriveHandle>;
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
 pub type CdDrives = drive::CdDrives<DriveHandle>;
 
-/// Size of a single CDDA audio frame in bytes.
-///
-/// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
-/// of raw audio data.
-pub const FRAME_SIZE: u32 = 2352;
-
 const KB: u32 = 1024;
 
 /// Standard CD lead-in duration in frames.
@@ -332,20 +327,17 @@ pub const LEADIN: Frame = Frame::strict_new(150);
 
 /// Maximum number of bytes that can be read in a single chunk.
 ///
-/// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
-const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES
-    .cast::<u64>()
-    .strict_mul(FRAME_SIZE.strict_cast())
-    .strict_cast();
+/// # Notes
+/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
+const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
 
 /// Maximum number of frames that can be read in a single chunk.
 ///
 /// # Notes
 /// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is calculated to stay under a safe buffer size (currently 64KB)
+/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
 ///
 /// # TODOs
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame =
-    Frame::strict_new(64_u64.strict_mul(KB.into()).strict_div(FRAME_SIZE.into()));
+const MAX_CHUNK_FRAMES: Frame = ByteSize::strict_new(64 * KB).frames_floor_strict();

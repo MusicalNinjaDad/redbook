@@ -1,12 +1,13 @@
 //! Time units: Audio CDs measure time in 1/75 second "frames". Provides `Frame` & `Msf`
-//! (min, sec, frame).
+//! (min, sec, frame), plus `ByteSize` for sizes in bytes.
 
 use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::{Debug, Display},
-    marker::Destruct,
-    num::TryFromIntError,
-    ops::{Div, Rem},
+    marker::{Destruct, StructuralPartialEq},
+    num::{ParseIntError, TryFromIntError},
+    ops::{Deref, DerefMut, Div, Rem},
+    str::FromStr,
 };
 
 use crate::LEADIN;
@@ -41,6 +42,11 @@ use crate::LEADIN;
 /// If an integer result is required, use [`Frame::cast`] first and then the corresponding
 /// `u32` method.
 ///
+/// To convert a frame count into a byte count use [`Frame::size`], which returns a
+/// [`ByteSize`]. [`Frame::SIZE_IN_BYTES`] is itself a [`ByteSize`], so it cannot be used as the
+/// scalar `rhs` of the mul methods: a `Frame` times a byte size is a `ByteSize`, never a
+/// `Frame`.
+///
 /// # TODOs
 /// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
@@ -73,6 +79,17 @@ impl Frame {
 
     /// One minute, i.e. 60 seconds.
     pub const ONE_MINUTE: Self = Frame(Self::ONE_SECOND.into_inner() * 60);
+
+    /// Size of a single CDDA audio frame in bytes.
+    ///
+    /// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
+    /// of raw audio data.
+    ///
+    /// # Note
+    /// - This is a [`ByteSize`], not a scalar, so it cannot be passed as the `rhs` of the
+    ///   `strict_mul` & friends: `frame.strict_mul(Frame::SIZE_IN_BYTES)` does not compile.
+    ///   Use [`Frame::size`] to get the byte size of a frame count instead.
+    pub const SIZE_IN_BYTES: ByteSize = ByteSize(2352);
 
     /// Creates a new `Frame` from any integer type, returning `None` if the value is above
     /// [`Self::MAX`].
@@ -159,6 +176,27 @@ impl Frame {
         N: [const] CheckedCastFromInt<u32>,
     {
         N::strict_cast_from(self.into_inner())
+    }
+
+    /// The size of `self` in bytes: `self * `[`Self::SIZE_IN_BYTES`].
+    ///
+    /// This is the type-safe way to turn a frame count into a byte count: the result is a
+    /// [`ByteSize`], so it cannot be mistaken for another `Frame` (position or duration).
+    ///
+    /// # Note
+    /// - Infallible: the inner `u32` is at most `u32::MAX`, and `u32::MAX * 2352` still fits
+    ///   in the `u64` stored by [`ByteSize`].
+    ///
+    /// # Examples
+    /// ```
+    /// use redbook::{ByteSize, Frame};
+    ///
+    /// let one_second = Frame::ONE_SECOND;
+    /// assert_eq!(one_second.size(), ByteSize(75 * 2352));
+    /// assert_eq!(one_second.size().frames_exact(), one_second);
+    /// ```
+    pub const fn size(self) -> ByteSize {
+        ByteSize(u64::from(self.into_inner()).strict_mul(Self::SIZE_IN_BYTES.0))
     }
 
     /// Validates `self` is within upper bounds
@@ -884,8 +922,259 @@ impl TryFrom<(u32, u8, u8)> for Msf {
     }
 }
 
+// =====================
+// ByteSize - sizes in bytes
+// =====================
+
+/// A size in bytes.
+///
+/// CDDA data is counted in [`Frame`]s, but buffers & files are counted in bytes. `ByteSize`
+/// keeps the two apart: [`Frame::size`] multiplies a frame count by [`Frame::SIZE_IN_BYTES`]
+/// and returns a `ByteSize`, not another `Frame`.
+///
+/// # Notes
+/// - Internally byte sizes are stored as a `u64`: platform independent, and large enough for
+///   any size derived from a [`Frame`] ([`Frame::MAX`] * [`Frame::SIZE_IN_BYTES`] fits
+///   comfortably). Platform-dependent targets such as `usize` are available via the cast
+///   methods, e.g. [`ByteSize::checked_cast`].
+/// - Basic construction is via `ByteSize(n)` for simplicity, or from any integer type via
+///   [`ByteSize::new`], [`ByteSize::strict_new`] & [`ByteSize::saturating_new`].
+/// - As with [`TrackNo`][crate::TrackNo], `ByteSize` implements `Deref` & `DerefMut` with
+///   `Target = u64`, so all the `strict_`, `checked_`, `saturating_` and `wrapping_` operations
+///   of `u64` are available on the raw value. You are strongly advised to use these rather
+///   than the operators.
+/// - `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented. While you *could*
+///   simply do `ByteSize(bytes.0 + 3)`, wrap the result of the `u64` operations back in
+///   `ByteSize(...)` if you need a `ByteSize` again.
+/// - To convert to a frame count, use the `*_frames` methods ([`ByteSize::frames`] &
+///   [`ByteSize::checked_exact_frames`]), which divide by [`Frame::SIZE_IN_BYTES`].
+/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `ByteSize` & `u64`,
+///   to ensure comparisons don't inadvertently compare a `ByteSize` with something
+///   semantically different.
+///
+/// # Examples
+/// ```
+/// use redbook::{ByteSize, Frame};
+///
+/// let bytes = Frame::strict_new(100).size();
+/// assert_eq!(bytes, ByteSize(235_200));
+/// assert_eq!(bytes.frames_floor_strict(), Frame::strict_new(100));
+/// assert_eq!(bytes.frames_exact_checked(), Some(Frame::strict_new(100)));
+///
+/// // not a whole number of frames
+/// assert_eq!(ByteSize(2353).frames_exact_checked(), None);
+/// ```
+#[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
+#[derive(Debug, Clone, Copy, Hash, Default)]
+pub struct ByteSize(pub u64);
+
+impl ByteSize {
+    /// Creates a new `ByteSize` from any integer type, returning `None` if the value does not
+    /// fit in a `u64`.
+    ///
+    /// # Note
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// - For a saturating constructor use [`Self::saturating_new`]
+    pub const fn new<N>(value: N) -> Option<Self>
+    where
+        u64: [const] CheckedCastFromInt<N>,
+    {
+        u64::checked_cast_from(value).map(Self)
+    }
+
+    /// Creates a new `ByteSize` from any integer type, panicking if the value does not fit in
+    /// a `u64`.
+    ///
+    /// # Note
+    /// - For a non-panicking constructor use [`Self::new`] or [`Self::saturating_new`]
+    ///
+    /// # Panics
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    pub const fn strict_new<N>(value: N) -> Self
+    where
+        u64: [const] CheckedCastFromInt<N>,
+    {
+        Self(u64::strict_cast_from(value))
+    }
+
+    /// Creates a new `ByteSize` from any integer type, replacing any values above `u64::MAX`
+    /// with `u64::MAX`.
+    ///
+    /// # Note
+    /// - For a validating constructor use [`Self::new`], or for a panicking constructor use
+    ///   [`Self::strict_new`]
+    pub const fn saturating_new<N>(value: N) -> Self
+    where
+        u64: [const] BoundedCastFromInt<N>,
+    {
+        Self(u64::saturating_cast_from(value))
+    }
+
+    /// Casts to any integer type which the inner representation allows without risk.
+    pub const fn cast<N>(self) -> N
+    where
+        N: [const] From<u64>,
+    {
+        N::from(self.0)
+    }
+
+    /// Casts to any integer type returning `None` on overflow.
+    pub const fn checked_cast<N>(self) -> Option<N>
+    where
+        N: [const] CheckedCastFromInt<u64>,
+    {
+        N::checked_cast_from(self.0)
+    }
+
+    /// Casts to any integer type saturating on overflow.
+    pub const fn saturating_cast<N>(self) -> N
+    where
+        N: [const] BoundedCastFromInt<u64>,
+    {
+        N::saturating_cast_from(self.0)
+    }
+
+    /// Casts to any integer type panicking on overflow.
+    pub const fn strict_cast<N>(self) -> N
+    where
+        N: [const] CheckedCastFromInt<u64>,
+    {
+        N::strict_cast_from(self.0)
+    }
+
+    // ============================
+    // Conversion to Frame counts
+    //
+    // divides by Frame::SIZE_IN_BYTES
+    // ============================
+
+    /// The number of [`Frame`]s contained in this byte size, panicking unless `self` is an
+    /// exact multiple of [`Frame::SIZE_IN_BYTES`].
+    ///
+    /// # Panics
+    /// Panics if `self` is not an exact multiple of [`Frame::SIZE_IN_BYTES`], or if the result
+    /// is above [`Frame::MAX`].
+    pub const fn frames_exact(self) -> Frame {
+        match self.frames_exact_checked() {
+            Some(frames) => frames,
+            None => panic!("byte size is not an exact number of frames"),
+        }
+    }
+
+    /// The number of [`Frame`]s contained in this byte size, returning `None` unless `self`
+    /// is an exact multiple of [`Frame::SIZE_IN_BYTES`] and the result is within
+    /// [`Frame::MAX`].
+    ///
+    /// # Examples
+    /// ```
+    /// use redbook::{ByteSize, Frame};
+    ///
+    /// assert_eq!(
+    ///     ByteSize(2 * 2352).frames_exact_checked(),
+    ///     Some(Frame::strict_new(2))
+    /// );
+    /// assert_eq!(ByteSize(2353).frames_exact_checked(), None);
+    /// ```
+    pub const fn frames_exact_checked(self) -> Option<Frame> {
+        match self.0 % Frame::SIZE_IN_BYTES.0 {
+            0 => Frame::new(self.0 / Frame::SIZE_IN_BYTES.0),
+            _ => None,
+        }
+    }
+
+    /// The number of whole [`Frame`]s contained in this byte size, rounded down, returning `None`
+    /// if the result is above [`Frame::MAX`].
+    pub const fn frames_floor_checked(self) -> Option<Frame> {
+        Frame::new(self.0 / Frame::SIZE_IN_BYTES.0)
+    }
+
+    /// The number of whole [`Frame`]s contained in this byte size, rounded down, saturating at
+    /// [`Frame::MAX`].
+    pub const fn frames_floor_saturating(self) -> Frame {
+        Frame::saturating_new(self.0 / Frame::SIZE_IN_BYTES.0)
+    }
+
+    /// The number of whole [`Frame`]s contained in this byte size:
+    /// `self / `[`Frame::SIZE_IN_BYTES`], rounded down.
+    ///
+    /// # Panics
+    /// Panics if the result is above [`Frame::MAX`] ("semantic overflow").
+    pub const fn frames_floor_strict(self) -> Frame {
+        Frame::strict_new(self.0 / Frame::SIZE_IN_BYTES.0)
+    }
+}
+
+// ===========================================
+// ByteSize - const comparison & conversion ops
+// ===========================================
+
+const impl Ord for ByteSize {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+const impl PartialOrd for ByteSize {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+const impl Eq for ByteSize {}
+
+const impl PartialEq for ByteSize {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl StructuralPartialEq for ByteSize {}
+
+impl Deref for ByteSize {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ByteSize {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for ByteSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} bytes", self.0)
+    }
+}
+
+const impl From<u64> for ByteSize {
+    fn from(n: u64) -> Self {
+        ByteSize(n)
+    }
+}
+
+const impl From<usize> for ByteSize {
+    fn from(n: usize) -> Self {
+        // lossless on all platforms: usize is at most 64 bits
+        ByteSize(u64::strict_cast_from(n))
+    }
+}
+
+impl FromStr for ByteSize {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::{MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES};
+
     use super::*;
 
     use rstest::rstest;
@@ -1020,5 +1309,110 @@ mod tests {
         let frame = Frame::strict_new(2000);
         assert!(frame.checked_rem(rhs).is_none());
         frame.rem(rhs);
+    }
+
+    #[test]
+    fn bytesize_usable_in_const_context() {
+        // compile-time proof: these only compile if ByteSize & Frame::size are usable in const contexts
+        const SIZE_IN_BYTES: ByteSize = Frame::SIZE_IN_BYTES;
+        const ONE_FRAME: ByteSize = Frame::strict_new(1).size();
+        const FRAMES_IN_64KB: Frame = ByteSize(64 * 1024).frames_floor_strict();
+        const EXACT: Option<Frame> = ByteSize(2 * 2352).frames_exact_checked();
+        const NOT_EXACT: Option<Frame> = ByteSize(2353).frames_exact_checked();
+        const CAST: u64 = SIZE_IN_BYTES.cast();
+        const AS_USIZE: usize = ByteSize(65536).strict_cast();
+        const EQ: bool = SIZE_IN_BYTES == ByteSize(2352);
+        const NE: bool = SIZE_IN_BYTES != ByteSize(2353);
+        const LT: bool = ByteSize(1) < ByteSize(2);
+
+        // cross-check the const-evaluated values against runtime evaluation
+        assert_eq!(SIZE_IN_BYTES, ByteSize(2352));
+        assert_eq!(ONE_FRAME, ByteSize(2352));
+        assert_eq!(FRAMES_IN_64KB, Frame::strict_new(27));
+        assert_eq!(EXACT, Some(Frame::strict_new(2)));
+        assert_eq!(NOT_EXACT, None);
+        assert_eq!(CAST, 2352_u64);
+        assert_eq!(AS_USIZE, 65536);
+        let size_in_bytes = Frame::SIZE_IN_BYTES;
+        assert_eq!(EQ, size_in_bytes == ByteSize(2352));
+        assert_eq!(NE, size_in_bytes != ByteSize(2353));
+        assert_eq!(LT, ByteSize(1) < size_in_bytes);
+    }
+
+    #[test]
+    fn frame_size_round_trips_through_bytesize() {
+        for frames in [0, 1, 75, 150, 2000, Frame::MAX.cast::<u32>()] {
+            let frame = Frame::strict_new(frames);
+            let size = frame.size();
+            assert_eq!(size, ByteSize(u64::from(frames) * 2352));
+            assert_eq!(size.frames_floor_strict(), frame);
+            assert_eq!(size.frames_exact(), frame);
+            assert_eq!(size.frames_exact_checked(), Some(frame));
+        }
+        // even Frame::MAX * SIZE_IN_BYTES fits in the u64 stored by ByteSize
+        assert_eq!(Frame::MAX.size(), ByteSize(2_744_501_760));
+    }
+
+    #[test]
+    fn bytesize_frames_conversions_respect_frame_max() {
+        // floor division rounds down, exact division requires a whole number of frames
+        assert_eq!(ByteSize(2353).frames_floor_strict(), Frame::strict_new(1));
+        assert_eq!(ByteSize(2353).frames_exact_checked(), None);
+
+        // more frames than Frame::MAX: checked returns None, saturating saturates
+        let huge = ByteSize(u64::from(u32::MAX) * 2352);
+        assert_eq!(huge.frames_floor_checked(), None);
+        assert_eq!(huge.frames_exact_checked(), None);
+        assert_eq!(huge.frames_floor_saturating(), Frame::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "semantic overflow")]
+    fn bytesize_frames_panics_above_frame_max() {
+        ByteSize(u64::from(u32::MAX) * 2352).frames_floor_strict();
+    }
+
+    #[test]
+    #[should_panic(expected = "not an exact number of frames")]
+    fn bytesize_exact_frames_panics_when_not_exact() {
+        ByteSize(2353).frames_exact();
+    }
+
+    #[test]
+    fn bytesize_constructors_casts_and_raw_value_access() {
+        assert_eq!(ByteSize::new(42_u8), Some(ByteSize(42)));
+        assert_eq!(ByteSize::new(2352_u64), Some(ByteSize(2352)));
+        assert_eq!(ByteSize::new(u64::MAX), Some(ByteSize(u64::MAX)));
+        assert_eq!(ByteSize::new(-1_i32), None);
+        assert_eq!(ByteSize::strict_new(2352_u32), ByteSize(2352));
+        assert_eq!(ByteSize::saturating_new(-1_i32), ByteSize(0));
+        assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize(u64::MAX));
+
+        // retrieval of the inner value
+        assert_eq!(ByteSize(42).cast::<u64>(), 42);
+        assert_eq!(ByteSize(42).cast::<u128>(), 42);
+        assert_eq!(ByteSize(42).checked_cast::<u32>(), Some(42));
+        assert_eq!(ByteSize(u64::MAX).checked_cast::<u32>(), None);
+        assert_eq!(ByteSize(u64::MAX).saturating_cast::<u32>(), u32::MAX);
+        assert_eq!(ByteSize(42).strict_cast::<u16>(), 42);
+
+        // conversion from integers, parsing & display
+        assert_eq!(ByteSize::from(2352_u64), ByteSize(2352));
+        assert_eq!(ByteSize::from(2352_usize), ByteSize(2352));
+        assert_eq!("2352".parse::<ByteSize>(), Ok(ByteSize(2352)));
+        assert_eq!(ByteSize(2352).to_string(), "2352 bytes");
+
+        // Deref & DerefMut provide the raw u64 operations
+        let mut size = ByteSize(1);
+        *size += 1;
+        assert_eq!(size, ByteSize(2));
+        assert_eq!(ByteSize(2).checked_mul(3), Some(6));
+    }
+
+    #[test]
+    fn max_chunk_sizes_are_consistent() {
+        assert!(MAX_CHUNK_BYTES < ByteSize(64 * 1024));
+        assert_eq!(MAX_CHUNK_FRAMES.size(), MAX_CHUNK_BYTES);
+        assert_eq!(MAX_CHUNK_BYTES.frames_exact(), MAX_CHUNK_FRAMES);
     }
 }

@@ -56,7 +56,7 @@ impl Display for Guid {
 
 /// A pseudo-sector on an AudioCd
 ///
-/// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE][crate::FRAME_SIZE]-byte
+/// Windows DeviceIoControl wants offsets which pretend a [`Frame::SIZE_IN_BYTES`]-byte
 /// frame is a 2048-byte sector.
 ///
 /// Internally stores the relative frame (excluding 150 lead-in frames)
