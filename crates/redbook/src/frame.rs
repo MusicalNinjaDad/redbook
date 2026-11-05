@@ -763,6 +763,12 @@ impl Msf {
     }
 }
 
+impl Display for Msf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{m}:{s}/{f}", m = self.min, s = self.sec, f = self.frame)
+    }
+}
+
 // ===============================================
 // Frame & Msf - const interconversion & comparison
 // ===============================================
