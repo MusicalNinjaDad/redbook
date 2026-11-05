@@ -20,8 +20,8 @@ use crate::LEADIN;
 ///
 /// - Internally frames are stored as u32. The maximum frame size in a real-world situation
 ///   is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
-///   (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small and
-///   anything over u32 is oversized.
+///   (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small
+///   and anything over u32 is oversized.
 ///
 /// # Invariant
 ///
