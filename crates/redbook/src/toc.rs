@@ -268,25 +268,6 @@ impl TrackEntry {
     pub fn is_data_track(&self) -> bool {
         self.is_data() && self.track.is_normal()
     }
-
-    /// Returns the kind of track (based on control code & track number)
-    pub fn kind(&self) -> TocEntryKind {
-        match (self.control.is_data(), self.track) {
-            (true, b0000::LEADOUT_TRACK_ID) | (true, b0010::LEADOUT_TRACK_ID) => {
-                TocEntryKind::DataLeadout
-            }
-            (false, b0000::LEADOUT_TRACK_ID) | (false, b0010::LEADOUT_TRACK_ID) => {
-                TocEntryKind::AudioLeadout
-            }
-            (true, b0010::FIRST_TRACK_ID) => TocEntryKind::FirstDataTrackInfo,
-            (false, b0010::FIRST_TRACK_ID) => TocEntryKind::FirstAudioTrackInfo,
-            (true, b0010::LAST_TRACK_ID) => TocEntryKind::LastDataTrackInfo,
-            (false, b0010::LAST_TRACK_ID) => TocEntryKind::LastAudioTrackInfo,
-            (true, n) if n.is_normal() => TocEntryKind::DataTrack,
-            (false, n) if n.is_normal() => TocEntryKind::AudioTrack,
-            _ => TocEntryKind::Unknown,
-        }
-    }
 }
 
 impl Ctrl for TrackEntry {
