@@ -23,7 +23,7 @@ use crate::{Frame, Track, frame::Msf};
 
 pub mod b0000 {
     use super::TrackNo;
-    /// 0b0010 format track identifier for Leadout
+    /// 0b0000 format track identifier for Leadout
     pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xAA);
 }
 
@@ -69,12 +69,12 @@ pub struct TrackNo(pub u8);
 impl TrackNo {
     /// The minimum "normal" track number: track 1
     ///
-    /// Redbook defines the valid range for "normal" track numbers as 0..=99
+    /// Redbook defines the valid range for "normal" track numbers as 1..=99
     pub const MIN_NORMAL: Self = Self(1);
 
     /// The maximum "normal" track number: track 99
     ///
-    /// Redbook defines the valid range for "normal" track numbers as 0..=99
+    /// Redbook defines the valid range for "normal" track numbers as 1..=99
     pub const MAX_NORMAL: Self = Self(99);
 
     /// Construct a "normal" [`TrackNo`] from any integer type.
@@ -210,8 +210,6 @@ pub struct TrackEntry {
     /// The 1-indexed track number.
     track: TrackNo,
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
-    ///
-    /// TODO: #127 Store Msf in TocEntry (to match technical impl on discs & cover wierd A0 etc)
     start: Frame,
     /// The control code, identifying track type
     control: Control,
@@ -268,7 +266,6 @@ impl TrackEntry {
 
     /// Is an data track (based on control code & track number)
     pub fn is_data_track(&self) -> bool {
-        // TODO: #122 Tracknumbers: types & consts
         self.is_data() && self.track.is_normal()
     }
 
@@ -882,7 +879,7 @@ impl Ctrl for Control {
     }
 }
 
-/// The kind of TocEntry. Returned by [TocEntry::kind] and used in [TocEntries::validate_leadouts]
+/// The kind of TocEntry. Returned by [TocEntry::kind] and used in `io::Result<TocEntries>::collect()`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
 pub enum TocEntryKind {
     /// An audio track
@@ -992,9 +989,8 @@ impl TocEntries {
 /// Whether only the final leadout is present, or leadouts are available for every session.
 ///
 /// # Interpretation
-/// - `Session(1)`: Only one session is present
-/// - `Final`: More than one session is present, intra-session leadout positions are unknown
-/// - `Session(n)`: More than one session is present,  intra-session leadout positions are available
+/// - `Final`: Sessions have not been identified, intra-session leadout positions are unknown
+/// - `PerSession(n)`: Sessions are identified, intra-session leadout positions must be available
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Leadouts {
     /// Multiple sessions exist but only the final leadout is available
@@ -1043,7 +1039,6 @@ impl TryFrom<&TocEntries> for Toc {
     type Error = io::Error;
 
     fn try_from(entries: &TocEntries) -> Result<Self, Self::Error> {
-        // TODO: Don't panic! (via #106)
         let audio = entries
             .iter()
             .filter_audio()

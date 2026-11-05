@@ -46,9 +46,6 @@ use crate::LEADIN;
 /// [`ByteSize`]. [`Frame::SIZE_IN_BYTES`] is itself a [`ByteSize`], so it cannot be used as the
 /// scalar `rhs` of the mul methods: a `Frame` times a byte size is a `ByteSize`, never a
 /// `Frame`.
-///
-/// # TODOs
-/// - TODO: #106 Repr transparent, store u-whatever, as_blah casts, etc for Frame, TrackNo, etc...
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
 pub struct Frame(u32);
@@ -556,9 +553,6 @@ impl Frame {
 /// `rhs: Frame` or `rhs: Msf` for add/sub, and only a scalar integer `N` for mul/div/rem.
 /// Arithmetic is computed via [`Frame`], so results are always normalised
 /// (e.g. `Msf::new(1, 60, 75).strict_add(...)`) and any [`Frame::MAX`] bound is respected.
-///
-///  # TODO
-/// - impl Display
 pub struct Msf {
     /// Minutes component. This is stored as a u8 in the physical disc TOC.
     pub(crate) min: u8,

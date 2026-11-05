@@ -147,10 +147,6 @@ impl Ctrl for TRACK_DATA {
 impl From<&TRACK_DATA> for Option<TocEntry> {
     /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA. Returns `None` if the entry is
     /// empty.
-    ///
-    /// # TODOs
-    ///
-    /// - Consider making this fallible with `TryFrom` for better error handling
     fn from(track_data: &TRACK_DATA) -> Option<TocEntry> {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::strict_new(relative).strict_add(LEADIN);
