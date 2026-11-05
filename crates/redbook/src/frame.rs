@@ -68,6 +68,12 @@ impl Frame {
     /// A zero [`Frame`]
     pub const ZERO: Self = Frame(0);
 
+    /// One second, i.e. 75 frames (a frame is 1/75th of a second).
+    pub const ONE_SECOND: Self = Frame(75);
+
+    /// One minute, i.e. 60 seconds.
+    pub const ONE_MINUTE: Self = Frame(Self::ONE_SECOND.into_inner() * 60);
+
     /// Creates a new `Frame` from any integer type, returning `None` if the value is above
     /// [`Self::MAX`].
     ///
@@ -129,6 +135,30 @@ impl Frame {
         N: [const] From<u32>,
     {
         N::from(self.into_inner())
+    }
+
+    /// Casts to any integer type returning `None` on overflow.
+    pub const fn checked_cast<N>(self) -> Option<N>
+    where
+        N: [const] CheckedCastFromInt<u32>,
+    {
+        N::checked_cast_from(self.into_inner())
+    }
+
+    /// Casts to any integer type saturating on overflow.
+    pub const fn saturating_cast<N>(self) -> N
+    where
+        N: [const] BoundedCastFromInt<u32>,
+    {
+        N::saturating_cast_from(self.into_inner())
+    }
+
+    /// Casts to any integer type panicking on overflow.
+    pub const fn strict_cast<N>(self) -> N
+    where
+        N: [const] CheckedCastFromInt<u32>,
+    {
+        N::strict_cast_from(self.into_inner())
     }
 
     /// Validates `self` is within upper bounds
@@ -397,6 +427,43 @@ impl Frame {
         let rhs = u32::saturating_cast_from(rhs);
         let v = self.into_inner().checked_rem(rhs)?;
         Self::new::<u32>(v)
+    }
+
+    /// Saturating division & remainder. Computes `(self / rhs)` with the quotient saturated into
+    /// `D` (e.g. `u8` for an [`Msf`] component), and the remaining frames.
+    ///
+    /// Unlike [`Self::div`] & [`Self::rem`], the leftover is computed from the *saturated*
+    /// quotient, so it may be that `rest >= quotient`: the pair always satisfies
+    /// `self == (quotient * rhs) + rest` *and* `quotient <= D::MAX`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use redbook::Frame;
+    /// let huge = Frame::MAX; // 0xFF mins, 0xFF secs, 0xFF frames
+    /// let (min, rest): (u8, Frame) = huge.saturating_div_rem(Frame::ONE_MINUTE);
+    /// assert_eq!(min, 0xFF);
+    /// assert_eq!(rest.cast::<u32>(), 0x4BB4);
+    /// let (sec, frame) = rest.saturating_div_rem::<u8>(Frame::ONE_SECOND);
+    /// assert_eq!(sec, 0xFF);
+    /// assert_eq!(frame.strict_cast::<u8>(), 0xFF);
+    /// ```
+    ///
+    /// # Panics
+    /// Panics if `rhs` is [`Self::ZERO`].
+    pub const fn saturating_div_rem<D>(self, rhs: Self) -> (D, Self)
+    where
+        D: [const] BoundedCastFromInt<u32>,
+        u32: [const] BoundedCastFromInt<D>,
+    {
+        let rhs = rhs.into_inner();
+        let value = self.into_inner();
+        let quotient = value.div(rhs);
+        // Cap the quotient at D::MAX (as representable in u32) before casting into D
+        let d_max = u32::saturating_cast_from(D::saturating_cast_from(u32::MAX));
+        let capped = if quotient > d_max { d_max } else { quotient };
+        let rest = value - capped * rhs;
+        (D::saturating_cast_from(capped), Self(rest))
     }
 
     /// Returns a frame relative to the lead-in position.
@@ -700,8 +767,8 @@ impl Msf {
 
 const impl From<Msf> for Frame {
     fn from(msf: Msf) -> Self {
-        let mins = u32::from(msf.min).saturating_mul(60).saturating_mul(75);
-        let secs = u32::from(msf.sec).saturating_mul(75);
+        let mins = u32::from(msf.min).saturating_mul(Frame::ONE_MINUTE.into_inner());
+        let secs = u32::from(msf.sec).saturating_mul(Frame::ONE_SECOND.into_inner());
         let frames = u32::from(msf.frame);
         Self(mins.saturating_add(secs).saturating_add(frames))
     }
@@ -722,22 +789,12 @@ const impl From<Frame> for Msf {
     /// `Msf -> Frame -> Msf` round-trips for every representable [`Frame`] (including
     /// [`Frame::MAX`], which maps to `Msf(0xFF, 0xFF, 0xFF)`).
     fn from(frames: Frame) -> Self {
-        let mut remaining = frames.cast::<u32>();
-        let mut min = remaining.div(60 * 75);
-        if min > 0xFF {
-            min = 0xFF;
-        }
-        remaining -= min * (60 * 75);
-        let mut sec = remaining.div(75);
-        if sec > 0xFF {
-            sec = 0xFF;
-        }
-        remaining -= sec * 75;
-        let frame = if remaining > 0xFF { 0xFF } else { remaining };
+        let (min, rest) = frames.saturating_div_rem::<u8>(Frame::ONE_MINUTE);
+        let (sec, frame) = rest.saturating_div_rem::<u8>(Frame::ONE_SECOND);
         Self {
-            min: min as u8,
-            sec: sec as u8,
-            frame: frame as u8,
+            min,
+            sec,
+            frame: frame.saturating_cast(),
         }
     }
 }
