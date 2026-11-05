@@ -883,18 +883,6 @@ pub enum TocEntryKind {
     Unknown,
 }
 
-impl TocEntryKind {
-    pub fn is_info(&self) -> bool {
-        !matches!(
-            self,
-            TocEntryKind::AudioTrack
-                | TocEntryKind::DataTrack
-                | TocEntryKind::AudioLeadout
-                | TocEntryKind::DataLeadout
-        )
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted.
 ///
