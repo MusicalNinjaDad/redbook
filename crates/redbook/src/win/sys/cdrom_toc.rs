@@ -25,6 +25,12 @@ impl CDROM_TOC {
 
     /// Returns the number of actual entries in the TrackData array. This is calculated based
     /// upon the total size of the struct.
+    ///
+    /// # Panics
+    /// - This will panic if the claimed `Length` of the [`CDROM_TOC`] is below the size needed to
+    ///   at least store the `Length`, `FirstTrack` & `LastTrack` fields
+    /// - This will panic if the size calculated for the `TrackData` field is exactly sized to store
+    ///   0 or more [`TRACK_DATA`]s
     fn track_entries(&self) -> impl Iterator<Item = &TRACK_DATA> {
         let entries_size = self
             .size()
