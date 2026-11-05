@@ -125,7 +125,7 @@ impl Frame {
     /// Returns the underlying `u32` representation.
     ///
     /// For clarity it is recommended to use [`Self::cast`] even when casting to `u32`.
-    pub const fn into_inner(self) -> u32 {
+    const fn into_inner(self) -> u32 {
         self.0
     }
 
@@ -429,12 +429,13 @@ impl Frame {
         Self::new::<u32>(v)
     }
 
-    /// Saturating division & remainder. Computes `(self / rhs)` with the quotient saturated into
-    /// `D` (e.g. `u8` for an [`Msf`] component), and the remaining frames.
+    /// Saturating division & remainder. Returns `(quotient, rest)`, where `quotient` is
+    /// `self / rhs` saturated into `D` (e.g. `u8` for an [`Msf`] component) and `rest` is the
+    /// leftover frames.
     ///
-    /// Unlike [`Self::div`] & [`Self::rem`], the leftover is computed from the *saturated*
-    /// quotient, so it may be that `rest >= quotient`: the pair always satisfies
-    /// `self == (quotient * rhs) + rest` *and* `quotient <= D::MAX`.
+    /// Unlike [`Self::div`] & [`Self::rem`], `rest` is computed from the *saturated* quotient, so
+    /// it may be `>= rhs`: the pair always satisfies `self == (quotient * rhs) + rest` and
+    /// `quotient <= D::MAX`.
     ///
     /// # Example
     ///
@@ -453,17 +454,18 @@ impl Frame {
     /// Panics if `rhs` is [`Self::ZERO`].
     pub const fn saturating_div_rem<D>(self, rhs: Self) -> (D, Self)
     where
-        D: [const] BoundedCastFromInt<u32>,
-        u32: [const] BoundedCastFromInt<D>,
+        D: [const] BoundedCastFromInt<u32> + Copy,
+        u32: [const] CheckedCastFromInt<D>,
     {
-        let rhs = rhs.into_inner();
-        let value = self.into_inner();
-        let quotient = value.div(rhs);
-        // Cap the quotient at D::MAX (as representable in u32) before casting into D
-        let d_max = u32::saturating_cast_from(D::saturating_cast_from(u32::MAX));
-        let capped = if quotient > d_max { d_max } else { quotient };
-        let rest = value - capped * rhs;
-        (D::saturating_cast_from(capped), Self(rest))
+        let rhs = rhs.cast::<u32>();
+        let quotient = self.div(rhs).saturating_cast::<D>();
+
+        // The strict_* calls below cannot panic: quotient <= self / rhs, so
+        // quotient * rhs <= self <= Frame::MAX, and rest = self - quotient * rhs >= 0.
+        let divided_out = Frame::strict_new(quotient).strict_mul::<u32>(rhs);
+        let rest = self.strict_sub(divided_out);
+
+        (quotient, rest)
     }
 
     /// Returns a frame relative to the lead-in position.
