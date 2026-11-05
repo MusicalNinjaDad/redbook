@@ -858,7 +858,7 @@ const impl PartialEq<Frame> for Msf {
 impl PartialEq<cdtoc::Duration> for Frame {
     fn eq(&self, duration: &cdtoc::Duration) -> bool {
         let (s, f) = duration.seconds_frames();
-        self.cast::<u64>() == s.strict_mul(75).strict_add(f.strict_cast())
+        self.cast::<u64>() == s.strict_mul(75).strict_add(f.into())
     }
 }
 
@@ -966,7 +966,7 @@ mod tests {
     #[case(1)]
     #[case(Frame::MAX.cast::<i128>())]
     #[case(Frame::MAX.cast::<i128>() + 1)]
-    #[case(u32::MAX.strict_cast())]
+    #[case(u32::MAX.into())]
     #[case(i128::MAX)]
     fn div_matches_checked_div_and_u32(#[case] rhs: i128) {
         let frame = Frame::strict_new(2000);
@@ -993,7 +993,7 @@ mod tests {
     #[case(1)]
     #[case(Frame::MAX.cast::<i128>())]
     #[case(Frame::MAX.cast::<i128>() + 1)]
-    #[case(u32::MAX.strict_cast())]
+    #[case(u32::MAX.into())]
     #[case(i128::MAX)]
     fn rem_matches_checked_rem_and_u32(#[case] rhs: i128) {
         let frame = Frame::strict_new(2000);

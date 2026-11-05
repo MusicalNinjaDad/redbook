@@ -46,7 +46,7 @@ impl Iterator for DeviceInfoSetIter {
 
         let drive_data = self
             .infoset
-            .get_member(drive_index.strict_cast())
+            .get_member(drive_index)
             .or_warn("error getting drive data")
             .ok()
             .flatten()?;

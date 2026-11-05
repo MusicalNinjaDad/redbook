@@ -347,8 +347,5 @@ const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES
 /// # TODOs
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
-    64_u64
-        .strict_mul(KB.strict_cast())
-        .strict_div(FRAME_SIZE.strict_cast()),
-);
+const MAX_CHUNK_FRAMES: Frame =
+    Frame::strict_new(64_u64.strict_mul(KB.into()).strict_div(FRAME_SIZE.into()));

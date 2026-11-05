@@ -31,11 +31,9 @@ impl CDROM_TOC {
             .strict_sub(size_of_val(&self.Length))
             .strict_sub(size_of_val(&self.FirstTrack))
             .strict_sub(size_of_val(&self.LastTrack));
-        entries_size
-            .div_exact(size_of::<TRACK_DATA>().strict_cast())
-            .expect(
-                "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
-            );
+        entries_size.div_exact(size_of::<TRACK_DATA>()).expect(
+            "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
+        );
         self.TrackData.iter().take(entries_size)
     }
 
@@ -79,7 +77,7 @@ impl CDROM_TOC {
             *(bytes.as_ptr() as *const _)
         };
 
-        let last_track = toc.LastTrack.strict_cast();
+        let last_track = toc.LastTrack.into();
         for (i, track) in toc.TrackData.iter().enumerate() {
             let track_number = i + 1;
             if (1..=last_track).contains(&track_number) {
@@ -196,9 +194,9 @@ mod tests {
         fn last_audio_track(&self) -> Option<usize> {
             self.TrackData
                 .iter()
-                .take(self.LastTrack.strict_cast())
+                .take(self.LastTrack.into())
                 .rfind(|track| !track.control().contains(Control::DATA_TRACK))
-                .map(|track| track.TrackNumber.strict_cast())
+                .map(|track| track.TrackNumber.into())
         }
     }
 

@@ -354,7 +354,7 @@ impl Device for DriveHandle {
         // SectorCount = frames_to_read
         // RAW_SECTOR_SIZE = FRAME_SIZE
         let frames_to_read = bytes_to_read
-            .checked_div_exact(const { FRAME_SIZE.strict_cast() })
+            .checked_div_exact(FRAME_SIZE)
             .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "invalid buffer size"))
             .or_error("buffer not sized for CDDA")?;
 
