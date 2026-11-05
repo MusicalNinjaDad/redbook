@@ -616,13 +616,23 @@ impl From<RawTocEntry> for Option<TocEntry> {
             (1, b0010::FIRST_TRACK_ID) => entry
                 .session()
                 .and_then(|session| {
-                    InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), First)
+                    InfoEntry::new(
+                        session,
+                        entry.pmsf().as_u8s().0.into(),
+                        entry.control(),
+                        First,
+                    )
                 })
                 .map(TrackInfo),
             (1, b0010::LAST_TRACK_ID) => entry
                 .session()
                 .and_then(|session| {
-                    InfoEntry::new(session, entry.pmsf().min.into(), entry.control(), Last)
+                    InfoEntry::new(
+                        session,
+                        entry.pmsf().as_u8s().0.into(),
+                        entry.control(),
+                        Last,
+                    )
                 })
                 .map(TrackInfo),
             (1, point) if point.is_normal() => {

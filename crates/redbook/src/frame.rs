@@ -527,6 +527,14 @@ impl Frame {
 /// MSF (Minute-Second-Frame) is a common format for representing CD audio positions and is used
 /// in the table of contents stored in the lead-in of every disc.
 ///
+/// # Examples
+///
+/// ## Interconversion with Frame (preferred)
+/// TODO
+///
+/// ## Direct / alternative construction & usage
+/// TODO: new, as_u8s, TryFrom<(u32,u8,u8)> showing intended context from cdtoc
+///
 /// # Notes
 ///
 /// - `min` is `u8`, and therefore restricted to 256, as this is designed to only store values
@@ -554,8 +562,8 @@ impl Frame {
 /// Arithmetic is computed via [`Frame`], so results are always normalised
 /// (e.g. `Msf::new(1, 60, 75).strict_add(...)`) and any [`Frame::MAX`] bound is respected.
 pub struct Msf {
-    /// Minutes component. This is stored as a u8 in the physical disc TOC.
-    pub(crate) min: u8,
+    /// Minutes component.
+    min: u8,
     /// Seconds component. (Not validated to be ..=59)
     sec: u8,
     /// Frames component. (Not validated to be ..=74)
@@ -576,6 +584,16 @@ impl Msf {
     ///   concerns leading to hidden logic errors.
     pub const fn new(min: u8, sec: u8, frame: u8) -> Self {
         Self { min, sec, frame }
+    }
+
+    /// Returns the `(min, sec, frame)` components as a tuple of `u8`s.
+    ///
+    /// In general it is recommended to use [`Frame`] as the primary measure of time. If you do
+    /// need the individual components of an `Msf`, e.g. to decode Q-channel / TOC data, then
+    /// make sure to call this function early, before any potential normalisation. (See type-level
+    /// docs for more info)
+    pub const fn as_u8s(self) -> (u8, u8, u8) {
+        (self.min, self.sec, self.frame)
     }
 
     /// Returns an MSF value relative to the lead-in position.
@@ -1192,6 +1210,14 @@ mod tests {
 
         assert_eq!(Msf::from(frames), msf);
         assert_eq!(Frame::from(msf), frames);
+    }
+
+    #[test]
+    fn as_u8s_returns_components() {
+        assert_eq!(Msf::new(0, 2, 0).as_u8s(), (0, 2, 0));
+        assert_eq!(Msf::new(0xFF, 0xFF, 0xFF).as_u8s(), (0xFF, 0xFF, 0xFF));
+        // degenerate components are returned as-is: Msf performs no normalisation
+        assert_eq!(Msf::new(1, 60, 75).as_u8s(), (1, 60, 75));
     }
 
     #[test]
