@@ -46,6 +46,38 @@ use crate::LEADIN;
 /// [`ByteSize`]. [`Frame::SIZE_IN_BYTES`] is itself a [`ByteSize`], so it cannot be used as the
 /// scalar `rhs` of the mul methods: a `Frame` times a byte size is a `ByteSize`, never a
 /// `Frame`.
+///
+/// # Pattern matching
+///
+/// [`Frame`] implements [`StructuralPartialEq`], so constants such as [`Frame::ZERO`],
+/// [`Frame::ONE_SECOND`] or [`LEADIN`][crate::LEADIN] can be used directly as `match` arms:
+/// there is no need to [`cast`][Frame::cast] to a primitive int first.
+///
+/// ```
+/// use redbook::{Frame, LEADIN};
+///
+/// let frame = Frame::strict_new(150);
+/// let description = match frame {
+///     Frame::ZERO => "start of the disc",
+///     LEADIN => "start of the program area",
+///     _ => "somewhere on the disc",
+/// };
+/// assert_eq!(description, "start of the program area");
+/// ```
+///
+/// Range patterns are not available on `Frame` itself, so matches on ranges still go via a
+/// primitive int:
+///
+/// ```
+/// use redbook::{Frame, LEADIN};
+///
+/// let frame = Frame::strict_new(100);
+/// let in_lead_in = match frame.cast::<u32>() {
+///     0..=149 => true, // 0..=LEADIN as a primitive
+///     _ => false,
+/// };
+/// assert!(in_lead_in);
+/// ```
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
 pub struct Frame(u32);
@@ -342,10 +374,9 @@ impl Frame {
         N: [const] Destruct,
     {
         // If rhs won't fit in a Frame and self is non-zero, then the product is too large
-        let rhs = if self == Self::ZERO {
-            Self::ZERO
-        } else {
-            Self::strict_new(rhs)
+        let rhs = match self {
+            Self::ZERO => Self::ZERO,
+            _ => Self::strict_new(rhs),
         };
         let v = self.into_inner().strict_mul(rhs.into_inner());
         Self::strict_new::<u32>(v)
@@ -361,10 +392,9 @@ impl Frame {
         N: [const] Destruct,
     {
         // If rhs won't fit in a Frame and self is non-zero, then the product is too large
-        let rhs = if self == Self::ZERO {
-            Self::ZERO
-        } else {
-            Self::new(rhs)?
+        let rhs = match self {
+            Self::ZERO => Self::ZERO,
+            _ => Self::new(rhs)?,
         };
         let v = self.into_inner().checked_mul(rhs.into_inner())?;
         Self::new::<u32>(v)
@@ -379,10 +409,9 @@ impl Frame {
         N: [const] Destruct,
     {
         // If rhs won't fit in a Frame and self is non-zero, then the product is too large
-        let rhs = if self == Self::ZERO {
-            Self::ZERO
-        } else {
-            Self::saturating_new(rhs)
+        let rhs = match self {
+            Self::ZERO => Self::ZERO,
+            _ => Self::saturating_new(rhs),
         };
         let v = self.into_inner().saturating_mul(rhs.into_inner());
         Self::saturating_new::<u32>(v)
@@ -1193,9 +1222,9 @@ impl FromStr for ByteSize {
 
 #[cfg(test)]
 mod tests {
-    use crate::{MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES};
-
     use super::*;
+
+    use crate::{MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES};
 
     use rstest::rstest;
 
@@ -1218,6 +1247,18 @@ mod tests {
         assert_eq!(Msf::new(0xFF, 0xFF, 0xFF).as_u8s(), (0xFF, 0xFF, 0xFF));
         // degenerate components are returned as-is: Msf performs no normalisation
         assert_eq!(Msf::new(1, 60, 75).as_u8s(), (1, 60, 75));
+    }
+
+    #[test]
+    fn pattern_match_on_constants_compares_by_value() {
+        // constant arms match via StructuralPartialEq, i.e. by value not by identity
+        let frame = Frame::strict_new(150);
+        let description = match frame {
+            Frame::ZERO => "zero",
+            LEADIN => "lead-in",
+            _ => "other",
+        };
+        assert_eq!(description, "lead-in");
     }
 
     #[test]
