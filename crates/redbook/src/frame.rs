@@ -218,7 +218,7 @@ impl Frame {
     ///
     /// # Examples
     /// ```
-    /// use redbook::{ByteSize, Frame};
+    /// use redbook::{Frame, frame::ByteSize};
     ///
     /// let one_second = Frame::ONE_SECOND;
     /// assert_eq!(one_second.size(), ByteSize(75 * 2352));
@@ -1003,7 +1003,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 ///
 /// # Examples
 /// ```
-/// use redbook::{ByteSize, Frame};
+/// use redbook::{Frame, frame::ByteSize};
 ///
 /// let bytes = Frame::strict_new(100).size();
 /// assert_eq!(bytes, ByteSize(235_200));
@@ -1116,7 +1116,7 @@ impl ByteSize {
     ///
     /// # Examples
     /// ```
-    /// use redbook::{ByteSize, Frame};
+    /// use redbook::{Frame, frame::ByteSize};
     ///
     /// assert_eq!(
     ///     ByteSize(2 * 2352).frames_exact_checked(),

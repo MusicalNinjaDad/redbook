@@ -265,13 +265,13 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
-pub use frame::{ByteSize, Frame};
+pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{RippedTrack, Track};
 
-use crate::win::DriveHandle;
+use crate::{frame::ByteSize, win::DriveHandle};
 
 #[forbid(unsafe_code)]
 mod audiocd;
