@@ -801,6 +801,12 @@ const impl From<Frame> for Msf {
     }
 }
 
+const impl From<&Frame> for Msf {
+    fn from(frame: &Frame) -> Self {
+        Self::from(*frame)
+    }
+}
+
 const impl Ord for Frame {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
