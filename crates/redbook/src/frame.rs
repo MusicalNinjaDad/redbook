@@ -535,11 +535,17 @@ impl Frame {
 /// - `min` is `u8`, and therefore restricted to 256, as this is designed to only store values
 ///   which can be meaningfully represented on a CD. The technical format used on discs only
 ///   provides 1 byte for storing mins.
-/// - `Msf` does not perform any validation that sec < 60 or frames < 75. Converting a
-///   value such as `Msf(1, 60, 75)` to [`Frame`]s and back will result in the more meaningful
-///   and correct `Msf(2, 1, 0)`.
+/// - `Msf` does not perform any validation that sec < 60 or frames < 75, or normalisation of such
+///   cases. However, converting a value such as `Msf(1, 60, 75)` to [`Frame`]s and back will result
+///   in the more meaningful and correct `Msf(2, 1, 0)`.
+/// - Most comparison and arithmatic operations round-trip via [`Frame`] and so perform
+///   normalisation as described above.
 /// - Downstream implementors of conversions and users of Msf should pay attention to handling
 ///   technically correct but semantically invalid cases, such as the example above.
+/// - The reason for the above are historical documented cases of publishers deliberately creating
+///   degenerate TOC entries to confuse early PCs. In the unlikely event that a CD manufacturer
+///   manages to squeeze over 255 minutes of audio onto a disc, Msf will saturate mins first,
+///   then secs, then frames. E.g. 255:15/3 would be 254 (0xFF) mins, 75 secs, 3 frames
 /// - It is recommended to use [`Frame`] as the primary timescale to avoid such semantic
 ///   concerns leading to hidden logic errors.
 ///
@@ -606,7 +612,7 @@ impl Msf {
     ///
     /// # Note
     /// - `rhs` may be a [`Frame`] or an [`Msf`].
-    /// -  "degenerate" cases will saturate as described TODO #156 denegerate docs
+    /// -  "degenerate"/"exceptional" cases will saturate as described in the notes for [`Msf`]
     ///
     /// # Panics
     /// ## Overflow behavior
