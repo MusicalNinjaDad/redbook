@@ -883,6 +883,8 @@ const impl PartialEq for Frame {
     }
 }
 
+impl StructuralPartialEq for Frame {}
+
 const impl PartialEq<Msf> for Frame {
     fn eq(&self, msf: &Msf) -> bool {
         *self == Self::from(*msf)
