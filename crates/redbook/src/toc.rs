@@ -183,12 +183,6 @@ const impl From<u8> for TrackNo {
     }
 }
 
-const impl From<TrackNo> for u8 {
-    fn from(track_no: TrackNo) -> Self {
-        track_no.0
-    }
-}
-
 impl FromStr for TrackNo {
     type Err = ParseIntError;
 
@@ -1273,7 +1267,7 @@ mod tests {
         const IS_NORMAL: bool = ONE.is_normal();
         const IS_SPECIAL: bool = TrackNo(0xAA).is_special();
         const CAST: usize = ONE.cast();
-        const AS_U8: u8 = u8::from(ONE);
+        const AS_U8: u8 = ONE.cast();
         const EQ: bool = ONE == TrackNo(1);
         const NE: bool = ONE != TrackNo(2);
         const LT: bool = ONE < TrackNo(2);
@@ -1287,7 +1281,7 @@ mod tests {
         assert_eq!(IS_NORMAL, one.is_normal());
         assert_eq!(IS_SPECIAL, TrackNo(0xAA).is_special());
         assert_eq!(CAST, one.cast::<usize>());
-        assert_eq!(AS_U8, u8::from(one));
+        assert_eq!(AS_U8, one.cast::<u8>());
         assert_eq!(EQ, one == TrackNo(1));
         assert_eq!(NE, one != TrackNo(2));
         assert_eq!(LT, one < TrackNo(2));
