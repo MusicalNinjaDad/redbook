@@ -270,7 +270,10 @@ impl Disc {
     /// modify the copy stored in `self`.
     pub fn track(&self, track_number: TrackNo) -> Option<Track<'_>> {
         let _debug = tracing::debug_span!("Disc::track", %track_number).entered();
-        let mut track = self.tracks.get(track_number.cast::<usize>() - 1).cloned()?;
+        let mut track = self
+            .tracks
+            .get(track_number.checked_sub(1)?.checked_cast::<usize>()?)
+            .cloned()?;
         track.meta = self
             .release()
             .and_then(|r| r.media.as_ref())
