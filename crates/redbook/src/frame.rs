@@ -17,12 +17,19 @@ use crate::LEADIN;
 /// A frame represents a single unit of CD audio data, which is 1/75th of a second.
 /// This is the fundamental unit of time measurement for CD audio.
 ///
-/// # Note
+/// # Construction & Conversion
 ///
-/// - Internally frames are stored as u32. The maximum frame size in a real-world situation
-///   is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
-///   (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small
-///   and anything over u32 is oversized.
+/// ```
+/// # use redbook::Frame;
+/// // checked construction returns `None` for invalid values
+/// let frame = Frame::new(2000).unwrap_or(Frame::ZERO);
+///
+/// // by convention frames represent absolute position, including the 150-frame lead-in
+/// let relative = frame.relative_to_leadin();
+///
+/// // .cast() can be used to convert to a primitive integer
+/// assert_eq!(relative.cast::<u32>(), 1850);
+/// ```
 ///
 /// # Invariant
 ///
@@ -41,6 +48,18 @@ use crate::LEADIN;
 /// `rhs: Frame` or `rhs: Msf` for add/sub, and only a scalar integer `N` for mul/div/rem.
 /// If an integer result is required, use [`Frame::cast`] first and then the corresponding
 /// `u32` method.
+///
+/// ```
+/// # use redbook::Frame;
+/// let frame = Frame::new(2000).unwrap();
+/// let not_negative = frame.checked_sub(Frame::MAX);
+/// assert!(not_negative.is_none());
+///
+/// let super_max = Frame::MAX.saturating_add(Frame::MAX);
+/// assert_eq!(super_max, Frame::MAX);
+/// ```
+///
+/// # Obtain the required buffer size to store this many `Frame`s
 ///
 /// To convert a frame count into a byte count use [`Frame::size`], which returns a
 /// [`ByteSize`]. [`Frame::SIZE_IN_BYTES`] is itself a [`ByteSize`], so it cannot be used as the
@@ -80,7 +99,13 @@ use crate::LEADIN;
 /// ```
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct Frame(u32);
+pub struct Frame(
+    /// Internally frames are stored as u32. The maximum frame size in a real-world situation
+    /// is limited by the (u8, u8, u8) representation of MSF when stored on a disc. Given that
+    /// (0xFF * 60 * 75) = 0x11826C, 3 bytes are needed to store 0xFF minutes, so a u16 is too small
+    /// and anything over u32 is oversized.
+    u32,
+);
 
 /// TODO: #124 currently outputs "Frame n" should probably just be "n", or 2 types: position & duration
 impl Display for Frame {
