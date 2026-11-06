@@ -346,12 +346,12 @@ impl Device for DriveHandle {
         )
         .entered();
 
-        let buf_size = ByteSize::from(buf.len());
-
-        let bytes_to_read = buf_size
-            .checked_cast()
+        let buf_size = ByteSize::new(buf.len())
             .ok_or_else(|| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
             .or_error("buffer too large")?;
+
+        // the inner value is a u32, so casting to the DWORD buffer size is infallible
+        let bytes_to_read = buf_size.cast();
 
         // SAFETY: buffer size must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
         // SectorCount = frames_to_read

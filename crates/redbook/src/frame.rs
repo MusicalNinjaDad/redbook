@@ -266,10 +266,6 @@ impl Frame {
     /// This is the type-safe way to turn a frame count into a byte count: the result is a
     /// [`ByteSize`], so it cannot be mistaken for another `Frame` (position or duration).
     ///
-    /// # Note
-    /// - Infallible: the inner `u32` is at most `u32::MAX`, and `u32::MAX * 2352` still fits
-    ///   in the `u64` stored by [`ByteSize`].
-    ///
     /// # Examples
     /// ```
     /// use redbook::{Frame, frame::ByteSize};
@@ -279,7 +275,7 @@ impl Frame {
     /// assert_eq!(one_second.size().frames_exact(), one_second);
     /// ```
     pub const fn size(self) -> ByteSize {
-        ByteSize(u64::from(self.into_inner()).strict_mul(Self::SIZE_IN_BYTES.0))
+        ByteSize(self.cast::<u32>().strict_mul(Self::SIZE_IN_BYTES.cast()))
     }
 
     /// Validates `self` is within upper bounds
@@ -1049,29 +1045,31 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 /// and returns a `ByteSize`, not another `Frame`.
 ///
 /// # Notes
-/// - Internally byte sizes are stored as a `u64`: platform independent, and large enough for
-///   any size derived from a [`Frame`] ([`Frame::MAX`] * [`Frame::SIZE_IN_BYTES`] fits
-///   comfortably). Platform-dependent targets such as `usize` are available via the cast
+/// - Internally byte sizes are stored as a `u32`: platform independent, and large enough for
+///   any size derived from a [`Frame`] ([`Frame::MAX`] * [`Frame::SIZE_IN_BYTES`] = 0xA395_C600
+///   fits comfortably). Platform-dependent targets such as `usize` are available via the cast
 ///   methods, e.g. [`ByteSize::checked_cast`].
 /// - Basic construction is via `ByteSize(n)` for simplicity, or from any integer type via
-///   [`ByteSize::new`], [`ByteSize::strict_new`] & [`ByteSize::saturating_new`].
+///   [`ByteSize::new`], [`ByteSize::strict_new`] & [`ByteSize::saturating_new`]. `From` is
+///   implemented only for `u32`: wider types such as `u64` or `usize` (which can exceed a `u32` on
+///   64-bit platforms) should the constructors above.
 /// - As with [`TrackNo`][crate::TrackNo], `ByteSize` implements `Deref` & `DerefMut` with
-///   `Target = u64`, so all the `strict_`, `checked_`, `saturating_` and `wrapping_` operations
-///   of `u64` are available on the raw value. You are strongly advised to use these rather
+///   `Target = u32`, so all the `strict_`, `checked_`, `saturating_` and `wrapping_` operations
+///   of `u32` are available on the raw value. You are strongly advised to use these rather
 ///   than the operators.
-/// - `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented. While you *could*
-///   simply do `ByteSize(bytes.0 + 3)`, wrap the result of the `u64` operations back in
-///   `ByteSize(...)` if you need a `ByteSize` again.
+/// - `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented. Do NOT calculate
+///   `ByteSize(bytes.0 + 3)`, and then wrap the result of the `u32` operations back in
+///   `ByteSize(...)`.
 /// - To convert to a frame count, use the `frames_*` methods ([`ByteSize::frames_exact_checked`],
 ///   [`ByteSize::frames_floor_checked`], ...), which divide by [`Frame::SIZE_IN_BYTES`].
-/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `ByteSize` & `u64`,
+/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `ByteSize` & `u32`,
 ///   to ensure comparisons don't inadvertently compare a `ByteSize` with something
-///   semantically different.
+///   semantically different. Use [`cast()`][Self::cast] to get a primitive representation.
 ///
 /// # Examples
-/// 
+///
 /// See [`Frame`] for a further usage example
-/// 
+///
 /// ```
 /// use redbook::{Frame, frame::ByteSize};
 ///
@@ -1085,24 +1083,24 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 /// ```
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct ByteSize(pub u64);
+pub struct ByteSize(pub u32);
 
 impl ByteSize {
     /// Creates a new `ByteSize` from any integer type, returning `None` if the value does not
-    /// fit in a `u64`.
+    /// fit in a `u32`.
     ///
     /// # Note
     /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
     pub const fn new<N>(value: N) -> Option<Self>
     where
-        u64: [const] CheckedCastFromInt<N>,
+        u32: [const] CheckedCastFromInt<N>,
     {
-        u64::checked_cast_from(value).map(Self)
+        u32::checked_cast_from(value).map(Self)
     }
 
     /// Creates a new `ByteSize` from any integer type, panicking if the value does not fit in
-    /// a `u64`.
+    /// a `u32`.
     ///
     /// # Note
     /// - For a non-panicking constructor use [`Self::new`] or [`Self::saturating_new`]
@@ -1111,28 +1109,28 @@ impl ByteSize {
     /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
     pub const fn strict_new<N>(value: N) -> Self
     where
-        u64: [const] CheckedCastFromInt<N>,
+        u32: [const] CheckedCastFromInt<N>,
     {
-        Self(u64::strict_cast_from(value))
+        Self(u32::strict_cast_from(value))
     }
 
-    /// Creates a new `ByteSize` from any integer type, replacing any values above `u64::MAX`
-    /// with `u64::MAX`.
+    /// Creates a new `ByteSize` from any integer type, replacing any values above `u32::MAX`
+    /// with `u32::MAX`.
     ///
     /// # Note
     /// - For a validating constructor use [`Self::new`], or for a panicking constructor use
     ///   [`Self::strict_new`]
     pub const fn saturating_new<N>(value: N) -> Self
     where
-        u64: [const] BoundedCastFromInt<N>,
+        u32: [const] BoundedCastFromInt<N>,
     {
-        Self(u64::saturating_cast_from(value))
+        Self(u32::saturating_cast_from(value))
     }
 
     /// Casts to any integer type which the inner representation allows without risk.
     pub const fn cast<N>(self) -> N
     where
-        N: [const] From<u64>,
+        N: [const] From<u32>,
     {
         N::from(self.0)
     }
@@ -1140,7 +1138,7 @@ impl ByteSize {
     /// Casts to any integer type returning `None` on overflow.
     pub const fn checked_cast<N>(self) -> Option<N>
     where
-        N: [const] CheckedCastFromInt<u64>,
+        N: [const] CheckedCastFromInt<u32>,
     {
         N::checked_cast_from(self.0)
     }
@@ -1148,7 +1146,7 @@ impl ByteSize {
     /// Casts to any integer type saturating on overflow.
     pub const fn saturating_cast<N>(self) -> N
     where
-        N: [const] BoundedCastFromInt<u64>,
+        N: [const] BoundedCastFromInt<u32>,
     {
         N::saturating_cast_from(self.0)
     }
@@ -1156,7 +1154,7 @@ impl ByteSize {
     /// Casts to any integer type panicking on overflow.
     pub const fn strict_cast<N>(self) -> N
     where
-        N: [const] CheckedCastFromInt<u64>,
+        N: [const] CheckedCastFromInt<u32>,
     {
         N::strict_cast_from(self.0)
     }
@@ -1250,7 +1248,7 @@ const impl PartialEq for ByteSize {
 impl StructuralPartialEq for ByteSize {}
 
 impl Deref for ByteSize {
-    type Target = u64;
+    type Target = u32;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1269,16 +1267,9 @@ impl Display for ByteSize {
     }
 }
 
-const impl From<u64> for ByteSize {
-    fn from(n: u64) -> Self {
+const impl From<u32> for ByteSize {
+    fn from(n: u32) -> Self {
         ByteSize(n)
-    }
-}
-
-const impl From<usize> for ByteSize {
-    fn from(n: usize) -> Self {
-        // lossless on all platforms: usize is at most 64 bits
-        ByteSize(u64::strict_cast_from(n))
     }
 }
 
@@ -1492,20 +1483,22 @@ mod tests {
         for frames in [0, 1, 75, 150, 2000, Frame::MAX.cast::<u32>()] {
             let frame = Frame::strict_new(frames);
             let size = frame.size();
-            assert_eq!(size, ByteSize(u64::from(frames) * 2352));
+            assert_eq!(size, ByteSize(frames * 2352));
             assert_eq!(size.frames_floor_strict(), frame);
             assert_eq!(size.frames_exact(), frame);
             assert_eq!(size.frames_exact_checked(), Some(frame));
         }
-        // even Frame::MAX * SIZE_IN_BYTES fits in the u64 stored by ByteSize
+        // even Frame::MAX * SIZE_IN_BYTES fits in the u32 stored by ByteSize (0xA395_C600)
         assert_eq!(Frame::MAX.size(), ByteSize(2_744_501_760));
     }
 
     #[rstest]
     #[case(2353, Some(Frame::strict_new(1)), None)]
-    #[case(u64::from(u32::MAX) * 2352, None, None)]
+    #[case(2_744_501_760, Some(Frame::MAX), Some(Frame::MAX))]
+    #[case(2_744_501_761, Some(Frame::MAX), None)]
+    #[case(u32::MAX, None, None)]
     fn bytesize_frames_conversions_respect_frame_max(
-        #[case] bytes: u64,
+        #[case] bytes: u32,
         #[case] expected_floor: Option<Frame>,
         #[case] expected_exact: Option<Frame>,
     ) {
@@ -1526,7 +1519,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "semantic overflow")]
     fn bytesize_frames_panics_above_frame_max() {
-        ByteSize(u64::from(u32::MAX) * 2352).frames_floor_strict();
+        ByteSize(u32::MAX).frames_floor_strict();
     }
 
     #[test]
@@ -1538,38 +1531,39 @@ mod tests {
     #[rstest]
     #[case(42)]
     #[case(2352)]
-    #[case(u64::MAX)]
-    fn bytesize_constructors_casts_and_raw_value_access(#[case] raw: u64) {
+    #[case(u32::MAX)]
+    fn bytesize_constructors_casts_and_raw_value_access(#[case] raw: u32) {
         let size = ByteSize(raw);
 
-        // constructors from any integer type which fits in a u64
+        // constructors from any integer type which fits in a u32
         assert_eq!(ByteSize::new(raw), Some(size));
         assert_eq!(ByteSize::strict_new(raw), size);
         assert_eq!(ByteSize::saturating_new(raw), size);
         assert_eq!(ByteSize::from(raw), size);
-        // integers which do not fit in a u64 are rejected, or clamped when saturating
+        // integers which do not fit in a u32 are rejected, or clamped when saturating
         assert_eq!(ByteSize::new(42_u8), Some(ByteSize(42)));
-        assert_eq!(ByteSize::from(2352_usize), ByteSize(2352));
+        assert_eq!(ByteSize::new(2352_usize), Some(ByteSize(2352)));
         assert_eq!(ByteSize::new(-1_i32), None);
+        assert_eq!(ByteSize::new(u64::from(u32::MAX) + 1), None);
         assert_eq!(ByteSize::strict_new(2352_u32), ByteSize(2352));
         assert_eq!(ByteSize::saturating_new(-1_i32), ByteSize(0));
-        assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize(u64::MAX));
+        assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize(u32::MAX));
 
         // retrieval of the inner value
-        assert_eq!(size.cast::<u64>(), raw);
+        assert_eq!(size.cast::<u32>(), raw);
+        assert_eq!(size.cast::<u64>(), u64::from(raw));
         assert_eq!(size.cast::<u128>(), u128::from(raw));
-        assert_eq!(size.checked_cast::<u32>(), u32::try_from(raw).ok());
-        assert_eq!(
-            size.saturating_cast::<u32>(),
-            u32::saturating_cast_from(raw)
-        );
+        assert_eq!(size.checked_cast::<u32>(), Some(raw));
+        assert_eq!(size.checked_cast::<u16>(), u16::try_from(raw).ok());
+        assert_eq!(size.saturating_cast::<u32>(), raw);
         assert_eq!(ByteSize(42).strict_cast::<u16>(), 42);
 
         // parsing & display
         assert_eq!(raw.to_string().parse::<ByteSize>(), Ok(size));
+        assert!("4294967296".parse::<ByteSize>().is_err()); // u32::MAX + 1
         assert_eq!(size.to_string(), format!("{raw} bytes"));
 
-        // Deref & DerefMut provide the raw u64 operations
+        // Deref & DerefMut provide the raw u32 operations
         let mut deref = ByteSize(1);
         *deref += 1;
         assert_eq!(deref, ByteSize(2));
