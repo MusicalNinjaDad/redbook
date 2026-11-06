@@ -1,16 +1,15 @@
 #![expect(missing_docs, reason = "WIP")]
 //! Provides [`AudioCd`] & associated [`RipProgress`]
 
-use std::{
-    io::{self, ErrorKind},
-    path::Path,
-};
+use std::path::Path;
 
 use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, Frame, RippedTrack, TocEntries, TrackNo};
+use crate::{
+    CdDrive, Disc, Drive, Error, Frame, RippedTrack, TocEntries, TrackNo, drive::DriveError,
+};
 
 #[derive(Debug)]
 /// A CD loaded into a physical drive. This combines the ability to access the physical disc with
@@ -62,7 +61,7 @@ pub struct AudioCd {
 }
 
 impl TryFrom<CdDrive> for AudioCd {
-    type Error = io::Error;
+    type Error = Error;
 
     fn try_from(drive: CdDrive) -> Result<Self, Self::Error> {
         let _err_span =
@@ -80,7 +79,10 @@ impl TryFrom<CdDrive> for AudioCd {
 }
 
 impl AudioCd {
-    pub fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
+    pub fn open<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        cx: Context<RipProgress>,
+    ) -> Result<Self, Error> {
         let drive = CdDrive::open(path, cx)?;
         Self::try_from(drive)
     }
@@ -88,15 +90,15 @@ impl AudioCd {
     /// Rip a track: generate its tags & fetch cover art, then read the raw CDDA data from disc.
     ///
     /// # Errors
-    /// - `ErrorKind::NotFound` if `track_number` does not identify an audio track on the disc
-    ///   (see [`Disc::track`])
-    /// - propagates any IO error from reading the track data (see [`Drive::read_track`])
-    pub fn rip(&self, track_number: TrackNo) -> io::Result<RippedTrack> {
+    /// - [`DriveErrorKind::NotFound`][crate::drive::DriveErrorKind::NotFound] if `track_number` does
+    ///   not identify an audio track on the disc (see [`Disc::track`])
+    /// - propagates any error from reading the track data (see [`Drive::read_track`])
+    pub fn rip(&self, track_number: TrackNo) -> Result<RippedTrack, Error> {
         let _error = tracing::error_span!("AudioCdExt::rip", %track_number).entered();
         let tags = self
             .disc
             .tag_for(track_number)
-            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "track not found"))
+            .ok_or_else(|| Error::from(DriveError::not_found().context("track not found")))
             .or_warn("unable to construct tags")?;
         let coverart = self.disc.cover_art().cloned();
         let raw_data = self.drive.read_track(track_number)?;
@@ -145,6 +147,8 @@ pub struct RipProgress {
 #[cfg(test)]
 mod miri {
     use super::*;
+
+    use std::io;
 
     use rstest::rstest;
     use tracing_test::traced_test;

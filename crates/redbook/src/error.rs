@@ -74,6 +74,8 @@ impl Error {
             ErrorKind::Disc(error) => error.io_kind(),
             ErrorKind::Tagging(error) => error.io_kind(),
             ErrorKind::Track(error) => error.io_kind(),
+            ErrorKind::Drive(error) => error.io_kind(),
+            ErrorKind::Win(error) => error.io_kind(),
         }
     }
 }
@@ -130,6 +132,10 @@ pub enum ErrorKind {
     Tagging(crate::tagging::TaggingError),
     /// A track-encoding domain error.
     Track(crate::track::TrackError),
+    /// A [`drive`][crate::drive] domain error.
+    Drive(crate::drive::DriveError),
+    /// A [`win`] domain error (Windows hardware access).
+    Win(crate::win::WinError),
 }
 
 impl Display for ErrorKind {
@@ -140,6 +146,8 @@ impl Display for ErrorKind {
             ErrorKind::Disc(error) => Display::fmt(error, f),
             ErrorKind::Tagging(error) => Display::fmt(error, f),
             ErrorKind::Track(error) => Display::fmt(error, f),
+            ErrorKind::Drive(error) => Display::fmt(error, f),
+            ErrorKind::Win(error) => Display::fmt(error, f),
         }
     }
 }
@@ -152,6 +160,8 @@ impl StdError for ErrorKind {
             ErrorKind::Disc(error) => Some(error),
             ErrorKind::Tagging(error) => Some(error),
             ErrorKind::Track(error) => Some(error),
+            ErrorKind::Drive(error) => Some(error),
+            ErrorKind::Win(error) => Some(error),
         }
     }
 }
