@@ -36,7 +36,7 @@ use crate::LEADIN;
 /// A `Frame` can always be converted into an [`Msf`] representation: the stored value is always
 /// `<=` [`Frame::MAX`]. This is upheld by validating construction ([`Frame::new`],
 /// [`Frame::strict_new`] & [`Frame::saturating_new`]) and by every arithmetic method below, so
-/// that [`From<Frame> for Msf`] is always well-defined.
+/// that `From<Frame> for Msf` is always well-defined.
 ///
 /// While the primary constructors are designed to validate the upper bound, unsafe code MUST NOT
 /// rely on this.
@@ -46,8 +46,6 @@ use crate::LEADIN;
 /// `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented for `Frame` (or [`Msf`]).
 /// Instead use the `saturating_*`, `checked_` & `strict_*` methods, which accept only
 /// `rhs: Frame` or `rhs: Msf` for add/sub, and only a scalar integer `N` for mul/div/rem.
-/// If an integer result is required, use [`Frame::cast`] first and then the corresponding
-/// `u32` method.
 ///
 /// ```
 /// # use redbook::Frame;
@@ -65,6 +63,20 @@ use crate::LEADIN;
 /// [`ByteSize`]. [`Frame::SIZE_IN_BYTES`] is itself a [`ByteSize`], so it cannot be used as the
 /// scalar `rhs` of the mul methods: a `Frame` times a byte size is a `ByteSize`, never a
 /// `Frame`.
+///
+/// ```
+/// # use redbook::{frame::ByteSize, Frame};
+/// let frames = Frame::new(1).unwrap();
+/// // how many bytes are needed?
+/// assert_eq!(frames.size(), ByteSize(2352));
+///
+/// // On 32-bit or 64-bit architecture Frame::MAX.size() fits in a usize
+/// let buf = vec![0_u8; frames.size().strict_cast()];
+///
+/// // One frame needs 2352 bytes in raw CDDA mode (excluding sub-channels)
+/// assert_eq!(Frame::SIZE_IN_BYTES, ByteSize(2352));
+/// assert_eq!(buf.len(), 2352);
+/// ```
 ///
 /// # Pattern matching
 ///
@@ -1057,6 +1069,9 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 ///   semantically different.
 ///
 /// # Examples
+/// 
+/// See [`Frame`] for a further usage example
+/// 
 /// ```
 /// use redbook::{Frame, frame::ByteSize};
 ///
