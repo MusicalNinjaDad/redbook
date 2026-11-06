@@ -70,6 +70,7 @@ impl Error {
     pub fn io_kind(&self) -> io::ErrorKind {
         match &self.kind {
             ErrorKind::Io(error) => error.kind(),
+            ErrorKind::Toc(error) => error.io_kind(),
         }
     }
 }
@@ -118,12 +119,15 @@ impl From<Error> for io::Error {
 pub enum ErrorKind {
     /// A wrapped [`io::Error`], e.g. from the OS or the filesystem.
     Io(io::Error),
+    /// A [`toc`][crate::toc] domain error.
+    Toc(crate::toc::TocError),
 }
 
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ErrorKind::Io(error) => Display::fmt(error, f),
+            ErrorKind::Toc(error) => Display::fmt(error, f),
         }
     }
 }
@@ -132,6 +136,7 @@ impl StdError for ErrorKind {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             ErrorKind::Io(error) => Some(error),
+            ErrorKind::Toc(error) => Some(error),
         }
     }
 }

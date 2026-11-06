@@ -142,7 +142,8 @@ impl TryFrom<CDROM_TOC> for TocEntries {
             .filter(TRACK_DATA::nonzero)
             .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
-            .collect()
+            .collect::<Result<_, crate::toc::TocError>>()
+            .map_err(io::Error::from)
     }
 }
 
@@ -208,7 +209,7 @@ mod tests {
     impl CDROM_TOC {
         fn to_toc(self) -> io::Result<Toc> {
             let tocentries = &TocEntries::try_from(self)?;
-            tocentries.try_into()
+            tocentries.try_into().map_err(io::Error::from)
         }
 
         /// Only takes the claimed number of tracks, thus avoiding the leadouts.

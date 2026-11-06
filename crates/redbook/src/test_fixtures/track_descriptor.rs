@@ -172,6 +172,7 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .map(TocEntry::try_from)
             .collect::<io::Result<Vec<TocEntry>>>()?
             .into_iter()
-            .collect()
+            .collect::<Result<_, crate::toc::TocError>>()
+            .map_err(io::Error::from)
     }
 }
