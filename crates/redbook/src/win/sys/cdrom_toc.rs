@@ -2,8 +2,9 @@ use std::io;
 
 use crate::{
     Frame, LEADIN, TocEntries,
+    frame::Msf,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::{Control, Ctrl, LeadoutEntry, Point, TocEntry, TrackEntry, TrackNo, b0000},
+    toc::{Control, Ctrl, Point, RawTocEntry, TocEntry},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -137,8 +138,26 @@ impl TryFrom<CDROM_TOC> for TocEntries {
 
     fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
         toc.track_entries()
+            .copied()
+            .filter(TRACK_DATA::nonzero)
+            .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
             .collect()
+    }
+}
+
+impl TRACK_DATA {
+    #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+    fn is_zero(&self) -> bool {
+        self.Address == [0; _]
+            && self.Reserved == 0
+            && self.Reserved1 == 0
+            && self.TrackNumber == 0
+            && self._bitfield == 0
+    }
+
+    fn nonzero(&self) -> bool {
+        !self.is_zero()
     }
 }
 
@@ -150,26 +169,23 @@ impl Ctrl for TRACK_DATA {
     }
 }
 
-impl From<&TRACK_DATA> for Option<TocEntry> {
-    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA. Returns `None` if the entry is
-    /// empty.
-    ///
-    /// TODOs
-    /// TODO: #178 TryFrom<&TRACK_DATA> for Option<TocEntry>
-    fn from(track_data: &TRACK_DATA) -> Option<TocEntry> {
+impl From<TRACK_DATA> for RawTocEntry {
+    fn from(track_data: TRACK_DATA) -> Self {
+        let session = None;
+        #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+        let adr = (track_data._bitfield & 0b11110000) >> 4;
+        let control = track_data.control();
+        let tno = 0;
+        let point = Point(track_data.TrackNumber);
+        let msf = Msf::ZERO;
+        let zero = 0;
+
+        // Address is a be encoded u32 frame address. Not the 4 u8s H(zero),M,S,F on the Q-channel
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::strict_new(relative).strict_add(LEADIN);
-        let point = Point(track_data.TrackNumber);
-        let control = track_data.control();
+        let pmsf = Msf::from(start);
 
-        match point {
-            Point(0) => None,
-            b0000::LEADOUT_TRACK_ID => {
-                Some(TocEntry::Leadout(LeadoutEntry::new(start, control, None)))
-            }
-            _ => TrackNo::new(point.0)
-                .map(|track| TocEntry::Track(TrackEntry::new(track, start, control, None))),
-        }
+        RawTocEntry::new(session, adr, control, tno, point, msf, zero, pmsf)
     }
 }
 

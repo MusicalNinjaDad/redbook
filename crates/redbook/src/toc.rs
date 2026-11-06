@@ -1046,6 +1046,7 @@ impl From<RawTocEntry> for Option<TocEntry> {
                 InfoEntry::try_from(raw).ok().map(TocEntry::TrackInfo)
             }
             Unknown => Some(TocEntry::Unknown(raw)),
+            Zero => None,
         }
     }
 }
@@ -1335,8 +1336,10 @@ pub enum TocEntryKind {
     FirstDataTrackInfo,
     /// Last track number, encoded as start minute
     LastDataTrackInfo,
-    /// An entry type which we don't expect and don't understand
+    /// An entry type which we do not specifically abstract, not required for audio CD handling
     Unknown,
+    /// An entry will all zeros
+    Zero,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1507,6 +1510,7 @@ impl TryFrom<&TocEntries> for Toc {
 
 impl FromIterator<TocEntry> for io::Result<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
+        let _span = tracing::debug_span!("FromIterator<TocEntry> for io::Result<TocEntries>");
         use FirstLast::*;
         use Leadouts::*;
         use TocEntryKind::*;
@@ -1676,10 +1680,10 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                     (Unknown, FirstAudioTrackInfo, PerSession(_)) |
                     (Unknown, FirstDataTrackInfo, PerSession(_))
                     => Ok(()),
-                    (this, next, _) => Err(io::Error::new(
+                    (this, next, _) => {dbg!(this_entry); dbg!(next_entry);Err(io::Error::new(
                         ErrorKind::InvalidData,
                         format!("invalid toc entry order. {this} cannot be followed by {next} with leadouts {leadouts:?}"),
-                    )),
+                    ))},
                 }
             })?;
 

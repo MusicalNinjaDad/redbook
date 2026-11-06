@@ -668,6 +668,13 @@ pub struct Msf {
 }
 
 impl Msf {
+    /// A zero-ed Msf, as found in the Msf fields of a TOC entry (the pMSF fields hold actual data)
+    pub const ZERO: Self = Msf {
+        min: 0,
+        sec: 0,
+        frame: 0,
+    };
+
     /// Creates a new `Msf` from minute, second, and frame components.
     ///
     /// # Note
