@@ -1054,7 +1054,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 /// A `ByteSize` can always be converted into a [`Frame`] count: the stored value is always
 /// `<=` [`ByteSize::MAX`] (= [`Frame::MAX`]'s size in bytes). This is upheld by validating
 /// construction ([`ByteSize::new`], [`ByteSize::strict_new`] & [`ByteSize::saturating_new`])
-/// and by every arithmetic method below, so that e.g. [`ByteSize::frames_floor_strict`] is
+/// and by every arithmetic method below, so that e.g. [`ByteSize::frames_floor`] is
 /// always well-defined.
 ///
 /// # Notes
@@ -1069,8 +1069,9 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 ///   `/`, `%`, `+=` etc. Use the `strict_*`, `checked_` & `saturating_` methods instead, which
 ///   accept only `rhs: ByteSize` for add/sub and only a scalar integer `N` for mul/div/rem.
 ///   Do NOT calculate the raw value yourself and wrap the result back in a `ByteSize`.
-/// - To convert to a frame count, use the `frames_*` methods ([`ByteSize::frames_exact`],
-///   [`ByteSize::frames_floor_checked`], ...), which divide by [`Frame::SIZE_IN_BYTES`].
+/// - To convert to a frame count, use [`ByteSize::frames_floor`] or
+///   [`ByteSize::frames_exact`]/[`ByteSize::frames_exact_checked`], which divide by
+///   [`Frame::SIZE_IN_BYTES`].
 /// - `PartialEq` & `PartialOrd` are deliberately not implemented between `ByteSize` &
 ///   primitive ints, to ensure comparisons don't inadvertently compare a `ByteSize` with
 ///   something semantically different. Use [`cast()`][Self::cast] to get a primitive
@@ -1085,7 +1086,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 ///
 /// let bytes = Frame::strict_new(100).size();
 /// assert_eq!(bytes, ByteSize::strict_new(235_200));
-/// assert_eq!(bytes.frames_floor_strict(), Frame::strict_new(100));
+/// assert_eq!(bytes.frames_floor(), Frame::strict_new(100));
 /// assert_eq!(bytes.frames_exact_checked(), Some(Frame::strict_new(100)));
 ///
 /// // not a whole number of frames
@@ -1464,8 +1465,7 @@ impl ByteSize {
     /// exact multiple of [`Frame::SIZE_IN_BYTES`].
     ///
     /// # Panics
-    /// Panics if `self` is not an exact multiple of [`Frame::SIZE_IN_BYTES`], or if the result
-    /// is above [`Frame::MAX`].
+    /// Panics if `self` is not an exact multiple of [`Frame::SIZE_IN_BYTES`].
     pub const fn frames_exact(self) -> Frame {
         match self.frames_exact_checked() {
             Some(frames) => frames,
@@ -1474,8 +1474,12 @@ impl ByteSize {
     }
 
     /// The number of [`Frame`]s contained in this byte size, returning `None` unless `self`
-    /// is an exact multiple of [`Frame::SIZE_IN_BYTES`] and the result is within
-    /// [`Frame::MAX`].
+    /// is an exact multiple of [`Frame::SIZE_IN_BYTES`].
+    ///
+    /// # Note
+    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
+    ///   always within [`Frame::MAX`], so `None` here only ever means "not an exact number of
+    ///   frames"
     ///
     /// # Examples
     /// ```
@@ -1490,33 +1494,19 @@ impl ByteSize {
     pub const fn frames_exact_checked(self) -> Option<Frame> {
         let frame_size = Frame::SIZE_IN_BYTES.cast::<usize>();
         match self.0 % frame_size {
-            0 => Frame::new(self.0 / frame_size),
+            0 => Some(Frame::strict_new(self.0 / frame_size)),
             _ => None,
         }
-    }
-
-    /// The number of whole [`Frame`]s contained in this byte size, rounded down, returning `None`
-    /// if the result is above [`Frame::MAX`].
-    ///
-    /// # Note
-    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
-    ///   always within [`Frame::MAX`], so this always returns `Some`
-    pub const fn frames_floor_checked(self) -> Option<Frame> {
-        Frame::new(self.0 / Frame::SIZE_IN_BYTES.cast::<usize>())
-    }
-
-    /// The number of whole [`Frame`]s contained in this byte size, rounded down, saturating at
-    /// [`Frame::MAX`].
-    pub const fn frames_floor_saturating(self) -> Frame {
-        Frame::saturating_new(self.0 / Frame::SIZE_IN_BYTES.cast::<usize>())
     }
 
     /// The number of whole [`Frame`]s contained in this byte size:
     /// `self / `[`Frame::SIZE_IN_BYTES`], rounded down.
     ///
-    /// # Panics
-    /// Panics if the result is above [`Frame::MAX`] ("semantic overflow").
-    pub const fn frames_floor_strict(self) -> Frame {
+    /// # Note
+    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
+    ///   always within [`Frame::MAX`], so there are deliberately no checked / saturating /
+    ///   strict variants of this method
+    pub const fn frames_floor(self) -> Frame {
         Frame::strict_new(self.0 / Frame::SIZE_IN_BYTES.cast::<usize>())
     }
 }
@@ -1748,7 +1738,7 @@ mod tests {
         const SIZE_IN_BYTES: ByteSize = Frame::SIZE_IN_BYTES;
         const ONE_FRAME: ByteSize = Frame::strict_new(1).size();
         const MAX: ByteSize = ByteSize::MAX;
-        const FRAMES_IN_64KB: Frame = ByteSize(64 * 1024).frames_floor_strict();
+        const FRAMES_IN_64KB: Frame = ByteSize(64 * 1024).frames_floor();
         const EXACT: Option<Frame> = ByteSize(2 * 2352).frames_exact_checked();
         const NOT_EXACT: Option<Frame> = ByteSize(2353).frames_exact_checked();
         const CAST: usize = SIZE_IN_BYTES.cast();
@@ -1782,7 +1772,7 @@ mod tests {
         assert_eq!(ByteSize::MAX.strict_cast::<u64>(), 2_744_501_760); // 0xA395_C600
         assert!(ByteSize::MAX.is_valid());
         assert_eq!(ByteSize::MAX.validate(), Some(ByteSize::MAX));
-        assert_eq!(ByteSize::MAX.frames_floor_strict(), Frame::MAX);
+        assert_eq!(ByteSize::MAX.frames_floor(), Frame::MAX);
         assert_eq!(ByteSize::MAX.frames_exact(), Frame::MAX);
         // arithmetic saturates at MAX
         assert_eq!(ByteSize::MAX.saturating_add(ByteSize(1)), ByteSize::MAX);
@@ -1796,7 +1786,7 @@ mod tests {
             let frame = Frame::strict_new(frames);
             let size = frame.size();
             assert_eq!(size, ByteSize::strict_new(frames * 2352));
-            assert_eq!(size.frames_floor_strict(), frame);
+            assert_eq!(size.frames_floor(), frame);
             assert_eq!(size.frames_exact(), frame);
             assert_eq!(size.frames_exact_checked(), Some(frame));
         }
@@ -1805,22 +1795,20 @@ mod tests {
     }
 
     #[rstest]
-    #[case(2353, Some(Frame::strict_new(1)), None)]
-    #[case(2_744_501_759, Some(Frame::strict_new(1_166_879)), None)] // ByteSize::MAX - 1
-    #[case(2_744_501_760, Some(Frame::MAX), Some(Frame::MAX))] // ByteSize::MAX
-    fn bytesize_frames_conversions_respect_frame_max(
+    #[case(2353, Frame::strict_new(1), None)]
+    #[case(2_744_501_759, Frame::strict_new(1_166_879), None)] // ByteSize::MAX - 1
+    #[case(2_744_501_760, Frame::MAX, Some(Frame::MAX))] // ByteSize::MAX
+    fn bytesize_frames_conversions(
         #[case] bytes: usize,
-        #[case] expected_floor: Option<Frame>,
+        #[case] expected_floor: Frame,
         #[case] expected_exact: Option<Frame>,
     ) {
         let size = ByteSize::strict_new(bytes);
-        // floor division rounds down, exact division requires a whole number of frames
-        assert_eq!(size.frames_floor_checked(), expected_floor);
+        // floor division rounds down; thanks to the ByteSize invariant it is always within
+        // Frame::MAX, so no checked/saturating/strict variants exist
+        assert_eq!(size.frames_floor(), expected_floor);
+        // exact division additionally requires a whole number of frames
         assert_eq!(size.frames_exact_checked(), expected_exact);
-        // thanks to the ByteSize invariant the floor is always within Frame::MAX
-        let frame = expected_floor.unwrap();
-        assert_eq!(size.frames_floor_strict(), frame);
-        assert_eq!(size.frames_floor_saturating(), frame);
     }
 
     #[test]
