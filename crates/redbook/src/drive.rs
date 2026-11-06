@@ -2,7 +2,6 @@
 
 use std::{
     fmt::Debug,
-    io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
 
@@ -10,7 +9,11 @@ use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
+pub use error::{DriveError, DriveErrorKind};
+
 use crate::{Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo};
+
+pub mod error;
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
     /// The type of Iterator available that provides all available devices on the system
@@ -18,38 +21,38 @@ pub trait Device: Sized {
 
     /// Open the device represented by the path. See [AudioCd::open][crate::AudioCd::open] for
     /// details on acceptable path formats.
-    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self>;
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, DriveError>;
 
     /// Get an iterator over all available cd devices on the system
-    fn all() -> io::Result<Self::Iter>;
+    fn all() -> Result<Self::Iter, DriveError>;
 
     /// Get a valid file system-path which represents the device and can be passed to
     /// [`std::fs::read_dir`] etc. to read from the device as a file-system.
     ///
     /// Depending on the implementation this may not be the same value as was provided to `open`.
     /// E.g. on windows this could return `\\.\CDROM0` when `F:` was passed to `open`.
-    fn fs_path(&self) -> io::Result<PathBuf>;
+    fn fs_path(&self) -> Result<PathBuf, DriveError>;
 
     /// Read raw CDDA data starting at frame `start` into `buf`
     ///
     /// `start` is the absolute frame position on the disc, including the 150-frame lead-in
     /// (as provided by [`TrackEntry::start`][crate::toc::TrackEntry::start]).
     ///
-    /// Returns number of frames read. Errors with `ErrorKind::Unsupported` if `buf` is not sized
-    /// for an exact number of frames.
-    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame>;
+    /// Returns number of frames read. Errors with [`DriveErrorKind::Unsupported`] if `buf` is not
+    /// sized for an exact number of frames.
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> Result<Frame, DriveError>;
 
     /// Read the Table of Contents from the disc and provide a parsed representation as a
     /// platform-independent [TocEntries]. If a cached version is available then it may be cloned
     /// and returned rather than re-reading from disc.
-    fn read_toc(&self) -> io::Result<TocEntries>;
+    fn read_toc(&self) -> Result<TocEntries, DriveError>;
 
     /// Read the Table of Contents from the disc and provide a raw_bytes representation of the
     /// returned data. The exact format of this data may be platform specific.
     ///
     /// Unless you are providing low-level or debug functionality, you probably want to use
     /// [read_toc][Device::read_toc] instead which will provide a platform-independent [TocEntries]
-    fn raw_toc(&self) -> io::Result<Vec<u8>>;
+    fn raw_toc(&self) -> Result<Vec<u8>, DriveError>;
 }
 
 /// Implementors of `Drive` can additionally read an entire track and may hold a [`Context<RipProgress>`]
@@ -67,7 +70,10 @@ pub trait Drive: Sized {
     ///
     /// Requires a thread [Context] to be provided so that long-running reads via
     /// [read_track][Drive::read_track] can be cancelled and provide status updates.
-    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self>;
+    fn open<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        cx: Context<RipProgress>,
+    ) -> Result<Self, DriveError>;
 
     /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
@@ -76,10 +82,10 @@ pub trait Drive: Sized {
     /// via the thread [Context].
     ///
     /// # Errors
-    /// - `ErrorKind::NotFound` if `track_number` does not identify an audio track on the disc
-    /// - `ErrorKind::UnexpectedEof` if the track has zero duration
-    /// - `ErrorKind::FileTooLarge` if the track is too long to buffer in memory
-    fn read_track(&self, track_number: TrackNo) -> io::Result<Vec<u8>> {
+    /// - [`DriveErrorKind::NotFound`] if `track_number` does not identify an audio track on the disc
+    /// - [`DriveErrorKind::UnexpectedEof`] if the track has zero duration
+    /// - [`DriveErrorKind::FileTooLarge`] if the track is too long to buffer in memory
+    fn read_track(&self, track_number: TrackNo) -> Result<Vec<u8>, DriveError> {
         let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();
         let trace_span = tracing::trace_span!("", frames_read = Empty).entered();
@@ -89,7 +95,7 @@ pub trait Drive: Sized {
         let track = self
             .toc()
             .track(track_number)
-            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "invalid track number"))
+            .ok_or_else(|| DriveError::not_found().context("invalid track number"))
             .or_warn("")?;
 
         dbg_span.record("track_details", format_args!("{track}"));
@@ -99,19 +105,16 @@ pub trait Drive: Sized {
             .size()
             .checked_cast()
             .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::FileTooLarge,
-                    format!(
-                        "track too long: {size}, but can only handle {max}",
-                        size = track.duration.size(),
-                        max = usize::MAX
-                    ),
-                )
+                DriveError::file_too_large().context(format!(
+                    "track too long: {size}, but can only handle {max}",
+                    size = track.duration.size(),
+                    max = usize::MAX
+                ))
             })
             .or_error("")?;
 
         (track_size > 0)
-            .ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "zero length track"))
+            .ok_or_else(|| DriveError::unexpected_eof().context("zero length track"))
             .or_error("")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
@@ -129,14 +132,12 @@ pub trait Drive: Sized {
                     processed: frames_read_so_far,
                     total: track.duration,
                 })
-                .map_err(io::Error::other)
+                .map_err(|_| DriveError::progress())
                 .or_error("sending progress update")?;
 
             let offset = MAX_CHUNK_FRAMES
                 .checked_mul(i)
-                .ok_or_else(|| {
-                    io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max")
-                })
+                .ok_or_else(|| DriveError::invalid_data().context("chunk offset exceeds CD max"))
                 .or_error("computing chunk offset")?;
 
             debug_assert_eq!(
@@ -148,20 +149,20 @@ pub trait Drive: Sized {
                 .toc_entry
                 .start()
                 .checked_add(offset)
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
+                .ok_or_else(|| DriveError::invalid_data().context("read start exceeds CD max"))
                 .or_error("computing read start")?;
 
             let frames_read = self.device().read_cdda(start, buf)?;
             frames_read_so_far = frames_read_so_far
                 .checked_add(frames_read)
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "frames read exceeds CD max"))
+                .ok_or_else(|| DriveError::invalid_data().context("frames read exceeds CD max"))
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
         let offset = MAX_CHUNK_FRAMES
             .checked_mul(bufs.len())
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "chunk offset exceeds CD max"))
+            .ok_or_else(|| DriveError::invalid_data().context("chunk offset exceeds CD max"))
             .or_error("computing last chunk offset")?;
         debug_assert_eq!(
             offset, frames_read_so_far,
@@ -176,20 +177,20 @@ pub trait Drive: Sized {
                     processed: frames_read_so_far,
                     total: track.duration,
                 })
-                .map_err(io::Error::other)
+                .map_err(|_| DriveError::progress())
                 .or_error("sending progress update")?;
 
             let start = track
                 .toc_entry
                 .start()
                 .checked_add(offset)
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "read start exceeds CD max"))
+                .ok_or_else(|| DriveError::invalid_data().context("read start exceeds CD max"))
                 .or_error("computing last read start")?;
 
             let frames_read = self.device().read_cdda(start, last_buf)?;
             frames_read_so_far = frames_read_so_far
                 .checked_add(frames_read)
-                .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "frames read exceeds CD max"))
+                .ok_or_else(|| DriveError::invalid_data().context("frames read exceeds CD max"))
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -199,7 +200,7 @@ pub trait Drive: Sized {
                 processed: frames_read_so_far,
                 total: track.duration,
             })
-            .map_err(io::Error::other)
+            .map_err(|_| DriveError::progress())
             .or_error("sending progress update")?;
 
         Ok(data)
@@ -247,7 +248,10 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Drive for CdDrive<DEV> {
     type Device = DEV;
 
-    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        cx: Context<RipProgress>,
+    ) -> Result<Self, DriveError> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();
@@ -289,7 +293,7 @@ pub struct CdDrives<DEV: Device> {
 
 impl<DEV: Device> CdDrives<DEV> {
     /// Get an iterator over all available Drives on the current system.
-    pub fn all(cx: Context<RipProgress>) -> io::Result<Self> {
+    pub fn all(cx: Context<RipProgress>) -> Result<Self, DriveError> {
         let devices = <CdDrive<DEV> as Drive>::Device::all()?;
         Ok(CdDrives { devices, cx })
     }

@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    io::{self, ErrorKind},
+    io,
     mem::offset_of,
     path::{Path, PathBuf},
     ptr::{null, null_mut},
@@ -11,8 +11,9 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame,
+    drive::DriveError,
     win::{
-        MAX_PATH_CHARS,
+        MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
     },
@@ -70,14 +71,14 @@ mod safety {
 
     #[expect(private_bounds, reason = "sealed for safety")]
     pub(super) trait IntoDriveHandle: Sealed {
-        fn into_drive_handle(self) -> io::Result<DriveHandle>;
+        fn into_drive_handle(self) -> Result<DriveHandle, WinError>;
     }
 
     impl IntoDriveHandle for HANDLE {
         #[inline]
-        fn into_drive_handle(self) -> io::Result<DriveHandle> {
+        fn into_drive_handle(self) -> Result<DriveHandle, WinError> {
             (self != INVALID_HANDLE_VALUE)
-                .ok_or_else(io::Error::last_os_error)
+                .ok_or_else(|| WinError::from(io::Error::last_os_error()))
                 .or_warn("invalid handle")?;
 
             let drivehandle = DriveHandle(self);
@@ -87,10 +88,7 @@ mod safety {
                 .DeviceType
                 == const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() })
             .ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::Unsupported,
-                    "Device does not support CDROM commands",
-                )
+                WinError::unsupported().context("Device does not support CDROM commands")
             })
             .or_warn("unsupported device")?;
 
@@ -194,7 +192,7 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub(super) fn device_number(&self) -> io::Result<STORAGE_DEVICE_NUMBER> {
+    pub(super) fn device_number(&self) -> Result<STORAGE_DEVICE_NUMBER, WinError> {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 
@@ -238,7 +236,7 @@ impl DriveHandle {
     /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
     ///
     /// TODO: consider making public if we make win::sys::cdrom_toc public too
-    fn cdrom_toc(&self) -> io::Result<CDROM_TOC> {
+    fn cdrom_toc(&self) -> Result<CDROM_TOC, WinError> {
         let _error_span = tracing::error_span!("DriveHandle::cdrom_toc").entered();
 
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
@@ -288,7 +286,7 @@ impl DriveHandle {
 impl Device for DriveHandle {
     type Iter = DeviceInfoSetIter;
 
-    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Self> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, DriveError> {
         let path = PathBuf::from(path.as_ref());
         let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
 
@@ -316,7 +314,7 @@ impl Device for DriveHandle {
         Ok(handle)
     }
 
-    fn all() -> io::Result<DeviceInfoSetIter> {
+    fn all() -> Result<DeviceInfoSetIter, DriveError> {
         let debug = tracing::debug_span!("DriveHandle::all", deviceinfoset = Empty).entered();
 
         let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))
@@ -328,7 +326,7 @@ impl Device for DriveHandle {
         Ok(deviceinfoset.into_iter())
     }
 
-    fn fs_path(&self) -> io::Result<PathBuf> {
+    fn fs_path(&self) -> Result<PathBuf, DriveError> {
         let info = self.device_number()?;
 
         let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
@@ -336,7 +334,7 @@ impl Device for DriveHandle {
         Ok(path)
     }
 
-    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame> {
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> Result<Frame, DriveError> {
         let span = tracing::error_span!(
             "DriveHandle::read_cdda",
             %start,
@@ -347,7 +345,7 @@ impl Device for DriveHandle {
         .entered();
 
         let buf_size = ByteSize::new(buf.len())
-            .ok_or_else(|| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
+            .ok_or_else(|| DriveError::out_of_memory().context("buffer too large"))
             .or_error("buffer too large")?;
 
         // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD
@@ -359,7 +357,7 @@ impl Device for DriveHandle {
         // RAW_SECTOR_SIZE = Frame::SIZE_IN_BYTES
         let frames_to_read = buf_size
             .frames_exact_checked()
-            .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "invalid buffer size"))
+            .ok_or_else(|| DriveError::unsupported().context("invalid buffer size"))
             .or_error("buffer not sized for CDDA")?;
 
         span.record("frames_to_read", format_args!("{frames_to_read}"));
@@ -413,35 +411,34 @@ impl Device for DriveHandle {
         Ok(frames_to_read)
     }
 
-    fn read_toc(&self) -> io::Result<crate::TocEntries> {
+    fn read_toc(&self) -> Result<crate::TocEntries, DriveError> {
         let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
-        self.cdrom_toc()?.try_into()
+        Ok(self.cdrom_toc()?.try_into()?)
     }
 
-    fn raw_toc(&self) -> io::Result<Vec<u8>> {
+    fn raw_toc(&self) -> Result<Vec<u8>, DriveError> {
         Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 }
 
 trait IoControl {
-    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> io::Result<()>;
+    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> Result<(), WinError>;
 }
 
 impl IoControl for BOOL {
-    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> io::Result<()> {
+    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> Result<(), WinError> {
         let _span = tracing::error_span!("DeviceIoControl::validate", return_code = self, ?bytes_expected, %bytes_returned).entered();
 
         (*self != 0)
-            .ok_or_else(io::Error::last_os_error)
+            .ok_or_else(|| WinError::from(io::Error::last_os_error()))
             .or_warn("error calling DeviceIoControl")?;
 
         if let Some(bytes_expected) = bytes_expected {
             (bytes_returned == bytes_expected)
                 .ok_or_else(|| {
-                    io::Error::new(
-                        ErrorKind::UnexpectedEof,
-                        format!("expected {bytes_expected} bytes, received {bytes_returned}"),
-                    )
+                    WinError::unexpected_eof().context(format!(
+                        "expected {bytes_expected} bytes, received {bytes_returned}"
+                    ))
                 })
                 .or_warn("error calling DeviceIoControl")?;
         };
@@ -491,7 +488,7 @@ impl Drop for DeviceInfoSet {
 }
 
 impl DeviceInfoSet {
-    pub fn for_device_class(class: Guid) -> io::Result<Self> {
+    pub fn for_device_class(class: Guid) -> Result<Self, WinError> {
         let _tracing_span =
             tracing::error_span!("DeviceInfoSet::for_device_class", %class).entered();
 
@@ -524,7 +521,7 @@ impl DeviceInfoSet {
             )
         };
         if handle == INVALID_HANDLE_VALUE {
-            Err(io::Error::last_os_error()).or_warn("invalid handle")?
+            Err(WinError::from(io::Error::last_os_error())).or_warn("invalid handle")?
         } else {
             Ok(Self { handle, class })
         }
@@ -536,7 +533,7 @@ impl DeviceInfoSet {
     }
 
     /// Get the detail data for a given member of the device information set
-    pub fn get_member(&self, index: usize) -> io::Result<Option<DeviceDetails>> {
+    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, WinError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
@@ -557,7 +554,10 @@ impl DeviceInfoSet {
     /// Provides the basic information required to be able to get detail data for a given member.
     ///
     /// Returns `Ok(None)` if the member does not exist.
-    fn get_interface_data(&self, memberindex: u32) -> io::Result<Option<SP_DEVICE_INTERFACE_DATA>> {
+    fn get_interface_data(
+        &self,
+        memberindex: u32,
+    ) -> Result<Option<SP_DEVICE_INTERFACE_DATA>, WinError> {
         let _span =
             tracing::error_span!("DeviceInfoSet::get_interface_data", memberindex).entered();
 
@@ -605,7 +605,7 @@ impl DeviceInfoSet {
             (0, Some(ERROR_NO_MORE_ITEMS)) => Ok(None),
             (0, _) => {
                 tracing::error!(%err, "failed to get data about device");
-                Err(err)
+                Err(WinError::from(err))
             }
             _ => {
                 tracing::debug!(guid = %Guid(deviceinterfacedata.InterfaceClassGuid), "got data for device");
@@ -615,7 +615,10 @@ impl DeviceInfoSet {
     }
 
     /// Validates that a [`DeviceDetails`] struct is large enough to house the details for `member`
-    fn check_required_buffer_size(&self, member: &SP_DEVICE_INTERFACE_DATA) -> io::Result<()> {
+    fn check_required_buffer_size(
+        &self,
+        member: &SP_DEVICE_INTERFACE_DATA,
+    ) -> Result<(), WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -649,7 +652,7 @@ impl DeviceInfoSet {
             (0, Some(ERROR_INSUFFICIENT_BUFFER)) => tracing::debug!(requiredsize),
             _ => {
                 tracing::error!(%err, "reading required buffer size");
-                return Err(err);
+                return Err(WinError::from(err));
             }
         };
 
@@ -669,7 +672,7 @@ impl DeviceInfoSet {
     unsafe fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> io::Result<DeviceDetails> {
+    ) -> Result<DeviceDetails, WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
@@ -726,7 +729,7 @@ impl DeviceInfoSet {
             0 => {
                 let err = io::Error::last_os_error();
                 tracing::error!(get_details, %err);
-                Err(err)
+                Err(WinError::from(err))
             }
             _ => Ok(deviceinterfacedetaildata),
         }
@@ -778,9 +781,9 @@ impl DeviceDetails {
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
     /// get the required size, then to call `check_size` before using DeviceDetails to store the
     /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    pub fn check_size(requiredsize: u32) -> io::Result<()> {
+    pub fn check_size(requiredsize: u32) -> Result<(), WinError> {
         (requiredsize <= size_of::<Self>() as u32)
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidFilename, "device path too long"))
+            .ok_or_else(|| WinError::invalid_filename().context("device path too long"))
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
@@ -790,7 +793,7 @@ impl DeviceDetails {
     }
 
     /// Set the path. Returns the number of u16 "words" stored on success, or
-    /// `ErrorKind::InvalidData` if the provided path is too large.
+    /// [`WinErrorKind::InvalidData`][crate::win::WinErrorKind::InvalidData] if the provided path is too large.
     #[cfg_attr(
         all(windows, not(any(test, doc))),
         expect(
@@ -798,15 +801,12 @@ impl DeviceDetails {
             reason = "only used in mock for SetupDiGetDeviceInterfaceDetailW"
         )
     )]
-    pub(super) fn set_path(&mut self, path: &WinString) -> io::Result<usize> {
+    pub(super) fn set_path(&mut self, path: &WinString) -> Result<usize, WinError> {
         let len = path.as_words().len();
         (len < self.DevicePath.len()).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "path too long: can only store {MAX_PATH_CHARS} words, received {len} words"
-                ),
-            )
+            WinError::invalid_data().context(format!(
+                "path too long: can only store {MAX_PATH_CHARS} words, received {len} words"
+            ))
         })?;
         self.DevicePath[..len].copy_from_slice(path.as_words());
         Ok(len)

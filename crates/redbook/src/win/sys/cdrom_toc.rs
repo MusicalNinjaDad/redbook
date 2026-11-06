@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::{
     Frame, LEADIN, TocEntries,
     frame::Msf,
@@ -134,7 +132,7 @@ impl From<TestAlbum> for CDROM_TOC {
 }
 
 impl TryFrom<CDROM_TOC> for TocEntries {
-    type Error = io::Error;
+    type Error = crate::win::WinError;
 
     fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
         toc.track_entries()
@@ -142,7 +140,8 @@ impl TryFrom<CDROM_TOC> for TocEntries {
             .filter(TRACK_DATA::nonzero)
             .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
-            .collect()
+            .collect::<Result<_, crate::toc::TocError>>()
+            .map_err(crate::win::WinError::from)
     }
 }
 
@@ -194,8 +193,6 @@ impl From<TRACK_DATA> for RawTocEntry {
 mod tests {
     use super::*;
 
-    use std::io;
-
     use cdtoc::Toc;
     use rstest::rstest;
     use tracing_test::traced_test;
@@ -206,9 +203,9 @@ mod tests {
     };
 
     impl CDROM_TOC {
-        fn to_toc(self) -> io::Result<Toc> {
+        fn to_toc(self) -> Result<Toc, crate::win::WinError> {
             let tocentries = &TocEntries::try_from(self)?;
-            tocentries.try_into()
+            Ok(tocentries.try_into()?)
         }
 
         /// Only takes the claimed number of tracks, thus avoiding the leadouts.

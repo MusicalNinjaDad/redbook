@@ -3,7 +3,6 @@
 
 use std::{
     fmt::{Debug, Display},
-    io::{self, ErrorKind},
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -19,6 +18,10 @@ use musicbrainz_rs::entity::{
 };
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
+
+pub use error::{TaggingError, TaggingErrorKind};
+
+pub mod error;
 
 pub trait ArtistCreditsExt {
     fn artist_names(&self) -> impl Iterator<Item = String>;
@@ -91,7 +94,7 @@ pub trait PictureExt {
         data: B,
     ) -> Self;
 
-    fn filename(&self) -> io::Result<PathBuf>;
+    fn filename(&self) -> Result<PathBuf, TaggingError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -109,12 +112,12 @@ impl Display for ImageMimeTypes {
 }
 
 impl FromStr for ImageMimeTypes {
-    type Err = io::Error;
+    type Err = TaggingError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mimetype = match s {
             "image/jpeg" => ImageMimeTypes::Jpeg,
-            _ => Err(io::Error::new(ErrorKind::InvalidData, "unknown mime type"))
+            _ => Err(TaggingError::invalid_data().context("unknown mime type"))
                 .or_warn("parsing artwork mime type")?,
         };
         Ok(mimetype)
@@ -147,7 +150,7 @@ impl PictureExt for Picture {
         }
     }
 
-    fn filename(&self) -> io::Result<PathBuf> {
+    fn filename(&self) -> Result<PathBuf, TaggingError> {
         let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
         let filename = match self.picture_type {
             PictureType::CoverFront => "cover",
@@ -177,7 +180,7 @@ pub trait VorbisTagExt {
     fn full_title(&self) -> String;
 
     /// Write tags to the given file
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> io::Result<()>;
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError>;
 
     fn discno(&self) -> Option<String>;
 
@@ -215,9 +218,9 @@ impl VorbisTagExt for VorbisComment {
             .unwrap_or_default()
     }
 
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> io::Result<()> {
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError> {
         let mut file_tag = Tag::read_from_path(path.as_ref())
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .map_err(TaggingError::from)
             .or_warn("reading tags from file")?;
         file_tag
             .vorbis_comments_mut()
@@ -225,13 +228,7 @@ impl VorbisTagExt for VorbisComment {
             .extend(self.comments);
         file_tag
             .write_to_path(path.as_ref())
-            .map_err(|error| match error.kind {
-                metaflac::ErrorKind::Io(error) => error,
-                metaflac::ErrorKind::StringDecoding(utf8error) => {
-                    io::Error::new(ErrorKind::InvalidData, utf8error)
-                }
-                metaflac::ErrorKind::InvalidInput => io::Error::new(ErrorKind::InvalidData, error),
-            })
+            .map_err(TaggingError::from)
             .or_warn("saving tags to file")?;
         Ok(())
     }

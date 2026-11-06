@@ -10,6 +10,10 @@ use crate::{
     toc::{Control, TrackEntry, TrackNo},
 };
 
+pub mod error;
+
+pub use error::{TrackError, TrackErrorKind};
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
 ///
@@ -124,18 +128,24 @@ pub struct RippedTrack {
 
 impl RippedTrack {
     /// Encodes the raw CD audio data to FLAC format.
-    pub fn to_flac(&self) -> MemSink<u8> {
+    ///
+    /// # Errors
+    /// - [`TrackErrorKind::InvalidData`] if the raw data is not a whole number of samples
+    /// - [`TrackErrorKind::Encode`] / [`TrackErrorKind::Output`] wrapping the underlying
+    ///   [`flacenc`] errors if encoding fails
+    pub fn to_flac(&self) -> Result<MemSink<u8>, TrackError> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
             .into_verified()
             .expect("Config data error.");
-        #[expect(
-            clippy::chunks_exact_to_as_chunks,
-            reason = "TODO error handling if not exact"
-        )]
+        (self.raw_data.len() % 2 == 0).ok_or_else(|| {
+            TrackError::invalid_data().context("raw data is not a whole number of samples")
+        })?;
         let samples: Vec<_> = self
             .raw_data
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]) as i32)
             .collect();
         let source = flacenc::source::MemSource::from_samples(
@@ -145,10 +155,10 @@ impl RippedTrack {
             sample_rate,
         );
         let flac_stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
-            .expect("Encode failed.");
+            .map_err(TrackError::from)?;
         let mut sink = flacenc::bitsink::ByteSink::new();
-        flac_stream.write(&mut sink).unwrap();
-        sink
+        flac_stream.write(&mut sink).map_err(TrackError::from)?;
+        Ok(sink)
     }
 
     /// Encodes the raw CD audio data to WAV format.

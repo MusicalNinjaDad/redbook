@@ -84,7 +84,7 @@
 //! let track_1 = cd.rip(TrackNo::strict_new(1))?;
 //!
 //! // Encode to flac
-//! let flac = track_1.to_flac();
+//! let flac = track_1.to_flac()?;
 //!
 //! // Get associated data
 //! let RippedTrack {tags, coverart, ..} = track_1;
@@ -192,24 +192,26 @@
 //!
 //! ## Errors
 //!
-//! I've made a deliberate choice to use [`io::Error`][std::io::Error] as the error type throughout
-//! the library. The reasons for this choice are:
-//! - downstream usage is most likely to convert to an io::Error anyway, whether directly or indirectly.
-//! - `io::Error` is well known, versatile with meaningful [`ErrorKind`][std::io::ErrorKind]s and
-//!   powerful functionality.
-//! - `io::Error` is widely understood, a custom error type adds conversion overhead to code and
-//!   cognitive overhead for developers
-//! - semantically, all errors are related to IO
+//! The library uses a structured error hierarchy (see [`error`] for the full conventions):
 //!
-//! The following `ErrorKind`s are primarily used when constructing and converting new errors:
-//! - `ErrorKind::InvalidData` - data conversion errors and un-parsable responses
-//! - `ErrorKind::NotFound` - attempts to read a track which does not exist
-//! - `ErrorKind::UnexpectedEOF` - data returned is too short to be valid
-//! - `ErrorKind::Unsupported` - operations which cannot be performed, e.g. attempting to read
-//!   a non-integer number of frames from a disc.
+//! 1. [`Error`] - the crate-root error, used by APIs which span multiple domains (e.g.
+//!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.
+//! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError`, `tagging::TaggingError`,
+//!    `track::TrackError`, `win::WinError` - one per module, returned by most public signatures as
+//!    `Result<_, DomainError>`.
+//! 3. Leaf kind variants - enum variants of each `*ErrorKind`, wrapping foreign errors (e.g.
+//!    `cdtoc::TocError`, `metaflac::Error`, `reqwest::Error`, `io::Error`) in a single tuple field.
 //!
-//! A future version *may* introduce a custom error type with a large number of
-//! variants and implement `From<...> for io::Error` but at the moment this seems like overhead.
+//! All error types implement [`std::error::Error`], are `Send + Sync + 'static` and
+//! `#[non_exhaustive]`; `source()` always returns the directly wrapped type, so a wrapped OS error
+//! keeps its raw OS error code all the way down. Optional context is attached via `.context(...)`
+//! and is omitted from `Display` when absent.
+//!
+//! Every error type implements `From<This> for io::Error` for interop with IO-centric downstream
+//! code: the [`io::ErrorKind`] matches the call site's previous behaviour and the original error
+//! remains retrievable via downcast. Relevant cases also implement `From<This> for
+//! other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`, `flacenc`, `metaflac`),
+//! which mainly unwrap a wrapped foreign error.
 //!
 //! # Safety
 //!
@@ -269,11 +271,13 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
+pub use error::{Error, Result};
+#[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{RippedTrack, Track};
+pub use track::{RippedTrack, Track, TrackError, TrackErrorKind};
 
 use crate::{frame::ByteSize, win::DriveHandle};
 
@@ -285,6 +289,9 @@ pub mod disc;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+#[forbid(unsafe_code)]
+pub mod error;
 
 #[forbid(unsafe_code)]
 pub mod frame;

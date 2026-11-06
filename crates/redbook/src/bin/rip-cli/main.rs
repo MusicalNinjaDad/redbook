@@ -283,7 +283,7 @@ fn main() -> Exit<()> {
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
-                let flac = ripped.to_flac();
+                let flac = ripped.to_flac()?;
                 flac_file
                     .write_all(flac.as_slice())
                     .or_warn("writing flac file")?;
@@ -357,6 +357,20 @@ impl<T: _T> From<clap::Error> for Exit<T> {
 impl<T: _T> From<io::Error> for Exit<T> {
     fn from(e: io::Error) -> Self {
         Self::IO(e.to_string())
+    }
+}
+
+// redbook library errors convert via their `From<_> for io::Error` impl, which preserves the
+// status-quo `ErrorKind` and keeps the full typed error (incl. context) in the message
+impl<T: _T> From<redbook::Error> for Exit<T> {
+    fn from(e: redbook::Error) -> Self {
+        Self::from(io::Error::from(e))
+    }
+}
+
+impl<T: _T> From<redbook::drive::DriveError> for Exit<T> {
+    fn from(e: redbook::drive::DriveError) -> Self {
+        Self::from(io::Error::from(e))
     }
 }
 

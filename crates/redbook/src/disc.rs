@@ -5,7 +5,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{self, ErrorKind, Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -25,6 +25,10 @@ use crate::{
     Track, TrackNo,
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
+
+pub use error::{DiscError, DiscErrorKind};
+
+pub mod error;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Represents a logical CD with additional metadata such as track names and cover art.
@@ -126,7 +130,10 @@ impl Disc {
     ///
     /// For a more complete example showing how to set metadata retrieval after initialisation,
     /// see the [`Disc`] struct documentation.
-    pub fn new<T: IntoIterator<Item = Track<'static>>>(toc: Toc, tracks: T) -> io::Result<Self> {
+    pub fn new<T: IntoIterator<Item = Track<'static>>>(
+        toc: Toc,
+        tracks: T,
+    ) -> Result<Self, DiscError> {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
@@ -135,22 +142,17 @@ impl Disc {
             .zip_longest(toc.audio_tracks())
             .try_for_each(|zipped| match zipped {
                 itertools::EitherOrBoth::Both(track, toc_track) if track == &toc_track => Ok(()),
-                itertools::EitherOrBoth::Both(track, toc_track) => Err(io::Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("track mismatch: toc {toc_track:?} vs tracks {track}"),
-                )),
-                itertools::EitherOrBoth::Left(track) => Err(io::Error::new(
-                    ErrorKind::InvalidInput,
+                itertools::EitherOrBoth::Both(track, toc_track) => Err(DiscError::invalid_input()
+                    .context(format!("track mismatch: toc {toc_track:?} vs tracks {track}"))),
+                itertools::EitherOrBoth::Left(track) => Err(DiscError::invalid_input().context(
                     format!(
                         "provided tracks contains more entries than toc. first additional entry {track}"
                     ),
                 )),
-                itertools::EitherOrBoth::Right(toc_track) => Err(io::Error::new(
-                    ErrorKind::InvalidInput,
-                    format!(
+                itertools::EitherOrBoth::Right(toc_track) => Err(DiscError::invalid_input()
+                    .context(format!(
                         "toc contains more entries than provided tracks. first additional entry {toc_track:?}"
-                    ),
-                )),
+                    ))),
             }).or_warn("mismatch between provided TOC & provided tracks")?;
 
         Ok(Self {
@@ -489,7 +491,7 @@ impl Disc {
     /// Release and disc index are automatically selected when uniquely identifiable.
     /// Otherwise, the relevant values will be `None` and must be set manually using
     /// [`set_release()`][Self::set_release].
-    pub fn update_musicbrainz(&mut self) -> io::Result<()> {
+    pub fn update_musicbrainz(&mut self) -> Result<(), DiscError> {
         let discid = self.toc.musicbrainz_id().to_string();
 
         let _span = tracing::info_span!("update musicbrainz", discid = %discid).entered();
@@ -504,7 +506,7 @@ impl Disc {
 
             mb_stuff
                 .execute()
-                .map_err(io::Error::other)
+                .map_err(DiscError::from)
                 .or_warn("fetching from MusicBrainz")?
         };
 
@@ -520,17 +522,17 @@ impl Disc {
     ///
     /// # Errors
     ///
-    /// Returns an `io::Error` if no release is selected or the download fails.
+    /// Returns a [`DiscError`] if no release is selected or the download fails.
     ///
     /// # Notes
     ///
     /// Cover art is cached and can be retrieved with [`cover_art()`][Self::cover_art].
-    pub fn update_cover_art(&mut self) -> io::Result<()> {
+    pub fn update_cover_art(&mut self) -> Result<(), DiscError> {
         let debug = tracing::debug_span!("", url = Empty, size = Empty, status = Empty).entered();
         tracing::trace!("");
         let release_mbid = self
             .release()
-            .ok_or_else(|| io::Error::other("No releases found"))
+            .ok_or_else(|| DiscError::no_releases().context("No releases found"))
             .or_warn("")?
             .id
             .clone();
@@ -544,7 +546,7 @@ impl Disc {
             .get(&url)
             .header("User-Agent", "splurt/0.1.0")
             .send()
-            .map_err(io::Error::other)
+            .map_err(DiscError::from)
             .or_debug("requesting cover art")?;
 
         let status = response.status();
@@ -553,7 +555,7 @@ impl Disc {
         if status.is_success() {
             let image = response
                 .bytes()
-                .map_err(io::Error::other)
+                .map_err(DiscError::from)
                 .or_debug("unpacking response")?;
 
             debug.record("size", image.len());
@@ -604,7 +606,7 @@ impl Disc {
     /// Get all thumbnails from Coverart Archive
     ///
     /// TODO: #62 Check coverartarchive.front == true, (e.g. Urban Hymns has >=1 missing)
-    pub fn update_thumbnails(&mut self, cx: Context<!>) -> io::Result<()> {
+    pub fn update_thumbnails(&mut self, cx: Context<!>) -> Result<(), DiscError> {
         let _main_span = tracing::error_span!("Disc::update_thumbnails").entered();
         let debug_span = tracing::debug_span!("", retrieved = 0).entered();
         tracing::trace!("");
@@ -617,7 +619,7 @@ impl Disc {
             .all_releases()
             .as_ref()
             .map(|releases| releases.iter().map(|release| release.id.clone()))
-            .ok_or_else(|| io::Error::other("No releases found"))
+            .ok_or_else(|| DiscError::no_releases().context("No releases found"))
             .or_warn("no releases found")?
             .collect();
         for id in release_ids {
@@ -638,7 +640,7 @@ impl Disc {
                 .get(&url)
                 .header("User-Agent", "splurt/0.1.0")
                 .send()
-                .map_err(io::Error::other)
+                .map_err(DiscError::from)
                 .or_debug("requesting cover art")?;
 
             let status = response.status();
@@ -648,7 +650,7 @@ impl Disc {
             if status.is_success() {
                 let image = response
                     .bytes()
-                    .map_err(io::Error::other)
+                    .map_err(DiscError::from)
                     .or_debug("unpacking response")?;
 
                 debug_loop.record("size", image.len());
@@ -688,7 +690,10 @@ impl Disc {
     /// - `Some(Ok(path))` with the absolute path on success
     /// - `Some(Err(error))` if saving failed
     #[must_use = "may be `Some(Err(_))`"]
-    pub fn save_cover_art<P: AsRef<Path>>(&self, directory: P) -> Option<io::Result<PathBuf>> {
+    pub fn save_cover_art<P: AsRef<Path>>(
+        &self,
+        directory: P,
+    ) -> Option<Result<PathBuf, DiscError>> {
         let debug =
             tracing::debug_span!("save_cover_art", location = Empty, size = Empty).entered();
 
