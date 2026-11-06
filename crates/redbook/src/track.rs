@@ -45,7 +45,11 @@ impl Track<'static> {
     ///
     /// # Validation
     /// - delegates to [`TrackEntry::new`]: `track_number` must be a "normal" track number
-    ///   ([`TrackNo::is_normal`])
+    ///   ([`TrackNo::is_normal`], i.e. 1..=99)
+    ///
+    /// # Returns
+    /// - `None` if validation fails, i.e. `track_number` is a "special" point value
+    ///   (e.g. 0xA0..=0xA2, 0xAA)
     pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Option<Self> {
         Some(Self {
             toc_entry: TrackEntry::new(track_number, start, Control::default(), None)?,

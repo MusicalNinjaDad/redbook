@@ -24,38 +24,59 @@ use crate::{
 /// |------:|----------:|
 /// | 0     | Session Number |
 /// | 1     | ADR CONTROL |
-/// | 2     | ZERO |
-/// | 3     | Track Number |
-/// | 4     | ZERO |
-/// | 5     | ZERO |
-/// | 6     | ZERO |
-/// | 7     | ZERO |
-/// | 8     | Start Mins |
-/// | 9     | Start Secs |
-/// | 10    | Start Frames |
+/// | 2     | TNO (\0) |
+/// | 3     | POINT |
+/// | 4     | Min (MSF) |
+/// | 5     | Sec (MSF) |
+/// | 6     | Frame (MSF) |
+/// | 7     | Zero |
+/// | 8     | PMin |
+/// | 9     | PSec |
+/// | 10    | PFrame |
+///
+/// # Note
+/// Field naming is based on the Q-Channel definition for the program area. E.g. `TNO` stores the
+/// current track number during an audio track, but is `\0` during a LeadIn with the track number
+/// for the current TOC entry stored in `POINT`
 struct TrackDescriptor {
+    /// Session Number (byte 0)
     session: u8,
+    /// ADR CONTROL (byte 1): ADR in the high nibble, CONTROL in the low nibble
     adr_control: u8,
+    /// TNO (byte 2): 0 (for Q-channel entries *outside* the LeadIn area this stores the track no)
     tno: u8,
+    /// POINT field (byte 3): Identfier for the target of this entry (Track details, info, etc.).
+    ///
+    /// Recognised constants are defined in [`toc::b0010`][crate::toc::b0010]
     point: u8,
+    /// Min (byte 4): 0
     min: u8,
+    /// Sec (byte 5): 0
     sec: u8,
+    /// Frame (byte 6): 0
     frame: u8,
+    /// Zero byte (byte 7)
     zero: u8,
+    /// PMin: the payload minute for POINT (byte 8)
     pmin: u8,
+    /// PSec: the payload second for POINT (byte 9)
     psec: u8,
+    /// PFrame: the payload frame for POINT (byte 10)
     pframe: u8,
 }
 
 impl TrackDescriptor {
+    /// The ADR (address mode) field: the high nibble of `adr_control`
     fn adr(&self) -> u8 {
         (self.adr_control & 0b11110000) >> 4
     }
 
+    /// The CONTROL field: the low nibble of `adr_control`
     fn control(&self) -> Control {
         Control::from_bits_truncate(self.adr_control)
     }
 
+    /// Parse the 11 raw bytes of a single track descriptor
     fn from_bytes(bytes: [u8; 11]) -> Self {
         let mut iter = bytes.iter().copied();
 

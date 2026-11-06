@@ -32,6 +32,9 @@ pub trait Device: Sized {
 
     /// Read raw CDDA data starting at frame `start` into `buf`
     ///
+    /// `start` is the absolute frame position on the disc, including the 150-frame lead-in
+    /// (as provided by [`TrackEntry::start`][crate::toc::TrackEntry::start]).
+    ///
     /// Returns number of frames read. Errors with `ErrorKind::Unsupported` if `buf` is not sized
     /// for an exact number of frames.
     fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> io::Result<Frame>;
@@ -71,6 +74,11 @@ pub trait Drive: Sized {
 
     /// Read an entire track of data allowing cancellation mid-read and providing status updates
     /// via the thread [Context].
+    ///
+    /// # Errors
+    /// - `ErrorKind::NotFound` if `track_number` does not identify an audio track on the disc
+    /// - `ErrorKind::UnexpectedEof` if the track has zero duration
+    /// - `ErrorKind::FileTooLarge` if the track is too long to buffer in memory
     fn read_track(&self, track_number: TrackNo) -> io::Result<Vec<u8>> {
         let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();

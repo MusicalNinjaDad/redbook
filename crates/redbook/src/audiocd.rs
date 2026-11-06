@@ -85,6 +85,12 @@ impl AudioCd {
         Self::try_from(drive)
     }
 
+    /// Rip a track: generate its tags & fetch cover art, then read the raw CDDA data from disc.
+    ///
+    /// # Errors
+    /// - `ErrorKind::NotFound` if `track_number` does not identify an audio track on the disc
+    ///   (see [`Disc::track`])
+    /// - propagates any IO error from reading the track data (see [`Drive::read_track`])
     pub fn rip(&self, track_number: TrackNo) -> io::Result<RippedTrack> {
         let _error = tracing::error_span!("AudioCdExt::rip", %track_number).entered();
         let tags = self
@@ -127,10 +133,12 @@ impl AudioCd {
 /// calls to [`rip`][AudioCd::rip] and [`read_track`][Drive::read_track]
 ///
 /// TODO: #114 Include device identifier in RipProgress
-#[expect(missing_docs, reason = "well named fields")]
 pub struct RipProgress {
+    /// The track being ripped.
     pub track_number: TrackNo,
+    /// Progress so far, in frames read.
     pub processed: Frame,
+    /// Total duration of the track, in frames.
     pub total: Frame,
 }
 

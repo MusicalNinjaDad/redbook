@@ -141,13 +141,16 @@
 //! - [`RippedTrack`]   - the music, coverart and relevant tags for a track
 //! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
 //!   information on relevant [`Disc`] in order to be meaningful.
+//! - [`TrackNo`]       - a track number: a type-safe `u8` distinguishing "normal" tracks (1..=99) from "special" point values
 //! - [`TocEntries`]    - a CD's Table of Contents
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
+//! - [`TrackEntry`][toc::TrackEntry], [`LeadoutEntry`][toc::LeadoutEntry] & [`InfoEntry`][toc::InfoEntry] - the classified payloads of a [`TocEntry`][toc::TocEntry]
 //! - [`Control`][toc::Control] - technical control code associated with a TOC entry
-//! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
-//! - [`ByteSize`]      - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or [`Frame::size`]
+//! - [`Frame`]         - The primary measure of time. CD data is split into `Frames` each of which
+//!   represent 1/75s audio
 //! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on
 //!   a physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
+//! - [`ByteSize`][frame::ByteSize] - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or [`Frame::size`]
 //!
 //! ## Platform specifics
 //!

@@ -50,7 +50,7 @@ use crate::LEADIN;
 /// # Pattern matching
 ///
 /// [`Frame`] implements [`StructuralPartialEq`], so constants such as [`Frame::ZERO`],
-/// [`Frame::ONE_SECOND`] or [`LEADIN`][crate::LEADIN] can be used directly as `match` arms:
+/// [`Frame::ONE_SECOND`] or [`LEADIN`] can be used directly as `match` arms:
 /// there is no need to [`cast`][Frame::cast] to a primitive int first.
 ///
 /// ```
@@ -559,10 +559,40 @@ impl Frame {
 /// # Examples
 ///
 /// ## Interconversion with Frame (preferred)
-/// TODO
+///
+/// ```
+/// use redbook::{Frame, frame::Msf};
+///
+/// let msf = Msf::new(1, 2, 3);
+/// let frames = Frame::from(msf);
+/// assert_eq!(frames, Frame::strict_new(60 * 75 + 2 * 75 + 3));
+///
+/// // converting back through Frame normalises degenerate components:
+/// // Msf(1, 60, 75) is 2 minutes, 1 second and 0 frames
+/// assert_eq!(Msf::from(frames), msf);
+/// assert_eq!(
+///     Msf::from(Frame::from(Msf::new(1, 60, 75))),
+///     Msf::new(2, 1, 0)
+/// );
+/// ```
 ///
 /// ## Direct / alternative construction & usage
-/// TODO: new, as_u8s, TryFrom<(u32,u8,u8)> showing intended context from cdtoc
+///
+/// ```
+/// use redbook::frame::Msf;
+///
+/// // components are stored as-is; no validation or normalisation is performed
+/// let msf = Msf::new(0, 2, 0);
+/// assert_eq!(msf.as_u8s(), (0, 2, 0));
+///
+/// // cdtoc returns track positions as (min, sec, frame) with min as u32:
+/// // `cdtoc::Track::msf()` can be converted via `Msf::try_from(track.msf())`
+/// let from_cdtoc = Msf::try_from((5u32, 0u8, 2u8)).unwrap();
+/// assert_eq!(from_cdtoc.as_u8s(), (5, 0, 2));
+///
+/// // a minute which does not fit in the u8 stored on disc is rejected
+/// assert!(Msf::try_from((256u32, 0u8, 0u8)).is_err());
+/// ```
 ///
 /// # Notes
 ///
@@ -995,8 +1025,8 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 /// - `+`, `-`, `*`, `/`, `%`, `+=` etc. are deliberately not implemented. While you *could*
 ///   simply do `ByteSize(bytes.0 + 3)`, wrap the result of the `u64` operations back in
 ///   `ByteSize(...)` if you need a `ByteSize` again.
-/// - To convert to a frame count, use the `*_frames` methods ([`ByteSize::frames`] &
-///   [`ByteSize::checked_exact_frames`]), which divide by [`Frame::SIZE_IN_BYTES`].
+/// - To convert to a frame count, use the `frames_*` methods ([`ByteSize::frames_exact_checked`],
+///   [`ByteSize::frames_floor_checked`], ...), which divide by [`Frame::SIZE_IN_BYTES`].
 /// - `PartialEq` & `PartialOrd` are deliberately not implemented between `ByteSize` & `u64`,
 ///   to ensure comparisons don't inadvertently compare a `ByteSize` with something
 ///   semantically different.

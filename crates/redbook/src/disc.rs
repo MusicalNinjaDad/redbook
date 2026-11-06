@@ -263,6 +263,13 @@ impl Disc {
 
     /// Get a track by number with metadata from the selected release, if available.
     ///
+    /// # Returns
+    ///
+    /// - `None` if `track_number` does not identify a track on this disc: either a "special"
+    ///   track number outside [`TrackNo::MIN_NORMAL`]..=[`TrackNo::MAX_NORMAL`], or a number
+    ///   beyond the last track. This function never panics.
+    /// - `Some(track)` otherwise, with metadata from the selected release if available.
+    ///
     /// # Notes
     ///
     /// Holding on to the returned track will block any mutation to `self` in order

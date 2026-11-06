@@ -1,5 +1,9 @@
-#![expect(missing_docs, reason = "TODO docs")]
 //! Support for Tables of Contents
+//!
+//! A [`TocEntries`] collection is built from [`TocEntry`]s. Each entry is classified from a
+//! [`RawTocEntry`] (the raw fields of a Q sub-channel / READ TOC track descriptor) into a
+//! [`TrackEntry`], [`LeadoutEntry`] or [`InfoEntry`] where the POINT field is recognised, and
+//! otherwise kept as [`TocEntry::Unknown`] raw data.
 
 use std::{
     cmp::Ordering,
@@ -21,15 +25,25 @@ use try_partialord::TrySort;
 
 use crate::{Frame, Track, frame::Msf};
 
+/// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub mod b0000 {
     use super::TrackNo;
     /// 0b0000 format track identifier for Leadout
     pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xAA);
 }
 
+/// POINT field identifiers used by READ TOC/PMA format 0b0010 (MMC-3, section 5.23.4)
+///
+/// # Note
+/// This is an incomplete set of constants. Only those currently required by the crate are defined.
+///
+/// This crate specifically aims to support *audio CDs*, additional constants will only be added
+/// if required for better audio CD handling.
 pub mod b0010 {
     use super::TrackNo;
+    /// 0b0010 format POINT identifier for the first track number of a session
     pub const FIRST_TRACK_ID: TrackNo = TrackNo(0xA0);
+    /// 0b0010 format POINT identifier for the last track number of a session
     pub const LAST_TRACK_ID: TrackNo = TrackNo(0xA1);
     /// 0b0010 format track identifier for Leadout
     pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xA2);
@@ -202,9 +216,26 @@ impl FromStr for TrackNo {
 /// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
 ///   maintained. Conversion functions should be designed discard or fail on data tracks.
 ///
-/// # TODO
+/// # Examples
 ///
-/// - Example
+/// ```
+/// use std::num::NonZeroU8;
+///
+/// use redbook::{Frame, LEADIN};
+/// use redbook::toc::{Control, TrackEntry, TrackNo, b0010};
+///
+/// let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(NonZeroU8::MIN))
+///     .unwrap();
+/// assert_eq!(entry.trackno(), TrackNo(1));
+/// assert_eq!(entry.start(), LEADIN);
+/// assert!(entry.is_audio_track());
+///
+/// // "special" point values (e.g. 0xA0..=0xA2, 0xAA) are not tracks
+/// assert_eq!(
+///     TrackEntry::new(b0010::LEADOUT_TRACK_ID, LEADIN, Control::default(), None),
+///     None
+/// );
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TrackEntry {
     /// The 1-indexed track number.
@@ -294,6 +325,14 @@ impl PartialOrd for TrackEntry {
     }
 }
 
+/// Entry in a CD TOC (Table of Contents) for the lead-out.
+///
+/// The lead-out marks the end of a session. It has no track number, only an absolute start
+/// position on the disc (including the 150-frame lead-in).
+///
+/// # Notes
+/// - Construct via [`LeadoutEntry::new`]. The start position is deliberately *not* validated
+///   against the lead-in: copy-protected discs store non-standard positions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct LeadoutEntry {
     /// Absolute start position of the lead-out on the disc, including lead-in (150 frames).
@@ -357,6 +396,11 @@ impl Ctrl for LeadoutEntry {
     }
 }
 
+/// Entry in a CD TOC (Table of Contents) holding session info: the first or last track number
+/// of a session.
+///
+/// Encoded as POINT 0xA0 ([`b0010::FIRST_TRACK_ID`]) / 0xA1 ([`b0010::LAST_TRACK_ID`]) in READ
+/// TOC format 0b0010, with the track number stored in the start minute (PMIN) of the entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InfoEntry {
     /// The session this entry relates to (`NonZeroU8`: session numbers are 1-indexed).
@@ -413,9 +457,12 @@ impl Ctrl for InfoEntry {
     }
 }
 
+/// Whether an [`InfoEntry`] holds the first or the last track number of a session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FirstLast {
+    /// The first track number of the session (POINT [`b0010::FIRST_TRACK_ID`])
     First,
+    /// The last track number of the session (POINT [`b0010::LAST_TRACK_ID`])
     Last,
 }
 
@@ -438,6 +485,11 @@ impl PartialOrd for InfoEntry {
     }
 }
 
+/// A raw, not-yet-classified TOC entry: the fields of a Q sub-channel / READ TOC track
+/// descriptor, exactly as read from the disc.
+///
+/// Classify into a higher-level [`TocEntry`] via `Option::<TocEntry>::from(raw)` — `None` means
+/// the entry is recognizably a track / lead-out / track-info entry but invalid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawTocEntry {
     /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
@@ -567,7 +619,23 @@ impl PartialOrd for RawTocEntry {
     }
 }
 
-/// TODO Docs
+/// A single, classified entry from a CD's Table of Contents (TOC).
+///
+/// Entries are classified from [`RawTocEntry`]s by their POINT field: a normal track number
+/// becomes a [`Track`][TocEntry::Track] entry, [`b0010::FIRST_TRACK_ID`] /
+/// [`b0010::LAST_TRACK_ID`] become [`TrackInfo`][TocEntry::TrackInfo] entries, a lead-out point
+/// ([`b0000::LEADOUT_TRACK_ID`] or [`b0010::LEADOUT_TRACK_ID`]) becomes a
+/// [`Leadout`][TocEntry::Leadout] entry, and anything else is kept as [`Unknown`][TocEntry::Unknown]
+/// raw data.
+///
+/// Classification is validating: `Option::<TocEntry>::from(raw)` returns `None` when an entry is
+/// recognizably a track / lead-out / track-info entry but invalid (e.g. an A0/A1 point without
+/// session info, or a non-normal track number in PMIN), rather than classifying it as `Unknown`.
+///
+/// # Notes
+/// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
+///   modelled. Use the [`Ctrl`] trait (e.g. [`is_audio`][Ctrl::is_audio]) to distinguish audio
+///   from data entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TocEntry {
     /// An audio or data track - data parsed from POINT & PMin,PSec,PFrame
@@ -690,6 +758,7 @@ impl Ctrl for TocEntry {
 }
 
 impl TocEntry {
+    /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed).
     pub fn session(&self) -> Option<NonZeroU8> {
         match self {
             TocEntry::Track(entry) => entry.session(),
@@ -699,6 +768,10 @@ impl TocEntry {
         }
     }
 
+    /// The track number this entry relates to, if it has one.
+    ///
+    /// `Some` for [`Track`][TocEntry::Track] and [`TrackInfo`][TocEntry::TrackInfo] entries;
+    /// `None` for [`Leadout`][TocEntry::Leadout] and [`Unknown`][TocEntry::Unknown] entries.
     pub fn trackno(&self) -> Option<TrackNo> {
         match self {
             TocEntry::Track(entry) => Some(entry.trackno()),
@@ -708,22 +781,27 @@ impl TocEntry {
         }
     }
 
+    /// Whether this is an audio [`Track`][TocEntry::Track] entry (control code & track number).
     pub fn is_audio_track(&self) -> bool {
         self.is_track() && self.is_audio()
     }
 
+    /// Whether this is a data [`Track`][TocEntry::Track] entry (control code & track number).
     pub fn is_data_track(&self) -> bool {
         self.is_track() && self.is_data()
     }
 
+    /// Whether this is a [`Track`][TocEntry::Track] entry.
     pub fn is_track(&self) -> bool {
         matches!(self, TocEntry::Track(_))
     }
 
+    /// Whether this is a [`Leadout`][TocEntry::Leadout] entry.
     pub fn is_leadout(&self) -> bool {
         matches!(self, TocEntry::Leadout { .. })
     }
 
+    /// The [`LeadoutEntry`] payload, if this is a [`Leadout`][TocEntry::Leadout] entry.
     pub fn leadoutentry(&self) -> Option<&LeadoutEntry> {
         match self {
             TocEntry::Leadout(leadout) => Some(leadout),
@@ -731,6 +809,7 @@ impl TocEntry {
         }
     }
 
+    /// The [`TrackEntry`] payload, if this is a [`Track`][TocEntry::Track] entry.
     pub fn trackentry(&self) -> Option<&TrackEntry> {
         match self {
             TocEntry::Track(entry) => Some(entry),
@@ -738,6 +817,7 @@ impl TocEntry {
         }
     }
 
+    /// The [`InfoEntry`] payload, if this is a [`TrackInfo`][TocEntry::TrackInfo] entry.
     pub fn infoentry(&self) -> Option<&InfoEntry> {
         match self {
             TocEntry::TrackInfo(entry) => Some(entry),
@@ -745,6 +825,8 @@ impl TocEntry {
         }
     }
 
+    /// The absolute start position on the disc (including the 150-frame lead-in), if this
+    /// entry has one: [`Track`][TocEntry::Track] and [`Leadout`][TocEntry::Leadout] entries do.
     pub fn start(&self) -> Option<Frame> {
         match self {
             TocEntry::Track(entry) => Some(entry.start()),
@@ -754,6 +836,10 @@ impl TocEntry {
         }
     }
 
+    /// The kind of entry, combining the variant with the control code (audio vs data).
+    ///
+    /// Useful for cases where you need to pattern match on the detailled type without
+    /// deconstructing the related entry data.
     pub fn kind(&self) -> TocEntryKind {
         use FirstLast::*;
         use TocEntry::*;
@@ -896,21 +982,32 @@ pub enum TocEntryKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted.
 ///
-/// Construction is available via FromIterator<TocEntry> for io::Result<TocEntries>
+/// Construction is available via `FromIterator<TocEntry> for io::Result<TocEntries>`
 pub struct TocEntries {
     entries: Vec<TocEntry>,
     leadouts: Leadouts,
 }
 
+/// Filtering helpers over iterators of [`TocEntry`] references.
+///
+/// Automatically implemented for every `Iterator<Item = &TocEntry>`.
 pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + Sized {
+    /// Keep only entries with an audio control code (not a data track), via [`Ctrl::is_audio`].
     fn filter_audio(self) -> impl Iterator<Item = &'e TocEntry> {
         self.filter(|entry| entry.is_audio())
     }
 
+    /// Keep only entries with a data control code, via [`Ctrl::is_data`].
     fn filter_data(self) -> impl Iterator<Item = &'e TocEntry> {
         self.filter(|entry| entry.is_data())
     }
 
+    /// Map consecutive track / lead-out entries to [`Track`]s with audio tracks only, where the
+    /// duration of each track is calculated from the start position of the next entry.
+    ///
+    /// # Notes
+    /// - When the next entry is a data track, the fixed offset between audio & data sessions is
+    ///   subtracted from the duration.
     fn filter_map_tracks(self) -> impl Iterator<Item = Track<'static>> {
         self.filter(|entry| entry.is_track() || entry.is_leadout())
             // .filter_map_windows() does not exist.
@@ -933,7 +1030,7 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + Sized {
 impl<'e, I> TocEntryFilter<'e> for I where I: Iterator<Item = &'e TocEntry> + Sized {}
 
 impl TocEntries {
-    // There is a fixed offset between audio & data sessions
+    /// There is a fixed offset between audio & data sessions
     const OFFSET_BEFORE_DATA: Frame = Frame::strict_new(11400);
 
     /// Provides an iterator over *borrowed* [&TocEntry][TocEntry]s.

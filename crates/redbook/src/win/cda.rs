@@ -224,6 +224,11 @@ impl TryFrom<CdaFile> for Track<'static> {
 /// Parse all the cda files at `path` into [`Track`]s
 ///
 /// These are guaranteed to be sorted as glob yields paths in alphabetical order
+///
+/// # Notes
+/// - Only fatal errors are returned, e.g. for an invalid path. `.cda` files which fail to parse,
+///   or which do not describe a normal audio track, are skipped with a warning rather than failing
+///   the whole read.
 pub fn tracks<P: AsRef<Path>>(path: &P) -> io::Result<Vec<Track<'_>>> {
     let glob_path = path.as_ref().join("*.cda");
     let glob_pattern = glob_path
