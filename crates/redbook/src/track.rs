@@ -5,9 +5,12 @@ use std::fmt::Display;
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
-use crate::{Frame, toc::TocEntry};
+use crate::{
+    Frame,
+    toc::{Control, TrackEntry, TrackNo},
+};
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
 ///
 /// This struct represents a single track on an audio CD, combining low-level
@@ -18,7 +21,7 @@ use crate::{Frame, toc::TocEntry};
 /// - Typically constructed as `<'static>` and then cloned when referencing metadata
 pub struct Track<'meta> {
     /// TOC entry for this track, containing track number and start position.
-    pub toc_entry: TocEntry,
+    pub toc_entry: TrackEntry,
     /// Duration of this track in frames.
     pub duration: Frame,
     /// Optional reference to MusicBrainz track metadata.
@@ -39,14 +42,14 @@ impl<'meta> Display for Track<'meta> {
 
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
-    pub fn new(track_number: u8, start: Frame, duration: Frame) -> Self {
-        let toc_entry = TocEntry {
-            track: track_number,
-            start,
-            control: Default::default(),
-        };
+    ///
+    /// # Notes
+    /// - `track_number` needs no validation: a [`TrackNo`] is always a valid track number
+    ///   (1..=99). "Special" POINT values (e.g. 0xA0..=0xA2, 0xAA) are
+    ///   [`Point`][crate::toc::Point]s, not track numbers
+    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
         Self {
-            toc_entry,
+            toc_entry: TrackEntry::new(track_number, start, Control::default(), None),
             duration,
             meta: None,
         }
@@ -55,8 +58,8 @@ impl Track<'static> {
 
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
-    pub fn track_number(&self) -> u8 {
-        self.toc_entry.track
+    pub fn track_number(&self) -> TrackNo {
+        self.toc_entry.trackno()
     }
 
     /// Returns the track title from MusicBrainz metadata, if available.
@@ -83,7 +86,7 @@ impl<'meta> Track<'meta> {
                     _ => trk_num,
                 }
             })
-            .unwrap_or_else(|| format!("{:02}", self.toc_entry.track));
+            .unwrap_or_else(|| format!("{:02}", self.toc_entry.trackno()));
         [track_num, self.title().unwrap_or_default()].join(" ")
     }
 

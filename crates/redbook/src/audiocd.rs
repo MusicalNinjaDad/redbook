@@ -10,7 +10,7 @@ use cdtoc::Toc;
 use thread_safely::Context;
 use tracing_result::Trace;
 
-use crate::{CdDrive, Disc, Drive, RippedTrack, TocEntries};
+use crate::{CdDrive, Disc, Drive, Frame, RippedTrack, TocEntries, TrackNo};
 
 #[derive(Debug)]
 /// A CD loaded into a physical drive. This combines the ability to access the physical disc with
@@ -85,8 +85,14 @@ impl AudioCd {
         Self::try_from(drive)
     }
 
-    pub fn rip(&self, track_number: usize) -> io::Result<RippedTrack> {
-        let _error = tracing::error_span!("AudioCdExt::rip", track_number).entered();
+    /// Rip a track: generate its tags & fetch cover art, then read the raw CDDA data from disc.
+    ///
+    /// # Errors
+    /// - `ErrorKind::NotFound` if `track_number` does not identify an audio track on the disc
+    ///   (see [`Disc::track`])
+    /// - propagates any IO error from reading the track data (see [`Drive::read_track`])
+    pub fn rip(&self, track_number: TrackNo) -> io::Result<RippedTrack> {
+        let _error = tracing::error_span!("AudioCdExt::rip", %track_number).entered();
         let tags = self
             .disc
             .tag_for(track_number)
@@ -127,20 +133,23 @@ impl AudioCd {
 /// calls to [`rip`][AudioCd::rip] and [`read_track`][Drive::read_track]
 ///
 /// TODO: #114 Include device identifier in RipProgress
-#[expect(missing_docs, reason = "well named fields")]
 pub struct RipProgress {
-    pub track_number: usize,
-    pub bytes_processed: usize,
-    pub total_bytes: usize,
+    /// The track being ripped.
+    pub track_number: TrackNo,
+    /// Progress so far, in frames read.
+    pub processed: Frame,
+    /// Total duration of the track, in frames.
+    pub total: Frame,
 }
 
 #[cfg(test)]
 mod miri {
+    use super::*;
+
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};
-
-    use super::*;
 
     impl TryFrom<&AudioCd> for TestAlbum {
         type Error = io::Error;
@@ -151,7 +160,7 @@ mod miri {
         }
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]

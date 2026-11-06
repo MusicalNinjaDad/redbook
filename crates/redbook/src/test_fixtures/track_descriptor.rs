@@ -2,14 +2,17 @@
 //!
 //! This is the format stored for test assets, which is independently obtained via cdrtools readcd
 
-use std::io::{self, ErrorKind};
+use std::{
+    io::{self, ErrorKind},
+    num::NonZeroU8,
+};
 
 use tracing_result::Trace;
 
 use crate::{
-    Frame, TocEntries,
+    TocEntries,
     frame::Msf,
-    toc::{Control, TocEntry},
+    toc::{Control, Point, RawTocEntry, TocEntry},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -21,35 +24,59 @@ use crate::{
 /// |------:|----------:|
 /// | 0     | Session Number |
 /// | 1     | ADR CONTROL |
-/// | 2     | ZERO |
-/// | 3     | Track Number |
-/// | 4     | ZERO |
-/// | 5     | ZERO |
-/// | 6     | ZERO |
-/// | 7     | ZERO |
-/// | 8     | Start Mins |
-/// | 9     | Start Secs |
-/// | 10    | Start Frames |
+/// | 2     | TNO (\0) |
+/// | 3     | POINT |
+/// | 4     | Min (MSF) |
+/// | 5     | Sec (MSF) |
+/// | 6     | Frame (MSF) |
+/// | 7     | Zero |
+/// | 8     | PMin |
+/// | 9     | PSec |
+/// | 10    | PFrame |
+///
+/// # Note
+/// Field naming is based on the Q-Channel definition for the program area. E.g. `TNO` stores the
+/// current track number during an audio track, but is `\0` during a LeadIn with the track number
+/// for the current TOC entry stored in `POINT`
 struct TrackDescriptor {
+    /// Session Number (byte 0)
     session: u8,
+    /// ADR CONTROL (byte 1): ADR in the high nibble, CONTROL in the low nibble
     adr_control: u8,
+    /// TNO (byte 2): 0 (for Q-channel entries *outside* the LeadIn area this stores the track no)
     tno: u8,
+    /// POINT field (byte 3): Identifier for the target of this entry (Track details, info, etc.).
+    ///
+    /// Recognised constants are defined in [`toc::b0010`][crate::toc::b0010]
     point: u8,
-    zeros: [u8; 4],
+    /// Min (byte 4): 0
     min: u8,
+    /// Sec (byte 5): 0
     sec: u8,
+    /// Frame (byte 6): 0
     frame: u8,
+    /// Zero byte (byte 7)
+    zero: u8,
+    /// PMin: the payload minute for POINT (byte 8)
+    pmin: u8,
+    /// PSec: the payload second for POINT (byte 9)
+    psec: u8,
+    /// PFrame: the payload frame for POINT (byte 10)
+    pframe: u8,
 }
 
 impl TrackDescriptor {
+    /// The ADR (address mode) field: the high nibble of `adr_control`
     fn adr(&self) -> u8 {
         (self.adr_control & 0b11110000) >> 4
     }
 
+    /// The CONTROL field: the low nibble of `adr_control`
     fn control(&self) -> Control {
         Control::from_bits_truncate(self.adr_control)
     }
 
+    /// Parse the 11 raw bytes of a single track descriptor
     fn from_bytes(bytes: [u8; 11]) -> Self {
         let mut iter = bytes.iter().copied();
 
@@ -57,72 +84,56 @@ impl TrackDescriptor {
         let adr_control = iter.next().unwrap();
         let tno = iter.next().unwrap();
         let point = iter.next().unwrap();
-        let zeros = iter.next_chunk().unwrap();
         let min = iter.next().unwrap();
         let sec = iter.next().unwrap();
         let frame = iter.next().unwrap();
+        let zero = iter.next().unwrap();
+        let pmin = iter.next().unwrap();
+        let psec = iter.next().unwrap();
+        let pframe = iter.next().unwrap();
 
         Self {
             session,
             adr_control,
             tno,
             point,
-            zeros,
             min,
             sec,
             frame,
+            zero,
+            pmin,
+            psec,
+            pframe,
         }
     }
 }
 
-/// Validates data format returning:
-/// - `Err` (`ErrorKind::InvalidData`) for malformed Track Descriptors
-/// - `None` for adr 5 (additional info descriptors for multi-session discs)
-impl TryFrom<TrackDescriptor> for Option<TocEntry> {
+impl TryFrom<TrackDescriptor> for TocEntry {
     type Error = io::Error;
 
-    fn try_from(descriptor: TrackDescriptor) -> Result<Self, Self::Error> {
-        match descriptor.adr() {
-            1 => (),
-            0 | 5 => return Ok(None),
-            adr => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "invalid adr value in Track Descriptor: {adr} (valid values are `1`, `5`)"
-                    ),
-                ));
-            }
-        }
-
-        (descriptor.tno == 0).ok_or_else(|| {
+    fn try_from(d: TrackDescriptor) -> Result<Self, Self::Error> {
+        let session = NonZeroU8::new(d.session).ok_or_else(|| {
             io::Error::new(
                 ErrorKind::InvalidData,
-                format!(
-                    "invalid TNO in Track Descriptor: expected `0` got {tno}",
-                    tno = descriptor.tno
-                ),
+                "TOC entry has invalid session number 0",
             )
         })?;
-
-        (descriptor.zeros == [0; 4]).ok_or_else(|| {
+        Option::<TocEntry>::from(RawTocEntry::new(
+            Some(session),
+            d.adr(),
+            d.control(),
+            d.tno,
+            Point(d.point),
+            Msf::new(d.min, d.sec, d.frame),
+            d.zero,
+            Msf::new(d.pmin, d.psec, d.pframe),
+        ))
+        .ok_or_else(|| {
             io::Error::new(
                 ErrorKind::InvalidData,
-                format!(
-                    "expected `0000` in bytes 4-7 of Track Descriptor: got {:?}",
-                    descriptor.zeros
-                ),
+                "TOC entry is recognizably a track/leadout/info entry but invalid",
             )
-        })?;
-
-        let track = descriptor.point;
-        let start: Frame = Msf::new(descriptor.min, descriptor.sec, descriptor.frame).into();
-        let control = descriptor.control();
-        Ok(Some(TocEntry {
-            track,
-            start,
-            control,
-        }))
+        })
     }
 }
 
@@ -158,8 +169,9 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .0
             .into_iter()
             .map(TrackDescriptor::from_bytes)
-            .map(Option::<TocEntry>::try_from)
-            .filter_map(Result::transpose)
-            .try_collect()?
+            .map(TocEntry::try_from)
+            .collect::<io::Result<Vec<TocEntry>>>()?
+            .into_iter()
+            .collect()
     }
 }

@@ -25,7 +25,7 @@ use metaflac::{
     block::{Picture, PictureType},
 };
 use redbook::{
-    AudioCd, Disc, RipProgress, RippedTrack,
+    AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
     tagging::{PictureExt, VorbisTagExt},
 };
 use thread_safely::Controller;
@@ -304,6 +304,12 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
+        let track_number = TrackNo::new(track_number).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid track number: {track_number}"),
+            )
+        })?;
         let track = disc.track(track_number);
         tracing::info!(ripping = ?track);
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
@@ -318,16 +324,18 @@ fn rip_tracks(
 fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
     let RipProgress {
         track_number,
-        bytes_processed,
-        total_bytes,
+        processed,
+        total,
     } = progress;
-    let progress = bytes_processed as f32 / total_bytes as f32;
+    // Not strict math - if this fails the status bar looks wonky but nothing worth a panic!
+    let progress = processed.cast::<u32>() as f32 / total.cast::<u32>() as f32;
     app.upgrade_in_event_loop(move |app| {
         let tracks = app.get_tracks();
-        let mut track = tracks.row_data(track_number - 1).unwrap();
-        assert_eq!(track_number as i32, track.number);
+        let row_index = track_number.saturating_cast::<usize>().saturating_sub(1);
+        let mut track = tracks.row_data(row_index).unwrap();
+        assert_eq!(track_number.cast::<i32>(), track.number);
         track.rip_progress = progress;
-        tracks.set_row_data(track_number - 1, track);
+        tracks.set_row_data(row_index, track);
     })
     .unwrap();
 }

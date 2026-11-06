@@ -41,13 +41,13 @@ let _ = cd.disc_mut().update_cover_art();
 let cd = cd.lock();
 
 // rip the first track
-let track1 = cd.rip(1)?;
+let track1 = cd.rip(TrackNo(1))?;
 
 // encode the first track to flac
 let track1_flac = track1.to_flac();
 
 // get the tags & embeddable cover art
-let tags: Option<VorbisComment> = disc.tag_for(1);
+let tags: Option<VorbisComment> = disc.tag_for(TrackNo(1));
 let cover: Option<&Picture> = disc.cover_art();
 ```
 

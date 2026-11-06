@@ -22,7 +22,7 @@ use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
-    Track,
+    Track, TrackNo,
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
@@ -37,15 +37,18 @@ use crate::{
 ///
 /// ```no_run
 /// use cdtoc::Toc;
-/// use redbook::{Disc, Frame, Track};
+/// # use std::io;
+/// use redbook::{Disc, Frame, Track, TrackNo};
 ///
+/// # fn main() -> io::Result<()> {
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
-///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
-///     Track::new(2, Frame::new(0x2d2b), Frame::new(0x6256 - 0x2d2b)),
-///     Track::new(3, Frame::new(0x6256), Frame::new(0xb327 - 0x6256)),
-///     Track::new(4, Frame::new(0xb327), Frame::new(0xd84a - 0xb327)),
+///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
+///     Track::new(TrackNo::strict_new(2), Frame::strict_new(0x2d2b_u32), Frame::strict_new(0x6256_u32 - 0x2d2b)),
+///     Track::new(TrackNo::strict_new(3), Frame::strict_new(0x6256_u32), Frame::strict_new(0xb327_u32 - 0x6256)),
+///     Track::new(TrackNo::strict_new(4), Frame::strict_new(0xb327_u32), Frame::strict_new(0xd84a_u32 - 0xb327)),
 /// ];
+/// let tracks: Vec<_> = tracks.into_iter().collect();
 ///
 /// // validates TOC, Tracks & leadout match
 /// let mut disc = Disc::new(toc, tracks)?;
@@ -58,8 +61,9 @@ use crate::{
 ///
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
-/// let track1_details = disc.tag_for(1).unwrap();
-/// # std::io::Result::Ok(())
+/// let track1_details = disc.tag_for(TrackNo::strict_new(1)).unwrap();
+/// # io::Result::Ok(())
+/// # }
 /// ```
 pub struct Disc {
     /// The table of contents for the CD.
@@ -103,16 +107,21 @@ impl Disc {
     /// # Examples
     ///
     /// ```
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
+    /// # use std::io;
     ///
+    /// # fn main() -> io::Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
+    /// let tracks: Vec<_> = tracks.into_iter().collect();
     ///
-    /// let disc = Disc::new(toc, tracks).unwrap();
+    /// let disc = Disc::new(toc, tracks)?;
     /// assert_eq!(disc.tracks().count(), 1);
+    /// # io::Result::Ok(())
+    /// # }
     /// ```
     ///
     /// For a more complete example showing how to set metadata retrieval after initialisation,
@@ -178,14 +187,17 @@ impl Disc {
     /// # Example
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
+    /// # use std::io;
     ///
+    /// # fn main() -> io::Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
-    /// let mut disc = Disc::new(toc, tracks).unwrap();
+    /// let tracks: Vec<_> = tracks.into_iter().collect();
+    /// let mut disc = Disc::new(toc, tracks)?;
     /// disc.update_musicbrainz()?;
     ///
     /// // For rare discs with a single release, release is already selected
@@ -197,7 +209,8 @@ impl Disc {
     /// }
     ///
     /// let release = disc.release();
-    /// # Ok::<(), std::io::Error>(())
+    /// # io::Result::Ok(())
+    /// # }
     /// ```
     pub fn release(&self) -> Option<&Release> {
         self.musicbrainz
@@ -250,23 +263,32 @@ impl Disc {
 
     /// Get a track by number with metadata from the selected release, if available.
     ///
+    /// # Returns
+    ///
+    /// - `None` if `track_number` does not identify a track on this disc, i.e. it is beyond
+    ///   the last track. (`TrackNo` itself is always valid, 1..=[`TrackNo::MAX`].)
+    ///   This function never panics.
+    /// - `Some(track)` otherwise, with metadata from the selected release if available.
+    ///
     /// # Notes
     ///
     /// Holding on to the returned track will block any mutation to `self` in order
     /// to maintain validity of the metadata. Modifying the returned track will NOT
     /// modify the copy stored in `self`.
-    pub fn track(&self, track_number: usize) -> Option<Track<'_>> {
-        let _debug = tracing::debug_span!("Disc::track", track_number = track_number).entered();
-        let mut track = self.tracks.get(track_number - 1).cloned()?;
+    pub fn track(&self, track_number: TrackNo) -> Option<Track<'_>> {
+        let _debug = tracing::debug_span!("Disc::track", %track_number).entered();
+        // TrackNo is always >= 1, so the 1-indexed track number minus 1 can never underflow
+        let index = track_number.checked_cast::<usize>()?.strict_sub(1);
+        let mut track = self.tracks.get(index).cloned()?;
         track.meta = self
             .release()
             .and_then(|r| r.media.as_ref())
             .and_then(|all_media| all_media.get(self.disc_index?))
             .and_then(|media| media.tracks.as_ref())
             .and_then(|tracks| {
-                tracks
-                    .iter()
-                    .find(|trk| trk.number.parse() == Ok(track_number))
+                tracks.iter().find(|trk| {
+                    trk.number.parse::<u8>().ok().and_then(TrackNo::new) == Some(track_number)
+                })
             });
         Some(track)
     }
@@ -702,30 +724,34 @@ impl Disc {
     /// # Examples
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame};
+    /// use redbook::{Disc, Track, Frame, TrackNo};
     /// use cdtoc::Toc;
+    /// # use std::io;
     /// use metaflac::block::VorbisComment;
     ///
+    /// # fn main() -> io::Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
-    ///     Track::new(1, Frame::new(0x96), Frame::new(0x2d2b - 0x96)),
+    ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
     /// ];
-    /// let mut disc = Disc::new(toc, tracks).unwrap();
+    /// let tracks: Vec<_> = tracks.into_iter().collect();
+    /// let mut disc = Disc::new(toc, tracks)?;
     /// disc.update_musicbrainz()?;
     ///
     /// // Generate tags for the first track
-    /// if let Some(tags) = disc.tag_for(1) {
+    /// if let Some(tags) = disc.tag_for(TrackNo::strict_new(1)) {
     ///     // Use tags for encoding
     ///     let _title = tags.title();
     /// }
-    /// # Ok::<(), std::io::Error>(())
+    /// # io::Result::Ok(())
+    /// # }
     /// ```
-    pub fn tag_for(&self, track_number: usize) -> Option<VorbisComment> {
-        let _debug = tracing::debug_span!("Disc::tag_for", track_number = track_number).entered();
+    pub fn tag_for(&self, track_number: TrackNo) -> Option<VorbisComment> {
+        let _debug = tracing::debug_span!("Disc::tag_for", %track_number).entered();
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 
-        vorbis.set_track(track.track_number() as u32);
+        vorbis.set_track(track.track_number().cast());
 
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);
@@ -841,7 +867,7 @@ impl<'meta> Iterator for Tracks<'meta> {
     fn next(&mut self) -> Option<Self::Item> {
         // disc.track() uses 1-indexing so we can be very lazy
         self.i += 1;
-        self.disc.track(self.i)
+        self.disc.track(TrackNo::new(self.i)?)
     }
 }
 
@@ -881,11 +907,13 @@ mod tests {
 
     use super::*;
     use crate::test_fixtures::albums::TestAlbum::{self, *};
+
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     // TODO - validate with minimal track info
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
@@ -1006,8 +1034,9 @@ mod tests {
         );
     }
 
-    #[test_log::test]
     /// This Disc only has one possible release which includes a data track
+    #[traced_test] // TODO: #181 use tracing_test to assert output
+    #[test]
     fn only_extended_cd() {
         let album = TheBoyWhoKnewTooMuch;
         let tracks = album.expected_audio_tracks_minimal();

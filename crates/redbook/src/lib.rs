@@ -22,8 +22,14 @@
 #![cfg_attr(unstable_os_str_split_at, feature(os_str_split_at))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
+#![feature(const_bool)]
 #![feature(const_cmp)]
 #![feature(const_convert)]
+#![feature(const_destruct)]
+#![feature(const_option_ops)]
+#![feature(const_try)]
+#![cfg_attr(test, feature(fn_traits))]
+#![feature(structural_match)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -60,7 +66,7 @@
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::{self, Write}};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, tagging::{PictureExt, VorbisTagExt}};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, tagging::{PictureExt, VorbisTagExt}};
 //! use thread_safely::Controller;
 //!
 //! // Allow for status updates & cancellation mid-rip
@@ -75,7 +81,7 @@
 //! cd.disc_mut().update_musicbrainz()?;
 //!
 //! // Rip a track
-//! let track_1 = cd.rip(1)?;
+//! let track_1 = cd.rip(TrackNo::strict_new(1))?;
 //!
 //! // Encode to flac
 //! let flac = track_1.to_flac();
@@ -135,12 +141,17 @@
 //! - [`RippedTrack`]   - the music, coverart and relevant tags for a track
 //! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
 //!   information on relevant [`Disc`] in order to be meaningful.
+//! - [`TrackNo`]       - a track number: always within the redbook range 1..=99
+//! - [`Point`][toc::Point] - a raw POINT field value from a TOC entry, incl. "special" codes (lead-out, first/last track info)
 //! - [`TocEntries`]    - a CD's Table of Contents
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
+//! - [`TrackEntry`][toc::TrackEntry], [`LeadoutEntry`][toc::LeadoutEntry] & [`InfoEntry`][toc::InfoEntry] - the classified payloads of a [`TocEntry`][toc::TocEntry]
 //! - [`Control`][toc::Control] - technical control code associated with a TOC entry
-//! - [`Frame`]         - CD data is split into `Frames` each of which represent 1/75s audio
+//! - [`Frame`]         - The primary measure of time. CD data is split into `Frames` each of which
+//!   represent 1/75s audio
 //! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on
 //!   a physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
+//! - [`ByteSize`][frame::ByteSize] - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or [`Frame::size`]
 //!
 //! ## Platform specifics
 //!
@@ -260,11 +271,11 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
-pub use toc::TocEntries;
+pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{RippedTrack, Track};
 
-use crate::win::DriveHandle;
+use crate::{frame::ByteSize, win::DriveHandle};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -308,11 +319,7 @@ pub type CdDrive = drive::CdDrive<DriveHandle>;
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
 pub type CdDrives = drive::CdDrives<DriveHandle>;
 
-/// Size of a single CDDA audio frame in bytes.
-///
-/// According to the RedBook standard (IEC 60908:1999), each frame contains 2352 bytes
-/// of raw audio data.
-pub const FRAME_SIZE: usize = 2352;
+const KB: u32 = 1024;
 
 /// Standard CD lead-in duration in frames.
 ///
@@ -320,20 +327,21 @@ pub const FRAME_SIZE: usize = 2352;
 /// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
 ///
 /// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::new(150);
+pub const LEADIN: Frame = Frame::strict_new(150);
 
 /// Maximum number of bytes that can be read in a single chunk.
 ///
-/// Calculated as [`MAX_CHUNK_FRAMES`] * [`FRAME_SIZE`].
-const MAX_CHUNK_BYTES: usize = MAX_CHUNK_FRAMES * FRAME_SIZE;
+/// # Notes
+/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
+const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
 
 /// Maximum number of frames that can be read in a single chunk.
 ///
 /// # Notes
 /// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is calculated to stay under a safe buffer size (currently 64KB)
+/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
 ///
 /// # TODOs
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: usize = 64 * 1024 / FRAME_SIZE;
+const MAX_CHUNK_FRAMES: Frame = ByteSize::strict_new(64 * KB).frames_floor();

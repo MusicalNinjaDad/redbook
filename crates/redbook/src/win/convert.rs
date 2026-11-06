@@ -56,7 +56,7 @@ impl Display for Guid {
 
 /// A pseudo-sector on an AudioCd
 ///
-/// Windows DeviceIoControl wants offsets which pretend a [FRAME_SIZE][crate::FRAME_SIZE]-byte
+/// Windows DeviceIoControl wants offsets which pretend a [`Frame::SIZE_IN_BYTES`]-byte
 /// frame is a 2048-byte sector.
 ///
 /// Internally stores the relative frame (excluding 150 lead-in frames)
@@ -65,7 +65,7 @@ pub struct Sector(i64);
 impl Sector {
     /// Construct from an absolute frame number (including lead-in)
     pub fn from_frame(frame: Frame) -> Self {
-        Self(frame.relative_to_leadin().as_usize() as i64)
+        Self(frame.relative_to_leadin().cast::<i64>())
     }
 
     /// For passing to `DeviceIoControl(..,IOCTL_CDROM_RAW_READ,..)`

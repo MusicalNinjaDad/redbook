@@ -2,9 +2,9 @@ use std::io;
 
 use crate::{
     Frame, LEADIN, TocEntries,
+    frame::Msf,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::Control,
-    toc::TocEntry,
+    toc::{Control, Ctrl, Point, RawTocEntry, TocEntry},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -26,17 +26,21 @@ impl CDROM_TOC {
 
     /// Returns the number of actual entries in the TrackData array. This is calculated based
     /// upon the total size of the struct.
+    ///
+    /// # Panics
+    /// - This will panic if the claimed `Length` of the [`CDROM_TOC`] is below the size needed to
+    ///   at least store the `Length`, `FirstTrack` & `LastTrack` fields
+    /// - This will panic if the size calculated for the `TrackData` field is exactly sized to store
+    ///   0 or more [`TRACK_DATA`]s
     fn track_entries(&self) -> impl Iterator<Item = &TRACK_DATA> {
         let entries_size = self
             .size()
             .strict_sub(size_of_val(&self.Length))
             .strict_sub(size_of_val(&self.FirstTrack))
             .strict_sub(size_of_val(&self.LastTrack));
-        entries_size
-            .div_exact(size_of::<TRACK_DATA>().strict_cast())
-            .expect(
-                "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
-            );
+        entries_size.div_exact(size_of::<TRACK_DATA>()).expect(
+            "size used by `TrackDetails` must be exactly divisible by `size_of::<TRACK_DATA>`",
+        );
         self.TrackData.iter().take(entries_size)
     }
 
@@ -80,7 +84,7 @@ impl CDROM_TOC {
             *(bytes.as_ptr() as *const _)
         };
 
-        let last_track = toc.LastTrack.strict_cast();
+        let last_track = toc.LastTrack.into();
         for (i, track) in toc.TrackData.iter().enumerate() {
             let track_number = i + 1;
             if (1..=last_track).contains(&track_number) {
@@ -119,24 +123,6 @@ impl CDROM_TOC {
 
         Vec::from(bytes)
     }
-
-    fn iter_audio(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_audio())
-            .map(TocEntry::from)
-    }
-
-    fn iter_data(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| (1..0xA9).contains(&track.TrackNumber) && track.control().is_data())
-            .map(TocEntry::from)
-    }
-
-    fn iter_leadouts(&self) -> impl Iterator<Item = TocEntry> {
-        self.track_entries()
-            .filter(|track| track.TrackNumber == 170)
-            .map(TocEntry::from)
-    }
 }
 
 impl From<TestAlbum> for CDROM_TOC {
@@ -150,15 +136,32 @@ impl From<TestAlbum> for CDROM_TOC {
 impl TryFrom<CDROM_TOC> for TocEntries {
     type Error = io::Error;
 
-    fn try_from(toc: CDROM_TOC) -> Result<Self, Self::Error> {
-        let audio = toc.iter_audio();
-        let data = toc.iter_data();
-        let leadouts = toc.iter_leadouts();
-        audio.chain(data).chain(leadouts).collect()
+    fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
+        toc.track_entries()
+            .copied()
+            .filter(TRACK_DATA::nonzero)
+            .map(RawTocEntry::from)
+            .filter_map(Option::<TocEntry>::from)
+            .collect()
     }
 }
 
 impl TRACK_DATA {
+    #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
+    fn is_zero(&self) -> bool {
+        self.Address == [0; _]
+            && self.Reserved == 0
+            && self.Reserved1 == 0
+            && self.TrackNumber == 0
+            && self._bitfield == 0
+    }
+
+    fn nonzero(&self) -> bool {
+        !self.is_zero()
+    }
+}
+
+impl Ctrl for TRACK_DATA {
     fn control(&self) -> Control {
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
         let control_code = self._bitfield;
@@ -166,23 +169,23 @@ impl TRACK_DATA {
     }
 }
 
-impl From<&TRACK_DATA> for TocEntry {
-    /// Creates a [`TocEntry`] from Windows API CDROM_TRACK_DATA.
-    ///
-    /// # TODOs
-    ///
-    /// - Consider making this fallible with `TryFrom` for better error handling
-    fn from(track_data: &TRACK_DATA) -> Self {
-        let relative = u32::from_be_bytes(track_data.Address);
-        let start = Frame::new(relative as usize) + LEADIN;
-        let track = track_data.TrackNumber;
+impl From<TRACK_DATA> for RawTocEntry {
+    fn from(track_data: TRACK_DATA) -> Self {
+        let session = None;
         #[expect(clippy::used_underscore_binding, reason = "ffi naming")]
-        let control = Control::from_bits_truncate(track_data._bitfield);
-        Self {
-            track,
-            start,
-            control,
-        }
+        let adr = (track_data._bitfield & 0b11110000) >> 4;
+        let control = track_data.control();
+        let tno = 0;
+        let point = Point(track_data.TrackNumber);
+        let msf = Msf::ZERO;
+        let zero = 0;
+
+        // Address is a be encoded u32 frame address. Not the 4 u8s H(zero),M,S,F on the Q-channel
+        let relative = u32::from_be_bytes(track_data.Address);
+        let start = Frame::strict_new(relative).strict_add(LEADIN);
+        let pmsf = Msf::from(start);
+
+        RawTocEntry::new(session, adr, control, tno, point, msf, zero, pmsf)
     }
 }
 
@@ -195,10 +198,11 @@ mod tests {
 
     use cdtoc::Toc;
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     use crate::{
         test_fixtures::albums::TestAlbum::{self, *},
-        toc::TocEntryFilter,
+        toc::{TocEntry, TocEntryFilter},
     };
 
     impl CDROM_TOC {
@@ -213,9 +217,9 @@ mod tests {
         fn last_audio_track(&self) -> Option<usize> {
             self.TrackData
                 .iter()
-                .take(self.LastTrack.strict_cast())
+                .take(self.LastTrack.into())
                 .rfind(|track| !track.control().contains(Control::DATA_TRACK))
-                .map(|track| track.TrackNumber.strict_cast())
+                .map(|track| track.TrackNumber.into())
         }
     }
 
@@ -239,9 +243,9 @@ mod tests {
             eprintln!("control: {}", track.control());
             dbg!(track.Address);
             dbg!(u32::from_be_bytes(track.Address));
-            dbg!(Msf::from(Frame::new(
-                u32::from_be_bytes(track.Address).strict_cast()
-            )));
+            dbg!(Msf::from(Frame::strict_new(u32::from_be_bytes(
+                track.Address
+            ))));
         }
         assert_eq!(toc.FirstTrack, album.expected_first_track());
         assert_eq!(
@@ -259,25 +263,10 @@ mod tests {
     fn leadout(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         let leadout = toc.to_toc().unwrap().leadout();
-        assert_eq!(
-            leadout,
-            album.expected_leadout().as_usize().strict_cast::<u32>()
-        );
+        assert_eq!(leadout, album.expected_leadout().cast::<u32>());
     }
 
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn audio(#[case] album: TestAlbum) {
-        let toc = CDROM_TOC::from(album);
-        let audio_tracks: Vec<TocEntry> = toc.iter_audio().collect();
-        assert_eq!(audio_tracks, album.expected_audio_toc_entries());
-    }
-
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
@@ -288,10 +277,10 @@ mod tests {
         let cdrom_toc = CDROM_TOC::from(album);
         let toc = album.expected_toc();
 
-        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
+        assert_eq!(toc, cdrom_toc.to_toc().unwrap());
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
@@ -302,7 +291,12 @@ mod tests {
         let wintoc = CDROM_TOC::from(album);
         let entries = TocEntries::try_from(wintoc).unwrap();
         assert_eq!(
-            entries.iter().audio().cloned().collect::<Vec<_>>(),
+            entries
+                .iter()
+                .filter_audio()
+                .filter_map(TocEntry::trackentry)
+                .cloned()
+                .collect::<Vec<_>>(),
             album.expected_audio_toc_entries()
         );
         assert_eq!(

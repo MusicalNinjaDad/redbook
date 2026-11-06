@@ -10,7 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    Device, FRAME_SIZE, Frame,
+    ByteSize, Device, Frame,
     win::{
         MAX_PATH_CHARS,
         convert::{Guid, Sector, WinPath, WinString},
@@ -346,19 +346,23 @@ impl Device for DriveHandle {
         )
         .entered();
 
-        let bytes_to_read = u32::try_from(buf.len())
-            .map_err(|_| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
+        let buf_size = ByteSize::new(buf.len())
+            .ok_or_else(|| io::Error::new(ErrorKind::OutOfMemory, "buffer too large"))
             .or_error("buffer too large")?;
+
+        // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD
+        // buffer size is infallible
+        let bytes_to_read = buf_size.strict_cast();
 
         // SAFETY: buffer size must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
         // SectorCount = frames_to_read
-        // RAW_SECTOR_SIZE = FRAME_SIZE
-        let frames_to_read = bytes_to_read
-            .checked_div_exact(const { FRAME_SIZE.strict_cast() })
+        // RAW_SECTOR_SIZE = Frame::SIZE_IN_BYTES
+        let frames_to_read = buf_size
+            .frames_exact_checked()
             .ok_or_else(|| io::Error::new(ErrorKind::Unsupported, "invalid buffer size"))
             .or_error("buffer not sized for CDDA")?;
 
-        span.record("frames_to_read", frames_to_read);
+        span.record("frames_to_read", format_args!("{frames_to_read}"));
 
         let offset = Sector::from_frame(start).offset();
         span.record("start_offset_sector", offset);
@@ -367,7 +371,7 @@ impl Device for DriveHandle {
         // call to `DeviceIoControl` below
         let read_command: RAW_READ_INFO = RAW_READ_INFO {
             DiskOffset: offset,
-            SectorCount: frames_to_read,
+            SectorCount: frames_to_read.cast(),
             TrackMode: CDDA,
         };
 
@@ -396,8 +400,8 @@ impl Device for DriveHandle {
                 buf as *mut _ as *mut _,
                 // SAFETY:
                 // 1. bytes_to_read calculated from buf.len() is validated at runtime, above
-                // 2. This must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
-                //    - SectorCount calculated as bytes_to_read.checked_exact_div(FRAME_SIZE)
+                // 2. For IOCTL_CDROM_RAW_READ this must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
+                //    - SectorCount calculated directly from buf via buf_size.checked_exact_frames()
                 bytes_to_read,
                 &mut bytes_read as *mut _,
                 null_mut(),
@@ -406,7 +410,7 @@ impl Device for DriveHandle {
         .validate(Some(bytes_to_read), bytes_read)
         .or_warn("raw CDDA data read failed")?;
 
-        Ok(Frame::new(frames_to_read.strict_cast()))
+        Ok(frames_to_read)
     }
 
     fn read_toc(&self) -> io::Result<crate::TocEntries> {
