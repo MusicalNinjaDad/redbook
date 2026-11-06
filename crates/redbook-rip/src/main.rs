@@ -326,12 +326,11 @@ fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
     let progress = processed.cast::<u32>() as f32 / total.cast::<u32>() as f32;
     app.upgrade_in_event_loop(move |app| {
         let tracks = app.get_tracks();
-        let mut track = tracks
-            .row_data(track_number.strict_sub(1).strict_cast::<usize>())
-            .unwrap();
+        let row_index = track_number.strict_sub(1).strict_cast::<usize>();
+        let mut track = tracks.row_data(row_index).unwrap();
         assert_eq!(track_number.cast::<i32>(), track.number);
         track.rip_progress = progress;
-        tracks.set_row_data(track_number.cast::<usize>() - 1, track);
+        tracks.set_row_data(row_index, track);
     })
     .unwrap();
 }

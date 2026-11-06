@@ -1035,8 +1035,8 @@ mod tests {
         );
     }
 
-    #[traced_test] // TODO: #181 use tracing_test to assert output
     /// This Disc only has one possible release which includes a data track
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[test]
     fn only_extended_cd() {
         let album = TheBoyWhoKnewTooMuch;

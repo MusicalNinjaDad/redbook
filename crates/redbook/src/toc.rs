@@ -59,11 +59,11 @@ pub mod b0010 {
 ///   redbook) or a "special" number as regularly (ab)used in the redbook spec.
 ///   e.g. 0xAA ([`b0000::LEADOUT_TRACK_ID`]) or 0xA2 ([`b0010::LEADOUT_TRACK_ID`]).
 /// - [`is_normal()`][Self::is_normal] & [`is_special()`][Self::is_special] are available for
-///   identification, while [`new_normal()`][Self::new_normal] can be used as a validating constrcutor
+///   identification, while [`new_normal()`][Self::new_normal] can be used as a validating constructor
 ///   if needed.
 /// - Basic construction is via `TrackNo(n)` for simplicity.
 /// - As such `TrackNo` implements `Deref` & `DerefMut` with `Target = u8` and can be used
-///   interchangably with a `u8`
+///   interchangeably with a `u8`
 ///
 /// # Converting to other integers
 /// - Use the provided `track_no.cast()` which is nicer to read than `track_no.0.into()`
@@ -75,7 +75,7 @@ pub mod b0010 {
 ///
 /// # Equality & Ordering
 /// - `PartialEq` & `PartialOrd` are deliberately not implemented between `TrackNo` & `u8` to ensure
-///   comparisons don't inadvertantly compare a TrackNo with something semantically different
+///   comparisons don't inadvertently compare a TrackNo with something semantically different
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
 pub struct TrackNo(pub u8);
@@ -903,7 +903,7 @@ impl TocEntry {
 
     /// Whether this is a [`Leadout`][TocEntry::Leadout] entry.
     pub fn is_leadout(&self) -> bool {
-        matches!(self, TocEntry::Leadout { .. })
+        matches!(self, TocEntry::Leadout(_))
     }
 
     /// The [`LeadoutEntry`] payload, if this is a [`Leadout`][TocEntry::Leadout] entry.
@@ -943,7 +943,7 @@ impl TocEntry {
 
     /// The kind of entry, combining the variant with the control code (audio vs data).
     ///
-    /// Useful for cases where you need to pattern match on the detailled type without
+    /// Useful for cases where you need to pattern match on the detailed type without
     /// deconstructing the related entry data.
     pub fn kind(&self) -> TocEntryKind {
         use FirstLast::*;
@@ -954,8 +954,8 @@ impl TocEntry {
         match (self, self.control().kind()) {
             (Track(_), Audio) => AudioTrack,
             (Track(_), Data) => DataTrack,
-            (Leadout { .. }, Audio) => AudioLeadout,
-            (Leadout { .. }, Data) => DataLeadout,
+            (Leadout(_), Audio) => AudioLeadout,
+            (Leadout(_), Data) => DataLeadout,
             (
                 TrackInfo(InfoEntry {
                     info_type: First, ..

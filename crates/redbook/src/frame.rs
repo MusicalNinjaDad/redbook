@@ -212,7 +212,7 @@ impl Frame {
     ///
     /// # Note
     ///
-    /// - To guard against miguided attempts to "copy protect" CDs by breaking them, this will
+    /// - To guard against misguided attempts to "copy protect" CDs by breaking them, this will
     ///   never return negative. So a badly constructed TOC with track 1 starting at frame 147
     ///   (0m:1s:72f) will return frame 0 relative to leadin.
     ///
@@ -640,7 +640,7 @@ impl Frame {
 /// - `Msf` does not perform any validation that sec < 60 or frames < 75, or normalisation of such
 ///   cases. However, converting a value such as `Msf(1, 60, 75)` to [`Frame`]s and back will result
 ///   in the more meaningful and correct `Msf(2, 1, 0)`.
-/// - Most comparison and arithmatic operations round-trip via [`Frame`] and so perform
+/// - Most comparison and arithmetic operations round-trip via [`Frame`] and so perform
 ///   normalisation as described above.
 /// - Downstream implementors of conversions and users of Msf should pay attention to handling
 ///   technically correct but semantically invalid cases, such as the example above.
@@ -856,7 +856,7 @@ impl Msf {
     ///
     /// # Note
     /// - This replaces both saturating_div & strict_div, as self is valid and the result of
-    ///   divison must always be 0..=self
+    ///   division must always be 0..=self
     ///
     /// # Panics
     /// Panics under the same conditions as [`Frame::div`].
@@ -886,7 +886,7 @@ impl Msf {
     ///
     /// # Note
     /// - This replaces both saturating_rem & strict_rem, as self is valid and the remainder from
-    ///   divison must always be 0..=self
+    ///   division must always be 0..=self
     ///
     /// # Panics
     /// Panics under the same conditions as [`Frame::rem`].

@@ -45,7 +45,7 @@ struct TrackDescriptor {
     adr_control: u8,
     /// TNO (byte 2): 0 (for Q-channel entries *outside* the LeadIn area this stores the track no)
     tno: u8,
-    /// POINT field (byte 3): Identfier for the target of this entry (Track details, info, etc.).
+    /// POINT field (byte 3): Identifier for the target of this entry (Track details, info, etc.).
     ///
     /// Recognised constants are defined in [`toc::b0010`][crate::toc::b0010]
     point: u8,
