@@ -1194,6 +1194,61 @@ impl ByteSize {
         N::strict_cast_from(self.0)
     }
 
+    // ============================
+    // Conversion to Frame counts
+    //
+    // divides by Frame::SIZE_IN_BYTES
+    // ============================
+
+    /// The number of [`Frame`]s contained in this byte size, panicking unless `self` is an
+    /// exact multiple of [`Frame::SIZE_IN_BYTES`].
+    ///
+    /// # Panics
+    /// Panics if `self` is not an exact multiple of [`Frame::SIZE_IN_BYTES`].
+    pub const fn frames_exact(self) -> Frame {
+        match self.frames_exact_checked() {
+            Some(frames) => frames,
+            None => panic!("byte size is not an exact number of frames"),
+        }
+    }
+
+    /// The number of [`Frame`]s contained in this byte size, returning `None` unless `self`
+    /// is an exact multiple of [`Frame::SIZE_IN_BYTES`].
+    ///
+    /// # Note
+    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
+    ///   always within [`Frame::MAX`], so `None` here only ever means "not an exact number of
+    ///   frames"
+    ///
+    /// # Examples
+    /// ```
+    /// use redbook::{Frame, frame::ByteSize};
+    ///
+    /// assert_eq!(
+    ///     ByteSize::strict_new(2 * 2352).frames_exact_checked(),
+    ///     Some(Frame::strict_new(2))
+    /// );
+    /// assert_eq!(ByteSize::strict_new(2353).frames_exact_checked(), None);
+    /// ```
+    pub const fn frames_exact_checked(self) -> Option<Frame> {
+        let frame_size = Frame::SIZE_IN_BYTES.cast::<usize>();
+        match self.0 % frame_size {
+            0 => Some(Frame::strict_new(self.0 / frame_size)),
+            _ => None,
+        }
+    }
+
+    /// The number of whole [`Frame`]s contained in this byte size:
+    /// `self / `[`Frame::SIZE_IN_BYTES`], rounded down.
+    ///
+    /// # Note
+    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
+    ///   always within [`Frame::MAX`], so there are deliberately no checked / saturating /
+    ///   strict variants of this method
+    pub const fn frames_floor(self) -> Frame {
+        Frame::strict_new(self.0 / Frame::SIZE_IN_BYTES.cast::<usize>())
+    }
+
     /// Validates `self` is within upper bounds
     pub const fn is_valid(&self) -> bool {
         self <= &Self::MAX
@@ -1453,61 +1508,6 @@ impl ByteSize {
         let rhs = usize::saturating_cast_from(rhs);
         let v = self.0.checked_rem(rhs)?;
         Self::new::<usize>(v)
-    }
-
-    // ============================
-    // Conversion to Frame counts
-    //
-    // divides by Frame::SIZE_IN_BYTES
-    // ============================
-
-    /// The number of [`Frame`]s contained in this byte size, panicking unless `self` is an
-    /// exact multiple of [`Frame::SIZE_IN_BYTES`].
-    ///
-    /// # Panics
-    /// Panics if `self` is not an exact multiple of [`Frame::SIZE_IN_BYTES`].
-    pub const fn frames_exact(self) -> Frame {
-        match self.frames_exact_checked() {
-            Some(frames) => frames,
-            None => panic!("byte size is not an exact number of frames"),
-        }
-    }
-
-    /// The number of [`Frame`]s contained in this byte size, returning `None` unless `self`
-    /// is an exact multiple of [`Frame::SIZE_IN_BYTES`].
-    ///
-    /// # Note
-    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
-    ///   always within [`Frame::MAX`], so `None` here only ever means "not an exact number of
-    ///   frames"
-    ///
-    /// # Examples
-    /// ```
-    /// use redbook::{Frame, frame::ByteSize};
-    ///
-    /// assert_eq!(
-    ///     ByteSize::strict_new(2 * 2352).frames_exact_checked(),
-    ///     Some(Frame::strict_new(2))
-    /// );
-    /// assert_eq!(ByteSize::strict_new(2353).frames_exact_checked(), None);
-    /// ```
-    pub const fn frames_exact_checked(self) -> Option<Frame> {
-        let frame_size = Frame::SIZE_IN_BYTES.cast::<usize>();
-        match self.0 % frame_size {
-            0 => Some(Frame::strict_new(self.0 / frame_size)),
-            _ => None,
-        }
-    }
-
-    /// The number of whole [`Frame`]s contained in this byte size:
-    /// `self / `[`Frame::SIZE_IN_BYTES`], rounded down.
-    ///
-    /// # Note
-    /// - thanks to the [`ByteSize`] invariant (`self <= `[`ByteSize::MAX`]`), the result is
-    ///   always within [`Frame::MAX`], so there are deliberately no checked / saturating /
-    ///   strict variants of this method
-    pub const fn frames_floor(self) -> Frame {
-        Frame::strict_new(self.0 / Frame::SIZE_IN_BYTES.cast::<usize>())
     }
 }
 
