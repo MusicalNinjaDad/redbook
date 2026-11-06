@@ -204,7 +204,7 @@ impl TryFrom<CdaFile> for Track<'static> {
     type Error = io::Error;
 
     fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        let track = TrackNo::new_normal(cda.track_number)
+        let track = TrackNo::new(cda.track_number)
             .ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::InvalidData,
@@ -212,12 +212,7 @@ impl TryFrom<CdaFile> for Track<'static> {
                 )
             })
             .or_warn("cda file does not describe a normal audio track")?;
-        Track::new(track, cda.start.into(), cda.duration.into()).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                "cda file does not describe a valid track",
-            )
-        })
+        Ok(Track::new(track, cda.start.into(), cda.duration.into()))
     }
 }
 
@@ -279,10 +274,7 @@ mod tests {
 
         for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
-            assert_eq!(
-                TrackNo::new_normal(cda.track_number),
-                Some(track.track_number())
-            );
+            assert_eq!(TrackNo::new(cda.track_number), Some(track.track_number()));
             assert_eq!(cda.start, track.toc_entry.start());
             assert_eq!(cda.duration, track.duration);
             assert_matches!(Track::try_from(cda), Ok(_));
@@ -328,7 +320,7 @@ mod tests {
     #[rstest]
     #[case(crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>())]
     #[case(0)]
-    #[case(TrackNo::MAX_NORMAL.cast::<u16>() + 1)]
+    #[case(TrackNo::MAX.cast::<u16>() + 1)]
     fn try_from_rejects_special_track_numbers(#[case] track_number: u16) {
         let album = DefinitelyMaybe;
         let cdas = album.assets_path().join("*.cda");

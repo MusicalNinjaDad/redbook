@@ -304,7 +304,12 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
-        let track_number = TrackNo(track_number.strict_cast());
+        let track_number = TrackNo::new(track_number).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid track number: {track_number}"),
+            )
+        })?;
         let track = disc.track(track_number);
         tracing::info!(ripping = ?track);
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
@@ -326,7 +331,7 @@ fn update_rip_progress(app: Weak<MainWindow>, progress: RipProgress) {
     let progress = processed.cast::<u32>() as f32 / total.cast::<u32>() as f32;
     app.upgrade_in_event_loop(move |app| {
         let tracks = app.get_tracks();
-        let row_index = track_number.strict_sub(1).strict_cast::<usize>();
+        let row_index = track_number.saturating_cast::<usize>().saturating_sub(1);
         let mut track = tracks.row_data(row_index).unwrap();
         assert_eq!(track_number.cast::<i32>(), track.number);
         track.rip_progress = progress;

@@ -12,7 +12,7 @@ use tracing_result::Trace;
 use crate::{
     TocEntries,
     frame::Msf,
-    toc::{Control, RawTocEntry, TocEntry, TrackNo},
+    toc::{Control, Point, RawTocEntry, TocEntry},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -123,7 +123,7 @@ impl TryFrom<TrackDescriptor> for TocEntry {
             d.adr(),
             d.control(),
             d.tno,
-            TrackNo(d.point),
+            Point(d.point),
             Msf::new(d.min, d.sec, d.frame),
             d.zero,
             Msf::new(d.pmin, d.psec, d.pframe),

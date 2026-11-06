@@ -81,7 +81,7 @@
 //! cd.disc_mut().update_musicbrainz()?;
 //!
 //! // Rip a track
-//! let track_1 = cd.rip(TrackNo(1))?;
+//! let track_1 = cd.rip(TrackNo::strict_new(1))?;
 //!
 //! // Encode to flac
 //! let flac = track_1.to_flac();
@@ -141,7 +141,8 @@
 //! - [`RippedTrack`]   - the music, coverart and relevant tags for a track
 //! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
 //!   information on relevant [`Disc`] in order to be meaningful.
-//! - [`TrackNo`]       - a track number: a type-safe `u8` distinguishing "normal" tracks (1..=99) from "special" point values
+//! - [`TrackNo`]       - a track number: always within the redbook range 1..=99
+//! - [`Point`][toc::Point] - a raw POINT field value from a TOC entry, incl. "special" codes (lead-out, first/last track info)
 //! - [`TocEntries`]    - a CD's Table of Contents
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
 //! - [`TrackEntry`][toc::TrackEntry], [`LeadoutEntry`][toc::LeadoutEntry] & [`InfoEntry`][toc::InfoEntry] - the classified payloads of a [`TocEntry`][toc::TocEntry]
@@ -270,7 +271,7 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
-pub use toc::{TocEntries, TrackNo};
+pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{RippedTrack, Track};
 

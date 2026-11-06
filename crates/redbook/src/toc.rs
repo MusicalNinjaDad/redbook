@@ -7,6 +7,7 @@
 
 use std::{
     cmp::Ordering,
+    convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::Display,
     hint::cold_path,
     io::{self, ErrorKind},
@@ -27,9 +28,9 @@ use crate::{Frame, Track, frame::Msf};
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub mod b0000 {
-    use super::TrackNo;
-    /// 0b0000 format track identifier for Leadout
-    pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xAA);
+    use super::Point;
+    /// 0b0000 format POINT identifier for Leadout
+    pub const LEADOUT_TRACK_ID: Point = Point(0xAA);
 }
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0010 (MMC-3, section 5.23.4)
@@ -39,11 +40,11 @@ pub mod b0000 {
 ///
 /// This crate specifically aims to support *audio CDs*, additional constants will only be added
 /// if required for better audio CD handling.
-/// 
+///
 /// # Specification
-/// 
+///
 /// The baseline spec is in MMC-3 Table 237
-/// 
+///
 /// CTRL | ADR | TNO | POINT | MIN | SEC | FRAME | ZERO | PMIN | PSEC | PFRAME
 /// -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | --
 /// 4 or 6 | 1 | 00h | 01h–63h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of track | Start position of track | Start position of track
@@ -57,100 +58,80 @@ pub mod b0000 {
 /// 4 or 6 | 5 | 00h | C0h | Optimum recording power | Reserved | Reserved | Reserved | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc
 /// 4 or 6 | 5 | 00h | C1h | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP
 pub mod b0010 {
-    use super::TrackNo;
+    use super::Point;
     /// 0b0010 format POINT identifier for the first track number of a session
-    pub const FIRST_TRACK_ID: TrackNo = TrackNo(0xA0);
+    pub const FIRST_TRACK_ID: Point = Point(0xA0);
     /// 0b0010 format POINT identifier for the last track number of a session
-    pub const LAST_TRACK_ID: TrackNo = TrackNo(0xA1);
-    /// 0b0010 format track identifier for Leadout
-    pub const LEADOUT_TRACK_ID: TrackNo = TrackNo(0xA2);
+    pub const LAST_TRACK_ID: Point = Point(0xA1);
+    /// 0b0010 format POINT identifier for Leadout
+    pub const LEADOUT_TRACK_ID: Point = Point(0xA2);
 }
 
-/// A valid track number.
+/// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
+/// read from the disc.
+///
+/// Any `u8` is a valid `Point`: POINT values include "normal" track numbers (1..=99, see
+/// [`TrackNo`]) as well as "special" codes such as the lead-out ([`b0000::LEADOUT_TRACK_ID`],
+/// [`b0010::LEADOUT_TRACK_ID`]) or the first/last track info of a session
+/// ([`b0010::FIRST_TRACK_ID`], [`b0010::LAST_TRACK_ID`]). Use [`is_normal()`][Self::is_normal],
+/// [`is_leadin()`][Self::is_leadin], [`is_info()`][Self::is_info],
+/// [`info_kind()`][Self::info_kind] or [`kind()`][Self::kind] for classification.
 ///
 /// # Notes
-/// - Track numbers are stored on physical discs in a single 1-byte
-/// - This is "simply" a type-safe wrapper to portray semantics & provide a clear statement that
-///   track numbers are inherently u8
-/// - No additional invariants are upheld. A TrackNo may be a "normal" track (1 to 99 as per
-///   redbook) or a "special" number as regularly (ab)used in the redbook spec.
-///   e.g. 0xAA ([`b0000::LEADOUT_TRACK_ID`]) or 0xA2 ([`b0010::LEADOUT_TRACK_ID`]).
-/// - [`is_normal()`][Self::is_normal] & [`is_special()`][Self::is_special] are available for
-///   identification, while [`new_normal()`][Self::new_normal] can be used as a validating constructor
-///   if needed.
-/// - Basic construction is via `TrackNo(n)` for simplicity.
-/// - As such `TrackNo` implements `Deref` & `DerefMut` with `Target = u8` and can be used
-///   interchangeably with a `u8`
-///
-/// # Converting to other integers
-/// - Use the provided `track_no.cast()` which is nicer to read than `track_no.0.into()`
-///
-/// # Arithmetic operations
-/// - `+`, `-`, etc. are deliberately not implemented for TrackNo. While you *could* simply do
-///   `TrackNo(trackno.0 + 3)`, `Deref<Target=u8>` provides all the `strict_`, `checked_`,
-///   `saturating_` and `wrapping_` operations from `u8`. You are strongly advised to use these.
-///
-/// # Equality & Ordering
-/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `TrackNo` & `u8` to ensure
-///   comparisons don't inadvertently compare a TrackNo with something semantically different
+/// - This is the "lazy" counterpart to the fully-encapsulated [`TrackNo`]: construction is via
+///   `Point(n)` / `From<u8>` for simplicity, the field is public and `Deref` & `DerefMut` with
+///   `Target = u8` are implemented, so a `Point` can be used interchangeably with a `u8`
+/// - Use [`cast()`][Self::cast] rather than `.0.into()` when converting to other integers
+/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `Point` & `u8` to ensure
+///   comparisons don't inadvertently compare a Point with something semantically different
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct TrackNo(pub u8);
+pub struct Point(pub u8);
 
-impl TrackNo {
-    /// The minimum "normal" track number: track 1
-    ///
-    /// Redbook defines the valid range for "normal" track numbers as 1..=99
-    pub const MIN_NORMAL: Self = Self(1);
+impl Point {
+    /// Whether this is a "normal" track number, i.e. convertible to a [`TrackNo`] (1..=99)
+    pub const fn is_normal(&self) -> bool {
+        TrackNo::new(self.0).is_some()
+    }
 
-    /// The maximum "normal" track number: track 99
-    ///
-    /// Redbook defines the valid range for "normal" track numbers as 1..=99
-    pub const MAX_NORMAL: Self = Self(99);
-
-    /// Construct a "normal" [`TrackNo`] from any integer type.
-    ///
-    /// Returns `None` if the value either:
-    /// - does not fit in a `u8` (track numbers are stored on disc in a single byte), or
-    /// - is not a "normal" track number, i.e. outside
-    ///   [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
+    /// Whether this is a lead-in/lead-out POINT code: [`b0000::LEADOUT_TRACK_ID`] (0xAA) or
+    /// [`b0010::LEADOUT_TRACK_ID`] (0xA2).
     ///
     /// # Notes
-    /// - Track 0 and values above 99 have various "special" meanings depending on context
-    ///   (e.g. the lead-out track is 0xAA). Construct those directly, e.g. via
-    ///   [`b0000::LEADOUT_TRACK_ID`]
-    ///
-    /// # Examples
-    /// ```
-    /// use redbook::TrackNo;
-    ///
-    /// assert_eq!(TrackNo::new_normal(7_u16), Some(TrackNo(7)));
-    /// assert_eq!(TrackNo::new_normal(0_u8), None);
-    /// assert_eq!(TrackNo::new_normal(100_u8), None);
-    /// assert_eq!(TrackNo::new_normal(256_u16), None);
-    /// ```
-    pub fn new_normal<T>(value: T) -> Option<Self>
-    where
-        u8: TryFrom<T>,
-    {
-        let track_no = u8::try_from(value).ok()?;
-        Some(Self(track_no)).filter(Self::is_normal)
+    /// - The value depends on the READ TOC format (0b0000 vs 0b0010); the two are deliberately
+    ///   not distinguished here. Format 0b0011 (PMA, CD-R/CD-RW only) is a non-goal for this
+    ///   audio-focussed crate.
+    pub const fn is_leadin(&self) -> bool {
+        self.0 == b0000::LEADOUT_TRACK_ID.0 || self.0 == b0010::LEADOUT_TRACK_ID.0
     }
 
-    /// Whether this is a "special" track number, i.e. outside
-    /// [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
-    ///
-    /// Track 0 and > 99 have various "special" meanings depending on context
-    pub const fn is_special(&self) -> bool {
-        !self.is_normal()
+    /// Whether this is a track-info POINT code: [`b0010::FIRST_TRACK_ID`] (0xA0) or
+    /// [`b0010::LAST_TRACK_ID`] (0xA1). See [`info_kind()`][Self::info_kind] for which one.
+    pub const fn is_info(&self) -> bool {
+        self.info_kind().is_some()
     }
 
-    /// Whether this is a "normal" track number, i.e. within
-    /// [MIN_NORMAL][Self::MIN_NORMAL]..=[MAX_NORMAL][Self::MAX_NORMAL]
-    ///
-    /// Track 0 and > 99 have various "special" meanings depending on context
-    pub const fn is_normal(&self) -> bool {
-        self.0 >= Self::MIN_NORMAL.0 && self.0 <= Self::MAX_NORMAL.0
+    /// The track-info kind of this POINT: `Some(First)` for [`b0010::FIRST_TRACK_ID`],
+    /// `Some(Last)` for [`b0010::LAST_TRACK_ID`], `None` for any other value
+    pub const fn info_kind(&self) -> Option<FirstLast> {
+        match self.0 {
+            p if p == b0010::FIRST_TRACK_ID.0 => Some(FirstLast::First),
+            p if p == b0010::LAST_TRACK_ID.0 => Some(FirstLast::Last),
+            _ => None,
+        }
+    }
+
+    /// The kind of this POINT value
+    pub const fn kind(&self) -> PointKind {
+        use PointKind::*;
+
+        match self.0 {
+            _ if self.is_leadin() => LeadIn,
+            p if p == b0010::FIRST_TRACK_ID.0 => FirstTrackInfo,
+            p if p == b0010::LAST_TRACK_ID.0 => LastTrackInfo,
+            _ if self.is_normal() => Normal,
+            _ => Unknown,
+        }
     }
 
     /// Cast to another integer type (except i8)
@@ -163,12 +144,269 @@ impl TrackNo {
 }
 
 // ==========================================
+// Point - const comparison & conversion ops
+// ==========================================
+
+const impl Ord for Point {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+const impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+const impl Eq for Point {}
+
+const impl PartialEq for Point {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl StructuralPartialEq for Point {}
+
+impl Deref for Point {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Point {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "point: {n:#04X}", n = self.0)
+    }
+}
+
+const impl From<u8> for Point {
+    fn from(n: u8) -> Self {
+        Point(n)
+    }
+}
+
+impl FromStr for Point {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+
+/// The kind of a raw [`Point`] value in a TOC track descriptor.
+///
+/// Returned by [`Point::kind`]. Extensible in future, e.g. with ADR 5 (recordable disc)
+/// related values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Display)]
+pub enum PointKind {
+    /// A "normal" track number, i.e. 1..=[`TrackNo::MAX`]
+    Normal,
+    /// The lead-in/lead-out POINT code: [`b0000::LEADOUT_TRACK_ID`] (0xAA) or
+    /// [`b0010::LEADOUT_TRACK_ID`] (0xA2), not distinguished
+    LeadIn,
+    /// The first track number of a session: [`b0010::FIRST_TRACK_ID`] (0xA0)
+    FirstTrackInfo,
+    /// The last track number of a session: [`b0010::LAST_TRACK_ID`] (0xA1)
+    LastTrackInfo,
+    /// Any other, unrecognised POINT value
+    Unknown,
+}
+
+/// A valid track number: always within 1..=[`TrackNo::MAX`] (1..=99).
+///
+/// # Notes
+/// - Track numbers are stored on physical discs in a single byte; redbook defines the valid
+///   range as 1..=99
+/// - The invariant is upheld by the type itself: the field is private and stores a
+///   [`NonZeroU8`] (so 0 is unrepresentable), and every constructor validates against
+///   [`TrackNo::MAX`]. "Special" POINT values (0xA0..=0xA2, 0xAA, ...) are not track numbers:
+///   they are [`Point`]s and cannot be constructed as a `TrackNo` at all
+/// - Encapsulation is consistent with [`Frame`] & [`frame::ByteSize`]: `Deref` & `DerefMut` are
+///   deliberately not implemented; use [`cast()`][Self::cast] & friends to convert to a
+///   primitive integer
+///
+/// # Construction & conversion
+/// - [`new()`][Self::new] (validating, returns `Option`), [`strict_new()`][Self::strict_new]
+///   (panicking) and [`saturating_new()`][Self::saturating_new] are generic over any integer
+///   type, as are [`cast()`][Self::cast], [`checked_cast()`][Self::checked_cast],
+///   [`saturating_cast()`][Self::saturating_cast] & [`strict_cast()`][Self::strict_cast]
+///
+/// # Arithmetic operations
+/// - `+`, `-`, etc. are deliberately not implemented for `TrackNo`. If arithmetic is needed,
+///   `cast()` to a primitive integer first and construct the result via `new()` & friends.
+///
+/// # Equality & Ordering
+/// - `PartialEq` & `PartialOrd` are deliberately not implemented between `TrackNo` & `u8` to ensure
+///   comparisons don't inadvertently compare a TrackNo with something semantically different
+///
+/// # Pattern matching
+/// - [`TrackNo`] implements [`StructuralPartialEq`], so constants such as [`TrackNo::MAX`] can
+///   be used directly as `match` arms
+///
+/// # Examples
+/// ```
+/// use redbook::TrackNo;
+///
+/// assert_eq!(TrackNo::new(7_u16), Some(TrackNo::strict_new(7)));
+/// assert_eq!(TrackNo::new(0_u8), None);
+/// assert_eq!(TrackNo::new(100_u8), None);
+/// assert_eq!(TrackNo::new(256_u16), None);
+/// assert_eq!(TrackNo::MAX.cast::<u8>(), 99);
+/// ```
+#[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
+#[derive(Debug, Clone, Copy, Hash)]
+pub struct TrackNo(NonZeroU8);
+
+impl TrackNo {
+    /// The maximum track number: track 99
+    ///
+    /// Redbook defines the valid range for track numbers as 1..=99
+    pub const MAX: Self = Self(NonZeroU8::new(99).unwrap());
+
+    /// Creates a new `TrackNo` from any integer type, returning `None` if the value does not
+    /// fit in a `u8` (track numbers are stored on disc in a single byte) or is outside
+    /// 1..=[`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// - For a saturating constructor use [`Self::saturating_new`]
+    pub const fn new<N>(value: N) -> Option<Self>
+    where
+        u8: [const] CheckedCastFromInt<N>,
+    {
+        Self::from_u8(u8::checked_cast_from(value)?).and_then(Self::validate)
+    }
+
+    /// Creates a new `TrackNo` from any integer type, panicking if the value is not a valid
+    /// track number.
+    ///
+    /// # Note
+    /// - For a non-panicking constructor use [`Self::new`] or [`Self::saturating_new`]
+    ///
+    /// # Panics
+    /// ## Overflow behavior
+    /// This function will always panic on overflow, regardless of whether overflow checks are enabled.
+    ///
+    /// ## Semantic behaviour
+    /// This function will panic if the value is 0 or above [`Self::MAX`].
+    pub const fn strict_new<N>(value: N) -> Self
+    where
+        u8: [const] CheckedCastFromInt<N>,
+    {
+        match Self::new(value) {
+            Some(track_no) => track_no,
+            None => panic!("invalid track number: must be within 1..=99"),
+        }
+    }
+
+    /// Creates a new `TrackNo` from any integer type, saturating at the boundaries of the valid
+    /// range: values below 1 become track 1, values above [`Self::MAX`] become [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a validating constructor use [`Self::new`] or for a panicking constructor
+    ///   use [`Self::strict_new`]
+    pub const fn saturating_new<N>(value: N) -> Self
+    where
+        u8: [const] BoundedCastFromInt<N>,
+    {
+        let inner = u8::saturating_cast_from(value)
+            .max(1)
+            .min(Self::MAX.0.get());
+        // Cannot panic: inner is clamped into 1..=99
+        Self(NonZeroU8::new(inner).unwrap())
+    }
+
+    /// Returns the underlying `u8` representation.
+    ///
+    /// For clarity it is recommended to use [`Self::cast`] even when casting to `u8`.
+    const fn into_inner(self) -> u8 {
+        self.0.get()
+    }
+
+    /// Constructs from a `u8`, returning `None` for 0 (track numbers are non-zero).
+    const fn from_u8(inner: u8) -> Option<Self> {
+        NonZeroU8::new(inner).map(Self)
+    }
+
+    /// Casts to any integer type which the inner representation allows without risk.
+    pub const fn cast<N>(self) -> N
+    where
+        N: [const] From<u8>,
+    {
+        N::from(self.into_inner())
+    }
+
+    /// Casts to any integer type returning `None` on overflow.
+    pub const fn checked_cast<N>(self) -> Option<N>
+    where
+        N: [const] CheckedCastFromInt<u8>,
+    {
+        N::checked_cast_from(self.into_inner())
+    }
+
+    /// Casts to any integer type saturating on overflow.
+    pub const fn saturating_cast<N>(self) -> N
+    where
+        N: [const] BoundedCastFromInt<u8>,
+    {
+        N::saturating_cast_from(self.into_inner())
+    }
+
+    /// Casts to any integer type panicking on overflow.
+    pub const fn strict_cast<N>(self) -> N
+    where
+        N: [const] CheckedCastFromInt<u8>,
+    {
+        N::strict_cast_from(self.into_inner())
+    }
+
+    /// Validates `self` is within the valid range (always true: the invariant is upheld by the
+    /// private [`NonZeroU8`] field & the validating constructors)
+    pub const fn is_valid(&self) -> bool {
+        self.0.get() <= Self::MAX.0.get()
+    }
+
+    /// Validates `self` and returns `None` if invalid
+    pub const fn validate(self) -> Option<Self> {
+        self.is_valid().then_some(self)
+    }
+
+    /// Validates `self`, panicking if invalid
+    ///
+    /// # Panics
+    /// Panics if `self` is above [`Self::MAX`].
+    pub const fn assert_valid(self) -> Self {
+        assert!(self.is_valid(), "semantic overflow");
+        self
+    }
+
+    /// Replaces invalid values with [`Self::MAX`]. No need to saturate at 0 as this is covered
+    /// by the internal representation.
+    pub const fn saturate(self) -> Self {
+        match self.is_valid() {
+            true => self,
+            false => Self::MAX,
+        }
+    }
+}
+
+// ==========================================
 // TrackNo - const comparison & conversion ops
 // ==========================================
 
 const impl Ord for TrackNo {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(&other.0)
+        self.into_inner().cmp(&other.into_inner())
     }
 }
 
@@ -182,43 +420,15 @@ const impl Eq for TrackNo {}
 
 const impl PartialEq for TrackNo {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.into_inner() == other.into_inner()
     }
 }
 
 impl StructuralPartialEq for TrackNo {}
 
-impl Deref for TrackNo {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for TrackNo {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl Display for TrackNo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "track: {n}", n = self.0)
-    }
-}
-
-const impl From<u8> for TrackNo {
-    fn from(n: u8) -> Self {
-        TrackNo(n)
-    }
-}
-
-impl FromStr for TrackNo {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
     }
 }
 
@@ -239,21 +449,24 @@ impl FromStr for TrackNo {
 /// use std::num::NonZeroU8;
 ///
 /// use redbook::{Frame, LEADIN};
-/// use redbook::toc::{Control, TrackEntry, TrackNo, b0010};
+/// use redbook::toc::{Control, Point, TrackEntry, TrackNo, b0010};
 ///
-/// let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(NonZeroU8::MIN))
-///     .unwrap();
-/// assert_eq!(entry.trackno(), TrackNo(1));
+/// let entry = TrackEntry::new(
+///     TrackNo::strict_new(1),
+///     LEADIN,
+///     Control::default(),
+///     Some(NonZeroU8::MIN),
+/// );
+/// assert_eq!(entry.trackno(), TrackNo::strict_new(1));
 /// assert_eq!(entry.start(), LEADIN);
 /// assert!(entry.is_audio_track());
 ///
-/// // "special" point values (e.g. 0xA0..=0xA2, 0xAA) are not tracks
-/// assert_eq!(
-///     TrackEntry::new(b0010::LEADOUT_TRACK_ID, LEADIN, Control::default(), None),
-///     None
-/// );
+/// // "special" POINT values (e.g. 0xA0..=0xA2, 0xAA) are `Point`s, not track numbers:
+/// // they cannot be passed to `TrackEntry::new` at all
+/// assert!(!b0010::LEADOUT_TRACK_ID.is_normal());
+/// assert!(b0010::LEADOUT_TRACK_ID.is_leadin());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TrackEntry {
     /// The 1-indexed track number.
     track: TrackNo,
@@ -268,28 +481,21 @@ pub struct TrackEntry {
 impl TrackEntry {
     /// Construct a new [`TrackEntry`].
     ///
-    /// # Validation
-    /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99. "Special"
-    ///   point values (e.g. 0xA0..=0xA2, 0xAA) are lead-out / track-info entries and belong in
-    ///   the other [`TocEntry`] variants.
-    ///
     /// # Notes
+    /// - `track` needs no validation: a [`TrackNo`] is always a valid track number (1..=99).
+    ///   "Special" POINT values (e.g. 0xA0..=0xA2, 0xAA) are [`Point`]s and belong in the other
+    ///   [`TocEntry`] variants.
     /// - `start` is deliberately *not* validated against the lead-in: copy-protected discs
     ///   (e.g. Cactus Data Shield, Key2Audio) deliberately store non-standard track positions,
     ///   and input from any reasonable source must be handled without failing.
     /// - session validity is enforced at compile time: `session` is an `Option<NonZeroU8>`
-    pub fn new(
-        track: TrackNo,
-        start: Frame,
-        control: Control,
-        session: Option<NonZeroU8>,
-    ) -> Option<Self> {
-        track.is_normal().then_some(Self {
+    pub fn new(track: TrackNo, start: Frame, control: Control, session: Option<NonZeroU8>) -> Self {
+        Self {
             track,
             start,
             control,
             session,
-        })
+        }
     }
 
     /// Absolute start position of this track on the disc, including lead-in (150 frames).
@@ -309,12 +515,12 @@ impl TrackEntry {
 
     /// Is an audio track (based on control code & track number)
     pub fn is_audio_track(&self) -> bool {
-        self.is_audio() && self.track.is_normal()
+        self.is_audio()
     }
 
     /// Is an data track (based on control code & track number)
     pub fn is_data_track(&self) -> bool {
-        self.is_data() && self.track.is_normal()
+        self.is_data()
     }
 }
 
@@ -433,23 +639,16 @@ pub struct InfoEntry {
 impl InfoEntry {
     /// Construct a new [`InfoEntry`] (first/last track number info).
     ///
-    /// # Validation
-    /// - `track` is a "normal" track number ([`TrackNo::is_normal`]), i.e. 1..=99
-    ///
     /// # Notes
+    /// - `track` needs no validation: a [`TrackNo`] is always a valid track number (1..=99)
     /// - session validity is enforced at compile time: `session` is a [`NonZeroU8`]
-    pub fn new(
-        session: NonZeroU8,
-        track: TrackNo,
-        control: Control,
-        info_type: FirstLast,
-    ) -> Option<Self> {
-        track.is_normal().then_some(Self {
+    pub fn new(session: NonZeroU8, track: TrackNo, control: Control, info_type: FirstLast) -> Self {
+        Self {
             session,
             track,
             control,
             info_type,
-        })
+        }
     }
 
     /// The session this entry relates to.
@@ -511,11 +710,11 @@ impl PartialOrd for InfoEntry {
 /// For finer-grained control use [`RawTocEntry::kind`] to determine the entry kind, then the
 /// individual `TryFrom<RawTocEntry>` impls ([`TrackEntry`], [`LeadoutEntry`], [`InfoEntry`]) to
 /// extract the classified payload.
-/// 
+///
 /// The relevant definitions are:
-/// 
+///
 /// #### READ_TOC format 0010b (detailled TOC, multi-session)
-/// 
+///
 /// CTRL   ADR | TNO | POINT | MIN | SEC | FRAME | ZERO | PMIN | PSEC | PFRAME
 /// -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | --
 /// 4 or 6 | 1 | 00h | 01h–63h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of track | Start position of track | Start position of track
@@ -539,7 +738,7 @@ pub struct RawTocEntry {
     /// The track number this entry relates to (TNO field).
     tno: u8,
     /// The POINT field: a track number or a special code (e.g. 0xA0..=0xA2, 0xAA).
-    point: TrackNo,
+    point: Point,
     /// The MSF (min, sec, frame) field.
     msf: Msf,
     /// The "zero" byte of the track descriptor.
@@ -562,7 +761,7 @@ impl RawTocEntry {
         adr: u8,
         control: Control,
         tno: u8,
-        point: TrackNo,
+        point: Point,
         msf: Msf,
         zero: u8,
         pmsf: Msf,
@@ -595,7 +794,7 @@ impl RawTocEntry {
     }
 
     /// The POINT field: a track number or a special code (e.g. 0xA0..=0xA2, 0xAA).
-    pub fn point(&self) -> TrackNo {
+    pub fn point(&self) -> Point {
         self.point
     }
 
@@ -624,15 +823,15 @@ impl RawTocEntry {
         use TocEntryKind::*;
         use TrackKind::*;
 
-        match (self.adr, self.point, self.control().kind()) {
-            (1, b0000::LEADOUT_TRACK_ID | b0010::LEADOUT_TRACK_ID, Audio) => AudioLeadout,
-            (1, b0000::LEADOUT_TRACK_ID | b0010::LEADOUT_TRACK_ID, Data) => DataLeadout,
-            (1, b0010::FIRST_TRACK_ID, Audio) => FirstAudioTrackInfo,
-            (1, b0010::FIRST_TRACK_ID, Data) => FirstDataTrackInfo,
-            (1, b0010::LAST_TRACK_ID, Audio) => LastAudioTrackInfo,
-            (1, b0010::LAST_TRACK_ID, Data) => LastDataTrackInfo,
-            (1, point, Audio) if point.is_normal() => AudioTrack,
-            (1, point, Data) if point.is_normal() => DataTrack,
+        match (self.adr, self.point.kind(), self.control().kind()) {
+            (1, PointKind::LeadIn, Audio) => AudioLeadout,
+            (1, PointKind::LeadIn, Data) => DataLeadout,
+            (1, PointKind::FirstTrackInfo, Audio) => FirstAudioTrackInfo,
+            (1, PointKind::FirstTrackInfo, Data) => FirstDataTrackInfo,
+            (1, PointKind::LastTrackInfo, Audio) => LastAudioTrackInfo,
+            (1, PointKind::LastTrackInfo, Data) => LastDataTrackInfo,
+            (1, PointKind::Normal, Audio) => AudioTrack,
+            (1, PointKind::Normal, Data) => DataTrack,
             _ => Unknown,
         }
     }
@@ -744,8 +943,14 @@ impl TryFrom<RawTocEntry> for TrackEntry {
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
         match (raw.adr(), raw.point()) {
             (1, point) if point.is_normal() => {
-                TrackEntry::new(point, raw.pmsf().into(), raw.control(), raw.session())
-                    .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid track entry"))
+                let track = TrackNo::new(point.0)
+                    .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid track entry"))?;
+                Ok(TrackEntry::new(
+                    track,
+                    raw.pmsf().into(),
+                    raw.control(),
+                    raw.session(),
+                ))
             }
             _ => Err(io::Error::new(
                 ErrorKind::InvalidData,
@@ -768,7 +973,7 @@ impl TryFrom<RawTocEntry> for LeadoutEntry {
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
         match (raw.adr(), raw.point()) {
-            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => Ok(LeadoutEntry::new(
+            (1, point) if point.is_leadin() => Ok(LeadoutEntry::new(
                 raw.pmsf().into(),
                 raw.control(),
                 raw.session(),
@@ -794,9 +999,8 @@ impl TryFrom<RawTocEntry> for InfoEntry {
     type Error = io::Error;
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
-        let info_type = match (raw.adr(), raw.point()) {
-            (1, b0010::FIRST_TRACK_ID) => FirstLast::First,
-            (1, b0010::LAST_TRACK_ID) => FirstLast::Last,
+        let info_type = match (raw.adr(), raw.point().info_kind()) {
+            (1, Some(info_type)) => info_type,
             _ => {
                 return Err(io::Error::new(
                     ErrorKind::InvalidData,
@@ -811,18 +1015,13 @@ impl TryFrom<RawTocEntry> for InfoEntry {
         let session = raw.session().ok_or_else(|| {
             io::Error::new(ErrorKind::InvalidData, "info entry requires session info")
         })?;
-        InfoEntry::new(
-            session,
-            raw.pmsf().as_u8s().0.into(),
-            raw.control(),
-            info_type,
-        )
-        .ok_or_else(|| {
+        let track = TrackNo::new(raw.pmsf().as_u8s().0).ok_or_else(|| {
             io::Error::new(
                 ErrorKind::InvalidData,
                 "invalid info entry: non-normal track number in PMIN",
             )
-        })
+        })?;
+        Ok(InfoEntry::new(session, track, raw.control(), info_type))
     }
 }
 
@@ -1033,7 +1232,7 @@ impl Display for TrackEntry {
 
 impl PartialEq<cdtoc::Track> for TrackEntry {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (self.track == TrackNo(toc_track.number()))
+        (Some(self.track) == TrackNo::new(toc_track.number()))
             && Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf)
     }
 }
@@ -1182,7 +1381,11 @@ pub trait TocEntryFilter<'e>: Iterator<Item = &'e TocEntry> + Sized {
                     duration = duration.saturating_sub(TocEntries::OFFSET_BEFORE_DATA)
                 }
 
-                Track::new(this_track.trackno()?, this_track.start()?, duration)
+                Some(Track::new(
+                    this_track.trackno()?,
+                    this_track.start()?,
+                    duration,
+                ))
             })
             .flatten()
     }
@@ -1214,7 +1417,7 @@ impl TocEntries {
         self.iter().filter_map_tracks()
     }
 
-    /// Get a given *audio* track. Returns `None` if the track number is invalid or not an audio track.
+    /// Get a given *audio* track. Returns `None` if the track is not an audio track on this disc.
     pub fn track(&self, track: TrackNo) -> Option<Track<'static>> {
         self.iter()
             .skip_while(|entry| entry.trackno() != Some(track))
@@ -1496,63 +1699,104 @@ mod tests {
 
     #[test]
     fn usable_in_const_context() {
-        // compile-time proof: these only compile if TrackNo is usable in const contexts
-        const ONE: TrackNo = TrackNo::from(1);
-        const IS_NORMAL: bool = ONE.is_normal();
-        const IS_SPECIAL: bool = TrackNo(0xAA).is_special();
+        // compile-time proof: these only compile if TrackNo & Point are usable in const contexts
+        const ONE: TrackNo = TrackNo::strict_new(1);
+        const MAX: TrackNo = TrackNo::MAX;
+        const NEW_OK: Option<TrackNo> = TrackNo::new(42_u8);
+        const NEW_ZERO: Option<TrackNo> = TrackNo::new(0_u8);
+        const NEW_OVER: Option<TrackNo> = TrackNo::new(100_u8);
         const CAST: usize = ONE.cast();
         const AS_U8: u8 = ONE.cast();
-        const EQ: bool = ONE == TrackNo(1);
-        const NE: bool = ONE != TrackNo(2);
-        const LT: bool = ONE < TrackNo(2);
-        const MIN_IS_NORMAL: bool = TrackNo::MIN_NORMAL.is_normal();
-        const MAX_IS_NORMAL: bool = TrackNo::MAX_NORMAL.is_normal();
-        const ZERO_IS_SPECIAL: bool = TrackNo(0).is_special();
-        const HUNDRED_IS_SPECIAL: bool = TrackNo(100).is_special();
+        const EQ: bool = ONE == TrackNo::strict_new(1);
+        const NE: bool = ONE != TrackNo::strict_new(2);
+        const LT: bool = ONE < MAX;
+        const LEADIN_KIND: PointKind = Point(0xAA).kind();
+        const LEADIN_IS_LEADIN: bool = b0000::LEADOUT_TRACK_ID.is_leadin();
+        const A0_IS_INFO: bool = b0010::FIRST_TRACK_ID.is_info();
+        const A0_INFO_KIND: Option<FirstLast> = b0010::FIRST_TRACK_ID.info_kind();
 
         // cross-check the const-evaluated values against runtime evaluation
-        let one = TrackNo(1);
-        assert_eq!(IS_NORMAL, one.is_normal());
-        assert_eq!(IS_SPECIAL, TrackNo(0xAA).is_special());
+        let one = TrackNo::strict_new(1);
+        assert_eq!(NEW_OK, TrackNo::new(42_u8));
+        assert_eq!(NEW_ZERO, None);
+        assert_eq!(NEW_OVER, None);
         assert_eq!(CAST, one.cast::<usize>());
         assert_eq!(AS_U8, one.cast::<u8>());
-        assert_eq!(EQ, one == TrackNo(1));
-        assert_eq!(NE, one != TrackNo(2));
-        assert_eq!(LT, one < TrackNo(2));
-        assert_eq!(MIN_IS_NORMAL, TrackNo::MIN_NORMAL.is_normal());
-        assert_eq!(MAX_IS_NORMAL, TrackNo::MAX_NORMAL.is_normal());
-        assert_eq!(ZERO_IS_SPECIAL, TrackNo(0).is_special());
-        assert_eq!(HUNDRED_IS_SPECIAL, TrackNo(100).is_special());
+        assert_eq!(EQ, one == TrackNo::strict_new(1));
+        assert_eq!(NE, one != TrackNo::strict_new(2));
+        assert_eq!(LT, one < TrackNo::MAX);
+        assert_eq!(LEADIN_KIND, Point(0xAA).kind());
+        assert_eq!(LEADIN_IS_LEADIN, b0000::LEADOUT_TRACK_ID.is_leadin());
+        assert_eq!(A0_IS_INFO, b0010::FIRST_TRACK_ID.is_info());
+        assert_eq!(A0_INFO_KIND, Some(FirstLast::First));
+    }
+
+    #[rstest]
+    #[case(Point(0x00), false, false, false, None, PointKind::Unknown)]
+    #[case(Point(0x01), true, false, false, None, PointKind::Normal)]
+    #[case(Point(42), true, false, false, None, PointKind::Normal)]
+    #[case(Point(99), true, false, false, None, PointKind::Normal)]
+    #[case(Point(100), false, false, false, None, PointKind::Unknown)]
+    #[case(b0000::LEADOUT_TRACK_ID, false, true, false, None, PointKind::LeadIn)]
+    #[case(b0010::LEADOUT_TRACK_ID, false, true, false, None, PointKind::LeadIn)]
+    #[case(
+        b0010::FIRST_TRACK_ID,
+        false,
+        false,
+        true,
+        Some(FirstLast::First),
+        PointKind::FirstTrackInfo
+    )]
+    #[case(
+        b0010::LAST_TRACK_ID,
+        false,
+        false,
+        true,
+        Some(FirstLast::Last),
+        PointKind::LastTrackInfo
+    )]
+    #[case(Point(0xB0), false, false, false, None, PointKind::Unknown)]
+    fn point_classification(
+        #[case] point: Point,
+        #[case] is_normal: bool,
+        #[case] is_leadin: bool,
+        #[case] is_info: bool,
+        #[case] info_kind: Option<FirstLast>,
+        #[case] kind: PointKind,
+    ) {
+        assert_eq!(point.is_normal(), is_normal);
+        assert_eq!(point.is_leadin(), is_leadin);
+        assert_eq!(point.is_info(), is_info);
+        assert_eq!(point.info_kind(), info_kind);
+        assert_eq!(point.kind(), kind);
     }
 
     #[test]
-    fn track_entry_new_validates_invariants() {
-        let entry = TrackEntry::new(TrackNo(1), LEADIN, Control::default(), Some(NonZeroU8::MIN));
+    fn track_entry_new_stores_all_fields() {
+        let entry = TrackEntry::new(
+            TrackNo::strict_new(1),
+            LEADIN,
+            Control::default(),
+            Some(NonZeroU8::MIN),
+        );
         assert_eq!(
-            entry.map(|e| (e.trackno(), e.start(), e.session())),
-            Some((TrackNo(1), LEADIN, Some(NonZeroU8::MIN)))
+            (entry.trackno(), entry.start(), entry.session()),
+            (TrackNo::strict_new(1), LEADIN, Some(NonZeroU8::MIN))
         );
 
-        // special point values (lead-out / track-info codes) are not tracks
-        assert_eq!(
-            TrackEntry::new(b0000::LEADOUT_TRACK_ID, LEADIN, Control::default(), None),
-            None
-        );
-        assert_eq!(
-            TrackEntry::new(b0010::FIRST_TRACK_ID, LEADIN, Control::default(), None),
-            None
-        );
+        // special point values (lead-out / track-info codes) are not track numbers
+        assert!(!b0000::LEADOUT_TRACK_ID.is_normal());
+        assert!(!b0010::FIRST_TRACK_ID.is_normal());
+
         // start is deliberately not validated against the lead-in: copy-protected discs
         // (e.g. Cactus Data Shield, Key2Audio) store track starts within the lead-in
-        assert!(
-            TrackEntry::new(
-                TrackNo(1),
-                Frame::strict_new(149_u32),
-                Control::default(),
-                None
-            )
-            .is_some()
+        let entry = TrackEntry::new(
+            TrackNo::strict_new(1),
+            Frame::strict_new(149_u32),
+            Control::default(),
+            None,
         );
+        assert_eq!(entry.start(), Frame::strict_new(149_u32));
     }
 
     #[test]
@@ -1566,25 +1810,16 @@ mod tests {
     }
 
     #[test]
-    fn info_entry_new_validates_invariants() {
-        assert!(
-            InfoEntry::new(
-                NonZeroU8::MIN,
-                TrackNo(1),
-                Control::default(),
-                FirstLast::First
-            )
-            .is_some()
+    fn info_entry_new_stores_all_fields() {
+        let entry = InfoEntry::new(
+            NonZeroU8::MIN,
+            TrackNo::strict_new(1),
+            Control::default(),
+            FirstLast::First,
         );
-        // first/last track info must reference a normal track number
         assert_eq!(
-            InfoEntry::new(
-                NonZeroU8::MIN,
-                b0000::LEADOUT_TRACK_ID,
-                Control::default(),
-                FirstLast::Last
-            ),
-            None
+            (entry.session(), entry.trackno(), entry.info_type()),
+            (NonZeroU8::MIN, TrackNo::strict_new(1), FirstLast::First)
         );
     }
 
@@ -1597,7 +1832,7 @@ mod tests {
             1,
             Control::default(),
             2,
-            TrackNo(3),
+            Point(3),
             msf,
             0,
             pmsf,
@@ -1618,7 +1853,7 @@ mod tests {
                 1,
                 Control::default(),
                 2,
-                TrackNo(3),
+                Point(3),
                 msf,
                 0,
                 pmsf
@@ -1629,16 +1864,16 @@ mod tests {
     #[test]
     fn raw_entries_classify_via_validating_constructors() {
         let msf = Msf::new(0, 2, 0x21);
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         let entry = Option::<TocEntry>::from(raw).unwrap();
         assert!(matches!(entry, TocEntry::Track(_)));
-        assert_eq!(entry.trackno(), Some(TrackNo(1)));
+        assert_eq!(entry.trackno(), Some(TrackNo::strict_new(1)));
         assert_eq!(entry.start(), Some(Frame::from(msf)));
 
         // a track start within the lead-in (as stored by copy-protected discs) must still
         // classify as a track rather than failing
         let msf = Msf::new(0, 0, 5);
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Track(_))
@@ -1649,7 +1884,7 @@ mod tests {
     fn unmodelled_raw_entry_points_become_unknown() {
         let msf = Msf::new(0, 2, 0);
         // a point which is not a normal track number / special code is valid but unmodelled
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(0xB0), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Unknown(_))
@@ -1686,10 +1921,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(TrackNo(1), Control::default(), TocEntryKind::AudioTrack)]
-    #[case(TrackNo(99), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(Point(1), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(Point(99), Control::default(), TocEntryKind::AudioTrack)]
     #[case(
-        TrackNo(1),
+        Point(1),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::DataTrack
     )]
@@ -1728,21 +1963,21 @@ mod tests {
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::LastDataTrackInfo
     )]
-    #[case(TrackNo(0xB0), Control::default(), TocEntryKind::Unknown)]
+    #[case(Point(0xB0), Control::default(), TocEntryKind::Unknown)]
     // ADR != 1 is always Unknown
-    #[case(TrackNo(1), Control::default(), TocEntryKind::Unknown)]
+    #[case(Point(1), Control::default(), TocEntryKind::Unknown)]
     fn raw_toc_entry_kind_classifies_by_point_and_control(
-        #[case] point: TrackNo,
+        #[case] point: Point,
         #[case] control: Control,
         #[case] expected: TocEntryKind,
     ) {
         let msf = Msf::new(0, 2, 0);
-        let adr =
-            if expected == TocEntryKind::Unknown && point.is_normal() && point != TrackNo(0xB0) {
-                0 // force ADR != 1 for the "ADR != 1" case
-            } else {
-                1
-            };
+        let adr = if expected == TocEntryKind::Unknown && point.is_normal() && point != Point(0xB0)
+        {
+            0 // force ADR != 1 for the "ADR != 1" case
+        } else {
+            1
+        };
         let raw = RawTocEntry::new(None, adr, control, 0, point, msf, 0, msf);
         assert_eq!(raw.kind(), expected);
     }
@@ -1750,9 +1985,9 @@ mod tests {
     #[test]
     fn try_from_raw_for_track_entry_succeeds_for_normal_point() {
         let msf = Msf::new(0, 2, 0x21);
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(3), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(3), msf, 0, msf);
         let entry = TrackEntry::try_from(raw).unwrap();
-        assert_eq!(entry.trackno(), TrackNo(3));
+        assert_eq!(entry.trackno(), TrackNo::strict_new(3));
         assert_eq!(entry.start(), Frame::from(msf));
     }
 
@@ -1784,7 +2019,7 @@ mod tests {
         );
         assert!(TrackEntry::try_from(raw).is_err());
         // ADR != 1
-        let raw = RawTocEntry::new(None, 0, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 0, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(TrackEntry::try_from(raw).is_err());
     }
 
@@ -1802,7 +2037,7 @@ mod tests {
     fn try_from_raw_for_leadout_entry_fails_for_non_leadout_points() {
         let msf = Msf::new(0, 2, 0);
         // normal track point
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(LeadoutEntry::try_from(raw).is_err());
         // ADR != 1
         let raw = RawTocEntry::new(
@@ -1834,7 +2069,7 @@ mod tests {
         );
         let entry = InfoEntry::try_from(raw).unwrap();
         assert_eq!(entry.info_type(), FirstLast::First);
-        assert_eq!(entry.trackno(), TrackNo(1));
+        assert_eq!(entry.trackno(), TrackNo::strict_new(1));
         assert_eq!(entry.session(), NonZeroU8::MIN);
 
         // LAST_TRACK_ID
@@ -1850,7 +2085,7 @@ mod tests {
         );
         let entry = InfoEntry::try_from(raw).unwrap();
         assert_eq!(entry.info_type(), FirstLast::Last);
-        assert_eq!(entry.trackno(), TrackNo(5));
+        assert_eq!(entry.trackno(), TrackNo::strict_new(5));
     }
 
     #[test]
@@ -1881,7 +2116,7 @@ mod tests {
         );
         assert!(InfoEntry::try_from(raw).is_err());
         // not an info point
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(InfoEntry::try_from(raw).is_err());
     }
 
@@ -1890,7 +2125,7 @@ mod tests {
         let msf = Msf::new(0, 2, 0x21);
 
         // track
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Track(_))
@@ -1929,7 +2164,7 @@ mod tests {
         ));
 
         // unknown
-        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(0xB0), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Unknown(_))
@@ -1951,24 +2186,31 @@ mod tests {
 
     #[rstest]
     #[case(0_u8, None)]
-    #[case(1_u8, Some(TrackNo::MIN_NORMAL))]
-    #[case(42_u8, Some(TrackNo(42)))]
-    #[case(99_u8, Some(TrackNo::MAX_NORMAL))]
+    #[case(1_u8, Some(TrackNo::strict_new(1)))]
+    #[case(42_u8, Some(TrackNo::strict_new(42)))]
+    #[case(99_u8, Some(TrackNo::MAX))]
     #[case(100_u8, None)]
     #[case(0xAA_u8, None)]
-    // wider integers are accepted via TryFrom, rejected if they do not fit in a u8
-    #[case(1_u16, Some(TrackNo(1)))]
-    #[case(99_u32, Some(TrackNo(99)))]
+    // wider integers are accepted via checked cast, rejected if they do not fit in a u8
+    #[case(1_u16, Some(TrackNo::strict_new(1)))]
+    #[case(99_u32, Some(TrackNo::strict_new(99)))]
     #[case(100_u16, None)]
     #[case(256_u16, None)]
     #[case(u16::MAX, None)]
     #[case(-1_i32, None)]
-    fn new_normal_only_accepts_normal_track_numbers<T>(
-        #[case] value: T,
-        #[case] expected: Option<TrackNo>,
-    ) where
-        u8: TryFrom<T>,
+    fn new_only_accepts_valid_track_numbers<T>(#[case] value: T, #[case] expected: Option<TrackNo>)
+    where
+        u8: CheckedCastFromInt<T>,
     {
-        assert_eq!(TrackNo::new_normal(value), expected);
+        assert_eq!(TrackNo::new(value), expected);
+    }
+
+    #[test]
+    fn strict_and_saturating_new_behave() {
+        assert_eq!(TrackNo::strict_new(99_u8), TrackNo::MAX);
+        assert_eq!(TrackNo::saturating_new(0_u8), TrackNo::strict_new(1));
+        assert_eq!(TrackNo::saturating_new(100_u8), TrackNo::MAX);
+        assert_eq!(TrackNo::saturating_new(256_u16), TrackNo::MAX);
+        assert_eq!(TrackNo::saturating_new(-1_i32), TrackNo::strict_new(1));
     }
 }

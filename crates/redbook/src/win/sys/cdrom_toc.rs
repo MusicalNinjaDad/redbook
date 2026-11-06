@@ -3,7 +3,7 @@ use std::io;
 use crate::{
     Frame, LEADIN, TocEntries,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::{Control, Ctrl, LeadoutEntry, TocEntry, TrackEntry, TrackNo, b0000},
+    toc::{Control, Ctrl, LeadoutEntry, Point, TocEntry, TrackEntry, TrackNo, b0000},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -159,15 +159,16 @@ impl From<&TRACK_DATA> for Option<TocEntry> {
     fn from(track_data: &TRACK_DATA) -> Option<TocEntry> {
         let relative = u32::from_be_bytes(track_data.Address);
         let start = Frame::strict_new(relative).strict_add(LEADIN);
-        let point = TrackNo(track_data.TrackNumber);
+        let point = Point(track_data.TrackNumber);
         let control = track_data.control();
 
         match point {
-            TrackNo(0) => None,
+            Point(0) => None,
             b0000::LEADOUT_TRACK_ID => {
                 Some(TocEntry::Leadout(LeadoutEntry::new(start, control, None)))
             }
-            _ => TrackEntry::new(point, start, control, None).map(TocEntry::Track),
+            _ => TrackNo::new(point.0)
+                .map(|track| TocEntry::Track(TrackEntry::new(track, start, control, None))),
         }
     }
 }

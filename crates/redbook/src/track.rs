@@ -10,7 +10,7 @@ use crate::{
     toc::{Control, TrackEntry, TrackNo},
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
 ///
 /// This struct represents a single track on an audio CD, combining low-level
@@ -43,19 +43,16 @@ impl<'meta> Display for Track<'meta> {
 impl Track<'static> {
     /// Create a new `Track` with no MusicBrainz metadata
     ///
-    /// # Validation
-    /// - delegates to [`TrackEntry::new`]: `track_number` must be a "normal" track number
-    ///   ([`TrackNo::is_normal`], i.e. 1..=99)
-    ///
-    /// # Returns
-    /// - `None` if validation fails, i.e. `track_number` is a "special" point value
-    ///   (e.g. 0xA0..=0xA2, 0xAA)
-    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Option<Self> {
-        Some(Self {
-            toc_entry: TrackEntry::new(track_number, start, Control::default(), None)?,
+    /// # Notes
+    /// - `track_number` needs no validation: a [`TrackNo`] is always a valid track number
+    ///   (1..=99). "Special" POINT values (e.g. 0xA0..=0xA2, 0xAA) are
+    ///   [`Point`][crate::toc::Point]s, not track numbers
+    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
+        Self {
+            toc_entry: TrackEntry::new(track_number, start, Control::default(), None),
             duration,
             meta: None,
-        })
+        }
     }
 }
 
