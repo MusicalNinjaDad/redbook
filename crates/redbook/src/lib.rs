@@ -84,7 +84,7 @@
 //! let track_1 = cd.rip(TrackNo::strict_new(1))?;
 //!
 //! // Encode to flac
-//! let flac = track_1.to_flac();
+//! let flac = track_1.to_flac()?;
 //!
 //! // Get associated data
 //! let RippedTrack {tags, coverart, ..} = track_1;
@@ -275,7 +275,7 @@ pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{RippedTrack, Track};
+pub use track::{RippedTrack, Track, TrackError, TrackErrorKind};
 
 use crate::{frame::ByteSize, win::DriveHandle};
 

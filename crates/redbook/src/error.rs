@@ -71,6 +71,9 @@ impl Error {
         match &self.kind {
             ErrorKind::Io(error) => error.kind(),
             ErrorKind::Toc(error) => error.io_kind(),
+            ErrorKind::Disc(error) => error.io_kind(),
+            ErrorKind::Tagging(error) => error.io_kind(),
+            ErrorKind::Track(error) => error.io_kind(),
         }
     }
 }
@@ -121,6 +124,12 @@ pub enum ErrorKind {
     Io(io::Error),
     /// A [`toc`][crate::toc] domain error.
     Toc(crate::toc::TocError),
+    /// A [`disc`][crate::disc] domain error.
+    Disc(crate::disc::DiscError),
+    /// A [`tagging`][crate::tagging] domain error.
+    Tagging(crate::tagging::TaggingError),
+    /// A track-encoding domain error.
+    Track(crate::track::TrackError),
 }
 
 impl Display for ErrorKind {
@@ -128,6 +137,9 @@ impl Display for ErrorKind {
         match self {
             ErrorKind::Io(error) => Display::fmt(error, f),
             ErrorKind::Toc(error) => Display::fmt(error, f),
+            ErrorKind::Disc(error) => Display::fmt(error, f),
+            ErrorKind::Tagging(error) => Display::fmt(error, f),
+            ErrorKind::Track(error) => Display::fmt(error, f),
         }
     }
 }
@@ -137,6 +149,9 @@ impl StdError for ErrorKind {
         match self {
             ErrorKind::Io(error) => Some(error),
             ErrorKind::Toc(error) => Some(error),
+            ErrorKind::Disc(error) => Some(error),
+            ErrorKind::Tagging(error) => Some(error),
+            ErrorKind::Track(error) => Some(error),
         }
     }
 }
