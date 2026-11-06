@@ -901,11 +901,13 @@ mod tests {
 
     use super::*;
     use crate::test_fixtures::albums::TestAlbum::{self, *};
+
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     // TODO - validate with minimal track info
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
@@ -1026,8 +1028,9 @@ mod tests {
         );
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     /// This Disc only has one possible release which includes a data track
+    #[test]
     fn only_extended_cd() {
         let album = TheBoyWhoKnewTooMuch;
         let tracks = album.expected_audio_tracks_minimal();

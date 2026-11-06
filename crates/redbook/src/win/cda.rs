@@ -258,6 +258,7 @@ mod tests {
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     #[rstest]
     #[case(DefinitelyMaybe)]
@@ -285,8 +286,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn start_below_leadin_is_kept_with_a_warning() {
+    #[traced_test]
+    #[rstest]
+    #[case(0)]
+    #[case(u32::MAX)]
+    fn start_below_leadin_is_kept_with_a_warning(#[case] relative_frame: u32) {
         // Deliberate TOC breakage (copy protection): "More Music from The Fast and the Furious"
         // (CP-2 in the cdcopy-drm02 paper) has a track start of 00:01:74, below the lead-in.
         let cda_file = DefinitelyMaybe.assets_path().join("Track01.cda");
@@ -299,11 +303,14 @@ mod tests {
 
         // the relative frame at 0x1c has no valid representation for a start below the lead-in:
         // Windows either clamps to 0 or wraps -1 to u32::MAX; both must parse, keeping the MSF
-        for relative_frame in [0, u32::MAX] {
-            contents[0x1c..0x20].copy_from_slice(&relative_frame.to_le_bytes());
-            let cda = CdaFile::new(contents.clone()).unwrap();
-            assert_eq!(cda.start, Msf::new(0x00, 0x01, 0x4A));
-        }
+        contents[0x1c..0x20].copy_from_slice(&relative_frame.to_le_bytes());
+        let cda = CdaFile::new(contents.clone()).unwrap();
+        assert_eq!(cda.start, Msf::new(0x00, 0x01, 0x4A));
+
+        // the escape hatch warns instead of failing; the warning's text is the event name,
+        // which the fmt layer doesn't print, so assert on the level & fields instead
+        assert!(logs_contain("WARN"));
+        assert!(logs_contain(&format!("relative_frame={relative_frame}")));
 
         // a genuine mismatch at/above the lead-in still fails
         contents[0x1c..0x20].copy_from_slice(&0_u32.to_le_bytes());
@@ -313,8 +320,11 @@ mod tests {
         assert!(CdaFile::new(contents).is_err());
     }
 
-    #[test]
-    fn try_from_rejects_special_track_numbers() {
+    #[rstest]
+    #[case(crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>())]
+    #[case(0)]
+    #[case(TrackNo::MAX_NORMAL.cast::<u16>() + 1)]
+    fn try_from_rejects_special_track_numbers(#[case] track_number: u16) {
         let album = DefinitelyMaybe;
         let cdas = album.assets_path().join("*.cda");
         let cda_file = glob(&cdas.to_string_lossy())
@@ -323,16 +333,9 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let special_track_numbers = [
-            crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>(),
-            0,
-            TrackNo::MAX_NORMAL.cast::<u16>() + 1,
-        ];
-        for track_number in special_track_numbers {
-            let mut cda = CdaFile::from_path(&cda_file).unwrap();
-            cda.track_number = track_number;
-            let err = Track::try_from(cda).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::InvalidData);
-        }
+        let mut cda = CdaFile::from_path(&cda_file).unwrap();
+        cda.track_number = track_number;
+        let err = Track::try_from(cda).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
     }
 }

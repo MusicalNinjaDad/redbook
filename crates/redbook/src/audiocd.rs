@@ -136,11 +136,12 @@ pub struct RipProgress {
 
 #[cfg(test)]
 mod miri {
+    use super::*;
+
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};
-
-    use super::*;
 
     impl TryFrom<&AudioCd> for TestAlbum {
         type Error = io::Error;
@@ -151,7 +152,7 @@ mod miri {
         }
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]

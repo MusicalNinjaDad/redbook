@@ -1306,33 +1306,31 @@ mod tests {
         assert_eq!(msf2, Msf::new.call(expected));
     }
 
-    #[test]
-    fn checked_mul_out_of_range_rhs_returns_none() {
-        // regression: this used to panic via strict_new instead of returning None
-        assert_eq!(Frame::strict_new(2).checked_mul(u32::MAX), None);
-        assert_eq!(
-            Frame::strict_new(2).checked_mul(u64::from(u32::MAX) + 1),
-            None
-        );
-        assert_eq!(Frame::ZERO.checked_mul(u32::MAX), Some(Frame::ZERO));
-        assert_eq!(
-            Frame::strict_new(3).checked_mul(5u32),
-            Some(Frame::strict_new(15))
-        );
+    #[rstest]
+    #[case(2, u32::MAX, None)]
+    #[case(2, u64::from(u32::MAX) + 1, None)]
+    #[case(0, u32::MAX, Some(Frame::ZERO))]
+    #[case(3, 5_u32, Some(Frame::strict_new(15)))]
+    fn checked_mul_out_of_range<L, R>(
+        #[case] lhs: L,
+        #[case] rhs: R,
+        #[case] expected: Option<Frame>,
+    ) where
+        u32: CheckedCastFromInt<L> + CheckedCastFromInt<R>,
+    {
+        assert_eq!(Frame::strict_new(lhs).checked_mul(rhs), expected);
     }
 
-    // rhs inputs for the div/rem consistency tests. All are funnelled through i128 so one
-    // rstest signature covers them; the methods are generic over the original int type.
-    // (`-1_u8` is not valid Rust — an unsigned literal cannot be negative — so the negative
-    // case is a plain `-1` as i128.)
-
     #[rstest]
-    #[case(1)]
-    #[case(Frame::MAX.cast::<i128>())]
-    #[case(Frame::MAX.cast::<i128>() + 1)]
-    #[case(u32::MAX.into())]
+    #[case(1_u8)]
+    #[case(Frame::MAX.cast::<u32>())]
+    #[case(u64::from(u32::MAX) + 1)]
     #[case(i128::MAX)]
-    fn div_matches_checked_div_and_u32(#[case] rhs: i128) {
+    fn checked_div<R>(#[case] rhs: R)
+    where
+        u32: BoundedCastFromInt<R>,
+        R: Copy,
+    {
         let frame = Frame::strict_new(2000);
         let checked_div = frame.checked_div(rhs).unwrap();
         assert_eq!(
@@ -1344,22 +1342,29 @@ mod tests {
 
     #[rstest]
     #[case(i128::MIN)]
-    #[case(-1)]
-    #[case(0)]
+    #[case(-1_i8)]
+    #[case(0_u32)]
     #[should_panic(expected = "attempt to divide by zero")]
-    fn div_panics_when_checked_div_is_none(#[case] rhs: i128) {
+    fn checked_div_by_zero<R>(#[case] rhs: R)
+    where
+        u32: BoundedCastFromInt<R>,
+        R: Copy,
+    {
         let frame = Frame::strict_new(2000);
         assert!(frame.checked_div(rhs).is_none());
         frame.div(rhs);
     }
 
     #[rstest]
-    #[case(1)]
-    #[case(Frame::MAX.cast::<i128>())]
-    #[case(Frame::MAX.cast::<i128>() + 1)]
-    #[case(u32::MAX.into())]
+    #[case(1_u8)]
+    #[case(Frame::MAX.cast::<u32>())]
+    #[case(u64::from(u32::MAX) + 1)]
     #[case(i128::MAX)]
-    fn rem_matches_checked_rem_and_u32(#[case] rhs: i128) {
+    fn checked_rem<R>(#[case] rhs: R)
+    where
+        u32: BoundedCastFromInt<R>,
+        R: Copy,
+    {
         let frame = Frame::strict_new(2000);
         let checked_rem = frame.checked_rem(rhs).unwrap();
         assert_eq!(
@@ -1371,10 +1376,14 @@ mod tests {
 
     #[rstest]
     #[case(i128::MIN)]
-    #[case(-1)]
-    #[case(0)]
+    #[case(-1_i8)]
+    #[case(0_u32)]
     #[should_panic(expected = "attempt to calculate the remainder with a divisor of zero")]
-    fn rem_panics_when_checked_rem_is_none(#[case] rhs: i128) {
+    fn checked_rem_div_zero<R>(#[case] rhs: R)
+    where
+        u32: BoundedCastFromInt<R>,
+        R: Copy,
+    {
         let frame = Frame::strict_new(2000);
         assert!(frame.checked_rem(rhs).is_none());
         frame.rem(rhs);
@@ -1422,17 +1431,26 @@ mod tests {
         assert_eq!(Frame::MAX.size(), ByteSize(2_744_501_760));
     }
 
-    #[test]
-    fn bytesize_frames_conversions_respect_frame_max() {
+    #[rstest]
+    #[case(2353, Some(Frame::strict_new(1)), None)]
+    #[case(u64::from(u32::MAX) * 2352, None, None)]
+    fn bytesize_frames_conversions_respect_frame_max(
+        #[case] bytes: u64,
+        #[case] expected_floor: Option<Frame>,
+        #[case] expected_exact: Option<Frame>,
+    ) {
+        let size = ByteSize(bytes);
         // floor division rounds down, exact division requires a whole number of frames
-        assert_eq!(ByteSize(2353).frames_floor_strict(), Frame::strict_new(1));
-        assert_eq!(ByteSize(2353).frames_exact_checked(), None);
-
-        // more frames than Frame::MAX: checked returns None, saturating saturates
-        let huge = ByteSize(u64::from(u32::MAX) * 2352);
-        assert_eq!(huge.frames_floor_checked(), None);
-        assert_eq!(huge.frames_exact_checked(), None);
-        assert_eq!(huge.frames_floor_saturating(), Frame::MAX);
+        assert_eq!(size.frames_floor_checked(), expected_floor);
+        assert_eq!(size.frames_exact_checked(), expected_exact);
+        match expected_floor {
+            Some(frame) => {
+                assert_eq!(size.frames_floor_strict(), frame);
+                assert_eq!(size.frames_floor_saturating(), frame);
+            }
+            // more frames than Frame::MAX: checked returns None, saturating saturates
+            None => assert_eq!(size.frames_floor_saturating(), Frame::MAX),
+        }
     }
 
     #[test]
@@ -1447,34 +1465,44 @@ mod tests {
         ByteSize(2353).frames_exact();
     }
 
-    #[test]
-    fn bytesize_constructors_casts_and_raw_value_access() {
+    #[rstest]
+    #[case(42)]
+    #[case(2352)]
+    #[case(u64::MAX)]
+    fn bytesize_constructors_casts_and_raw_value_access(#[case] raw: u64) {
+        let size = ByteSize(raw);
+
+        // constructors from any integer type which fits in a u64
+        assert_eq!(ByteSize::new(raw), Some(size));
+        assert_eq!(ByteSize::strict_new(raw), size);
+        assert_eq!(ByteSize::saturating_new(raw), size);
+        assert_eq!(ByteSize::from(raw), size);
+        // integers which do not fit in a u64 are rejected, or clamped when saturating
         assert_eq!(ByteSize::new(42_u8), Some(ByteSize(42)));
-        assert_eq!(ByteSize::new(2352_u64), Some(ByteSize(2352)));
-        assert_eq!(ByteSize::new(u64::MAX), Some(ByteSize(u64::MAX)));
+        assert_eq!(ByteSize::from(2352_usize), ByteSize(2352));
         assert_eq!(ByteSize::new(-1_i32), None);
         assert_eq!(ByteSize::strict_new(2352_u32), ByteSize(2352));
         assert_eq!(ByteSize::saturating_new(-1_i32), ByteSize(0));
         assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize(u64::MAX));
 
         // retrieval of the inner value
-        assert_eq!(ByteSize(42).cast::<u64>(), 42);
-        assert_eq!(ByteSize(42).cast::<u128>(), 42);
-        assert_eq!(ByteSize(42).checked_cast::<u32>(), Some(42));
-        assert_eq!(ByteSize(u64::MAX).checked_cast::<u32>(), None);
-        assert_eq!(ByteSize(u64::MAX).saturating_cast::<u32>(), u32::MAX);
+        assert_eq!(size.cast::<u64>(), raw);
+        assert_eq!(size.cast::<u128>(), u128::from(raw));
+        assert_eq!(size.checked_cast::<u32>(), u32::try_from(raw).ok());
+        assert_eq!(
+            size.saturating_cast::<u32>(),
+            u32::saturating_cast_from(raw)
+        );
         assert_eq!(ByteSize(42).strict_cast::<u16>(), 42);
 
-        // conversion from integers, parsing & display
-        assert_eq!(ByteSize::from(2352_u64), ByteSize(2352));
-        assert_eq!(ByteSize::from(2352_usize), ByteSize(2352));
-        assert_eq!("2352".parse::<ByteSize>(), Ok(ByteSize(2352)));
-        assert_eq!(ByteSize(2352).to_string(), "2352 bytes");
+        // parsing & display
+        assert_eq!(raw.to_string().parse::<ByteSize>(), Ok(size));
+        assert_eq!(size.to_string(), format!("{raw} bytes"));
 
         // Deref & DerefMut provide the raw u64 operations
-        let mut size = ByteSize(1);
-        *size += 1;
-        assert_eq!(size, ByteSize(2));
+        let mut deref = ByteSize(1);
+        *deref += 1;
+        assert_eq!(deref, ByteSize(2));
         assert_eq!(ByteSize(2).checked_mul(3), Some(6));
     }
 

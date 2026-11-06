@@ -1232,6 +1232,8 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
 mod tests {
     use super::*;
 
+    use rstest::rstest;
+
     use crate::LEADIN;
 
     #[test]
@@ -1425,21 +1427,26 @@ mod tests {
         assert_eq!(Option::<TocEntry>::from(raw), None);
     }
 
-    #[test]
-    fn new_normal_only_accepts_normal_track_numbers() {
-        assert_eq!(TrackNo::new_normal(0_u8), None);
-        assert_eq!(TrackNo::new_normal(1_u8), Some(TrackNo::MIN_NORMAL));
-        assert_eq!(TrackNo::new_normal(42_u8), Some(TrackNo(42)));
-        assert_eq!(TrackNo::new_normal(99_u8), Some(TrackNo::MAX_NORMAL));
-        assert_eq!(TrackNo::new_normal(100_u8), None);
-        assert_eq!(TrackNo::new_normal(0xAA_u8), None);
-
-        // wider integers are accepted via TryFrom, rejected if they do not fit in a u8
-        assert_eq!(TrackNo::new_normal(1_u16), Some(TrackNo(1)));
-        assert_eq!(TrackNo::new_normal(99_u32), Some(TrackNo(99)));
-        assert_eq!(TrackNo::new_normal(100_u16), None);
-        assert_eq!(TrackNo::new_normal(256_u16), None);
-        assert_eq!(TrackNo::new_normal(u16::MAX), None);
-        assert_eq!(TrackNo::new_normal(-1_i32), None);
+    #[rstest]
+    #[case(0_u8, None)]
+    #[case(1_u8, Some(TrackNo::MIN_NORMAL))]
+    #[case(42_u8, Some(TrackNo(42)))]
+    #[case(99_u8, Some(TrackNo::MAX_NORMAL))]
+    #[case(100_u8, None)]
+    #[case(0xAA_u8, None)]
+    // wider integers are accepted via TryFrom, rejected if they do not fit in a u8
+    #[case(1_u16, Some(TrackNo(1)))]
+    #[case(99_u32, Some(TrackNo(99)))]
+    #[case(100_u16, None)]
+    #[case(256_u16, None)]
+    #[case(u16::MAX, None)]
+    #[case(-1_i32, None)]
+    fn new_normal_only_accepts_normal_track_numbers<T>(
+        #[case] value: T,
+        #[case] expected: Option<TrackNo>,
+    ) where
+        u8: TryFrom<T>,
+    {
+        assert_eq!(TrackNo::new_normal(value), expected);
     }
 }

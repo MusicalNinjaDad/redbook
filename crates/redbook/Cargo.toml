@@ -46,7 +46,7 @@ rstest.workspace = true
 similar-asserts.workspace = true
 syn.workspace = true
 tempfile.workspace = true
-test-log.workspace = true
+tracing-test.workspace = true
 windows-bindgen.workspace = true
 
 [build-dependencies]

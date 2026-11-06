@@ -181,6 +181,7 @@ mod tests {
 
     use cdtoc::Toc;
     use rstest::rstest;
+    use tracing_test::traced_test;
 
     use crate::{
         test_fixtures::albums::TestAlbum::{self, *},
@@ -248,7 +249,7 @@ mod tests {
         assert_eq!(leadout, album.expected_leadout().cast::<u32>());
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
@@ -259,10 +260,10 @@ mod tests {
         let cdrom_toc = CDROM_TOC::from(album);
         let toc = album.expected_toc();
 
-        assert_eq!(toc, cdrom_toc.to_toc().unwrap())
+        assert_eq!(toc, cdrom_toc.to_toc().unwrap());
     }
 
-    #[test_log::test]
+    #[traced_test] // TODO: #181 use tracing_test to assert output
     #[rstest]
     #[case(DefinitelyMaybe)]
     #[case(TheWallDisc1)]
