@@ -168,6 +168,23 @@ impl Frame {
         Self(inner).saturate()
     }
 
+    /// Returns a frame relative to the lead-in position.
+    ///
+    /// This subtracts the standard 150-frame lead-in from the frame position,
+    /// giving the position relative to the start of the actual audio data.
+    ///
+    /// # Note
+    ///
+    /// - To guard against miguided attempts to "copy protect" CDs by breaking them, this will
+    ///   never return negative. So a badly constructed TOC with track 1 starting at frame 147
+    ///   (0m:1s:72f) will return frame 0 relative to leadin.
+    ///
+    /// # TODO
+    /// - TODO #154 what is the right duration for a 1st track with start frame 147?
+    pub const fn relative_to_leadin(self) -> Self {
+        self.saturating_sub(LEADIN)
+    }
+
     /// Returns the underlying `u32` representation.
     ///
     /// For clarity it is recommended to use [`Self::cast`] even when casting to `u32`.
@@ -530,23 +547,6 @@ impl Frame {
         let rest = self.strict_sub(divided_out);
 
         (quotient, rest)
-    }
-
-    /// Returns a frame relative to the lead-in position.
-    ///
-    /// This subtracts the standard 150-frame lead-in from the frame position,
-    /// giving the position relative to the start of the actual audio data.
-    ///
-    /// # Note
-    ///
-    /// - To guard against miguided attempts to "copy protect" CDs by breaking them, this will
-    ///   never return negative. So a badly constructed TOC with track 1 starting at frame 147
-    ///   (0m:1s:72f) will return frame 0 relative to leadin.
-    ///
-    /// # TODO
-    /// - TODO #154 what is the right duration for a 1st track with start frame 147?
-    pub const fn relative_to_leadin(self) -> Self {
-        self.saturating_sub(LEADIN)
     }
 }
 
