@@ -39,6 +39,23 @@ pub mod b0000 {
 ///
 /// This crate specifically aims to support *audio CDs*, additional constants will only be added
 /// if required for better audio CD handling.
+/// 
+/// # Specification
+/// 
+/// The baseline spec is in MMC-3 Table 237
+/// 
+/// CTRL | ADR | TNO | POINT | MIN | SEC | FRAME | ZERO | PMIN | PSEC | PFRAME
+/// -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | --
+/// 4 or 6 | 1 | 00h | 01h–63h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of track | Start position of track | Start position of track
+/// 4 or 6 | 1 | 00h | A0h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | First Track Number | Disc Type | 00h
+/// 4 or 6 | 1 | 00h | A1h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Last Track Number | 00h | 00h
+/// 4 or 6 | 1 | 00h | A2h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of Lead-out | Start position of Lead-out | Start position of Lead-out
+/// 4 or 6 | 5 | 00h | B0h | Start time of next possible program in the Recordable Area of the disc | Start time of next possible program in the Recordable Area of the disc | Start time of next possible program in the Recordable Area of the disc | # of pointers in Mode 5 | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc
+/// 4 or 6 | 5 | 00h | B1h | 00h | 00h | 00h | 00h | # of skip interval Pointers (N≤40) | # of skip Track Pointers (N≤21) | 00h
+/// 4 or 6 | 5 | 00h | B2h–B4h | Skip # | Skip # | Skip # | Skip # | Skip # | Skip # | Skip #
+/// 4 or 6 | 5 | 00h | 01h–40h | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Reserved | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback
+/// 4 or 6 | 5 | 00h | C0h | Optimum recording power | Reserved | Reserved | Reserved | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc
+/// 4 or 6 | 5 | 00h | C1h | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP
 pub mod b0010 {
     use super::TrackNo;
     /// 0b0010 format POINT identifier for the first track number of a session
@@ -494,6 +511,23 @@ impl PartialOrd for InfoEntry {
 /// For finer-grained control use [`RawTocEntry::kind`] to determine the entry kind, then the
 /// individual `TryFrom<RawTocEntry>` impls ([`TrackEntry`], [`LeadoutEntry`], [`InfoEntry`]) to
 /// extract the classified payload.
+/// 
+/// The relevant definitions are:
+/// 
+/// #### READ_TOC format 0010b (detailled TOC, multi-session)
+/// 
+/// CTRL   ADR | TNO | POINT | MIN | SEC | FRAME | ZERO | PMIN | PSEC | PFRAME
+/// -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | --
+/// 4 or 6 | 1 | 00h | 01h–63h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of track | Start position of track | Start position of track
+/// 4 or 6 | 1 | 00h | A0h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | First Track Number | Disc Type | 00h
+/// 4 or 6 | 1 | 00h | A1h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Last Track Number | 00h | 00h
+/// 4 or 6 | 1 | 00h | A2h | ATIME (Absolute time) | ATIME (Absolute time) | ATIME (Absolute time) | 00h | Start position of Lead-out | Start position of Lead-out | Start position of Lead-out
+/// 4 or 6 | 5 | 00h | B0h | Start time of next possible program in the Recordable Area of the disc | Start time of next possible program in the Recordable Area of the disc | Start time of next possible program in the Recordable Area of the disc | # of pointers in Mode 5 | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc | Maximum start time of outer-most Lead-out area in the Recordable Area of the disc
+/// 4 or 6 | 5 | 00h | B1h | 00h | 00h | 00h | 00h | # of skip interval Pointers (N≤40) | # of skip Track Pointers (N≤21) | 00h
+/// 4 or 6 | 5 | 00h | B2h–B4h | Skip # | Skip # | Skip # | Skip # | Skip # | Skip # | Skip #
+/// 4 or 6 | 5 | 00h | 01h–40h | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Reserved | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback
+/// 4 or 6 | 5 | 00h | C0h | Optimum recording power | Reserved | Reserved | Reserved | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc
+/// 4 or 6 | 5 | 00h | C1h | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawTocEntry {
     /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
