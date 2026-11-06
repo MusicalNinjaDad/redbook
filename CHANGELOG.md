@@ -4,6 +4,8 @@
 
 ### New features
 
+- structured error hierarchy (issue #165): crate-root `redbook::Error` + `redbook::Result` alias, and per-domain level-2 errors (`toc::TocError`, `disc::DiscError`, `drive::DriveError`, `tagging::TaggingError`, `track::TrackError`, `win::WinError`) with level-3 leaf kind enums wrapping foreign errors (`cdtoc`, `musicbrainz_rs`, `flacenc`, `metaflac`, `reqwest`, `io::Error`). All implement `std::error::Error` + `Send + Sync`, are `#[non_exhaustive]`, return the directly wrapped type from `source()`, support `.context(...)` chaining (omitted from `Display` when absent), and convert to `io::Error` preserving the status-quo `ErrorKind` (wrapped OS errors keep `raw_os_error` end-to-end; `ERROR_NOT_READY` gets a dedicated `WinErrorKind::NotReady`)
+
 - type-safe time & size types: `Frame` arithmetic is now explicit via `strict_*` / `checked_*` / `saturating_*` methods (the operators are deliberately not implemented); add/sub accept `Frame` or `Msf`, mul/div/rem accept a scalar integer
 - new `frame::ByteSize` type for sizes in bytes: `Frame::SIZE_IN_BYTES` is a `ByteSize`, `Frame::size()` converts a frame count to bytes, and `ByteSize::frames_*` convert back
 - `Frame::new` is now generic over any integer type; `Frame::strict_new` (panicking) & `Frame::saturating_new` added alongside
@@ -16,6 +18,7 @@
 
 ### Breaking changes
 
+- library signatures return `Result<_, DomainError>` (or `redbook::Result<_>` for cross-domain APIs like `AudioCd::open`/`rip`) instead of `io::Result<_>`; `RippedTrack::to_flac` is now fallible (`Result<MemSink<u8>, TrackError>`) instead of panicking on encode failure
 - NOTE: read_cdda takes start as total offset on disc, read_chunk took track + offset
 - `Frame::new` returns `Option<Frame>` (fallible) instead of panicking; `FRAME_SIZE: usize` removed in favour of `Frame::SIZE_IN_BYTES: ByteSize`
 - `Msf` fields are now private; `Frame::new`/`Msf` arithmetic operators removed in favour of the explicit `strict_*` / `checked_*` / `saturating_*` methods
