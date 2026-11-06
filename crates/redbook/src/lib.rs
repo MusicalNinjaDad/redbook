@@ -269,6 +269,8 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
+pub use error::{Error, Result};
+#[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
@@ -285,6 +287,9 @@ pub mod disc;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+#[forbid(unsafe_code)]
+pub mod error;
 
 #[forbid(unsafe_code)]
 pub mod frame;
