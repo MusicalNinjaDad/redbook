@@ -490,6 +490,10 @@ impl PartialOrd for InfoEntry {
 ///
 /// Classify into a higher-level [`TocEntry`] via `Option::<TocEntry>::from(raw)` — `None` means
 /// the entry is recognizably a track / lead-out / track-info entry but invalid.
+///
+/// For finer-grained control use [`RawTocEntry::kind`] to determine the entry kind, then the
+/// individual `TryFrom<RawTocEntry>` impls ([`TrackEntry`], [`LeadoutEntry`], [`InfoEntry`]) to
+/// extract the classified payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawTocEntry {
     /// The session this entry relates to, if known (`NonZeroU8`: session numbers are 1-indexed)
@@ -575,6 +579,49 @@ impl RawTocEntry {
     pub fn pmsf(&self) -> Msf {
         self.pmsf
     }
+
+    /// Classify this raw entry by its ADR / POINT fields (and control code for the audio/data
+    /// distinction), without validating the payload data.
+    ///
+    /// This is the same classification that [`From<RawTocEntry> for Option<TocEntry>`] applies,
+    /// exposed separately so callers can determine which [`TryFrom<RawTocEntry>`] impl to use
+    /// before attempting the conversion.
+    pub fn kind(&self) -> TocEntryKind {
+        use TocEntryKind::*;
+
+        let audio = self.is_audio();
+        match (self.adr, self.point) {
+            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => {
+                if audio {
+                    AudioLeadout
+                } else {
+                    DataLeadout
+                }
+            }
+            (1, b0010::FIRST_TRACK_ID) => {
+                if audio {
+                    FirstAudioTrackInfo
+                } else {
+                    FirstDataTrackInfo
+                }
+            }
+            (1, b0010::LAST_TRACK_ID) => {
+                if audio {
+                    LastAudioTrackInfo
+                } else {
+                    LastDataTrackInfo
+                }
+            }
+            (1, point) if point.is_normal() => {
+                if audio {
+                    AudioTrack
+                } else {
+                    DataTrack
+                }
+            }
+            _ => Unknown,
+        }
+    }
 }
 
 impl Ctrl for RawTocEntry {
@@ -632,6 +679,11 @@ impl PartialOrd for RawTocEntry {
 /// recognizably a track / lead-out / track-info entry but invalid (e.g. an A0/A1 point without
 /// session info, or a non-normal track number in PMIN), rather than classifying it as `Unknown`.
 ///
+/// The classification logic is split into [`RawTocEntry::kind`] (which determines the entry
+/// kind from ADR/POINT/control) and individual `TryFrom<RawTocEntry>` impls for
+/// [`TrackEntry`], [`LeadoutEntry`] and [`InfoEntry`]; `From<RawTocEntry> for Option<TocEntry>`
+/// glues these together.
+///
 /// # Notes
 /// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
 ///   modelled. Use the [`Ctrl`] trait (e.g. [`is_audio`][Ctrl::is_audio]) to distinguish audio
@@ -666,48 +718,121 @@ impl From<InfoEntry> for TocEntry {
     }
 }
 
+/// Attempts to classify a raw entry as a [`TrackEntry`].
+///
+/// Fails when the entry is not a track entry (ADR != 1 or POINT is not a normal track number),
+/// or when the payload is invalid. Use [`RawTocEntry::kind`] if you need to check applicability
+/// first. Or use `From<RawTocEntry> for Option<TocEntry>` directly to identify, validate and
+/// convert in one step.
+impl TryFrom<RawTocEntry> for TrackEntry {
+    type Error = io::Error;
+
+    fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
+        match (raw.adr(), raw.point()) {
+            (1, point) if point.is_normal() => {
+                TrackEntry::new(point, raw.pmsf().into(), raw.control(), raw.session())
+                    .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid track entry"))
+            }
+            _ => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "not a track entry: adr={}, point={:?}",
+                    raw.adr(),
+                    raw.point()
+                ),
+            )),
+        }
+    }
+}
+
+/// Attempts to classify a raw entry as a [`LeadoutEntry`].
+///
+/// Fails when the entry is not a lead-out entry (ADR ≠ 1 or POINT is not a lead-out code).
+/// Use [`RawTocEntry::kind`] to check applicability first.
+impl TryFrom<RawTocEntry> for LeadoutEntry {
+    type Error = io::Error;
+
+    fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
+        match (raw.adr(), raw.point()) {
+            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => Ok(LeadoutEntry::new(
+                raw.pmsf().into(),
+                raw.control(),
+                raw.session(),
+            )),
+            _ => Err(io::Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "not a leadout entry: adr={}, point={:?}",
+                    raw.adr(),
+                    raw.point()
+                ),
+            )),
+        }
+    }
+}
+
+/// Attempts to classify a raw entry as an [`InfoEntry`] (first/last track number of a session).
+///
+/// Fails when the entry is not an info entry (ADR ≠ 1 or POINT is not 0xA0/0xA1), when session
+/// info is missing, or when the PMIN payload is not a normal track number.
+/// Use [`RawTocEntry::kind`] to check applicability first.
+impl TryFrom<RawTocEntry> for InfoEntry {
+    type Error = io::Error;
+
+    fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
+        let info_type = match (raw.adr(), raw.point()) {
+            (1, b0010::FIRST_TRACK_ID) => FirstLast::First,
+            (1, b0010::LAST_TRACK_ID) => FirstLast::Last,
+            _ => {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    format!(
+                        "not an info entry: adr={}, point={:?}",
+                        raw.adr(),
+                        raw.point()
+                    ),
+                ));
+            }
+        };
+        let session = raw.session().ok_or_else(|| {
+            io::Error::new(ErrorKind::InvalidData, "info entry requires session info")
+        })?;
+        InfoEntry::new(
+            session,
+            raw.pmsf().as_u8s().0.into(),
+            raw.control(),
+            info_type,
+        )
+        .ok_or_else(|| {
+            io::Error::new(
+                ErrorKind::InvalidData,
+                "invalid info entry: non-normal track number in PMIN",
+            )
+        })
+    }
+}
+
 /// Classifies a raw entry into a higher-level [`TocEntry`], returning `None` when the entry is
 /// recognizably a track / lead-out / track-info entry but invalid (e.g. an A0/A1 point without
 /// session info, or with a non-normal track number in PMIN).
 ///
+/// This is the glue over [`RawTocEntry::kind`] and the individual
+/// [`TryFrom<RawTocEntry>`][TrackEntry#impl-TryFrom<RawTocEntry>-for-TrackEntry] impls:
+/// `kind()` decides which conversion to attempt, and a failed `TryFrom` becomes `None`.
+///
 /// [`TocEntry::Unknown`] is reserved for valid entries which the higher-level abstractions don't
 /// model (e.g. session boundary or writing-speed details).
 impl From<RawTocEntry> for Option<TocEntry> {
-    fn from(entry: RawTocEntry) -> Self {
-        use FirstLast::*;
-        use TocEntry::*;
+    fn from(raw: RawTocEntry) -> Self {
+        use TocEntryKind::*;
 
-        match (entry.adr(), entry.point()) {
-            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => Some(Leadout(
-                LeadoutEntry::new(entry.pmsf().into(), entry.control(), entry.session()),
-            )),
-            (1, b0010::FIRST_TRACK_ID) => entry
-                .session()
-                .and_then(|session| {
-                    InfoEntry::new(
-                        session,
-                        entry.pmsf().as_u8s().0.into(),
-                        entry.control(),
-                        First,
-                    )
-                })
-                .map(TrackInfo),
-            (1, b0010::LAST_TRACK_ID) => entry
-                .session()
-                .and_then(|session| {
-                    InfoEntry::new(
-                        session,
-                        entry.pmsf().as_u8s().0.into(),
-                        entry.control(),
-                        Last,
-                    )
-                })
-                .map(TrackInfo),
-            (1, point) if point.is_normal() => {
-                TrackEntry::new(point, entry.pmsf().into(), entry.control(), entry.session())
-                    .map(Track)
+        match raw.kind() {
+            AudioTrack | DataTrack => TrackEntry::try_from(raw).ok().map(TocEntry::Track),
+            AudioLeadout | DataLeadout => LeadoutEntry::try_from(raw).ok().map(TocEntry::Leadout),
+            FirstAudioTrackInfo | FirstDataTrackInfo | LastAudioTrackInfo | LastDataTrackInfo => {
+                InfoEntry::try_from(raw).ok().map(TocEntry::TrackInfo)
             }
-            _ => Some(Unknown(entry)),
+            Unknown => Some(TocEntry::Unknown(raw)),
         }
     }
 }
@@ -1520,6 +1645,270 @@ mod tests {
             msf,
             0,
             Msf::new(0xAA, 0, 0),
+        );
+        assert_eq!(Option::<TocEntry>::from(raw), None);
+    }
+
+    #[rstest]
+    #[case(TrackNo(1), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(TrackNo(99), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(
+        TrackNo(1),
+        Control::from_bits_truncate(Control::DATA_TRACK.bits()),
+        TocEntryKind::DataTrack
+    )]
+    #[case(
+        b0000::LEADOUT_TRACK_ID,
+        Control::default(),
+        TocEntryKind::AudioLeadout
+    )]
+    #[case(
+        b0010::LEADOUT_TRACK_ID,
+        Control::default(),
+        TocEntryKind::AudioLeadout
+    )]
+    #[case(
+        b0000::LEADOUT_TRACK_ID,
+        Control::from_bits_truncate(Control::DATA_TRACK.bits()),
+        TocEntryKind::DataLeadout
+    )]
+    #[case(
+        b0010::FIRST_TRACK_ID,
+        Control::default(),
+        TocEntryKind::FirstAudioTrackInfo
+    )]
+    #[case(
+        b0010::LAST_TRACK_ID,
+        Control::default(),
+        TocEntryKind::LastAudioTrackInfo
+    )]
+    #[case(
+        b0010::FIRST_TRACK_ID,
+        Control::from_bits_truncate(Control::DATA_TRACK.bits()),
+        TocEntryKind::FirstDataTrackInfo
+    )]
+    #[case(
+        b0010::LAST_TRACK_ID,
+        Control::from_bits_truncate(Control::DATA_TRACK.bits()),
+        TocEntryKind::LastDataTrackInfo
+    )]
+    #[case(TrackNo(0xB0), Control::default(), TocEntryKind::Unknown)]
+    // ADR != 1 is always Unknown
+    #[case(TrackNo(1), Control::default(), TocEntryKind::Unknown)]
+    fn raw_toc_entry_kind_classifies_by_point_and_control(
+        #[case] point: TrackNo,
+        #[case] control: Control,
+        #[case] expected: TocEntryKind,
+    ) {
+        let msf = Msf::new(0, 2, 0);
+        let adr =
+            if expected == TocEntryKind::Unknown && point.is_normal() && point != TrackNo(0xB0) {
+                0 // force ADR != 1 for the "ADR != 1" case
+            } else {
+                1
+            };
+        let raw = RawTocEntry::new(None, adr, control, 0, point, msf, 0, msf);
+        assert_eq!(raw.kind(), expected);
+    }
+
+    #[test]
+    fn try_from_raw_for_track_entry_succeeds_for_normal_point() {
+        let msf = Msf::new(0, 2, 0x21);
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(3), msf, 0, msf);
+        let entry = TrackEntry::try_from(raw).unwrap();
+        assert_eq!(entry.trackno(), TrackNo(3));
+        assert_eq!(entry.start(), Frame::from(msf));
+    }
+
+    #[test]
+    fn try_from_raw_for_track_entry_fails_for_non_track_points() {
+        let msf = Msf::new(0, 2, 0);
+        // leadout point
+        let raw = RawTocEntry::new(
+            None,
+            1,
+            Control::default(),
+            0,
+            b0000::LEADOUT_TRACK_ID,
+            msf,
+            0,
+            msf,
+        );
+        assert!(TrackEntry::try_from(raw).is_err());
+        // info point
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
+        );
+        assert!(TrackEntry::try_from(raw).is_err());
+        // ADR != 1
+        let raw = RawTocEntry::new(None, 0, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        assert!(TrackEntry::try_from(raw).is_err());
+    }
+
+    #[test]
+    fn try_from_raw_for_leadout_entry_succeeds_for_leadout_points() {
+        let msf = Msf::new(0, 2, 0);
+        for point in [b0000::LEADOUT_TRACK_ID, b0010::LEADOUT_TRACK_ID] {
+            let raw = RawTocEntry::new(None, 1, Control::default(), 0, point, msf, 0, msf);
+            let entry = LeadoutEntry::try_from(raw).unwrap();
+            assert_eq!(entry.start(), Frame::from(msf));
+        }
+    }
+
+    #[test]
+    fn try_from_raw_for_leadout_entry_fails_for_non_leadout_points() {
+        let msf = Msf::new(0, 2, 0);
+        // normal track point
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        assert!(LeadoutEntry::try_from(raw).is_err());
+        // ADR != 1
+        let raw = RawTocEntry::new(
+            None,
+            0,
+            Control::default(),
+            0,
+            b0000::LEADOUT_TRACK_ID,
+            msf,
+            0,
+            msf,
+        );
+        assert!(LeadoutEntry::try_from(raw).is_err());
+    }
+
+    #[test]
+    fn try_from_raw_for_info_entry_succeeds_for_valid_a0_a1() {
+        let msf = Msf::new(0, 2, 0);
+        // FIRST_TRACK_ID with valid session and normal track in PMIN
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
+        );
+        let entry = InfoEntry::try_from(raw).unwrap();
+        assert_eq!(entry.info_type(), FirstLast::First);
+        assert_eq!(entry.trackno(), TrackNo(1));
+        assert_eq!(entry.session(), NonZeroU8::MIN);
+
+        // LAST_TRACK_ID
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::LAST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(5, 0, 0),
+        );
+        let entry = InfoEntry::try_from(raw).unwrap();
+        assert_eq!(entry.info_type(), FirstLast::Last);
+        assert_eq!(entry.trackno(), TrackNo(5));
+    }
+
+    #[test]
+    fn try_from_raw_for_info_entry_fails_for_invalid() {
+        let msf = Msf::new(0, 2, 0);
+        // no session
+        let raw = RawTocEntry::new(
+            None,
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
+        );
+        assert!(InfoEntry::try_from(raw).is_err());
+        // non-normal track in PMIN
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(0xAA, 0, 0),
+        );
+        assert!(InfoEntry::try_from(raw).is_err());
+        // not an info point
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        assert!(InfoEntry::try_from(raw).is_err());
+    }
+
+    #[test]
+    fn from_raw_glues_kind_and_tryfrom_back_together() {
+        let msf = Msf::new(0, 2, 0x21);
+
+        // track
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(1), msf, 0, msf);
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::Track(_))
+        ));
+
+        // leadout (b0000)
+        let raw = RawTocEntry::new(
+            None,
+            1,
+            Control::default(),
+            0,
+            b0000::LEADOUT_TRACK_ID,
+            msf,
+            0,
+            msf,
+        );
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::Leadout(_))
+        ));
+
+        // info
+        let raw = RawTocEntry::new(
+            Some(NonZeroU8::MIN),
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
+        );
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::TrackInfo(_))
+        ));
+
+        // unknown
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, TrackNo(0xB0), msf, 0, msf);
+        assert!(matches!(
+            Option::<TocEntry>::from(raw),
+            Some(TocEntry::Unknown(_))
+        ));
+
+        // invalid info (no session) → None
+        let raw = RawTocEntry::new(
+            None,
+            1,
+            Control::default(),
+            0,
+            b0010::FIRST_TRACK_ID,
+            msf,
+            0,
+            Msf::new(1, 0, 0),
         );
         assert_eq!(Option::<TocEntry>::from(raw), None);
     }
