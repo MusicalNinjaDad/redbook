@@ -588,37 +588,17 @@ impl RawTocEntry {
     /// before attempting the conversion.
     pub fn kind(&self) -> TocEntryKind {
         use TocEntryKind::*;
+        use TrackKind::*;
 
-        let audio = self.is_audio();
-        match (self.adr, self.point) {
-            (1, b0000::LEADOUT_TRACK_ID) | (1, b0010::LEADOUT_TRACK_ID) => {
-                if audio {
-                    AudioLeadout
-                } else {
-                    DataLeadout
-                }
-            }
-            (1, b0010::FIRST_TRACK_ID) => {
-                if audio {
-                    FirstAudioTrackInfo
-                } else {
-                    FirstDataTrackInfo
-                }
-            }
-            (1, b0010::LAST_TRACK_ID) => {
-                if audio {
-                    LastAudioTrackInfo
-                } else {
-                    LastDataTrackInfo
-                }
-            }
-            (1, point) if point.is_normal() => {
-                if audio {
-                    AudioTrack
-                } else {
-                    DataTrack
-                }
-            }
+        match (self.adr, self.point, self.control().kind()) {
+            (1, b0000::LEADOUT_TRACK_ID | b0010::LEADOUT_TRACK_ID, Audio) => AudioLeadout,
+            (1, b0000::LEADOUT_TRACK_ID | b0010::LEADOUT_TRACK_ID, Data) => DataLeadout,
+            (1, b0010::FIRST_TRACK_ID, Audio) => FirstAudioTrackInfo,
+            (1, b0010::FIRST_TRACK_ID, Data) => FirstDataTrackInfo,
+            (1, b0010::LAST_TRACK_ID, Audio) => LastAudioTrackInfo,
+            (1, b0010::LAST_TRACK_ID, Data) => LastDataTrackInfo,
+            (1, point, Audio) if point.is_normal() => AudioTrack,
+            (1, point, Data) if point.is_normal() => DataTrack,
             _ => Unknown,
         }
     }
@@ -686,7 +666,7 @@ impl PartialOrd for RawTocEntry {
 ///
 /// # Notes
 /// - As this library is focussed on audio (redbook), only data relevant to audio tracks is
-///   modelled. Use the [`Ctrl`] trait (e.g. [`is_audio`][Ctrl::is_audio]) to distinguish audio
+///   modelled. Use the [`Ctrl`] trait (e.g. [`.control().kind()`][Ctrl::kind]) to distinguish audio
 ///   from data entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TocEntry {
@@ -969,35 +949,36 @@ impl TocEntry {
         use FirstLast::*;
         use TocEntry::*;
         use TocEntryKind::*;
+        use TrackKind::*;
 
-        match (self, self.control().is_audio()) {
-            (Track(_), true) => AudioTrack,
-            (Track(_), false) => DataTrack,
-            (Leadout { .. }, true) => AudioLeadout,
-            (Leadout { .. }, false) => DataLeadout,
+        match (self, self.control().kind()) {
+            (Track(_), Audio) => AudioTrack,
+            (Track(_), Data) => DataTrack,
+            (Leadout { .. }, Audio) => AudioLeadout,
+            (Leadout { .. }, Data) => DataLeadout,
             (
                 TrackInfo(InfoEntry {
                     info_type: First, ..
                 }),
-                true,
+                Audio,
             ) => FirstAudioTrackInfo,
             (
                 TrackInfo(InfoEntry {
                     info_type: First, ..
                 }),
-                false,
+                Data,
             ) => FirstDataTrackInfo,
             (
                 TrackInfo(InfoEntry {
                     info_type: Last, ..
                 }),
-                true,
+                Audio,
             ) => LastAudioTrackInfo,
             (
                 TrackInfo(InfoEntry {
                     info_type: Last, ..
                 }),
-                false,
+                Data,
             ) => LastDataTrackInfo,
             (TocEntry::Unknown(_), _) => TocEntryKind::Unknown,
         }
@@ -1059,19 +1040,40 @@ impl Display for Control {
     }
 }
 
+/// Whether an entry belongs to an audio or a data track, as indicated by the
+/// [`Control::DATA_TRACK`] bit of its [`Control`] code.
+///
+/// Returned by [`Ctrl::kind`]. Prefer `match`ing on this over branching on the
+/// [`is_audio`][Ctrl::is_audio] / [`is_data`][Ctrl::is_data] booleans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+pub enum TrackKind {
+    /// An audio track: the [`Control::DATA_TRACK`] bit is not set
+    Audio,
+    /// A data track: the [`Control::DATA_TRACK`] bit is set
+    Data,
+}
+
 /// Contains a `Control` bitfield which can be queried
 pub trait Ctrl {
     /// obtain the relevant Control bitfield
     fn control(&self) -> Control;
 
+    /// whether this is an audio or a data track
+    fn kind(&self) -> TrackKind {
+        match self.control().contains(Control::DATA_TRACK) {
+            true => TrackKind::Data,
+            false => TrackKind::Audio,
+        }
+    }
+
     /// represents a data track
     fn is_data(&self) -> bool {
-        self.control().contains(Control::DATA_TRACK)
+        matches!(self.kind(), TrackKind::Data)
     }
 
     /// represents an audio track
     fn is_audio(&self) -> bool {
-        !self.control().is_data()
+        matches!(self.kind(), TrackKind::Audio)
     }
 }
 
