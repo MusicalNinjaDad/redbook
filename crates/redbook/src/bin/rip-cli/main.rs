@@ -240,6 +240,8 @@ fn main() -> Exit<()> {
     let ripper = thread::spawn(move || {
         for track_number in track_numbers.clone() {
             try {
+                // `track_number` is a CLI-provided usize, so use the const Option-returning
+                // constructor here rather than the `Result`-returning `new`
                 let track_number = TrackNo::checked_new(track_number)?;
                 let track = cd.disc().track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
@@ -361,7 +363,8 @@ impl<T: _T> From<io::Error> for Exit<T> {
 }
 
 // redbook library errors convert via their `From<_> for io::Error` impl, which preserves the
-// status-quo `ErrorKind` and keeps the full typed error (incl. context) in the message
+// status-quo `ErrorKind`; the full typed error (with its data-carrying context) travels inside
+// the `io::Error` and its `source()` chain
 impl<T: _T> From<redbook::Error> for Exit<T> {
     fn from(e: redbook::Error) -> Self {
         Self::from(io::Error::from(e))

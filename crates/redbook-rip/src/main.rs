@@ -304,12 +304,12 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
-        let track_number = TrackNo::checked_new(track_number).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("invalid track number: {track_number}"),
-            )
-        })?;
+        // `track_number` is a CLI-provided usize, so use the const Option-returning
+        // constructor here rather than the `Result`-returning `new`
+        let track_number = TrackNo::checked_new(track_number).ok_or(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid track number: {track_number}"),
+        ))?;
         let track = disc.track(track_number);
         tracing::info!(ripping = ?track);
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
