@@ -5,7 +5,10 @@ use std::{fs, path::Path};
 use tracing_result::Trace;
 
 use crate::{
-    Frame, LEADIN, Track, frame::Msf, toc::{TrackNo, error::InvalidTrackNo}, win::{WinErrorOld, error::CdaError},
+    Frame, LEADIN, Track,
+    frame::Msf,
+    toc::{TrackNo, error::InvalidTrackNo},
+    win::{WinErrorOld, error::CdaError},
 };
 
 /// size of `.cda` files
@@ -184,15 +187,8 @@ impl TryFrom<CdaFile> for Track<'static> {
     type Error = CdaError;
 
     fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        // Note to mistral - this is now simpler by removing a restriction in InvalidTrackNo
-        // This highlights 2 things:
-        // 1. Error types are unusual in that are "wide" in the values they accept, where "normal"
-        //    types are "narrow". (But not so wide that everything is a `Box<dyn Any>` :-) )
-        // 2. try_v2::Transform can be very helpful in complex cases (keep a note of the pattern
-        //    which was implemented in the previous commit and removed in this one)
-        let track = u8::try_from(cda.track_number)
-            .map_err(|_| InvalidTrackNo::new(cda.track_number))
-            .and_then(TrackNo::new)
+        // Note to mistral - this is now even simpler by improving the signature of TrackNo::new
+        let track = TrackNo::new(cda.track_number)
             .or_warn("cda file does not describe a normal audio track")?;
         Ok(Track::new(track, cda.start.into(), cda.duration.into()))
     }

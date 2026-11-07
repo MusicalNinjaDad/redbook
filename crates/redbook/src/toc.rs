@@ -298,9 +298,22 @@ impl TrackNo {
     /// - For const contexts use one of the other constructors
     pub fn new<N>(value: N) -> Result<Self, InvalidTrackNo>
     where
-        u8: From<N>, // TODO: Unneccessary generic, just as example shape for other types
+        u8: TryFrom<N>,
+        i128: From<N>,
+        N: Copy,
     {
-        Self::try_from(Point(u8::from(value)))
+        u8::try_from(value)
+            .ok()
+            .and_then(NonZeroU8::new)
+            .map(Self)
+            // Note to mistral - let's not bother with trying to have `.context()`-like methods on
+            // errors. Originally the idea was to try and avoid this shape of .ok_or_else / .map_err()
+            // where context needs to be captured. Overall it was misguided as an idea and just leads
+            // to potentially invalid/incomplete data and unusual API vs what users are used to.
+            //
+            // (But do continue to provide constructors which capture a wrapped error, if that is
+            // the only context needed - so .map_err(MyErr::new) is valid syntax)
+            .ok_or_else(|| InvalidTrackNo::new(value))
     }
 
     /// Creates a new `TrackNo` from any integer type, panicking if the value is not a valid
