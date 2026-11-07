@@ -343,7 +343,7 @@ impl Device for DriveHandle {
         .entered();
 
         let buf_size = ByteSize::checked_new(buf.len())
-            .ok_or(DriveError::out_of_memory())
+            .ok_or(DriveError::OutOfMemory(buf.len()))
             .or_error("buffer too large")?;
 
         // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD
@@ -355,7 +355,7 @@ impl Device for DriveHandle {
         // RAW_SECTOR_SIZE = Frame::SIZE_IN_BYTES
         let frames_to_read = buf_size
             .frames_exact_checked()
-            .ok_or_else(|| DriveError::unsupported().context("invalid buffer size"))
+            .ok_or(DriveError::Unsupported)
             .or_error("buffer not sized for CDDA")?;
 
         span.record("frames_to_read", format_args!("{frames_to_read}"));

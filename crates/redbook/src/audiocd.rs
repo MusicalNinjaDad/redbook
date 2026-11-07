@@ -51,7 +51,7 @@ use crate::{
 /// # use redbook::{AudioCd, CdDrives};
 /// let first_drive = CdDrives::all(Default::default())?
 ///     .next()
-///     .ok_or(io::Error::other("no drives found"))?;
+///     .ok_or(io::Error::other("no drives found"))??;
 /// let mut cd = AudioCd::try_from(first_drive)?;
 /// # io::Result::Ok(())
 /// ```
@@ -90,7 +90,7 @@ impl AudioCd {
     /// Rip a track: generate its tags & fetch cover art, then read the raw CDDA data from disc.
     ///
     /// # Errors
-    /// - [`DriveErrorKind::NotFound`][crate::drive::DriveErrorKind::NotFound] if `track_number` does
+    /// - [`DriveError::NotFound`][crate::drive::DriveError::NotFound] if `track_number` does
     ///   not identify an audio track on the disc (see [`Disc::track`])
     /// - propagates any error from reading the track data (see [`Drive::read_track`])
     pub fn rip(&self, track_number: TrackNo) -> Result<RippedTrack, Error> {
@@ -98,7 +98,7 @@ impl AudioCd {
         let tags = self
             .disc
             .tag_for(track_number)
-            .ok_or_else(|| Error::from(DriveError::not_found().context("track not found")))
+            .ok_or(DriveError::NotFound(track_number))
             .or_warn("unable to construct tags")?;
         let coverart = self.disc.cover_art().cloned();
         let raw_data = self.drive.read_track(track_number)?;

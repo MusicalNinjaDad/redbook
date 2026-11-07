@@ -59,7 +59,7 @@ fn main() -> io::Result<()> {
 
     let drive = CdDrives::all(rip_context.clone())?
         .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))??;
     let cd = AudioCd::try_from(drive)?;
     let cd = Arc::new(Mutex::from(cd));
 

@@ -9,15 +9,19 @@ use thread_safely::Context;
 use tracing::field::Empty;
 use tracing_result::Trace;
 
-pub use error::{DriveError, DriveErrorKind};
+pub use error::DriveError;
 
 use crate::{Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo};
 
 pub mod error;
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
-    /// The type of Iterator available that provides all available devices on the system
-    type Iter: Iterator<Item = Self>;
+    /// The type of Iterator available that provides all available devices on the system.
+    ///
+    /// Items are `Result`s so that enumeration / drive-construction failures are propagated
+    /// rather than silently ending iteration (issue #50): `None` is reserved for the expected
+    /// end-of-enumeration condition.
+    type Iter: Iterator<Item = Result<Self, DriveError>>;
 
     /// Open the device represented by the path. See [AudioCd::open][crate::AudioCd::open] for
     /// details on acceptable path formats.
@@ -38,7 +42,7 @@ pub trait Device: Sized {
     /// `start` is the absolute frame position on the disc, including the 150-frame lead-in
     /// (as provided by [`TrackEntry::start`][crate::toc::TrackEntry::start]).
     ///
-    /// Returns number of frames read. Errors with [`DriveErrorKind::Unsupported`] if `buf` is not
+    /// Returns number of frames read. Errors with [`DriveError::Unsupported`] if `buf` is not
     /// sized for an exact number of frames.
     fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> Result<Frame, DriveError>;
 
@@ -82,9 +86,9 @@ pub trait Drive: Sized {
     /// via the thread [Context].
     ///
     /// # Errors
-    /// - [`DriveErrorKind::NotFound`] if `track_number` does not identify an audio track on the disc
-    /// - [`DriveErrorKind::UnexpectedEof`] if the track has zero duration
-    /// - [`DriveErrorKind::FileTooLarge`] if the track is too long to buffer in memory
+    /// - [`DriveError::NotFound`] if `track_number` does not identify an audio track on the disc
+    /// - [`DriveError::UnexpectedEof`] if the track has zero duration
+    /// - [`DriveError::FileTooLarge`] if the track is too long to buffer in memory
     fn read_track(&self, track_number: TrackNo) -> Result<Vec<u8>, DriveError> {
         let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();
@@ -95,7 +99,7 @@ pub trait Drive: Sized {
         let track = self
             .toc()
             .track(track_number)
-            .ok_or_else(|| DriveError::not_found().context("invalid track number"))
+            .ok_or(DriveError::NotFound(track_number))
             .or_warn("")?;
 
         dbg_span.record("track_details", format_args!("{track}"));
@@ -104,18 +108,12 @@ pub trait Drive: Sized {
             .duration
             .size()
             .checked_cast()
-            .ok_or_else(|| {
-                DriveError::file_too_large().context(format!(
-                    "track too long: {size}, but can only handle {max}",
-                    size = track.duration.size(),
-                    max = usize::MAX
-                ))
-            })
+            .ok_or(DriveError::FileTooLarge(track.duration.size()))
             .or_error("")?;
 
         (track_size > 0)
-            .ok_or_else(|| DriveError::unexpected_eof().context("zero length track"))
-            .or_error("")?;
+            .ok_or(DriveError::UnexpectedEof)
+            .or_error("zero length track")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size];
@@ -132,12 +130,12 @@ pub trait Drive: Sized {
                     processed: frames_read_so_far,
                     total: track.duration,
                 })
-                .map_err(|_| DriveError::progress())
+                .map_err(|_| DriveError::Progress)
                 .or_error("sending progress update")?;
 
             let offset = MAX_CHUNK_FRAMES
                 .checked_mul(i)
-                .ok_or_else(|| DriveError::invalid_data().context("chunk offset exceeds CD max"))
+                .ok_or(DriveError::InvalidData)
                 .or_error("computing chunk offset")?;
 
             debug_assert_eq!(
@@ -149,20 +147,20 @@ pub trait Drive: Sized {
                 .toc_entry
                 .start()
                 .checked_add(offset)
-                .ok_or_else(|| DriveError::invalid_data().context("read start exceeds CD max"))
+                .ok_or(DriveError::InvalidData)
                 .or_error("computing read start")?;
 
             let frames_read = self.device().read_cdda(start, buf)?;
             frames_read_so_far = frames_read_so_far
                 .checked_add(frames_read)
-                .ok_or_else(|| DriveError::invalid_data().context("frames read exceeds CD max"))
+                .ok_or(DriveError::InvalidData)
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
         let offset = MAX_CHUNK_FRAMES
             .checked_mul(bufs.len())
-            .ok_or_else(|| DriveError::invalid_data().context("chunk offset exceeds CD max"))
+            .ok_or(DriveError::InvalidData)
             .or_error("computing last chunk offset")?;
         debug_assert_eq!(
             offset, frames_read_so_far,
@@ -177,20 +175,20 @@ pub trait Drive: Sized {
                     processed: frames_read_so_far,
                     total: track.duration,
                 })
-                .map_err(|_| DriveError::progress())
+                .map_err(|_| DriveError::Progress)
                 .or_error("sending progress update")?;
 
             let start = track
                 .toc_entry
                 .start()
                 .checked_add(offset)
-                .ok_or_else(|| DriveError::invalid_data().context("read start exceeds CD max"))
+                .ok_or(DriveError::InvalidData)
                 .or_error("computing last read start")?;
 
             let frames_read = self.device().read_cdda(start, last_buf)?;
             frames_read_so_far = frames_read_so_far
                 .checked_add(frames_read)
-                .ok_or_else(|| DriveError::invalid_data().context("frames read exceeds CD max"))
+                .ok_or(DriveError::InvalidData)
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
@@ -200,7 +198,7 @@ pub trait Drive: Sized {
                 processed: frames_read_so_far,
                 total: track.duration,
             })
-            .map_err(|_| DriveError::progress())
+            .map_err(|_| DriveError::Progress)
             .or_error("sending progress update")?;
 
         Ok(data)
@@ -300,20 +298,32 @@ impl<DEV: Device> CdDrives<DEV> {
 }
 
 impl<DEV: Device> Iterator for CdDrives<DEV> {
-    type Item = CdDrive<DEV>;
+    /// Drives are yielded as `Result`s so that enumeration & drive-construction failures are
+    /// propagated rather than silently ending iteration (issue #50); `None` is reserved for the
+    /// expected end-of-enumeration condition.
+    type Item = Result<CdDrive<DEV>, DriveError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let _span = tracing::debug_span!("CdDrives::next");
-        let device = self.devices.next()?;
-        let path = device.fs_path().or_warn("error getting path").ok()?;
-        let tocentries = device.read_toc().or_warn("error getting TOC").ok()?;
+        let device = match self.devices.next()? {
+            Ok(device) => device,
+            Err(error) => return Some(Err(error)),
+        };
+        let path = match device.fs_path() {
+            Ok(path) => path,
+            Err(error) => return Some(Err(error)),
+        };
+        let tocentries = match device.read_toc() {
+            Ok(tocentries) => tocentries,
+            Err(error) => return Some(Err(error)),
+        };
         let cx = self.cx.clone();
-        Some(CdDrive {
+        Some(Ok(CdDrive {
             path,
             device,
             tocentries,
             cx,
-        })
+        }))
     }
 }
 
@@ -329,7 +339,7 @@ mod miri {
     fn all() {
         let drives = CdDrives::<DriveHandle>::all(Default::default()).unwrap();
         let albums: Vec<_> = drives
-            .map(|drive| Toc::try_from(drive.toc()).unwrap())
+            .map(|drive| Toc::try_from(drive.unwrap().toc()).unwrap())
             .collect();
         let expected = [
             DefinitelyMaybe.expected_toc(),

@@ -3,17 +3,16 @@
 #[cfg(test)]
 use std::io;
 
-use tracing_result::Trace;
-
 use crate::{
     Device,
+    drive::DriveError,
     win::sys::{DeviceInfoSet, DriveHandle},
 };
 #[cfg(test)]
 use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 
 impl IntoIterator for DeviceInfoSet {
-    type Item = DriveHandle;
+    type Item = Result<DriveHandle, DriveError>;
 
     type IntoIter = DeviceInfoSetIter;
 
@@ -29,7 +28,10 @@ pub struct DeviceInfoSetIter {
 }
 
 impl Iterator for DeviceInfoSetIter {
-    type Item = DriveHandle;
+    /// Items are `Result`s so that enumeration & drive-construction failures are propagated
+    /// rather than silently ending iteration (issue #50); `None` is reserved for the expected
+    /// end-of-enumeration condition (`ERROR_NO_MORE_ITEMS`).
+    type Item = Result<DriveHandle, DriveError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
@@ -44,24 +46,21 @@ impl Iterator for DeviceInfoSetIter {
         )
         .entered();
 
-        let drive_data = self
-            .infoset
-            .get_member(drive_index)
-            .or_warn("error getting drive data")
-            .ok()
-            .flatten()?;
+        let drive_data = match self.infoset.get_member(drive_index) {
+            Ok(Some(drive_data)) => drive_data,
+            // expected end-of-enumeration condition
+            Ok(None) => return None,
+            Err(error) => return Some(Err(DriveError::from(error))),
+        };
 
         match DriveHandle::open(&drive_data.path()) {
-            Ok(drive) => Some(drive),
+            Ok(drive) => Some(Ok(drive)),
             Err(error) if error.is_not_ready() => {
-                // ERROR_NOT_READY (21) = no disc in drive
+                // ERROR_NOT_READY (21) = no disc in drive: expected, skip to the next device
                 drop(debug);
                 self.next()
             }
-            Err(error) => {
-                tracing::error!(%error, "opening device");
-                None
-            }
+            Err(error) => Some(Err(error)),
         }
     }
 }

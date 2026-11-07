@@ -74,7 +74,7 @@ fn main() -> Exit<()> {
         None => {
             let drive = CdDrives::all(Default::default())?
                 .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))??;
             AudioCd::try_from(drive)?
         }
     };

@@ -74,7 +74,9 @@
 //!
 //! // Find & open the first available CD drive
 //! let mut available_drives = CdDrives::all(rip_context)?;
-//! let mut first_drive = available_drives.next().ok_or(io::Error::other("No drives found"))?;
+//! let mut first_drive = available_drives
+//!     .next()
+//!     .ok_or(io::Error::other("No drives found"))??;
 //! let mut cd = AudioCd::try_from(first_drive)?;
 //!
 //! // Get additional meta data from musicbrainz

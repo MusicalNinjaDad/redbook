@@ -26,7 +26,9 @@ fn main() -> io::Result<()> {
         .with(layer().with_filter(LevelFilter::DEBUG))
         .init();
 
-    let drives: Vec<CdDrive> = CdDrives::all(Default::default()).or_error("")?.collect();
+    let drives: Vec<CdDrive> = CdDrives::all(Default::default())
+        .or_error("")?
+        .collect::<Result<_, _>>()?;
 
     for cd in drives {
         let path = cd.path();
