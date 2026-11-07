@@ -162,12 +162,21 @@ impl Display for TocErrorKind {
     }
 }
 
-impl StdError for TocErrorKind {
+// TODO #198 Either return source, or render in Display, not both
+impl StdError for TocError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            TocErrorKind::CdToc(error) => Some(error),
-            TocErrorKind::Io(error) => Some(error),
-            TocErrorKind::InvalidData | TocErrorKind::NotFound => None,
+            // In error types that wrap an underlying error, the underlying error should be either
+            // returned by the outer error’s Error::source(), or rendered by the outer error’s
+            // Display implementation, but not both.
+            // TODO: DELETE ABOVE COMMENT, only keep short line comment below
+            TocError::InvalidTrackEntry(_) => None, // rendered in Display
+            TocError::CdToc(error) => Some(error),
+            TocError::Io(error) => Some(error),
+            TocError::InvalidData | TocError::NotFound => None,
+        }
+    }
+}
         }
     }
 }
