@@ -85,7 +85,7 @@ FULL SOURCE for the standard library is available at `/opt/rustup/toolchains/nig
 
 ### Available tools
 
-You are working in a devcontainer. To identify which tools are available to you use your `devcontainer-environment` skill.
+You are working in a devcontainer. To identify which tools are available to you use your `devcontainer-environment` skill. If you are instead a remote agent in a fresh, unprepared Linux sandbox (no root, tools not preinstalled), load your `remote-sandbox-environment` skill first to bootstrap the environment.
 
 PROACTIVELY use your skills. They have been created and selected to specifically help with this project.
 
