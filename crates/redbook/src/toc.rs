@@ -945,6 +945,7 @@ impl TryFrom<RawTocEntry> for TrackEntry {
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
         match (raw.adr(), raw.point()) {
+            // TODO: #194 Make use of error-interconversion
             (1, point) if point.is_normal() => {
                 let track = TrackNo::new(point.0)
                     .ok_or_else(|| TocError::invalid_data().context("invalid track entry"))?;
