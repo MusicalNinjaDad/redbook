@@ -194,7 +194,8 @@
 //!
 //! ## Errors
 //!
-//! The library uses a structured error hierarchy (see [`error`] for the full conventions):
+//! The library uses a structured error hierarchy (see [`error`] for the full conventions; a
+//! diagram of the full tree is in the `Errors` section of `README.md`):
 //!
 //! 1. [`Error`] - the crate-root enum, used by APIs which span multiple domains (e.g.
 //!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.

@@ -22,6 +22,134 @@ There are 3 key entry points to the crate, one each for hardware, CD structure, 
 - `struct Disc` - the main entry point for working with the contents of a CD
 - `struct RippedTrack` - the main entry point for the actual music of a given track
 
+### Errors
+
+The library uses a hand-rolled 3-level error hierarchy (full conventions in the `redbook::error`
+module docs). Every error type implements `std::error::Error + Send + Sync + 'static`; error
+enums are not `#[non_exhaustive]`. Context is the *data which led to the error*, stored in the
+variant itself — there is no stringly-typed `.context(...)` API. A variant wrapping an underlying
+error is returned by `source()` and *not* rendered by `Display`; data-carrying variants are
+rendered by `Display` and return `None` from `source()`. All error types convert to `io::Error`
+preserving the call site's status-quo `ErrorKind`.
+
+```mermaid
+flowchart TD
+    subgraph L1["Level 1 — crate root: crates/redbook/src/error.rs"]
+        Error["redbook::Error — enum · impl Error<br/>redbook::Result<T, E = Error>"]
+    end
+
+    Error -->|"Io(io::Error)"| IO["io::Error — foreign (std)"]
+    Error -->|"Toc(TocError)"| TocError
+    Error -->|"Disc(DiscError)"| DiscError
+    Error -->|"Tagging(TaggingError)"| TaggingError
+    Error -->|"Track(TrackError)"| TrackError
+    Error -->|"Drive(DriveError)"| DriveError
+    Error -->|"Win(WinError)"| WinError
+
+    subgraph L2toc["Level 2 — toc: toc/error.rs (toc::TocResult<T> alias)"]
+        TocError["toc::TocError — enum · impl Error"]
+        TocError --> TE1["InvalidTrackEntry(RawTocEntry)"]
+        TocError --> TE2["InvalidLeadoutEntry(RawTocEntry)"]
+        TocError --> TE3["InvalidInfoEntry(RawTocEntry)"]
+        TocError --> TE4["InvalidTrackNo(InvalidTrackNo)"]
+        TocError --> TE5["MultiDisc"]
+        TocError --> TE6["InfoMismatch { entry: InfoEntry, found: Option<TrackNo> }"]
+        TocError --> TE7["InconsistentSessionInfo"]
+        TocError --> TE8["LeadoutMismatch { sessions, leadouts }"]
+        TocError --> TE9["InvalidOrder { this: TocEntry, next: TocEntry }"]
+        TocError --> TE10["NotFound"]
+        TocError -->|"CdToc(cdtoc::TocError)"| CDTOC["cdtoc::TocError — foreign"]
+        TocError -->|"Io(io::Error)"| IO
+    end
+    TE4 --> ITN
+
+    subgraph L2disc["Level 2 — disc: disc/error.rs"]
+        DiscError["disc::DiscError — enum · impl Error"]
+        DiscError --> DM["TrackMismatch(TrackMismatch)"]
+        DiscError --> D2["NoReleases"]
+        DiscError --> D3["Cancelled — From<Context<R>>"]
+        DiscError -->|"MusicBrainz(Box<ApiEndpointError>)"| MB["musicbrainz_rs::ApiEndpointError — foreign"]
+        DiscError -->|"Http(reqwest::Error)"| REQ["reqwest::Error — foreign"]
+        DiscError -->|"Io(io::Error)"| IO
+    end
+    DM --> TM["disc::TrackMismatch — enum · impl Error"]
+    TM --> TM1["Mismatch { provided: Track, from_toc: cdtoc::Track }"]
+    TM --> TM2["ExtraProvided(Track)"]
+    TM --> TM3["ExtraInToc(cdtoc::Track)"]
+
+    subgraph L2tag["Level 2 — tagging: tagging/error.rs"]
+        TaggingError["tagging::TaggingError — enum · impl Error"]
+        TaggingError --> TG1["UnknownMimeType(Box<str>)"]
+        TaggingError -->|"Metaflac(metaflac::Error)"| MF["metaflac::Error — foreign"]
+        TaggingError -->|"Io(io::Error)"| IO
+    end
+
+    subgraph L2track["Level 2 — track: track/error.rs"]
+        TrackError["track::TrackError — enum · impl Error"]
+        TrackError --> TR1["InvalidData(usize) — raw byte length"]
+        TrackError --> TR2["Encode(String) — flacenc EncodeError is !Send, message retained"]
+        TrackError -->|"Output(OutputError<ByteSink>)"| FE["flacenc::OutputError — foreign"]
+    end
+
+    subgraph L2drive["Level 2 — drive: drive/error.rs"]
+        DriveError["drive::DriveError — enum · impl Error"]
+        DriveError --> DR1["NotFound(TrackNo)"]
+        DriveError --> DR2["UnexpectedEof"]
+        DriveError --> DR3["FileTooLarge(ByteSize)"]
+        DriveError --> DR4["InvalidData"]
+        DriveError --> DR5["Unsupported"]
+        DriveError --> DR6["OutOfMemory(usize) — attempted buffer size"]
+        DriveError --> DR7["Cancelled — From<Context<R>>"]
+        DriveError --> DR8["Progress"]
+        DriveError -->|"Io(io::Error)"| IO
+        DriveError -->|"Win(WinError)"| WinError
+        DriveError -->|"Toc(TocError)"| TocError
+    end
+
+    subgraph L2win["Level 2 — win: win/error.rs"]
+        WinError["win::WinError — enum · impl Error"]
+        WinError --> W1["CdaError(CdaError)"]
+        WinError -->|"Io(io::Error)"| IO
+        WinError --> W3["NotReady — ERROR_NOT_READY = 21, no disc in drive"]
+        WinError --> W4["InvalidData"]
+        WinError --> W5["InvalidFilename"]
+        WinError --> W6["Unsupported"]
+        WinError --> W7["OutOfMemory"]
+        WinError --> W8["UnexpectedEof { expected, received }"]
+        WinError -->|"Toc(TocError)"| TocError
+
+        CdaError["win::error::CdaError — enum · impl Error (.cda file parsing)"]
+        CdaError --> C1["InvalidTrackNo(InvalidTrackNo)"]
+        CdaError --> C2["InvalidFrame(InvalidFrame)"]
+        CdaError --> C3["InvalidLength { expected, actual }"]
+        CdaError --> C4["InvalidHeader([u8; 4])"]
+        CdaError --> C5["InvalidChunkSize { expected, actual }"]
+        CdaError --> C6["InvalidVersion(u16)"]
+        CdaError --> C7["MismatchedStart { relative, absolute: Msf }"]
+        CdaError --> C8["MissingNullByte"]
+        CdaError --> C9["MismatchedDuration { frames: Frame, msf: Msf }"]
+    end
+    W1 --> CdaError
+    C1 --> ITN
+    C2 --> IF
+
+    subgraph L3["Level 3 — leaf structs & frame errors: frame.rs / toc/error.rs"]
+        ITN["toc::error::InvalidTrackNo(i128) — struct · impl Error<br/>wide ctor InvalidTrackNo::new (i128: From<N>)<br/>TrackNo::new -> Result<_, InvalidTrackNo>, checked_new -> Option"]
+        IF["frame::InvalidFrame(i128) — struct · impl Error<br/>Frame::new -> Result<_, InvalidFrame>"]
+        IBS["frame::InvalidByteSize(i128) — struct · impl Error<br/>ByteSize::new -> Result<_, InvalidByteSize>"]
+        PBS["frame::ParseByteSizeError — enum · impl Error (ByteSize::from_str, #186)"]
+        PBS -->|"Int(ParseIntError)"| PI["ParseIntError — foreign (std)"]
+        PBS --> P2["TooLarge(InvalidByteSize)"]
+    end
+    P2 --> IBS
+```
+
+Notes: `Device::Iter` / `CdDrives` yield `Result<_, DriveError>` items (#50) — `None` is reserved
+for the expected end-of-enumeration; no-disc (`ERROR_NOT_READY`) drives are still skipped.
+`hex::ParseHexError` is deliberately outside the hierarchy (#165). Wrapped OS errors keep
+`raw_os_error` end-to-end (`From<WinError> for io::Error` returns the original `io::Error`
+directly for `WinError::Io`).
+
 ### Example
 
 ```rust
