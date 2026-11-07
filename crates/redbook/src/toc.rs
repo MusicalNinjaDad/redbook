@@ -1510,6 +1510,7 @@ impl FromIterator<TocEntry> for Result<TocEntries, TocError> {
         (!entries.is_empty()).ok_or_else(|| TocError::not_found().context("no TOC entries"))?;
 
         // INVARIANT: all tracks are expected to be sorted
+        // TODO: #190 error constructors should allow closure-free map_err
         entries.try_sort().map_err(|_| {
             TocError::invalid_data().context("Entries appear to be from multiple discs")
         })?;
