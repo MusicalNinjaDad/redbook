@@ -74,6 +74,7 @@ impl TocErrorOld {
             TocError::InvalidData | TocError::CdToc(_) => IoErrorKind::InvalidData,
             TocError::NotFound => IoErrorKind::NotFound,
             TocError::Io(error) => error.kind(),
+            _ => todo!()
         }
     }
 }
@@ -138,6 +139,7 @@ impl From<TocErrorOld> for cdtoc::TocError {
             TocError::InvalidData | TocError::NotFound | TocError::Io(_) => {
                 cdtoc::TocError::SectorOrder
             }
+            _ => todo!()
         }
     }
 }
@@ -149,7 +151,7 @@ pub enum TocError {
     /// Attempt to createa a TrackEntry from invalid input
     InvalidTrackEntry(RawTocEntry),
     /// Track number outside valid range
-    InvalidTrackNo(Point),
+    InvalidTrackNo(InvalidTrackNo),
     /// The TOC data is invalid / inconsistent.
     InvalidData,
     /// A required TOC element (e.g. the lead-out) was not found.
@@ -160,13 +162,24 @@ pub enum TocError {
     Io(io::Error),
 }
 
+impl TocError {
+    /// TODO - Half done example shape
+    pub fn invalid_track_no(attempt: Point) -> Self {
+        Self::InvalidTrackNo(InvalidTrackNo(attempt))
+    }
+}
+
+impl From<InvalidTrackNo> for TocError {
+    fn from(error: InvalidTrackNo) -> Self {
+        TocError::InvalidTrackNo(error)
+    }
+}
+
 impl Display for TocError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TocError::InvalidTrackEntry(raw) => write!(f, "entry not valid as a track: {raw:?}"),
-            TocError::InvalidTrackNo(point) => {
-                write!(f, "invalid track number: {p:#02X}", p = point.cast::<u8>())
-            }
+            TocError::InvalidTrackNo(error) => error.fmt(f),
             TocError::InvalidData => f.write_str("invalid TOC data"),
             TocError::NotFound => f.write_str("required TOC element not found"),
             TocError::CdToc(error) => Display::fmt(error, f),
@@ -188,6 +201,24 @@ impl StdError for TocError {
             TocError::Io(error) => Some(error),
             TocError::InvalidData | TocError::NotFound => None,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// TODO - Half done example shape
+pub struct InvalidTrackNo(Point);
+
+impl InvalidTrackNo {
+    /// TODO - Half done example shape
+    pub fn new(attempt: Point) -> Self {
+        Self(attempt)
+    }
+}
+
+impl StdError for InvalidTrackNo {}
+impl Display for InvalidTrackNo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid track number: {p:#04X}", p = self.0.cast::<u8>())
     }
 }
 

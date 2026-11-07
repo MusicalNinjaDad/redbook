@@ -11,7 +11,10 @@ use std::{
     io::{self, ErrorKind as IoErrorKind},
 };
 
-use crate::{error::Error, toc::TocErrorOld};
+use crate::{
+    error::Error,
+    toc::{TocError, TocErrorOld, error::InvalidTrackNo},
+};
 
 /// `ERROR_NOT_READY`: the device is not ready, e.g. no disc in the drive.
 pub const ERROR_NOT_READY: i32 = 21;
@@ -23,14 +26,14 @@ pub const ERROR_NOT_READY: i32 = 21;
 /// Wrapped foreign errors convert via `From` / `?`.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct WinError {
-    kind: WinErrorKind,
+pub struct WinErrorOld {
+    kind: WinError,
     context: Option<Box<str>>,
 }
 
-impl WinError {
+impl WinErrorOld {
     /// The detailed kind of this error.
-    pub const fn kind(&self) -> &WinErrorKind {
+    pub const fn kind(&self) -> &WinError {
         &self.kind
     }
 
@@ -47,7 +50,7 @@ impl WinError {
             Self::not_ready()
         } else {
             Self {
-                kind: WinErrorKind::Io(error),
+                kind: WinError::Io(error),
                 context: None,
             }
         }
@@ -56,7 +59,7 @@ impl WinError {
     /// The device is not ready, e.g. no disc in the drive (`ERROR_NOT_READY`, 21).
     pub const fn not_ready() -> Self {
         Self {
-            kind: WinErrorKind::NotReady,
+            kind: WinError::NotReady,
             context: None,
         }
     }
@@ -64,7 +67,7 @@ impl WinError {
     /// The data is invalid.
     pub const fn invalid_data() -> Self {
         Self {
-            kind: WinErrorKind::InvalidData,
+            kind: WinError::InvalidData,
             context: None,
         }
     }
@@ -72,7 +75,7 @@ impl WinError {
     /// The filename/path is invalid.
     pub const fn invalid_filename() -> Self {
         Self {
-            kind: WinErrorKind::InvalidFilename,
+            kind: WinError::InvalidFilename,
             context: None,
         }
     }
@@ -80,7 +83,7 @@ impl WinError {
     /// The operation is not supported by the device.
     pub const fn unsupported() -> Self {
         Self {
-            kind: WinErrorKind::Unsupported,
+            kind: WinError::Unsupported,
             context: None,
         }
     }
@@ -88,7 +91,7 @@ impl WinError {
     /// The buffer is too large.
     pub const fn out_of_memory() -> Self {
         Self {
-            kind: WinErrorKind::OutOfMemory,
+            kind: WinError::OutOfMemory,
             context: None,
         }
     }
@@ -96,32 +99,33 @@ impl WinError {
     /// Fewer bytes were returned than expected.
     pub const fn unexpected_eof() -> Self {
         Self {
-            kind: WinErrorKind::UnexpectedEof,
+            kind: WinError::UnexpectedEof,
             context: None,
         }
     }
 
     /// Whether this error is `ERROR_NOT_READY` (no disc in drive).
     pub fn is_not_ready(&self) -> bool {
-        matches!(self.kind, WinErrorKind::NotReady)
+        matches!(self.kind, WinError::NotReady)
     }
 
     /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
     /// behaviour of the call site which produced it.
     pub fn io_kind(&self) -> IoErrorKind {
         match &self.kind {
-            WinErrorKind::Io(error) => error.kind(),
-            WinErrorKind::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY).kind(),
-            WinErrorKind::InvalidData | WinErrorKind::Toc(_) => IoErrorKind::InvalidData,
-            WinErrorKind::InvalidFilename => IoErrorKind::InvalidFilename,
-            WinErrorKind::Unsupported => IoErrorKind::Unsupported,
-            WinErrorKind::OutOfMemory => IoErrorKind::OutOfMemory,
-            WinErrorKind::UnexpectedEof => IoErrorKind::UnexpectedEof,
+            WinError::Io(error) => error.kind(),
+            WinError::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY).kind(),
+            WinError::InvalidData | WinError::Toc(_) => IoErrorKind::InvalidData,
+            WinError::InvalidFilename => IoErrorKind::InvalidFilename,
+            WinError::Unsupported => IoErrorKind::Unsupported,
+            WinError::OutOfMemory => IoErrorKind::OutOfMemory,
+            WinError::UnexpectedEof => IoErrorKind::UnexpectedEof,
+            _ => todo!(),
         }
     }
 }
 
-impl Display for WinError {
+impl Display for WinErrorOld {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.context {
             Some(context) => write!(f, "{}: {context}", self.kind),
@@ -130,14 +134,14 @@ impl Display for WinError {
     }
 }
 
-impl StdError for WinError {
+impl StdError for WinErrorOld {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         Some(&self.kind)
     }
 }
 
-impl From<WinErrorKind> for WinError {
-    fn from(kind: WinErrorKind) -> Self {
+impl From<WinError> for WinErrorOld {
+    fn from(kind: WinError) -> Self {
         Self {
             kind,
             context: None,
@@ -145,44 +149,45 @@ impl From<WinErrorKind> for WinError {
     }
 }
 
-impl From<io::Error> for WinError {
+impl From<io::Error> for WinErrorOld {
     fn from(error: io::Error) -> Self {
         Self::io(error)
     }
 }
 
-impl From<TocErrorOld> for WinError {
+impl From<TocErrorOld> for WinErrorOld {
     fn from(error: TocErrorOld) -> Self {
         Self {
-            kind: WinErrorKind::Toc(error),
+            kind: WinError::Toc(error),
             context: None,
         }
     }
 }
 
-impl From<WinError> for Error {
-    fn from(error: WinError) -> Self {
+impl From<WinErrorOld> for Error {
+    fn from(error: WinErrorOld) -> Self {
         crate::error::ErrorKind::Win(error).into()
     }
 }
 
-impl From<WinError> for io::Error {
-    fn from(error: WinError) -> Self {
+impl From<WinErrorOld> for io::Error {
+    fn from(error: WinErrorOld) -> Self {
         match error.kind {
             // return the original OS error directly, preserving raw_os_error (status quo: call
             // sites propagated the io::Error unchanged)
-            WinErrorKind::Io(error) => error,
-            WinErrorKind::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY),
+            WinError::Io(error) => error,
+            WinError::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY),
             kind => io::Error::new(
                 match &kind {
-                    WinErrorKind::InvalidData | WinErrorKind::Toc(_) => IoErrorKind::InvalidData,
-                    WinErrorKind::InvalidFilename => IoErrorKind::InvalidFilename,
-                    WinErrorKind::Unsupported => IoErrorKind::Unsupported,
-                    WinErrorKind::OutOfMemory => IoErrorKind::OutOfMemory,
-                    WinErrorKind::UnexpectedEof => IoErrorKind::UnexpectedEof,
-                    WinErrorKind::Io(_) | WinErrorKind::NotReady => unreachable!(),
+                    WinError::InvalidData | WinError::Toc(_) => IoErrorKind::InvalidData,
+                    WinError::InvalidFilename => IoErrorKind::InvalidFilename,
+                    WinError::Unsupported => IoErrorKind::Unsupported,
+                    WinError::OutOfMemory => IoErrorKind::OutOfMemory,
+                    WinError::UnexpectedEof => IoErrorKind::UnexpectedEof,
+                    WinError::Io(_) | WinError::NotReady => unreachable!(),
+                    _ => todo!(),
                 },
-                WinError {
+                WinErrorOld {
                     kind,
                     context: error.context,
                 },
@@ -195,7 +200,9 @@ impl From<WinError> for io::Error {
 /// it in a single tuple field and return it directly from `source()`.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum WinErrorKind {
+pub enum WinError {
+    /// An error related to a .cda file
+    CdaError(CdaError), // Note to mistral: C-WORD-ORDER (delete this comment when read)
     /// A wrapped [`io::Error`], e.g. a raw OS error from a Windows API call.
     Io(io::Error),
     /// The device is not ready, e.g. no disc in the drive (`ERROR_NOT_READY`, 21).
@@ -214,32 +221,60 @@ pub enum WinErrorKind {
     Toc(TocErrorOld),
 }
 
-impl Display for WinErrorKind {
+impl From<CdaError> for WinError {
+    fn from(error: CdaError) -> Self {
+        WinError::CdaError(error)
+    }
+}
+
+#[derive(Debug)]
+/// TODO - Half done example shape
+pub enum CdaError {
+    /// Track number outside valid range (1..=99)
+    InvalidTrackNo(InvalidTrackNo),
+    /// Track number too large for a u8.
+    ///
+    /// # Note
+    /// This really should never happen but ... Internally cda files store track number in 2 bytes,
+    /// so in theory they could be > 254. This variant is only here to simplify the more "normal"
+    /// error case `InvalidTrackNo`
+    ExcessiveTrackNo(u16),
+}
+
+impl From<InvalidTrackNo> for CdaError {
+    fn from(error: InvalidTrackNo) -> Self {
+        CdaError::InvalidTrackNo(error)
+    }
+}
+
+impl Display for WinError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WinErrorKind::Io(error) => Display::fmt(error, f),
-            WinErrorKind::NotReady => f.write_str("device not ready (no disc in drive)"),
-            WinErrorKind::InvalidData => f.write_str("invalid data"),
-            WinErrorKind::InvalidFilename => f.write_str("invalid filename"),
-            WinErrorKind::Unsupported => f.write_str("operation not supported"),
-            WinErrorKind::OutOfMemory => f.write_str("buffer too large"),
-            WinErrorKind::UnexpectedEof => f.write_str("unexpected end of data"),
-            WinErrorKind::Toc(error) => Display::fmt(error, f),
+            WinError::Io(error) => Display::fmt(error, f),
+            WinError::NotReady => f.write_str("device not ready (no disc in drive)"),
+            WinError::InvalidData => f.write_str("invalid data"),
+            WinError::InvalidFilename => f.write_str("invalid filename"),
+            WinError::Unsupported => f.write_str("operation not supported"),
+            WinError::OutOfMemory => f.write_str("buffer too large"),
+            WinError::UnexpectedEof => f.write_str("unexpected end of data"),
+            WinError::Toc(error) => Display::fmt(error, f),
+            _ => todo!(),
         }
     }
 }
 
-impl StdError for WinErrorKind {
+impl StdError for WinError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            WinErrorKind::Io(error) => Some(error),
-            WinErrorKind::Toc(error) => Some(error),
-            WinErrorKind::NotReady
-            | WinErrorKind::InvalidData
-            | WinErrorKind::InvalidFilename
-            | WinErrorKind::Unsupported
-            | WinErrorKind::OutOfMemory
-            | WinErrorKind::UnexpectedEof => None,
+            WinError::Io(error) => Some(error),
+            WinError::Toc(error) => Some(error),
+            WinError::NotReady
+            | WinError::InvalidData
+            | WinError::InvalidFilename
+            | WinError::Unsupported
+            | WinError::OutOfMemory
+            | WinError::UnexpectedEof => None,
+            _ => todo!(),
         }
     }
 }
@@ -253,21 +288,21 @@ mod tests {
     #[test]
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
+        assert_traits::<WinErrorOld>();
         assert_traits::<WinError>();
-        assert_traits::<WinErrorKind>();
     }
 
     #[test]
     fn display_omits_missing_context() {
         assert_eq!(
-            WinError::not_ready().to_string(),
+            WinErrorOld::not_ready().to_string(),
             "device not ready (no disc in drive)"
         );
     }
 
     #[test]
     fn display_includes_context_when_provided() {
-        let error = WinError::invalid_data().context("Missing or invalid RIFF header");
+        let error = WinErrorOld::invalid_data().context("Missing or invalid RIFF header");
         assert_eq!(
             error.to_string(),
             "invalid data: Missing or invalid RIFF header"
@@ -276,9 +311,9 @@ mod tests {
 
     #[test]
     fn os_error_21_maps_to_not_ready() {
-        let error = WinError::from(io::Error::from_raw_os_error(ERROR_NOT_READY));
+        let error = WinErrorOld::from(io::Error::from_raw_os_error(ERROR_NOT_READY));
         assert!(error.is_not_ready());
-        assert!(matches!(error.kind(), WinErrorKind::NotReady));
+        assert!(matches!(error.kind(), WinError::NotReady));
         assert_eq!(
             io::Error::from(error).raw_os_error(),
             Some(ERROR_NOT_READY),
@@ -289,8 +324,8 @@ mod tests {
     #[test]
     fn other_os_errors_keep_their_io_error() {
         let raw = io::Error::from_raw_os_error(5); // ERROR_ACCESS_DENIED
-        let error = WinError::from(raw);
-        assert!(matches!(error.kind(), WinErrorKind::Io(_)));
+        let error = WinErrorOld::from(raw);
+        assert!(matches!(error.kind(), WinError::Io(_)));
         let io_error = io::Error::from(error);
         assert_eq!(io_error.raw_os_error(), Some(5));
     }
@@ -298,23 +333,23 @@ mod tests {
     #[test]
     fn io_error_conversion_preserves_status_quo_kind() {
         assert_eq!(
-            io::Error::from(WinError::invalid_data()).kind(),
+            io::Error::from(WinErrorOld::invalid_data()).kind(),
             IoErrorKind::InvalidData
         );
         assert_eq!(
-            io::Error::from(WinError::invalid_filename()).kind(),
+            io::Error::from(WinErrorOld::invalid_filename()).kind(),
             IoErrorKind::InvalidFilename
         );
         assert_eq!(
-            io::Error::from(WinError::unsupported()).kind(),
+            io::Error::from(WinErrorOld::unsupported()).kind(),
             IoErrorKind::Unsupported
         );
         assert_eq!(
-            io::Error::from(WinError::out_of_memory()).kind(),
+            io::Error::from(WinErrorOld::out_of_memory()).kind(),
             IoErrorKind::OutOfMemory
         );
         assert_eq!(
-            io::Error::from(WinError::unexpected_eof()).kind(),
+            io::Error::from(WinErrorOld::unexpected_eof()).kind(),
             IoErrorKind::UnexpectedEof
         );
     }

@@ -136,7 +136,7 @@ pub enum ErrorKind {
     /// A [`drive`][crate::drive] domain error.
     Drive(crate::drive::DriveError),
     /// A [`win`] domain error (Windows hardware access).
-    Win(crate::win::WinError),
+    Win(crate::win::WinErrorOld),
 }
 
 impl Display for ErrorKind {

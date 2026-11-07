@@ -23,7 +23,7 @@ use derive_more::Display;
 use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf, toc::error::TocResult};
+use crate::{Frame, Track, frame::Msf, toc::error::{InvalidTrackNo, TocResult}};
 
 pub use error::{TocError, TocErrorOld};
 
@@ -296,7 +296,7 @@ impl TrackNo {
     ///
     /// # Note
     /// - For const contexts use one of the other constructors
-    pub fn new<N>(value: N) -> TocResult<Self>
+    pub fn new<N>(value: N) -> Result<Self, InvalidTrackNo>
     where
         u8: From<N>, // TODO: Unneccessary generic, just as example shape for other types
     {
@@ -445,13 +445,13 @@ const impl PartialEq for TrackNo {
 impl StructuralPartialEq for TrackNo {}
 
 impl TryFrom<Point> for TrackNo {
-    type Error = TocError;
+    type Error = InvalidTrackNo;
 
     fn try_from(point: Point) -> Result<Self, Self::Error> {
         NonZeroU8::new(point.cast())
             .map(Self)
             .and_then(Self::validate)
-            .ok_or(TocError::InvalidTrackNo(point))
+            .ok_or_else(|| InvalidTrackNo::new(point))
     }
 }
 

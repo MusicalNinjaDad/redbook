@@ -132,7 +132,7 @@ impl From<TestAlbum> for CDROM_TOC {
 }
 
 impl TryFrom<CDROM_TOC> for TocEntries {
-    type Error = crate::win::WinError;
+    type Error = crate::win::WinErrorOld;
 
     fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
         toc.track_entries()
@@ -141,7 +141,7 @@ impl TryFrom<CDROM_TOC> for TocEntries {
             .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
             .collect::<Result<_, crate::toc::TocErrorOld>>()
-            .map_err(crate::win::WinError::from)
+            .map_err(crate::win::WinErrorOld::from)
     }
 }
 
@@ -203,7 +203,7 @@ mod tests {
     };
 
     impl CDROM_TOC {
-        fn to_toc(self) -> Result<Toc, crate::win::WinError> {
+        fn to_toc(self) -> Result<Toc, crate::win::WinErrorOld> {
             let tocentries = &TocEntries::try_from(self)?;
             Ok(tocentries.try_into()?)
         }
