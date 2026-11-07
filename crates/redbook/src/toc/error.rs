@@ -11,7 +11,6 @@ use std::{
 };
 
 use crate::{
-    Point,
     error::{Error, ErrorKind},
     toc::RawTocEntry,
 };
@@ -74,7 +73,7 @@ impl TocErrorOld {
             TocError::InvalidData | TocError::CdToc(_) => IoErrorKind::InvalidData,
             TocError::NotFound => IoErrorKind::NotFound,
             TocError::Io(error) => error.kind(),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
@@ -139,7 +138,7 @@ impl From<TocErrorOld> for cdtoc::TocError {
             TocError::InvalidData | TocError::NotFound | TocError::Io(_) => {
                 cdtoc::TocError::SectorOrder
             }
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
@@ -160,13 +159,6 @@ pub enum TocError {
     CdToc(cdtoc::TocError),
     /// A wrapped [`io::Error`].
     Io(io::Error),
-}
-
-impl TocError {
-    /// TODO - Half done example shape
-    pub fn invalid_track_no(attempt: Point) -> Self {
-        Self::InvalidTrackNo(InvalidTrackNo(attempt))
-    }
 }
 
 impl From<InvalidTrackNo> for TocError {
@@ -206,19 +198,22 @@ impl StdError for TocError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// TODO - Half done example shape
-pub struct InvalidTrackNo(Point);
+pub struct InvalidTrackNo(i128);
 
 impl InvalidTrackNo {
     /// TODO - Half done example shape
-    pub fn new(attempt: Point) -> Self {
-        Self(attempt)
+    pub fn new<N>(attempt: N) -> Self
+    where
+        i128: From<N>,
+    {
+        Self(attempt.into())
     }
 }
 
 impl StdError for InvalidTrackNo {}
 impl Display for InvalidTrackNo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid track number: {p:#04X}", p = self.0.cast::<u8>())
+        write!(f, "invalid track number: {p:#04X}", p = self.0)
     }
 }
 

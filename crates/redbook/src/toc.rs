@@ -23,7 +23,7 @@ use derive_more::Display;
 use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf, toc::error::{InvalidTrackNo, TocResult}};
+use crate::{Frame, Track, frame::Msf, toc::error::InvalidTrackNo};
 
 pub use error::{TocError, TocErrorOld};
 
@@ -451,7 +451,7 @@ impl TryFrom<Point> for TrackNo {
         NonZeroU8::new(point.cast())
             .map(Self)
             .and_then(Self::validate)
-            .ok_or_else(|| InvalidTrackNo::new(point))
+            .ok_or_else(|| InvalidTrackNo::new(point.cast::<u8>()))
     }
 }
 

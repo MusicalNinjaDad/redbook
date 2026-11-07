@@ -13,7 +13,7 @@ use std::{
 
 use crate::{
     error::Error,
-    toc::{TocError, TocErrorOld, error::InvalidTrackNo},
+    toc::{TocErrorOld, error::InvalidTrackNo},
 };
 
 /// `ERROR_NOT_READY`: the device is not ready, e.g. no disc in the drive.
@@ -232,13 +232,6 @@ impl From<CdaError> for WinError {
 pub enum CdaError {
     /// Track number outside valid range (1..=99)
     InvalidTrackNo(InvalidTrackNo),
-    /// Track number too large for a u8.
-    ///
-    /// # Note
-    /// This really should never happen but ... Internally cda files store track number in 2 bytes,
-    /// so in theory they could be > 254. This variant is only here to simplify the more "normal"
-    /// error case `InvalidTrackNo`
-    ExcessiveTrackNo(u16),
 }
 
 impl From<InvalidTrackNo> for CdaError {
