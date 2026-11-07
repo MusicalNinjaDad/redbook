@@ -277,7 +277,7 @@ pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{RippedTrack, Track, TrackError, TrackErrorKind};
+pub use track::{RippedTrack, Track, TrackError};
 
 use crate::{frame::ByteSize, win::DriveHandle};
 

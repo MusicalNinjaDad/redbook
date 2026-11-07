@@ -26,7 +26,7 @@ use crate::{
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
-pub use error::{DiscError, DiscErrorKind};
+pub use error::{DiscError, TrackMismatch};
 
 pub mod error;
 
@@ -142,18 +142,20 @@ impl Disc {
             .zip_longest(toc.audio_tracks())
             .try_for_each(|zipped| match zipped {
                 itertools::EitherOrBoth::Both(track, toc_track) if track == &toc_track => Ok(()),
-                itertools::EitherOrBoth::Both(track, toc_track) => Err(DiscError::invalid_input()
-                    .context(format!("track mismatch: toc {toc_track:?} vs tracks {track}"))),
-                itertools::EitherOrBoth::Left(track) => Err(DiscError::invalid_input().context(
-                    format!(
-                        "provided tracks contains more entries than toc. first additional entry {track}"
-                    ),
+                itertools::EitherOrBoth::Both(track, toc_track) => {
+                    Err(DiscError::TrackMismatch(TrackMismatch::Mismatch {
+                        provided: *track,
+                        from_toc: toc_track,
+                    }))
+                }
+                itertools::EitherOrBoth::Left(track) => Err(DiscError::TrackMismatch(
+                    TrackMismatch::ExtraProvided(*track),
                 )),
-                itertools::EitherOrBoth::Right(toc_track) => Err(DiscError::invalid_input()
-                    .context(format!(
-                        "toc contains more entries than provided tracks. first additional entry {toc_track:?}"
-                    ))),
-            }).or_warn("mismatch between provided TOC & provided tracks")?;
+                itertools::EitherOrBoth::Right(toc_track) => Err(DiscError::TrackMismatch(
+                    TrackMismatch::ExtraInToc(toc_track),
+                )),
+            })
+            .or_warn("mismatch between provided TOC & provided tracks")?;
 
         Ok(Self {
             toc,
@@ -533,7 +535,7 @@ impl Disc {
         tracing::trace!("");
         let release_mbid = self
             .release()
-            .ok_or_else(|| DiscError::no_releases().context("No releases found"))
+            .ok_or(DiscError::NoReleases)
             .or_warn("")?
             .id
             .clone();
@@ -620,7 +622,7 @@ impl Disc {
             .all_releases()
             .as_ref()
             .map(|releases| releases.iter().map(|release| release.id.clone()))
-            .ok_or_else(|| DiscError::no_releases().context("No releases found"))
+            .ok_or(DiscError::NoReleases)
             .or_warn("no releases found")?
             .collect();
         for id in release_ids {

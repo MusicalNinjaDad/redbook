@@ -19,7 +19,7 @@ use musicbrainz_rs::entity::{
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
-pub use error::{TaggingError, TaggingErrorKind};
+pub use error::TaggingError;
 
 pub mod error;
 
@@ -117,8 +117,9 @@ impl FromStr for ImageMimeTypes {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mimetype = match s {
             "image/jpeg" => ImageMimeTypes::Jpeg,
-            _ => Err(TaggingError::invalid_data().context("unknown mime type"))
-                .or_warn("parsing artwork mime type")?,
+            _ => {
+                Err(TaggingError::UnknownMimeType(s.into())).or_warn("parsing artwork mime type")?
+            }
         };
         Ok(mimetype)
     }

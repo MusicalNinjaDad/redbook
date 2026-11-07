@@ -1,9 +1,9 @@
-//! Level-2 error for [`disc`][crate::disc]: [`DiscError`] with leaf kinds in [`DiscErrorKind`].
+//! Level-2 error for [`disc`][crate::disc]: the [`DiscError`] enum & the [`TrackMismatch`] leaf.
 //!
 //! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`, `#[non_exhaustive]`, optional `.context(...)` chaining which is
-//! omitted from `Display` when absent, `source()` returning the directly wrapped type, and
-//! `From<DiscError> for io::Error` preserving the call site's previous [`io::ErrorKind`].
+//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error, data-carrying
+//! variants rendered by `Display`, and `From<DiscError> for io::Error` preserving the call site's
+//! previous [`io::ErrorKind`].
 use std::{
     error::Error as StdError,
     fmt::{self, Display},
@@ -12,130 +12,94 @@ use std::{
 
 use thread_safely::Context;
 
-use crate::error::Error;
+use crate::{Track, error::Error};
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.
 ///
-/// Construct simple variants via their constructor (usable directly in
-/// `.map_err(DiscError::invalid_input)`) and attach optional context with
-/// [`DiscError::context`]. Wrapped foreign errors convert via `From` / `?`.
+/// Variants carry the data which led to the error (issue #193). Variants wrapping an underlying
+/// error are returned by `source()` and *not* rendered by `Display` (issue #198). Wrapped foreign
+/// errors convert via `From` / `?`.
 #[derive(Debug)]
-#[non_exhaustive]
-pub struct DiscError {
-    kind: DiscErrorKind,
-    context: Option<Box<str>>,
+pub enum DiscError {
+    /// The provided tracks do not match the TOC.
+    TrackMismatch(TrackMismatch),
+    /// No MusicBrainz release was found / selected.
+    NoReleases,
+    /// The rip was cancelled via its [`Context`].
+    Cancelled,
+    /// A wrapped [`musicbrainz_rs`] error, e.g. from fetching disc metadata. Boxed because the
+    /// snafu-generated error is too large to keep the `Err` variant small
+    /// (`clippy::result_large_err`).
+    MusicBrainz(Box<musicbrainz_rs::ApiEndpointError>),
+    /// A wrapped [`reqwest`] error, e.g. from downloading cover art.
+    Http(reqwest::Error),
+    /// A wrapped [`io::Error`].
+    Io(io::Error),
 }
 
 impl DiscError {
-    /// The detailed kind of this error.
-    pub const fn kind(&self) -> &DiscErrorKind {
-        &self.kind
-    }
-
-    /// Attach optional context, rendered by [`Display`] when present.
-    pub fn context(mut self, context: impl Display) -> Self {
-        self.context = Some(context.to_string().into_boxed_str());
-        self
-    }
-
-    /// Input data is invalid, e.g. tracks which do not match the TOC.
-    pub const fn invalid_input() -> Self {
-        Self {
-            kind: DiscErrorKind::InvalidInput,
-            context: None,
-        }
-    }
-
-    /// No MusicBrainz release was found / selected.
-    pub const fn no_releases() -> Self {
-        Self {
-            kind: DiscErrorKind::NoReleases,
-            context: None,
-        }
-    }
-
-    /// The rip was cancelled via its [`Context`].
-    pub const fn cancelled() -> Self {
-        Self {
-            kind: DiscErrorKind::Cancelled,
-            context: None,
-        }
-    }
-
-    /// A wrapped [`io::Error`].
-    pub fn io(error: io::Error) -> Self {
-        Self {
-            kind: DiscErrorKind::Io(error),
-            context: None,
-        }
-    }
-
     /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
     /// behaviour of the call site which produced it.
     pub fn io_kind(&self) -> IoErrorKind {
-        match &self.kind {
-            DiscErrorKind::InvalidInput => IoErrorKind::InvalidInput,
-            DiscErrorKind::NoReleases | DiscErrorKind::MusicBrainz(_) | DiscErrorKind::Http(_) => {
+        match self {
+            DiscError::TrackMismatch(_) => IoErrorKind::InvalidInput,
+            DiscError::NoReleases | DiscError::MusicBrainz(_) | DiscError::Http(_) => {
                 IoErrorKind::Other
             }
-            DiscErrorKind::Cancelled => IoErrorKind::Interrupted,
-            DiscErrorKind::Io(error) => error.kind(),
+            DiscError::Cancelled => IoErrorKind::Interrupted,
+            DiscError::Io(error) => error.kind(),
         }
     }
 }
 
 impl Display for DiscError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.context {
-            Some(context) => write!(f, "{}: {context}", self.kind),
-            None => Display::fmt(&self.kind, f),
+        match self {
+            DiscError::TrackMismatch(mismatch) => Display::fmt(mismatch, f),
+            DiscError::NoReleases => f.write_str("no releases found"),
+            DiscError::Cancelled => f.write_str("thread cancellation requested by controller"),
+            // wrapped errors are returned by `source()`, not rendered here (issue #198)
+            DiscError::MusicBrainz(_) => f.write_str("MusicBrainz API error"),
+            DiscError::Http(_) => f.write_str("HTTP error"),
+            DiscError::Io(_) => f.write_str("I/O error"),
         }
     }
 }
 
 impl StdError for DiscError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        Some(&self.kind)
-    }
-}
-
-impl From<DiscErrorKind> for DiscError {
-    fn from(kind: DiscErrorKind) -> Self {
-        Self {
-            kind,
-            context: None,
+        match self {
+            DiscError::MusicBrainz(error) => Some(error),
+            DiscError::Http(error) => Some(error),
+            DiscError::Io(error) => Some(error),
+            // data-carrying variants are rendered in Display instead (issue #198)
+            DiscError::TrackMismatch(_) | DiscError::NoReleases | DiscError::Cancelled => None,
         }
     }
 }
 
 impl From<musicbrainz_rs::ApiEndpointError> for DiscError {
     fn from(error: musicbrainz_rs::ApiEndpointError) -> Self {
-        Self {
-            kind: DiscErrorKind::MusicBrainz(Box::new(error)),
-            context: None,
-        }
+        DiscError::MusicBrainz(Box::new(error))
     }
 }
 
 impl From<reqwest::Error> for DiscError {
     fn from(error: reqwest::Error) -> Self {
-        Self {
-            kind: DiscErrorKind::Http(error),
-            context: None,
-        }
+        DiscError::Http(error)
     }
 }
 
 impl<R> From<Context<R>> for DiscError {
     fn from(_: Context<R>) -> Self {
-        Self::cancelled()
+        DiscError::Cancelled
     }
 }
 
 impl From<io::Error> for DiscError {
     fn from(error: io::Error) -> Self {
-        Self::io(error)
+        DiscError::Io(error)
     }
 }
 
@@ -151,52 +115,44 @@ impl From<DiscError> for io::Error {
     }
 }
 
-/// Leaf kinds of [`DiscError`]: level 3 of the hierarchy. Variants wrapping a foreign error hold
-/// it in a single tuple field and return it directly from `source()`.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum DiscErrorKind {
-    /// Input data is invalid, e.g. tracks which do not match the TOC.
-    InvalidInput,
-    /// No MusicBrainz release was found / selected.
-    NoReleases,
-    /// The rip was cancelled via its [`Context`][thread_safely::Context].
-    Cancelled,
-    /// A wrapped [`musicbrainz_rs`] error, e.g. from fetching disc metadata. Boxed because the
-    /// snafu-generated error is too large to keep the `Err` variant small
-    /// (`clippy::result_large_err`).
-    MusicBrainz(Box<musicbrainz_rs::ApiEndpointError>),
-    /// A wrapped [`reqwest`] error, e.g. from downloading cover art.
-    Http(reqwest::Error),
-    /// A wrapped [`io::Error`].
-    Io(io::Error),
+/// Leaf error: the provided tracks do not match the TOC (see [`Disc::new`][crate::Disc::new]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TrackMismatch {
+    /// A provided track differs from the corresponding TOC entry.
+    Mismatch {
+        /// The track as provided.
+        provided: Track<'static>,
+        /// The corresponding entry from the TOC.
+        from_toc: cdtoc::Track,
+    },
+    /// More tracks were provided than the TOC has entries; the first additional one.
+    ExtraProvided(Track<'static>),
+    /// The TOC has more entries than tracks were provided; the first additional one.
+    ExtraInToc(cdtoc::Track),
 }
 
-impl Display for DiscErrorKind {
+impl Display for TrackMismatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DiscErrorKind::InvalidInput => f.write_str("invalid input"),
-            DiscErrorKind::NoReleases => f.write_str("no releases found"),
-            DiscErrorKind::Cancelled => f.write_str("thread cancellation requested by controller"),
-            DiscErrorKind::MusicBrainz(error) => Display::fmt(error, f),
-            DiscErrorKind::Http(error) => Display::fmt(error, f),
-            DiscErrorKind::Io(error) => Display::fmt(error, f),
+            TrackMismatch::Mismatch { provided, from_toc } => {
+                write!(
+                    f,
+                    "track mismatch: toc {from_toc:?} vs provided track {provided}"
+                )
+            }
+            TrackMismatch::ExtraProvided(track) => write!(
+                f,
+                "provided tracks contain more entries than the toc; first additional entry {track}"
+            ),
+            TrackMismatch::ExtraInToc(toc_track) => write!(
+                f,
+                "toc contains more entries than the provided tracks; first additional entry {toc_track:?}"
+            ),
         }
     }
 }
 
-impl StdError for DiscErrorKind {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            DiscErrorKind::MusicBrainz(error) => Some(error),
-            DiscErrorKind::Http(error) => Some(error),
-            DiscErrorKind::Io(error) => Some(error),
-            DiscErrorKind::InvalidInput | DiscErrorKind::NoReleases | DiscErrorKind::Cancelled => {
-                None
-            }
-        }
-    }
-}
+impl StdError for TrackMismatch {}
 
 #[cfg(test)]
 mod tests {
@@ -208,39 +164,55 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<DiscError>();
-        assert_traits::<DiscErrorKind>();
+        assert_traits::<TrackMismatch>();
     }
 
     #[test]
-    fn display_omits_missing_context() {
-        assert_eq!(DiscError::no_releases().to_string(), "no releases found");
-    }
-
-    #[test]
-    fn display_includes_context_when_provided() {
-        let error = DiscError::invalid_input().context("track 3 not in TOC");
-        assert_eq!(error.to_string(), "invalid input: track 3 not in TOC");
+    fn display_renders_labels_and_data() {
+        assert_eq!(DiscError::NoReleases.to_string(), "no releases found");
+        assert_eq!(
+            DiscError::from(io::Error::new(IoErrorKind::NotFound, "gone")).to_string(),
+            "I/O error"
+        );
     }
 
     #[test]
     fn io_error_conversion_preserves_status_quo_kind() {
-        assert_eq!(
-            io::Error::from(DiscError::invalid_input()).kind(),
+        assert!(matches!(
+            io::Error::from(DiscError::TrackMismatch(TrackMismatch::ExtraInToc(
+                cdtoc::Toc::from_cdtoc("1+96+2D2B")
+                    .unwrap()
+                    .audio_tracks()
+                    .next()
+                    .unwrap()
+            )))
+            .kind(),
             IoErrorKind::InvalidInput
-        );
+        ));
         assert_eq!(
-            io::Error::from(DiscError::no_releases()).kind(),
+            io::Error::from(DiscError::NoReleases).kind(),
             IoErrorKind::Other
         );
         assert_eq!(
-            io::Error::from(DiscError::cancelled()).kind(),
+            io::Error::from(DiscError::Cancelled).kind(),
             IoErrorKind::Interrupted
         );
     }
 
     #[test]
+    fn source_returns_wrapped_errors_only() {
+        let error = DiscError::from(io::Error::from_raw_os_error(5));
+        assert!(
+            StdError::source(&error)
+                .and_then(|s| s.downcast_ref::<io::Error>())
+                .is_some()
+        );
+        assert!(StdError::source(&DiscError::NoReleases).is_none());
+    }
+
+    #[test]
     fn converts_into_root_error() {
-        let error = Error::from(DiscError::no_releases());
-        assert!(matches!(error, Error::Disc(_)));
+        let error = Error::from(DiscError::NoReleases);
+        assert!(matches!(error, Error::Disc(DiscError::NoReleases)));
     }
 }

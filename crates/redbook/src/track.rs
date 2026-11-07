@@ -10,9 +10,9 @@ use crate::{
     toc::{Control, TrackEntry, TrackNo},
 };
 
-pub mod error;
+pub use error::TrackError;
 
-pub use error::{TrackError, TrackErrorKind};
+pub mod error;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
@@ -130,17 +130,15 @@ impl RippedTrack {
     /// Encodes the raw CD audio data to FLAC format.
     ///
     /// # Errors
-    /// - [`TrackErrorKind::InvalidData`] if the raw data is not a whole number of samples
-    /// - [`TrackErrorKind::Encode`] / [`TrackErrorKind::Output`] wrapping the underlying
+    /// - [`TrackError::InvalidData`] if the raw data is not a whole number of samples
+    /// - [`TrackError::Encode`] / [`TrackError::Output`] wrapping the underlying
     ///   [`flacenc`] errors if encoding fails
     pub fn to_flac(&self) -> Result<MemSink<u8>, TrackError> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default()
             .into_verified()
             .expect("Config data error.");
-        (self.raw_data.len() % 2 == 0).ok_or_else(|| {
-            TrackError::invalid_data().context("raw data is not a whole number of samples")
-        })?;
+        (self.raw_data.len() % 2 == 0).ok_or(TrackError::InvalidData(self.raw_data.len()))?;
         let samples: Vec<_> = self
             .raw_data
             .as_chunks::<2>()
