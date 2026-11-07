@@ -855,17 +855,12 @@ impl RawTocEntry {
     /// before attempting the conversion.
     pub fn kind(&self) -> TocEntryKind {
         use TocEntryKind::*;
-        use TrackKind::*;
 
-        match (self.adr, self.point.kind(), self.control().kind()) {
-            (1, PointKind::LeadIn, Audio) => AudioLeadout,
-            (1, PointKind::LeadIn, Data) => DataLeadout,
-            (1, PointKind::FirstTrackInfo, Audio) => FirstAudioTrackInfo,
-            (1, PointKind::FirstTrackInfo, Data) => FirstDataTrackInfo,
-            (1, PointKind::LastTrackInfo, Audio) => LastAudioTrackInfo,
-            (1, PointKind::LastTrackInfo, Data) => LastDataTrackInfo,
-            (1, PointKind::Normal, Audio) => AudioTrack,
-            (1, PointKind::Normal, Data) => DataTrack,
+        match (self.adr, self.point.kind()) {
+            (1, PointKind::LeadIn) => Leadout,
+            (1, PointKind::FirstTrackInfo) => FirstTrackInfo,
+            (1, PointKind::LastTrackInfo) => LastTrackInfo,
+            (1, PointKind::Normal) => Track,
             _ => Unknown,
         }
     }
@@ -1040,9 +1035,9 @@ impl From<RawTocEntry> for Option<TocEntry> {
         use TocEntryKind::*;
 
         match raw.kind() {
-            AudioTrack | DataTrack => TrackEntry::try_from(raw).ok().map(TocEntry::Track),
-            AudioLeadout | DataLeadout => LeadoutEntry::try_from(raw).ok().map(TocEntry::Leadout),
-            FirstAudioTrackInfo | FirstDataTrackInfo | LastAudioTrackInfo | LastDataTrackInfo => {
+            Track => TrackEntry::try_from(raw).ok().map(TocEntry::Track),
+            Leadout => LeadoutEntry::try_from(raw).ok().map(TocEntry::Leadout),
+            FirstTrackInfo | LastTrackInfo => {
                 InfoEntry::try_from(raw).ok().map(TocEntry::TrackInfo)
             }
             Unknown => Some(TocEntry::Unknown(raw)),
@@ -1181,40 +1176,17 @@ impl TocEntry {
     /// deconstructing the related entry data.
     pub fn kind(&self) -> TocEntryKind {
         use FirstLast::*;
-        use TocEntry::*;
-        use TocEntryKind::*;
-        use TrackKind::*;
 
-        match (self, self.control().kind()) {
-            (Track(_), Audio) => AudioTrack,
-            (Track(_), Data) => DataTrack,
-            (Leadout(_), Audio) => AudioLeadout,
-            (Leadout(_), Data) => DataLeadout,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: First, ..
-                }),
-                Audio,
-            ) => FirstAudioTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: First, ..
-                }),
-                Data,
-            ) => FirstDataTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: Last, ..
-                }),
-                Audio,
-            ) => LastAudioTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: Last, ..
-                }),
-                Data,
-            ) => LastDataTrackInfo,
-            (TocEntry::Unknown(_), _) => TocEntryKind::Unknown,
+        match self {
+            TocEntry::Track(_) => TocEntryKind::Track,
+            TocEntry::Leadout(_) => TocEntryKind::Leadout,
+            TocEntry::TrackInfo(InfoEntry {
+                info_type: First, ..
+            }) => TocEntryKind::FirstTrackInfo,
+            TocEntry::TrackInfo(InfoEntry {
+                info_type: Last, ..
+            }) => TocEntryKind::LastTrackInfo,
+            TocEntry::Unknown(_) => TocEntryKind::Unknown,
         }
     }
 }
@@ -1293,7 +1265,7 @@ pub trait Ctrl {
     fn control(&self) -> Control;
 
     /// whether this is an audio or a data track
-    fn kind(&self) -> TrackKind {
+    fn track_kind(&self) -> TrackKind {
         match self.control().contains(Control::DATA_TRACK) {
             true => TrackKind::Data,
             false => TrackKind::Audio,
@@ -1302,12 +1274,12 @@ pub trait Ctrl {
 
     /// represents a data track
     fn is_data(&self) -> bool {
-        matches!(self.kind(), TrackKind::Data)
+        matches!(self.track_kind(), TrackKind::Data)
     }
 
     /// represents an audio track
     fn is_audio(&self) -> bool {
-        matches!(self.kind(), TrackKind::Audio)
+        matches!(self.track_kind(), TrackKind::Audio)
     }
 }
 
@@ -1319,24 +1291,12 @@ impl Ctrl for Control {
 
 /// The kind of TocEntry. Returned by [TocEntry::kind] and used in `Result<TocEntries, TocError>::collect()`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[expect(missing_docs, reason = "clear naming")]
 pub enum TocEntryKind {
-    /// An audio track
-    AudioTrack,
-    /// A data track
-    DataTrack,
-    /// The leadout for an audio session
-    AudioLeadout,
-    /// The leadout for a data session
-    DataLeadout,
-    /// First track number, encoded as start minute
-    FirstAudioTrackInfo,
-    /// Last track number, encoded as start minute
-    LastAudioTrackInfo,
-    /// First track number, encoded as start minute
-    FirstDataTrackInfo,
-    /// Last track number, encoded as start minute
-    LastDataTrackInfo,
-    /// An entry type which we do not specifically abstract, not required for audio CD handling
+    Track,
+    Leadout,
+    FirstTrackInfo,
+    LastTrackInfo,
     Unknown,
     /// An entry will all zeros
     Zero,
@@ -1513,6 +1473,7 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
         use FirstLast::*;
         use Leadouts::*;
         use TocEntryKind::*;
+        use TrackKind::*;
 
         let mut entries: Vec<_> = iter.into_iter().collect();
 
@@ -1644,26 +1605,26 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
             .iter()
             .map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
             .try_for_each(|(this_entry, next_entry)| {
-                match (this_entry.kind(), next_entry.kind(), leadouts) {
-                    (FirstAudioTrackInfo, LastAudioTrackInfo, PerSession(_))
-                    | (LastAudioTrackInfo, AudioTrack, PerSession(_))
-                    | (AudioTrack, AudioTrack, _)
-                    | (AudioTrack, DataTrack, Final)
-                    | (AudioTrack, AudioLeadout, _)
-                    | (AudioLeadout, Unknown, PerSession(_))
-                    | (AudioLeadout, FirstAudioTrackInfo, PerSession(_))
-                    | (AudioLeadout, FirstDataTrackInfo, PerSession(_))
-                    | (FirstDataTrackInfo, LastDataTrackInfo, PerSession(_))
-                    | (LastDataTrackInfo, DataTrack, PerSession(_))
-                    | (DataTrack, DataTrack, Final)
-                    | (DataTrack, AudioTrack, Final)
-                    | (DataTrack, DataLeadout, _)
-                    | (DataLeadout, Unknown, PerSession(_))
-                    | (DataLeadout, FirstAudioTrackInfo, PerSession(_))
-                    | (DataLeadout, FirstDataTrackInfo, PerSession(_))
-                    | (Unknown, Unknown, PerSession(_))
-                    | (Unknown, FirstAudioTrackInfo, PerSession(_))
-                    | (Unknown, FirstDataTrackInfo, PerSession(_)) => Ok(()),
+                match (
+                    leadouts,
+                    this_entry.kind(),
+                    this_entry.track_kind(),
+                    next_entry.kind(),
+                    next_entry.track_kind(),
+                ) {
+                    (Final, Track, _, Track, _)
+                    | (Final, Track, _, Leadout, _)
+                    | (PerSession(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
+                    | (PerSession(_), LastTrackInfo, Audio, Track, Audio)
+                    | (PerSession(_), Track, Audio, Track, Audio)
+                    | (PerSession(_), Track, Audio, Leadout, Audio)
+                    | (PerSession(_), FirstTrackInfo, Data, LastTrackInfo, Data)
+                    | (PerSession(_), LastTrackInfo, Data, Track, Data)
+                    | (PerSession(_), Track, Data, Track, Data)
+                    | (PerSession(_), Track, Data, Leadout, Data)
+                    | (PerSession(_), Leadout, _, Unknown, _)
+                    | (PerSession(_), Unknown, _, Unknown, _)
+                    | (PerSession(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
                     _ => Err(TocError::InvalidOrder {
                         this: *this_entry,
                         next: *next_entry,
@@ -1909,47 +1870,35 @@ mod tests {
     }
 
     #[rstest]
-    #[case(Point(1), Control::default(), TocEntryKind::AudioTrack)]
-    #[case(Point(99), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(Point(1), Control::default(), TocEntryKind::Track)]
+    #[case(Point(99), Control::default(), TocEntryKind::Track)]
     #[case(
         Point(1),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::DataTrack
+        TocEntryKind::Track
     )]
-    #[case(
-        b0000::LEADOUT_TRACK_ID,
-        Control::default(),
-        TocEntryKind::AudioLeadout
-    )]
-    #[case(
-        b0010::LEADOUT_TRACK_ID,
-        Control::default(),
-        TocEntryKind::AudioLeadout
-    )]
+    #[case(b0000::LEADOUT_TRACK_ID, Control::default(), TocEntryKind::Leadout)]
+    #[case(b0010::LEADOUT_TRACK_ID, Control::default(), TocEntryKind::Leadout)]
     #[case(
         b0000::LEADOUT_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::DataLeadout
+        TocEntryKind::Leadout
     )]
     #[case(
         b0010::FIRST_TRACK_ID,
         Control::default(),
-        TocEntryKind::FirstAudioTrackInfo
+        TocEntryKind::FirstTrackInfo
     )]
-    #[case(
-        b0010::LAST_TRACK_ID,
-        Control::default(),
-        TocEntryKind::LastAudioTrackInfo
-    )]
+    #[case(b0010::LAST_TRACK_ID, Control::default(), TocEntryKind::LastTrackInfo)]
     #[case(
         b0010::FIRST_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::FirstDataTrackInfo
+        TocEntryKind::FirstTrackInfo
     )]
     #[case(
         b0010::LAST_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::LastDataTrackInfo
+        TocEntryKind::LastTrackInfo
     )]
     #[case(Point(0xB0), Control::default(), TocEntryKind::Unknown)]
     // ADR != 1 is always Unknown
