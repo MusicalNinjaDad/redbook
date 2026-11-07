@@ -40,6 +40,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// errors or `io::Error`, or via `?`. Attach optional context with [`Error::context`].
 #[derive(Debug)]
 #[non_exhaustive]
+// TODO: #192 flatten redbook::Error to enum
 pub struct Error {
     kind: ErrorKind,
     context: Option<Box<str>>,
