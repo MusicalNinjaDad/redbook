@@ -283,6 +283,7 @@ impl TrackNo {
     /// # Note
     /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
+    // TODO: #195 `new -> Option<Self>` should be changed throughout to `new -> Result<Self,_>`
     pub const fn new<N>(value: N) -> Option<Self>
     where
         u8: [const] CheckedCastFromInt<N>,
