@@ -178,7 +178,7 @@ impl From<TocError> for io::Error {
 
 /// Interop downgrade to [`cdtoc`]'s error type: a wrapped [`cdtoc::TocError`] is simply
 /// unwrapped; other kinds map to the closest `cdtoc` semantic (`SectorOrder`).
-/// 
+///
 /// TODO: #199 Replace cdtoc::TocError downgrade with nightly error_generic_member_access via Error::provide
 impl From<TocError> for cdtoc::TocError {
     fn from(error: TocError) -> Self {

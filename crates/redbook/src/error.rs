@@ -48,8 +48,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// a `From` conversion from a domain error or `io::Error`, or `?`.
 #[derive(Debug)]
 pub enum Error {
-    /// A wrapped [`io::Error`], e.g. from the OS or the filesystem.
-    Io(io::Error),
     /// A [`toc`][crate::toc] domain error.
     Toc(crate::toc::TocError),
     /// A [`disc`][crate::disc] domain error.
@@ -69,7 +67,6 @@ impl Error {
     /// behaviour of the call site which produced it.
     pub fn io_kind(&self) -> io::ErrorKind {
         match self {
-            Error::Io(error) => error.kind(),
             Error::Toc(error) => error.io_kind(),
             Error::Disc(error) => error.io_kind(),
             Error::Tagging(error) => error.io_kind(),
@@ -84,7 +81,6 @@ impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
-            Error::Io(_) => f.write_str("I/O error"),
             Error::Toc(_) => f.write_str("TOC error"),
             Error::Disc(_) => f.write_str("disc error"),
             Error::Tagging(_) => f.write_str("tagging error"),
@@ -98,7 +94,6 @@ impl Display for Error {
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Error::Io(error) => Some(error),
             Error::Toc(error) => Some(error),
             Error::Disc(error) => Some(error),
             Error::Tagging(error) => Some(error),
@@ -106,12 +101,6 @@ impl StdError for Error {
             Error::Drive(error) => Some(error),
             Error::Win(error) => Some(error),
         }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(error: io::Error) -> Self {
-        Error::Io(error)
     }
 }
 
@@ -123,8 +112,6 @@ impl From<Error> for io::Error {
 
 #[cfg(test)]
 mod tests {
-    use std::io;
-
     use super::*;
 
     #[test]
@@ -133,6 +120,7 @@ mod tests {
         assert_traits::<Error>();
     }
 
+    #[cfg(false)]
     #[test]
     fn display_renders_variant_label_not_wrapped_error() {
         let error = Error::from(io::Error::new(io::ErrorKind::NotFound, "no disc"));
@@ -143,6 +131,8 @@ mod tests {
         );
     }
 
+    // TODO: #200 Review cfg(false) tests to identify where we need new ones
+    #[cfg(false)]
     #[test]
     fn source_returns_directly_wrapped_io_error() {
         let raw = io::Error::from_raw_os_error(22); // ERROR_NOT_READY
@@ -154,6 +144,7 @@ mod tests {
         assert_eq!(inner.raw_os_error(), Some(22));
     }
 
+    #[cfg(false)]
     #[test]
     fn io_error_conversion_preserves_kind_and_downcast() {
         let raw = io::Error::from_raw_os_error(22); // ERROR_NOT_READY on Windows
