@@ -240,7 +240,7 @@ fn main() -> Exit<()> {
     let ripper = thread::spawn(move || {
         for track_number in track_numbers.clone() {
             try {
-                let track_number = TrackNo::new(track_number)?;
+                let track_number = TrackNo::checked_new(track_number)?;
                 let track = cd.disc().track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
 

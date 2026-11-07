@@ -289,7 +289,7 @@ impl Disc {
             .and_then(|media| media.tracks.as_ref())
             .and_then(|tracks| {
                 tracks.iter().find(|trk| {
-                    trk.number.parse::<u8>().ok().and_then(TrackNo::new) == Some(track_number)
+                    trk.number.parse::<u8>().ok().and_then(TrackNo::checked_new) == Some(track_number)
                 })
             });
         Some(track)
@@ -872,7 +872,7 @@ impl<'meta> Iterator for Tracks<'meta> {
     fn next(&mut self) -> Option<Self::Item> {
         // disc.track() uses 1-indexing so we can be very lazy
         self.i += 1;
-        self.disc.track(TrackNo::new(self.i)?)
+        self.disc.track(TrackNo::checked_new(self.i)?)
     }
 }
 

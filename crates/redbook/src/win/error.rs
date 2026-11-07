@@ -11,7 +11,7 @@ use std::{
     io::{self, ErrorKind as IoErrorKind},
 };
 
-use crate::{error::Error, toc::TocError};
+use crate::{error::Error, toc::TocErrorOld};
 
 /// `ERROR_NOT_READY`: the device is not ready, e.g. no disc in the drive.
 pub const ERROR_NOT_READY: i32 = 21;
@@ -151,8 +151,8 @@ impl From<io::Error> for WinError {
     }
 }
 
-impl From<TocError> for WinError {
-    fn from(error: TocError) -> Self {
+impl From<TocErrorOld> for WinError {
+    fn from(error: TocErrorOld) -> Self {
         Self {
             kind: WinErrorKind::Toc(error),
             context: None,
@@ -211,7 +211,7 @@ pub enum WinErrorKind {
     /// Fewer bytes were returned than expected.
     UnexpectedEof,
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing a raw TOC.
-    Toc(TocError),
+    Toc(TocErrorOld),
 }
 
 impl Display for WinErrorKind {

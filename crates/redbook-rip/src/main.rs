@@ -304,7 +304,7 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
-        let track_number = TrackNo::new(track_number).ok_or_else(|| {
+        let track_number = TrackNo::checked_new(track_number).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("invalid track number: {track_number}"),

@@ -126,7 +126,7 @@ pub enum ErrorKind {
     /// A wrapped [`io::Error`], e.g. from the OS or the filesystem.
     Io(io::Error),
     /// A [`toc`][crate::toc] domain error.
-    Toc(crate::toc::TocError),
+    Toc(crate::toc::TocErrorOld),
     /// A [`disc`][crate::disc] domain error.
     Disc(crate::disc::DiscError),
     /// A [`tagging`][crate::tagging] domain error.

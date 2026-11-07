@@ -15,7 +15,7 @@ use thread_safely::Context;
 
 use crate::{
     error::{Error, ErrorKind},
-    toc::TocError,
+    toc::TocErrorOld,
     win::WinError,
 };
 
@@ -184,8 +184,8 @@ impl From<WinError> for DriveError {
     }
 }
 
-impl From<TocError> for DriveError {
-    fn from(error: TocError) -> Self {
+impl From<TocErrorOld> for DriveError {
+    fn from(error: TocErrorOld) -> Self {
         Self {
             kind: DriveErrorKind::Toc(error),
             context: None,
@@ -231,7 +231,7 @@ pub enum DriveErrorKind {
     /// A wrapped [`win`][crate::win] (OS/hardware) error.
     Win(WinError),
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
-    Toc(TocError),
+    Toc(TocErrorOld),
 }
 
 impl Display for DriveErrorKind {

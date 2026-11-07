@@ -180,7 +180,7 @@ impl TryFrom<CdaFile> for Track<'static> {
     type Error = WinError;
 
     fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        let track = TrackNo::new(cda.track_number)
+        let track = TrackNo::checked_new(cda.track_number)
             .ok_or_else(|| {
                 WinError::invalid_data().context(format!(
                     "invalid track number {} in cda file",
@@ -252,7 +252,7 @@ mod tests {
 
         for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
-            assert_eq!(TrackNo::new(cda.track_number), Some(track.track_number()));
+            assert_eq!(TrackNo::checked_new(cda.track_number), Some(track.track_number()));
             assert_eq!(cda.start, track.toc_entry.start());
             assert_eq!(cda.duration, track.duration);
             assert_matches!(Track::try_from(cda), Ok(_));

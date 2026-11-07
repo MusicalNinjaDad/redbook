@@ -140,7 +140,7 @@ impl TryFrom<CDROM_TOC> for TocEntries {
             .filter(TRACK_DATA::nonzero)
             .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
-            .collect::<Result<_, crate::toc::TocError>>()
+            .collect::<Result<_, crate::toc::TocErrorOld>>()
             .map_err(crate::win::WinError::from)
     }
 }
