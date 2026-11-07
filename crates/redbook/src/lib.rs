@@ -196,18 +196,25 @@
 //!
 //! The library uses a structured error hierarchy (see [`error`] for the full conventions):
 //!
-//! 1. [`Error`] - the crate-root error, used by APIs which span multiple domains (e.g.
+//! 1. [`Error`] - the crate-root enum, used by APIs which span multiple domains (e.g.
 //!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.
 //! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError`, `tagging::TaggingError`,
-//!    `track::TrackError`, `win::WinError` - one per module, returned by most public signatures as
-//!    `Result<_, DomainError>`.
-//! 3. Leaf kind variants - enum variants of each `*ErrorKind`, wrapping foreign errors (e.g.
-//!    `cdtoc::TocError`, `metaflac::Error`, `reqwest::Error`, `io::Error`) in a single tuple field.
+//!    `track::TrackError`, `win::WinError` - one enum per module, returned by most public
+//!    signatures as `Result<_, DomainError>`.
+//! 3. Leaf errors - variants of the domain enums, or dedicated leaf structs (e.g.
+//!    `toc::error::InvalidTrackNo`) which carry the offending value. Variants wrapping a foreign
+//!    error hold it in a single tuple field (e.g. `Io(io::Error)`, `CdToc(cdtoc::TocError)`).
 //!
-//! All error types implement [`std::error::Error`], are `Send + Sync + 'static` and
-//! `#[non_exhaustive]`; `source()` always returns the directly wrapped type, so a wrapped OS error
-//! keeps its raw OS error code all the way down. Optional context is attached via `.context(...)`
-//! and is omitted from `Display` when absent.
+//! All error types are hand-rolled: they implement [`std::error::Error`] and are
+//! `Send + Sync + 'static`. Error enums are deliberately not `#[non_exhaustive]` (extending them
+//! is a semver-breaking change, preferred over forced `_ =>` arms downstream). Context is the
+//! data which led to the error, stored in the variant itself - there is no stringly-typed
+//! `.context(...)` API; constructors which capture a wrapped value allow closure-free
+//! `.map_err(MyError::new)`, and `From` conversions make `?` work directly.
+//!
+//! `source()` returns the directly wrapped error, so a wrapped OS error keeps its raw OS error
+//! code all the way down; a wrapped error is not also rendered by `Display`, while data-carrying
+//! variants are rendered by `Display` and return `None` from `source()`.
 //!
 //! Every error type implements `From<This> for io::Error` for interop with IO-centric downstream
 //! code: the [`io::ErrorKind`] matches the call site's previous behaviour and the original error
