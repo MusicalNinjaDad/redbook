@@ -3,7 +3,9 @@
 
 use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
+    error::Error as StdError,
     fmt::{Debug, Display},
+    io::{self, ErrorKind as IoErrorKind},
     marker::{Destruct, StructuralPartialEq},
     num::{ParseIntError, TryFromIntError},
     ops::{Div, Rem},
@@ -21,7 +23,7 @@ use crate::LEADIN;
 ///
 /// ```
 /// # use redbook::Frame;
-/// // checked construction returns `None` for invalid values
+/// // checked construction returns `Err` for invalid values
 /// let frame = Frame::new(2000).unwrap_or(Frame::ZERO);
 ///
 /// // by convention frames represent absolute position, including the 150-frame lead-in
@@ -157,13 +159,34 @@ impl Frame {
     ///   Use [`Frame::size`] to get the byte size of a frame count instead.
     pub const SIZE_IN_BYTES: ByteSize = ByteSize(2352);
 
+    /// Creates a new `Frame` from any integer type, returning [`InvalidFrame`] (carrying the
+    /// offending value) if the value is above [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For const contexts use [`Self::checked_new`]
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new(...).unwrap()`
+    /// - For a saturating constructor use [`Self::saturating_new`]
+    pub fn new<N>(value: N) -> Result<Self, InvalidFrame>
+    where
+        u32: TryFrom<N>,
+        i128: From<N>,
+        N: Copy,
+    {
+        u32::try_from(value)
+            .ok()
+            .map(Self)
+            .and_then(Self::validate)
+            .ok_or_else(|| InvalidFrame::new(value))
+    }
+
     /// Creates a new `Frame` from any integer type, returning `None` if the value is above
     /// [`Self::MAX`].
     ///
     /// # Note
-    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// - For a `Result`-returning constructor use [`Self::new`]
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::checked_new(...).unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
-    pub const fn new<N>(value: N) -> Option<Self>
+    pub const fn checked_new<N>(value: N) -> Option<Self>
     where
         u32: [const] CheckedCastFromInt<N>,
     {
@@ -348,7 +371,7 @@ impl Frame {
     {
         let rhs = Frame::from(rhs).into_inner();
         let v = self.into_inner().checked_add(rhs)?;
-        Self::new::<u32>(v)
+        Self::checked_new::<u32>(v)
     }
 
     /// Saturating addition. Computes `self + rhs`, saturating at [`Self::MAX`].
@@ -387,7 +410,7 @@ impl Frame {
     {
         let rhs = Frame::from(rhs).into_inner();
         let v = self.into_inner().checked_sub(rhs)?;
-        Self::new::<u32>(v)
+        Self::checked_new::<u32>(v)
     }
 
     /// Saturating subtraction. Computes `self - rhs`, saturating at zero.
@@ -449,10 +472,10 @@ impl Frame {
         // If rhs won't fit in a Frame and self is non-zero, then the product is too large
         let rhs = match self {
             Self::ZERO => Self::ZERO,
-            _ => Self::new(rhs)?,
+            _ => Self::checked_new(rhs)?,
         };
         let v = self.into_inner().checked_mul(rhs.into_inner())?;
-        Self::new::<u32>(v)
+        Self::checked_new::<u32>(v)
     }
 
     /// Saturating multiplication. Computes `self * rhs`, saturating at [`Self::MAX`].
@@ -509,7 +532,7 @@ impl Frame {
     {
         let rhs = u32::saturating_cast_from(rhs);
         let v = self.into_inner().checked_div(rhs)?;
-        Self::new::<u32>(v)
+        Self::checked_new::<u32>(v)
     }
 
     /// Basic remainder. Computes `self % rhs`, panicking if `rhs` is zero.
@@ -545,7 +568,7 @@ impl Frame {
     {
         let rhs = u32::saturating_cast_from(rhs);
         let v = self.into_inner().checked_rem(rhs)?;
-        Self::new::<u32>(v)
+        Self::checked_new::<u32>(v)
     }
 
     /// Saturating division & remainder. Returns `(quotient, rest)`, where `quotient` is
@@ -1124,9 +1147,34 @@ impl ByteSize {
     /// [`Self::MAX`].
     ///
     /// # Note
-    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// Creates a new `ByteSize` from any integer type, returning [`InvalidByteSize`] (carrying
+    /// the offending value) if the value is above [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For const contexts use [`Self::checked_new`]
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new(...).unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
-    pub const fn new<N>(value: N) -> Option<Self>
+    pub fn new<N>(value: N) -> Result<Self, InvalidByteSize>
+    where
+        usize: TryFrom<N>,
+        i128: From<N>,
+        N: Copy,
+    {
+        usize::try_from(value)
+            .ok()
+            .map(Self)
+            .and_then(Self::validate)
+            .ok_or_else(|| InvalidByteSize::new(value))
+    }
+
+    /// Creates a new `ByteSize` from any integer type, returning `None` if the value is above
+    /// [`Self::MAX`].
+    ///
+    /// # Note
+    /// - For a `Result`-returning constructor use [`Self::new`]
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::checked_new(...).unwrap()`
+    /// - For a saturating constructor use [`Self::saturating_new`]
+    pub const fn checked_new<N>(value: N) -> Option<Self>
     where
         usize: [const] CheckedCastFromInt<N>,
     {
@@ -1320,7 +1368,7 @@ impl ByteSize {
     {
         let rhs = Self::from(rhs).0;
         let v = self.0.checked_add(rhs)?;
-        Self::new::<usize>(v)
+        Self::checked_new::<usize>(v)
     }
 
     /// Saturating addition. Computes `self + rhs`, saturating at [`Self::MAX`].
@@ -1359,7 +1407,7 @@ impl ByteSize {
     {
         let rhs = Self::from(rhs).0;
         let v = self.0.checked_sub(rhs)?;
-        Self::new::<usize>(v)
+        Self::checked_new::<usize>(v)
     }
 
     /// Saturating subtraction. Computes `self - rhs`, saturating at zero.
@@ -1418,10 +1466,10 @@ impl ByteSize {
         // If rhs won't fit in a ByteSize and self is non-zero, then the product is too large
         let rhs = match self {
             Self::ZERO => Self::ZERO,
-            _ => Self::new(rhs)?,
+            _ => Self::checked_new(rhs)?,
         };
         let v = self.0.checked_mul(rhs.0)?;
-        Self::new::<usize>(v)
+        Self::checked_new::<usize>(v)
     }
 
     /// Saturating multiplication. Computes `self * rhs`, saturating at [`Self::MAX`].
@@ -1478,7 +1526,7 @@ impl ByteSize {
     {
         let rhs = usize::saturating_cast_from(rhs);
         let v = self.0.checked_div(rhs)?;
-        Self::new::<usize>(v)
+        Self::checked_new::<usize>(v)
     }
 
     /// Basic remainder. Computes `self % rhs`, panicking if `rhs` is zero.
@@ -1514,7 +1562,7 @@ impl ByteSize {
     {
         let rhs = usize::saturating_cast_from(rhs);
         let v = self.0.checked_rem(rhs)?;
-        Self::new::<usize>(v)
+        Self::checked_new::<usize>(v)
     }
 }
 
@@ -1551,22 +1599,127 @@ impl Display for ByteSize {
 }
 
 impl FromStr for ByteSize {
-    type Err = ParseIntError;
+    type Err = ParseByteSizeError;
 
-    /// Parses a size in bytes, failing if the value is above [`ByteSize::MAX`].
+    /// Parses a size in bytes: [`ParseByteSizeError::Int`] for malformed numbers,
+    /// [`ParseByteSizeError::TooLarge`] for well-formed values above [`ByteSize::MAX`].
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let inner: usize = s.parse()?;
-        match Self::new(inner) {
-            Some(size) => Ok(size),
-            // `usize::MAX + 1` always fails to parse as a `usize`, yielding a PosOverflow
-            // error, which is also the right error for a semantic overflow above MAX
-            None => usize::MAX
-                .strict_cast::<u128>()
-                .strict_add(1)
-                .to_string()
-                .parse::<usize>()
-                .map(|_| Self::MAX),
+        // parse to the widest integer type first, so that a well-formed value which is
+        // semantically too large is reported as `TooLarge`, not as a parse overflow - and so
+        // that this is also correct on targets where `usize` is wider than 64 bits (issue #186)
+        Ok(ByteSize::new(s.parse::<i128>()?)?)
+    }
+}
+
+/// Leaf error: a value which is not a valid [`Frame`] (i.e. above [`Frame::MAX`]).
+///
+/// Error types are "wide" in the values they accept (where "normal" types are "narrow"), so the
+/// offending value is captured without loss; [`InvalidFrame::new`] can be used directly in
+/// `.map_err(InvalidFrame::new)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvalidFrame(i128);
+
+impl InvalidFrame {
+    /// Creates from the attempted value.
+    pub fn new<N>(attempt: N) -> Self
+    where
+        i128: From<N>,
+    {
+        Self(attempt.into())
+    }
+}
+
+impl Display for InvalidFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid frame: {:#010X}", self.0)
+    }
+}
+
+impl StdError for InvalidFrame {}
+
+impl From<InvalidFrame> for io::Error {
+    fn from(error: InvalidFrame) -> Self {
+        io::Error::new(IoErrorKind::InvalidData, error)
+    }
+}
+
+/// Leaf error: a value which is not a valid [`ByteSize`] (i.e. above [`ByteSize::MAX`]).
+///
+/// Error types are "wide" in the values they accept (where "normal" types are "narrow"), so the
+/// offending value is captured without loss; [`InvalidByteSize::new`] can be used directly in
+/// `.map_err(InvalidByteSize::new)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvalidByteSize(i128);
+
+impl InvalidByteSize {
+    /// Creates from the attempted value.
+    pub fn new<N>(attempt: N) -> Self
+    where
+        i128: From<N>,
+    {
+        Self(attempt.into())
+    }
+}
+
+impl Display for InvalidByteSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid byte size: {:#X}", self.0)
+    }
+}
+
+impl StdError for InvalidByteSize {}
+
+impl From<InvalidByteSize> for io::Error {
+    fn from(error: InvalidByteSize) -> Self {
+        io::Error::new(IoErrorKind::InvalidData, error)
+    }
+}
+
+/// Error from [`ByteSize::from_str`]: distinguishes malformed numbers from well-formed values
+/// which are semantically too large (issue #186).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseByteSizeError {
+    /// The string is not a valid integer.
+    Int(ParseIntError),
+    /// The value is a well-formed integer but above [`ByteSize::MAX`].
+    TooLarge(InvalidByteSize),
+}
+
+impl Display for ParseByteSizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // wrapped errors are returned by `source()`, not rendered here (issue #198)
+            ParseByteSizeError::Int(_) => f.write_str("invalid integer"),
+            ParseByteSizeError::TooLarge(error) => Display::fmt(error, f),
         }
+    }
+}
+
+impl StdError for ParseByteSizeError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            ParseByteSizeError::Int(error) => Some(error),
+            // data-carrying variants are rendered in Display instead (issue #198)
+            ParseByteSizeError::TooLarge(_) => None,
+        }
+    }
+}
+
+impl From<ParseIntError> for ParseByteSizeError {
+    fn from(error: ParseIntError) -> Self {
+        ParseByteSizeError::Int(error)
+    }
+}
+
+impl From<InvalidByteSize> for ParseByteSizeError {
+    fn from(error: InvalidByteSize) -> Self {
+        ParseByteSizeError::TooLarge(error)
+    }
+}
+
+impl From<ParseByteSizeError> for io::Error {
+    fn from(error: ParseByteSizeError) -> Self {
+        io::Error::new(IoErrorKind::InvalidData, error)
     }
 }
 
@@ -1819,10 +1972,13 @@ mod tests {
     }
 
     #[test]
-    fn bytesize_new_returns_none_above_max() {
-        // ByteSize::MAX + 1 and anything larger is rejected...
-        assert_eq!(ByteSize::new(2_744_501_761_u64), None);
-        assert_eq!(ByteSize::new(u128::MAX), None);
+    fn bytesize_new_returns_err_above_max() {
+        // ByteSize::MAX + 1 and anything larger is rejected with the offending value attached...
+        assert_eq!(
+            ByteSize::new(2_744_501_761_u64),
+            Err(InvalidByteSize::new(2_744_501_761_u64))
+        );
+        assert!(ByteSize::new(i128::MAX).is_err());
         // ...but saturates with saturating_new
         assert_eq!(ByteSize::saturating_new(2_744_501_761_u64), ByteSize::MAX);
         assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize::MAX);
@@ -1848,14 +2004,16 @@ mod tests {
         let size = ByteSize::strict_new(raw);
 
         // constructors from any integer type which fits & is within MAX
-        assert_eq!(ByteSize::new(raw), Some(size));
+        // (`new` is generic over types convertible to i128; `usize` uses `checked_new`)
+        assert_eq!(ByteSize::checked_new(raw), Some(size));
+        assert_eq!(ByteSize::new(u64::try_from(raw).unwrap()), Ok(size));
         assert_eq!(ByteSize::strict_new(raw), size);
         assert_eq!(ByteSize::saturating_new(raw), size);
         // integers which do not fit in a usize, or which are above ByteSize::MAX, are rejected
-        assert_eq!(ByteSize::new(42_u8), Some(ByteSize(42)));
-        assert_eq!(ByteSize::new(-1_i32), None);
-        assert_eq!(ByteSize::new(2_744_501_761_u64), None);
-        assert_eq!(ByteSize::new(u128::MAX), None);
+        assert_eq!(ByteSize::new(42_u8), Ok(ByteSize(42)));
+        assert!(ByteSize::new(-1_i32).is_err());
+        assert!(ByteSize::new(2_744_501_761_u64).is_err());
+        assert!(ByteSize::new(i128::MAX).is_err());
         assert_eq!(ByteSize::saturating_new(-1_i32), ByteSize::ZERO);
         assert_eq!(ByteSize::saturating_new(u128::MAX), ByteSize::MAX);
 
@@ -1868,10 +2026,20 @@ mod tests {
         assert_eq!(size.saturating_cast::<u32>(), u32::try_from(raw).unwrap());
         assert_eq!(ByteSize(42).strict_cast::<u16>(), 42);
 
-        // parsing & display
+        // parsing & display: semantic overflow (above MAX) is distinct from parse errors (#186)
         assert_eq!(raw.to_string().parse::<ByteSize>(), Ok(size));
-        assert!("2744501761".parse::<ByteSize>().is_err()); // ByteSize::MAX + 1
-        assert!("-1".parse::<ByteSize>().is_err());
+        assert!(matches!(
+            "2744501761".parse::<ByteSize>(), // ByteSize::MAX + 1
+            Err(ParseByteSizeError::TooLarge(_))
+        ));
+        assert!(matches!(
+            "-1".parse::<ByteSize>(),
+            Err(ParseByteSizeError::TooLarge(_))
+        ));
+        assert!(matches!(
+            "not a number".parse::<ByteSize>(),
+            Err(ParseByteSizeError::Int(_))
+        ));
         assert_eq!(size.to_string(), format!("{raw} bytes"));
 
         // arithmetic is via the strict_/checked_/saturating_ methods (no Deref, no operators)

@@ -13,11 +13,7 @@ use std::{
 
 use thread_safely::Context;
 
-use crate::{
-    error::{Error, ErrorKind},
-    toc::TocErrorOld,
-    win::WinErrorOld,
-};
+use crate::{error::Error, toc::TocError, win::WinError};
 
 /// Error returned by [`Device`][crate::Device] / [`Drive`][crate::Drive] APIs.
 ///
@@ -175,8 +171,8 @@ impl<R> From<Context<R>> for DriveError {
     }
 }
 
-impl From<WinErrorOld> for DriveError {
-    fn from(error: WinErrorOld) -> Self {
+impl From<WinError> for DriveError {
+    fn from(error: WinError) -> Self {
         Self {
             kind: DriveErrorKind::Win(error),
             context: None,
@@ -184,8 +180,8 @@ impl From<WinErrorOld> for DriveError {
     }
 }
 
-impl From<TocErrorOld> for DriveError {
-    fn from(error: TocErrorOld) -> Self {
+impl From<TocError> for DriveError {
+    fn from(error: TocError) -> Self {
         Self {
             kind: DriveErrorKind::Toc(error),
             context: None,
@@ -195,7 +191,7 @@ impl From<TocErrorOld> for DriveError {
 
 impl From<DriveError> for Error {
     fn from(error: DriveError) -> Self {
-        Error::from(ErrorKind::Drive(error))
+        Error::Drive(error)
     }
 }
 
@@ -229,9 +225,9 @@ pub enum DriveErrorKind {
     /// A wrapped [`io::Error`].
     Io(io::Error),
     /// A wrapped [`win`][crate::win] (OS/hardware) error.
-    Win(WinErrorOld),
+    Win(WinError),
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
-    Toc(TocErrorOld),
+    Toc(TocError),
 }
 
 impl Display for DriveErrorKind {
@@ -324,7 +320,7 @@ mod tests {
 
     #[test]
     fn source_returns_directly_wrapped_win_error() {
-        let win = WinErrorOld::not_ready();
+        let win = WinError::NotReady;
         let error = DriveError::from(win);
         assert!(error.is_not_ready());
         let source = StdError::source(&error).expect("kind should be the source");
@@ -332,7 +328,7 @@ mod tests {
             .downcast_ref::<DriveErrorKind>()
             .expect("source should be the kind");
         let win = StdError::source(kind)
-            .and_then(|k| k.downcast_ref::<WinErrorOld>())
+            .and_then(|k| k.downcast_ref::<WinError>())
             .expect("kind should wrap the WinError");
         assert!(win.is_not_ready());
     }
@@ -340,6 +336,6 @@ mod tests {
     #[test]
     fn converts_into_root_error() {
         let error = Error::from(DriveError::not_found());
-        assert!(matches!(error.kind(), ErrorKind::Drive(_)));
+        assert!(matches!(error, Error::Drive(_)));
     }
 }

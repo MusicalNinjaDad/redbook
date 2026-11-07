@@ -7,8 +7,8 @@ use tracing_result::Trace;
 use crate::{
     Frame, LEADIN, Track,
     frame::Msf,
-    toc::{TrackNo, error::InvalidTrackNo},
-    win::{WinErrorOld, error::CdaError},
+    toc::TrackNo,
+    win::{WinError, error::CdaError},
 };
 
 /// size of `.cda` files
@@ -45,72 +45,64 @@ pub struct CdaFile {
 
 impl CdaFile {
     /// Read the `.cda` file at `path`
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, WinErrorOld> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, WinError> {
         let path = path.as_ref();
         let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
 
         let raw = fs::read(path)?;
-        Self::new(raw)
+        Ok(Self::new(raw)?)
     }
 
     /// Create a new `CdaFile`
     ///
     /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
-    pub fn new(contents: Vec<u8>) -> Result<Self, WinErrorOld> {
+    pub fn new(contents: Vec<u8>) -> Result<Self, CdaError> {
         let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
 
         let mut data = contents.iter().copied();
 
         // After this check it's OK to call `unwrap` on `next_chunk`
         (data.len() == CDA_LEN)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!(
-                    "invalid CDA file: expected {} bytes, got {}",
-                    CDA_LEN,
-                    contents.len()
-                ))
+            .ok_or(CdaError::InvalidLength {
+                expected: CDA_LEN,
+                actual: contents.len(),
             })
             .or_warn("")?;
 
-        (&data.next_chunk().unwrap() == b"RIFF")
-            .ok_or_else(|| WinErrorOld::invalid_data().context("Missing or invalid RIFF header"))
+        let magic = data.next_chunk().unwrap();
+        (magic == *b"RIFF")
+            .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
         let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
         (chunk_size == 36)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!(
-                    "Invalid chunk size: expected 36, got {}",
-                    chunk_size
-                ))
+            .ok_or(CdaError::InvalidChunkSize {
+                expected: 36,
+                actual: chunk_size,
             })
             .or_warn("")?;
 
-        (&data.next_chunk().unwrap() == b"CDDA")
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context("Missing or invalid CDDA identifier")
-            })
+        let magic = data.next_chunk().unwrap();
+        (magic == *b"CDDA")
+            .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        (&data.next_chunk().unwrap() == b"fmt ")
-            .ok_or_else(|| WinErrorOld::invalid_data().context("Missing or invalid fmt identifier"))
+        let magic = data.next_chunk().unwrap();
+        (magic == *b"fmt ")
+            .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
         let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
         (chunk_size == 24)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!(
-                    "Invalid chunk size: expected 24, got {}",
-                    chunk_size
-                ))
+            .ok_or(CdaError::InvalidChunkSize {
+                expected: 24,
+                actual: chunk_size,
             })
             .or_warn("")?;
 
         let version = u16::from_le_bytes(data.next_chunk().unwrap());
         (version == 1)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!("unknown cda file version {}", version))
-            })
+            .ok_or(CdaError::InvalidVersion(version))
             .or_warn("")?;
 
         let track_number = u16::from_le_bytes(data.next_chunk().unwrap());
@@ -121,7 +113,6 @@ impl CdaFile {
         // relative frame + lead-in == absolute MSF, and we cross-check them below.
         let relative_frame = u32::from_le_bytes(data.next_chunk().unwrap());
         let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
-            .ok_or_else(|| WinErrorOld::invalid_data().context("duration too large"))
             .or_warn("parsing duration")?;
 
         let start_frame = data.next().unwrap();
@@ -130,7 +121,9 @@ impl CdaFile {
         let start = Msf::new(start_min, start_sec, start_frame);
 
         let msf_frames = Frame::from(start);
-        let relative_start = Frame::new(relative_frame).and_then(|frame| frame.checked_add(LEADIN));
+        let relative_start = Frame::new(relative_frame)
+            .ok()
+            .and_then(|frame| frame.checked_add(LEADIN));
 
         // Escape hatch for deliberate TOC breakage (copy protection): "More Music from The Fast
         // and the Furious" (CP-2 in the cdcopy-drm02 paper) has a track start of 00:01:74, below
@@ -146,15 +139,14 @@ impl CdaFile {
         });
 
         (relative_start == Some(msf_frames) || start_below_leadin)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!(
-                    "mismatched start: relative frame {relative_frame} / msf {start:?}"
-                ))
+            .ok_or(CdaError::MismatchedStart {
+                relative: relative_frame,
+                absolute: start,
             })
             .or_warn("")?;
 
         (data.next().unwrap() == 0)
-            .ok_or_else(|| WinErrorOld::invalid_data().context("missing null byte"))
+            .ok_or(CdaError::MissingNullByte)
             .or_warn("")?;
 
         let frame = data.next().unwrap();
@@ -163,15 +155,14 @@ impl CdaFile {
         let duration = Msf::new(min, sec, frame);
 
         (duration == duration_frames)
-            .ok_or_else(|| {
-                WinErrorOld::invalid_data().context(format!(
-                    "mismatched duration {duration_frames:?} frames / {duration:?}"
-                ))
+            .ok_or(CdaError::MismatchedDuration {
+                frames: duration_frames,
+                msf: duration,
             })
             .or_warn("")?;
 
         (data.next().unwrap() == 0)
-            .ok_or_else(|| WinErrorOld::invalid_data().context("missing null byte"))
+            .ok_or(CdaError::MissingNullByte)
             .or_warn("")?;
 
         Ok(Self {
@@ -187,7 +178,6 @@ impl TryFrom<CdaFile> for Track<'static> {
     type Error = CdaError;
 
     fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        // Note to mistral - this is now even simpler by improving the signature of TrackNo::new
         let track = TrackNo::new(cda.track_number)
             .or_warn("cda file does not describe a normal audio track")?;
         Ok(Track::new(track, cda.start.into(), cda.duration.into()))
@@ -202,17 +192,17 @@ impl TryFrom<CdaFile> for Track<'static> {
 /// - Only fatal errors are returned, e.g. for an invalid path. `.cda` files which fail to parse,
 ///   or which do not describe a normal audio track, are skipped with a warning rather than failing
 ///   the whole read.
-pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, WinErrorOld> {
+pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, WinError> {
     let glob_path = path.as_ref().join("*.cda");
     let glob_pattern = glob_path
         .to_str()
-        .ok_or_else(|| WinErrorOld::invalid_filename().context("drive path not valid"))
+        .ok_or(WinError::InvalidFilename)
         .or_error("drive path contains non utf-8")?;
     let paths = glob::glob(glob_pattern)
-        .map_err(|err| WinErrorOld::invalid_filename().context(err))
+        .map_err(|_| WinError::InvalidFilename)
         .or_error("invalid glob pattern")?;
     let valid_paths = paths.filter_map(|cda| {
-        cda.map_err(|error| WinErrorOld::invalid_filename().context(error))
+        cda.map_err(|_| WinError::InvalidFilename)
             .or_error("unable to access globbed file")
             .ok()
     });
@@ -233,7 +223,7 @@ mod tests {
 
     use std::assert_matches;
 
-    use crate::win::WinError;
+    use crate::win::error::CdaError;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
@@ -316,6 +306,6 @@ mod tests {
         let mut cda = CdaFile::from_path(&cda_file).unwrap();
         cda.track_number = track_number;
         let err = Track::try_from(cda).unwrap_err();
-        // assert!(matches!(err.kind(), WinError::InvalidData));
+        assert!(matches!(err, CdaError::InvalidTrackNo(_)));
     }
 }

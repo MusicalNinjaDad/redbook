@@ -11,7 +11,7 @@ use std::{
     io::{self, ErrorKind as IoErrorKind},
 };
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 
 /// Error returned by [`tagging`][crate::tagging] APIs: mime-type parsing and FLAC metadata
 /// read/write failures.
@@ -113,7 +113,7 @@ impl From<io::Error> for TaggingError {
 
 impl From<TaggingError> for Error {
     fn from(error: TaggingError) -> Self {
-        Error::from(ErrorKind::Tagging(error))
+        Error::Tagging(error)
     }
 }
 

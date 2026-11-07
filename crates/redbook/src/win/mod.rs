@@ -1,6 +1,6 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
-pub use error::{WinErrorOld, WinError};
+pub use error::{CdaError, WinError};
 pub use sys::DriveHandle;
 
 #[forbid(unsafe_code)]

@@ -289,7 +289,8 @@ impl Disc {
             .and_then(|media| media.tracks.as_ref())
             .and_then(|tracks| {
                 tracks.iter().find(|trk| {
-                    trk.number.parse::<u8>().ok().and_then(TrackNo::checked_new) == Some(track_number)
+                    trk.number.parse::<u8>().ok().and_then(TrackNo::checked_new)
+                        == Some(track_number)
                 })
             });
         Some(track)

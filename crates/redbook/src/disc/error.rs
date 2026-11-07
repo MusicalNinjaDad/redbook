@@ -12,7 +12,7 @@ use std::{
 
 use thread_safely::Context;
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.
@@ -141,7 +141,7 @@ impl From<io::Error> for DiscError {
 
 impl From<DiscError> for Error {
     fn from(error: DiscError) -> Self {
-        Error::from(ErrorKind::Disc(error))
+        Error::Disc(error)
     }
 }
 
@@ -241,6 +241,6 @@ mod tests {
     #[test]
     fn converts_into_root_error() {
         let error = Error::from(DiscError::no_releases());
-        assert!(matches!(error.kind(), ErrorKind::Disc(_)));
+        assert!(matches!(error, Error::Disc(_)));
     }
 }

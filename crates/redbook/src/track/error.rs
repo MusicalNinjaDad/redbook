@@ -16,7 +16,7 @@ use flacenc::{
     error::{EncodeError, OutputError},
 };
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 
 /// Error returned by [`RippedTrack::to_flac`][crate::RippedTrack::to_flac].
 ///
@@ -105,7 +105,7 @@ impl From<OutputError<ByteSink>> for TrackError {
 
 impl From<TrackError> for Error {
     fn from(error: TrackError) -> Self {
-        Error::from(ErrorKind::Track(error))
+        Error::Track(error)
     }
 }
 
@@ -202,6 +202,6 @@ mod tests {
     #[test]
     fn converts_into_root_error() {
         let error = Error::from(TrackError::invalid_data());
-        assert!(matches!(error.kind(), ErrorKind::Track(_)));
+        assert!(matches!(error, Error::Track(_)));
     }
 }
