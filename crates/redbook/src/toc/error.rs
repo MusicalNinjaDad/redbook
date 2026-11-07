@@ -21,6 +21,7 @@ use crate::error::{Error, ErrorKind};
 #[non_exhaustive]
 pub struct TocError {
     kind: TocErrorKind,
+    // TODO: #193 store semantically meaningful context
     context: Option<Box<str>>,
 }
 
