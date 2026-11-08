@@ -23,7 +23,7 @@ use derive_more::Display;
 use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf};
+use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
 
 pub use error::{InvalidTrackNo, TocError, TocResult};
 
@@ -1391,7 +1391,7 @@ impl TocEntries {
     /// Is this pair of entries well sorted?
     ///
     /// Primarily designed for used in `.map_windows().try_for_each()`
-    pub fn well_sorted(format: Format, entries: &[&TocEntry; 2]) -> Result<(), TocError> {
+    pub fn well_sorted(format: Format, entries: &[&TocEntry; 2]) -> Result<(), InvalidOrder> {
         use Format::*;
         use TocEntryKind::*;
         use TrackKind::*;
@@ -1417,10 +1417,7 @@ impl TocEntries {
             | (B0010(_), Leadout, _, Unknown, _)
             | (B0010(_), Unknown, _, Unknown, _)
             | (B0010(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
-            _ => Err(TocError::InvalidOrder {
-                this: **this_entry,
-                next: **next_entry,
-            }),
+            _ => Err(InvalidOrder::new(&format, this_entry, next_entry)),
         }
     }
 }

@@ -11,7 +11,7 @@ use std::{
     num::NonZeroUsize,
 };
 
-use crate::error::Error;
+use crate::{error::Error, toc::Format};
 
 use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
 
@@ -54,12 +54,7 @@ pub enum TocError {
         leadouts: usize,
     },
     /// Two adjacent entries are in an invalid order.
-    InvalidOrder {
-        /// The earlier entry.
-        this: TocEntry,
-        /// The entry which cannot follow it.
-        next: TocEntry,
-    },
+    InvalidOrder(InvalidOrder),
     /// A required TOC element (e.g. the lead-out) was not found, or no entries were provided.
     NotFound,
     /// A wrapped [`cdtoc::TocError`], e.g. from [`cdtoc::Toc::from_parts`].
@@ -111,10 +106,7 @@ impl Display for TocError {
                 f,
                 "found {leadouts} leadout entries but {sessions:?} sessions"
             ),
-            TocError::InvalidOrder { this, next } => write!(
-                f,
-                "invalid TOC entry order: {this:?} cannot be followed by {next:?}"
-            ),
+            TocError::InvalidOrder(error) => Display::fmt(error, f),
             TocError::NotFound => f.write_str("required TOC element not found"),
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             TocError::CdToc(_) => f.write_str("cdtoc error"),
@@ -207,6 +199,45 @@ impl StdError for InvalidTrackNo {}
 impl From<InvalidTrackNo> for io::Error {
     fn from(error: InvalidTrackNo) -> Self {
         io::Error::new(IoErrorKind::InvalidData, error)
+    }
+}
+
+/// An incorrectly ordered pair of [`TocEntry`]s, for a given [`Format`][super::Format]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvalidOrder {
+    format: Format,
+    first_entry: TocEntry,
+    second_entry: TocEntry,
+}
+
+impl Display for InvalidOrder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "invalid order: {first:?} cannot be followed by {second:?} in format {format:?}",
+            first = self.first_entry,
+            second = self.second_entry,
+            format = self.format
+        )
+    }
+}
+
+impl StdError for InvalidOrder {}
+
+impl InvalidOrder {
+    /// Create a new InvalidOrder error
+    pub fn new(format: &Format, first_entry: &TocEntry, second_entry: &TocEntry) -> Self {
+        Self {
+            format: *format,
+            first_entry: *first_entry,
+            second_entry: *second_entry,
+        }
+    }
+}
+
+impl From<InvalidOrder> for TocError {
+    fn from(error: InvalidOrder) -> Self {
+        TocError::InvalidOrder(error)
     }
 }
 
