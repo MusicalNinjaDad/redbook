@@ -1387,6 +1387,42 @@ impl TocEntries {
             .filter_map_tracks()
             .next()
     }
+
+    /// Is this pair of entries well sorted?
+    ///
+    /// Primarily designed for used in `.map_windows().try_for_each()`
+    pub fn well_sorted(format: Format, entries: &[&TocEntry; 2]) -> Result<(), TocError> {
+        use Format::*;
+        use TocEntryKind::*;
+        use TrackKind::*;
+
+        let [this_entry, next_entry] = entries;
+        match (
+            format,
+            this_entry.kind(),
+            this_entry.track_kind(),
+            next_entry.kind(),
+            next_entry.track_kind(),
+        ) {
+            (B0000, Track, _, Track, _)
+            | (B0000, Track, _, Leadout, _)
+            | (B0010(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
+            | (B0010(_), LastTrackInfo, Audio, Track, Audio)
+            | (B0010(_), Track, Audio, Track, Audio)
+            | (B0010(_), Track, Audio, Leadout, Audio)
+            | (B0010(_), FirstTrackInfo, Data, LastTrackInfo, Data)
+            | (B0010(_), LastTrackInfo, Data, Track, Data)
+            | (B0010(_), Track, Data, Track, Data)
+            | (B0010(_), Track, Data, Leadout, Data)
+            | (B0010(_), Leadout, _, Unknown, _)
+            | (B0010(_), Unknown, _, Unknown, _)
+            | (B0010(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
+            _ => Err(TocError::InvalidOrder {
+                this: **this_entry,
+                next: **next_entry,
+            }),
+        }
+    }
 }
 
 /// Whether only the final leadout is present, or leadouts are available for every session.
@@ -1480,9 +1516,6 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
         let _span = tracing::debug_span!("FromIterator<TocEntry> for Result<TocEntries, TocError>");
         use FirstLast::*;
-        use Format::*;
-        use TocEntryKind::*;
-        use TrackKind::*;
 
         let mut entries: Vec<_> = iter.into_iter().collect();
 
@@ -1611,34 +1644,8 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
 
         entries
             .iter()
-            .map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
-            .try_for_each(|(this_entry, next_entry)| {
-                match (
-                    format,
-                    this_entry.kind(),
-                    this_entry.track_kind(),
-                    next_entry.kind(),
-                    next_entry.track_kind(),
-                ) {
-                    (B0000, Track, _, Track, _)
-                    | (B0000, Track, _, Leadout, _)
-                    | (B0010(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
-                    | (B0010(_), LastTrackInfo, Audio, Track, Audio)
-                    | (B0010(_), Track, Audio, Track, Audio)
-                    | (B0010(_), Track, Audio, Leadout, Audio)
-                    | (B0010(_), FirstTrackInfo, Data, LastTrackInfo, Data)
-                    | (B0010(_), LastTrackInfo, Data, Track, Data)
-                    | (B0010(_), Track, Data, Track, Data)
-                    | (B0010(_), Track, Data, Leadout, Data)
-                    | (B0010(_), Leadout, _, Unknown, _)
-                    | (B0010(_), Unknown, _, Unknown, _)
-                    | (B0010(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
-                    _ => Err(TocError::InvalidOrder {
-                        this: *this_entry,
-                        next: *next_entry,
-                    }),
-                }
-            })?;
+            .map_windows(|entries| TocEntries::well_sorted(format, entries))
+            .try_for_each(|x| x)?;
 
         let tocentries = TocEntries { entries, format };
 
