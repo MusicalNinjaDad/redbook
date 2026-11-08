@@ -1308,7 +1308,7 @@ pub enum TocEntryKind {
 /// Construction is available via `FromIterator<TocEntry> for Result<TocEntries, TocError>`
 pub struct TocEntries {
     entries: Vec<TocEntry>,
-    leadouts: Leadouts,
+    format: Format,
 }
 
 /// Filtering helpers over iterators of [`TocEntry`] references.
@@ -1395,11 +1395,20 @@ impl TocEntries {
 /// - `Final`: Sessions have not been identified, intra-session leadout positions are unknown
 /// - `PerSession(n)`: Sessions are identified, intra-session leadout positions must be available
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Leadouts {
-    /// Multiple sessions exist but only the final leadout is available
-    Final,
-    /// Every session has a leadout available, includes the number of sessions found.
-    PerSession(NonZeroUsize),
+pub enum Format {
+    /// Summary form TOC
+    ///
+    /// # Note
+    /// - If multiple sessions exist, only the final leadout is available.
+    /// - No dedicated information entries are available
+    B0000,
+    /// Full form TOC.
+    ///
+    /// # Note
+    /// - Every session has a leadout available
+    /// - Dedicated information entries are present for each session
+    /// - Includes the number of sessions found
+    B0010(NonZeroUsize),
 }
 
 impl<'entries> IntoIterator for &'entries TocEntries {
@@ -1471,7 +1480,7 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
         let _span = tracing::debug_span!("FromIterator<TocEntry> for Result<TocEntries, TocError>");
         use FirstLast::*;
-        use Leadouts::*;
+        use Format::*;
         use TocEntryKind::*;
         use TrackKind::*;
 
@@ -1584,20 +1593,19 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
 
         let leadout_count = entries.iter().filter_map(TocEntry::leadoutentry).count();
 
-        let leadouts = match (sessions, leadout_count) {
-            (None, 1) => Leadouts::Final,
-            (None, l) => {
+        let format = match (sessions, leadout_count) {
+            (None, 1) => Format::B0000,
+            (None, leadouts) => {
                 return Err(TocError::LeadoutMismatch {
                     sessions: None,
-                    leadouts: l,
+                    leadouts,
                 });
             }
-            (Some(s), l) if s.get() == l => Leadouts::PerSession(s),
-            (Some(s), l) => {
-                return Err(TocError::LeadoutMismatch {
-                    sessions: Some(s),
-                    leadouts: l,
-                });
+            (Some(session_count), leadouts) if session_count.get() == leadouts => {
+                Format::B0010(session_count)
+            }
+            (Some(_), leadouts) => {
+                return Err(TocError::LeadoutMismatch { sessions, leadouts });
             }
         };
 
@@ -1606,25 +1614,25 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
             .map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
             .try_for_each(|(this_entry, next_entry)| {
                 match (
-                    leadouts,
+                    format,
                     this_entry.kind(),
                     this_entry.track_kind(),
                     next_entry.kind(),
                     next_entry.track_kind(),
                 ) {
-                    (Final, Track, _, Track, _)
-                    | (Final, Track, _, Leadout, _)
-                    | (PerSession(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
-                    | (PerSession(_), LastTrackInfo, Audio, Track, Audio)
-                    | (PerSession(_), Track, Audio, Track, Audio)
-                    | (PerSession(_), Track, Audio, Leadout, Audio)
-                    | (PerSession(_), FirstTrackInfo, Data, LastTrackInfo, Data)
-                    | (PerSession(_), LastTrackInfo, Data, Track, Data)
-                    | (PerSession(_), Track, Data, Track, Data)
-                    | (PerSession(_), Track, Data, Leadout, Data)
-                    | (PerSession(_), Leadout, _, Unknown, _)
-                    | (PerSession(_), Unknown, _, Unknown, _)
-                    | (PerSession(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
+                    (B0000, Track, _, Track, _)
+                    | (B0000, Track, _, Leadout, _)
+                    | (B0010(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
+                    | (B0010(_), LastTrackInfo, Audio, Track, Audio)
+                    | (B0010(_), Track, Audio, Track, Audio)
+                    | (B0010(_), Track, Audio, Leadout, Audio)
+                    | (B0010(_), FirstTrackInfo, Data, LastTrackInfo, Data)
+                    | (B0010(_), LastTrackInfo, Data, Track, Data)
+                    | (B0010(_), Track, Data, Track, Data)
+                    | (B0010(_), Track, Data, Leadout, Data)
+                    | (B0010(_), Leadout, _, Unknown, _)
+                    | (B0010(_), Unknown, _, Unknown, _)
+                    | (B0010(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
                     _ => Err(TocError::InvalidOrder {
                         this: *this_entry,
                         next: *next_entry,
@@ -1632,7 +1640,7 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
                 }
             })?;
 
-        let tocentries = TocEntries { entries, leadouts };
+        let tocentries = TocEntries { entries, format };
 
         Ok(tocentries)
     }
