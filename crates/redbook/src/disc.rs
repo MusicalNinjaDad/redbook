@@ -502,16 +502,13 @@ impl Disc {
         let mut mb_stuff = Discid::fetch();
         mb_stuff.id(&discid).with_artists().with_recordings();
 
-        let discid = {
-            let _debug_with_query =
-                tracing::debug_span!("fetching from MusicBrainz", query = ?mb_stuff).entered();
-            tracing::trace!("starting to fetch");
+        let debug_with_query =
+            tracing::debug_span!("fetching from MusicBrainz", query = ?mb_stuff).entered();
+        tracing::trace!("starting to fetch");
 
-            mb_stuff
-                .execute()
-                .map_err(DiscError::from)
-                .or_warn("fetching from MusicBrainz")?
-        };
+        let discid = mb_stuff.execute().or_warn("fetching from MusicBrainz")?;
+
+        debug_with_query.exit();
 
         let _debug_with_id =
             tracing::debug_span!("MusicBrainz retrieved", discid = discid.id).entered();
@@ -643,7 +640,6 @@ impl Disc {
                 .get(&url)
                 .header("User-Agent", "splurt/0.1.0")
                 .send()
-                .map_err(DiscError::from)
                 .or_debug("requesting cover art")?;
 
             let status = response.status();
@@ -651,10 +647,7 @@ impl Disc {
             tracing::trace!("");
 
             if status.is_success() {
-                let image = response
-                    .bytes()
-                    .map_err(DiscError::from)
-                    .or_debug("unpacking response")?;
+                let image = response.bytes().or_debug("unpacking response")?;
 
                 debug_loop.record("size", image.len());
                 tracing::debug!("thumbnail retrieved");
