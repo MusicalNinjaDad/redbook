@@ -11,7 +11,10 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame,
-    drive::{DriveError, error::DeviceError},
+    drive::{
+        DriveError,
+        error::{DeviceError, OsError},
+    },
     win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
@@ -192,7 +195,7 @@ impl Clone for DriveHandle {
 }
 
 impl DriveHandle {
-    pub(super) fn device_number(&self) -> Result<STORAGE_DEVICE_NUMBER, WinError> {
+    pub(super) fn device_number(&self) -> Result<STORAGE_DEVICE_NUMBER, DeviceError> {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 
@@ -236,7 +239,7 @@ impl DriveHandle {
     /// Notably, this can return OS error 21 (device not ready) = no disc in drive.
     ///
     /// TODO: consider making public if we make win::sys::cdrom_toc public too
-    fn cdrom_toc(&self) -> Result<CDROM_TOC, WinError> {
+    fn cdrom_toc(&self) -> Result<CDROM_TOC, DeviceError> {
         let _error_span = tracing::error_span!("DriveHandle::cdrom_toc").entered();
 
         // SAFETY: We rely on `size_of::<>()`. Changing type requires updating the
@@ -345,19 +348,18 @@ impl Device for DriveHandle {
         )
         .entered();
 
-        let buf_size = ByteSize::new(buf.len()).or_error("invalid buffer size")?;
-
-        // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD
-        // buffer size is infallible
-        let bytes_to_read = buf_size.strict_cast();
+        let buf_size = ByteSize::new(buf.len()).or_error("invalid buffer")?;
 
         // SAFETY: buffer size must be >= sizeof(SectorCount * RAW_SECTOR_SIZE)
-        // SectorCount = frames_to_read
-        // RAW_SECTOR_SIZE = Frame::SIZE_IN_BYTES
-        let frames_to_read = buf_size
-            .frames_exact_checked()
-            .ok_or(DriveError::Unsupported)
-            .or_error("buffer not sized for CDDA")?;
+        // SectorCount = frames_to_read,  RAW_SECTOR_SIZE = ByteSize::ONE_FRAME
+        //
+        // Upheld by invariant that buf_size.frames() is calculated as buf.len().div(ONE_FRAME)
+        // Note we are not relying on exact sizing as the unsafe ffi call does not require it.
+        let frames_to_read = buf_size.frames();
+
+        // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD (`u32`)
+        // buffer size is infallible
+        let bytes_to_read = buf_size.strict_cast();
 
         span.record("frames_to_read", format_args!("{frames_to_read}"));
 
@@ -410,31 +412,38 @@ impl Device for DriveHandle {
         Ok(frames_to_read)
     }
 
-    fn read_toc(&self) -> Result<crate::TocEntries, DriveError> {
+    fn read_toc(&self) -> Result<crate::TocEntries, DeviceError> {
         let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
+        // TODO why does this compile - check conversions are all still correct
         Ok(self.cdrom_toc()?.try_into()?)
     }
 
-    fn raw_toc(&self) -> Result<Vec<u8>, DriveError> {
+    fn raw_toc(&self) -> Result<Vec<u8>, DeviceError> {
+        // TODO why does this compile - check conversions are all still correct
         Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 }
 
 trait IoControl {
-    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> Result<(), WinError>;
+    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32)
+    -> Result<(), DeviceError>;
 }
 
 impl IoControl for BOOL {
-    fn validate(&self, bytes_expected: Option<u32>, bytes_returned: u32) -> Result<(), WinError> {
+    fn validate(
+        &self,
+        bytes_expected: Option<u32>,
+        bytes_returned: u32,
+    ) -> Result<(), DeviceError> {
         let _span = tracing::error_span!("DeviceIoControl::validate", return_code = self, ?bytes_expected, %bytes_returned).entered();
 
         (*self != 0)
-            .ok_or_else(|| WinError::from(io::Error::last_os_error()))
+            .ok_or_else(|| WinError::get_from_os())
             .or_warn("error calling DeviceIoControl")?;
 
         if let Some(bytes_expected) = bytes_expected {
             (bytes_returned == bytes_expected)
-                .ok_or(WinError::UnexpectedEof {
+                .ok_or(DeviceError::UnexpectedEndOfRead {
                     expected: bytes_expected,
                     received: bytes_returned,
                 })
@@ -782,8 +791,9 @@ impl DeviceDetails {
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
     /// get the required size, then to call `check_size` before using DeviceDetails to store the
     /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    pub fn check_size(requiredsize: u32) -> Result<(), WinError> {
-        (requiredsize <= size_of::<Self>() as u32).ok_or(WinError::InvalidFilename)
+    pub fn check_size(requiredsize: u32) -> Result<(), DeviceError> {
+        (requiredsize <= size_of::<Self>() as u32)
+            .ok_or(DeviceError::InvalidBufferSize(requiredsize.into()))
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
@@ -792,8 +802,8 @@ impl DeviceDetails {
         PathBuf::from(path.to_string())
     }
 
-    /// Set the path. Returns the number of u16 "words" stored on success, or
-    /// [`WinError::InvalidData`][crate::win::WinError::InvalidData] if the provided path is too large.
+    /// Set the path. Returns the number of u16 "words" stored on success, panics if the provided
+    /// path is too large.
     #[cfg_attr(
         all(windows, not(any(test, doc))),
         expect(
@@ -801,11 +811,11 @@ impl DeviceDetails {
             reason = "only used in mock for SetupDiGetDeviceInterfaceDetailW"
         )
     )]
-    pub(super) fn set_path(&mut self, path: &WinString) -> Result<usize, WinError> {
+    pub(super) fn set_path(&mut self, path: &WinString) -> usize {
         let len = path.as_words().len();
-        (len < self.DevicePath.len()).ok_or(WinError::InvalidData)?;
+        assert!(len < self.DevicePath.len());
         self.DevicePath[..len].copy_from_slice(path.as_words());
-        Ok(len)
+        len
     }
 }
 

@@ -136,9 +136,12 @@ impl From<DriveError> for io::Error {
 }
 
 /// Errors returned by [`trait Device`][crate::Device]
+/// 
+/// TODO: Keep the genuine io::Errors in all relevant variants
 #[derive(Debug)]
 pub enum DeviceError {
-    /// The provided/calculated buffer size is unsuitable or too large for this architecture
+    /// The provided/calculated buffer size is unsuitable for the purpose
+    /// or too large for this architecture
     InvalidBufferSize(i128),
     /// The device is not ready - usually because no disc is inserted
     NotReady,
