@@ -11,10 +11,7 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame,
-    drive::{
-        DriveError,
-        error::{DeviceError, OsError},
-    },
+    drive::error::{DeviceError, OsError},
     win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
@@ -543,7 +540,7 @@ impl DeviceInfoSet {
     ///
     /// Returns Ok(None) if the member does not exist
     /// TODO - make this a simple -> Result<DeviceDetails, DeviceError>
-    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, WinError> {
+    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, DeviceError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
