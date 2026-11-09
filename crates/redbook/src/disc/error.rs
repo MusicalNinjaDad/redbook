@@ -7,10 +7,9 @@
 use std::{
     error::Error as StdError,
     fmt::{self, Display},
-    io::{self, ErrorKind as IoErrorKind, RawOsError},
+    io::{self, ErrorKind as IoErrorKind},
 };
 
-use syn::token::Not;
 use thread_safely::Context;
 
 use crate::{Track, error::Error};
@@ -154,85 +153,6 @@ impl Display for TrackMismatch {
 }
 
 impl StdError for TrackMismatch {}
-
-/// Errors returned by [`trait Device`][crate::Device]
-#[derive(Debug)]
-pub enum DeviceError {
-    /// The provided/calculated buffer size is unsuitable or too large for this architecture
-    InvalidBufferSize,
-    /// The device is not ready - usually because no disc is inserted
-    NotReady,
-    /// Less data was read than expected
-    UnexpectedEndOfRead {
-        /// The number of bytes expected.
-        expected: u32,
-        /// The number of bytes actually received.
-        received: u32,
-    },
-    /// The device does not support CD-ROM operations
-    UnsupportedDevice,
-    /// Some other io::Error occurred
-    Other(io::Error),
-}
-
-impl StdError for DeviceError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        use DeviceError::*;
-
-        match self {
-            Other(e) => Some(e),
-            InvalidBufferSize | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
-        }
-    }
-}
-
-impl Display for DeviceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DeviceError::InvalidBufferSize => todo!(),
-            DeviceError::NotReady => write!(f, "device not ready, is a disc inserted?"),
-            DeviceError::UnexpectedEndOfRead { expected, received } => {
-                write!(f, "expected {expected} bytes, received {received}")
-            }
-            DeviceError::UnsupportedDevice => write!(f, "device does not support CD operations"),
-            DeviceError::Other(error) => Display::fmt(error, f),
-        }
-    }
-}
-
-/// Trait for Errors which provide OS-colouring around an io::Error
-///
-/// # Note for implementors
-///
-/// Implementations must guarantee that construction is only possible from a genuine OS error - either
-/// via [`io::Error::last_os_error`] or [`io::Error::from_raw_os_error`], otherwise the provided
-/// function [`error_code`][OsError::error_code] will panic.
-///
-/// Most implementations will be a simple new-type wrapper to provide colouring
-/// TODO: include WinError as full example
-pub trait OsError:
-    StdError + Send + Sync + 'static // C-GOOD-ERR
-    + From<io::Error>
-    + Into<DeviceError>
-{
-    /// Obtain a reference to the underlying io::Error
-    fn as_io_error(&self) -> &io::Error;
-
-    /// Consume the OsError wrapper and return the wrapped io::Error
-    fn into_io_error(self) -> io::Error;
-
-    /// Generate a new, owned, io::Error based on the underlying error code
-    /// 
-    /// This is a workaround the fact that io::Error is not clone
-    fn to_io_error(&self) -> io::Error {
-        io::Error::from_raw_os_error(self.error_code())
-    }
-
-    /// Obtain the raw os error code related to this error.
-    fn error_code(&self) -> RawOsError {
-        self.as_io_error().raw_os_error().expect("Construction only possible from a raw os error")
-    }
-}
 
 #[cfg(test)]
 mod tests {

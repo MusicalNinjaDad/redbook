@@ -15,7 +15,7 @@ use std::{
 use glob::GlobError;
 
 use crate::{
-    disc::error::{DeviceError, OsError},
+    drive::error::{DeviceError, OsError},
     frame::{Frame, InvalidFrame, Msf},
     toc::error::InvalidTrackNo,
 };
