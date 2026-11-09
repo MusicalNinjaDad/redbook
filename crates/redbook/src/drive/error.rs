@@ -14,7 +14,10 @@ use std::{
 use thread_safely::Context;
 
 use crate::{
-    error::Error, frame::{ByteSize, InvalidByteSize}, toc::{TocError, TrackNo},
+    RipProgress,
+    error::Error,
+    frame::InvalidByteSize,
+    toc::{TocError, TrackNo},
 };
 
 /// Error returned by [`Device`][crate::Device] / [`Drive`][crate::Drive] APIs.
@@ -37,7 +40,7 @@ pub enum DriveError {
     /// The operation was cancelled via its [`Context`][thread_safely::Context].
     Cancelled,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
-    Progress,
+    Progress(RipProgress),
     /// A wrapped [`io::Error`].
     Io(io::Error),
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
@@ -51,12 +54,11 @@ impl DriveError {
         match self {
             DriveError::NotFound(_) => IoErrorKind::NotFound,
             DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
-            DriveError::FileTooLarge(_) => IoErrorKind::FileTooLarge,
             DriveError::InvalidData => IoErrorKind::InvalidData,
             DriveError::Unsupported => IoErrorKind::Unsupported,
             DriveError::OutOfMemory(_) => IoErrorKind::OutOfMemory,
             DriveError::Cancelled => IoErrorKind::Interrupted,
-            DriveError::Progress => IoErrorKind::Other,
+            DriveError::Progress(_) => IoErrorKind::Other,
             DriveError::Io(error) => error.kind(),
             DriveError::Toc(error) => error.io_kind(),
         }
@@ -70,14 +72,13 @@ impl Display for DriveError {
                 write!(f, "track {} not found on disc", track_number.cast::<u8>())
             }
             DriveError::ZeroLengthTrack => f.write_str("unexpected end of data"),
-            DriveError::FileTooLarge(size) => {
-                write!(f, "track too long to buffer in memory: {size}")
-            }
             DriveError::InvalidData => f.write_str("invalid data"),
             DriveError::Unsupported => f.write_str("operation not supported"),
             DriveError::OutOfMemory(size) => write!(f, "buffer too large: {size} bytes"),
             DriveError::Cancelled => f.write_str("thread cancellation requested by controller"),
-            DriveError::Progress => f.write_str("failed to send progress update"),
+            DriveError::Progress(RipProgress { track_number, .. }) => {
+                write!(f, "failed to update progress for {track_number}")
+            }
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             DriveError::Io(_) => f.write_str("I/O error"),
             DriveError::Toc(_) => f.write_str("TOC error"),
@@ -93,12 +94,11 @@ impl StdError for DriveError {
             // data-carrying variants are rendered in Display instead (issue #198)
             DriveError::NotFound(_)
             | DriveError::ZeroLengthTrack
-            | DriveError::FileTooLarge(_)
             | DriveError::InvalidData
             | DriveError::Unsupported
             | DriveError::OutOfMemory(_)
             | DriveError::Cancelled
-            | DriveError::Progress => None,
+            | DriveError::Progress(_) => None,
         }
     }
 }
@@ -121,6 +121,12 @@ impl From<TocError> for DriveError {
     }
 }
 
+impl From<crossbeam::channel::SendError<RipProgress>> for DriveError {
+    fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
+        Self::Progress(error.0)
+    }
+}
+
 impl From<DriveError> for Error {
     fn from(error: DriveError) -> Self {
         Error::Drive(error)
@@ -134,7 +140,7 @@ impl From<DriveError> for io::Error {
 }
 
 /// Errors returned by [`trait Device`][crate::Device]
-/// 
+///
 /// TODO: Keep the genuine io::Errors in all relevant variants
 #[derive(Debug)]
 pub enum DeviceError {
@@ -168,7 +174,9 @@ impl StdError for DeviceError {
 
         match self {
             Other(e) => Some(e),
-            InvalidBufferSize(_) | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
+            InvalidBufferSize(_) | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => {
+                None
+            }
         }
     }
 }
@@ -271,10 +279,6 @@ mod tests {
         assert_eq!(
             io::Error::from(DriveError::ZeroLengthTrack).kind(),
             IoErrorKind::UnexpectedEof
-        );
-        assert_eq!(
-            io::Error::from(DriveError::FileTooLarge(ByteSize::MAX)).kind(),
-            IoErrorKind::FileTooLarge
         );
         assert_eq!(
             io::Error::from(DriveError::InvalidData).kind(),

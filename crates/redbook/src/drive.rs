@@ -132,7 +132,6 @@ pub trait Drive: Sized {
                     processed: frames_read_so_far,
                     total: track.duration,
                 })
-                .map_err(|_| DriveError::Progress)
                 .or_error("sending progress update")?;
 
             let offset = MAX_CHUNK_FRAMES
