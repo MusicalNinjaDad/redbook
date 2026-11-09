@@ -2,7 +2,7 @@ use crate::{
     Frame, LEADIN, TocEntries,
     frame::Msf,
     test_fixtures::{albums::TestAlbum, load_hex_file},
-    toc::{Control, Ctrl, Point, RawTocEntry, TocEntry},
+    toc::{Control, Ctrl, Point, RawTocEntry, TocEntry, TocError},
 };
 
 use super::{CDROM_TOC, TRACK_DATA};
@@ -132,7 +132,7 @@ impl From<TestAlbum> for CDROM_TOC {
 }
 
 impl TryFrom<CDROM_TOC> for TocEntries {
-    type Error = crate::win::WinError;
+    type Error = TocError;
 
     fn try_from(toc: CDROM_TOC) -> Result<TocEntries, Self::Error> {
         toc.track_entries()
@@ -140,8 +140,7 @@ impl TryFrom<CDROM_TOC> for TocEntries {
             .filter(TRACK_DATA::nonzero)
             .map(RawTocEntry::from)
             .filter_map(Option::<TocEntry>::from)
-            .collect::<Result<_, crate::toc::TocError>>()
-            .map_err(crate::win::WinError::from)
+            .collect()
     }
 }
 
