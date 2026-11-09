@@ -197,6 +197,17 @@ pub trait OsError:
     + From<io::Error>
     + Into<DeviceError>
 {
+    /// Generate an OsError from the last os error this thread produced.
+    /// 
+    /// See [`io::Error::last_os_error`], which the provided default implementation delegates to,
+    /// for more details.
+    /// 
+    /// This function is provided to allow for custom implementations - as long as the resulting
+    /// error can infallibly produce an `io::Error` with a valid `RawOsError` code
+    fn get_from_os() -> Self {
+        io::Error::last_os_error().into()
+    }
+
     /// Obtain a reference to the underlying io::Error
     fn as_io_error(&self) -> &io::Error;
 

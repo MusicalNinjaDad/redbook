@@ -10,9 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Frame,
-    drive::DriveError,
-    win::{
+    ByteSize, Device, Frame, drive::{DriveError, error::DeviceError}, win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
@@ -38,7 +36,9 @@ use safety::IntoDriveHandle;
 use crate::test_fixtures::albums::TestAlbum;
 /// Contains and seals the only way to create a DriveHandle, thus enforcing invariants.
 mod safety {
-    use super::*;
+    use crate::drive::error::OsError;
+
+use super::*;
     /// A open file handle which can only be created by calling
     /// [`into_drive_handle`][HANDLE::into_drive_handle], thus ensuring invariants are upheld.
     ///
@@ -71,14 +71,14 @@ mod safety {
 
     #[expect(private_bounds, reason = "sealed for safety")]
     pub(super) trait IntoDriveHandle: Sealed {
-        fn into_drive_handle(self) -> Result<DriveHandle, WinError>;
+        fn into_drive_handle(self) -> Result<DriveHandle, DeviceError>;
     }
 
     impl IntoDriveHandle for HANDLE {
         #[inline]
-        fn into_drive_handle(self) -> Result<DriveHandle, WinError> {
+        fn into_drive_handle(self) -> Result<DriveHandle, DeviceError> {
             (self != INVALID_HANDLE_VALUE)
-                .ok_or_else(|| WinError::from(io::Error::last_os_error()))
+                .ok_or_else(WinError::get_from_os)
                 .or_warn("invalid handle")?;
 
             let drivehandle = DriveHandle(self);
@@ -87,7 +87,7 @@ mod safety {
                 .or_warn("unable to identify device type")?
                 .DeviceType
                 == const { FILE_DEVICE_CD_ROM.strict_cast::<u32>() })
-            .ok_or(WinError::Unsupported)
+            .ok_or(DeviceError::UnsupportedDevice)
             .or_warn("unsupported device")?;
 
             Ok(drivehandle)
@@ -285,7 +285,7 @@ impl Device for DriveHandle {
     type OsError = WinError;
     type Iter = DeviceInfoSetIter;
 
-    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, DriveError> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, DeviceError> {
         let path = PathBuf::from(path.as_ref());
         let _debug = tracing::debug_span!("DriveHandle::open", path = %path.display()).entered();
 
@@ -313,7 +313,7 @@ impl Device for DriveHandle {
         Ok(handle)
     }
 
-    fn all() -> Result<DeviceInfoSetIter, DriveError> {
+    fn all() -> Result<DeviceInfoSetIter, DeviceError> {
         let debug = tracing::debug_span!("DriveHandle::all", deviceinfoset = Empty).entered();
 
         let deviceinfoset = DeviceInfoSet::for_device_class(Guid(GUID_DEVINTERFACE_CDROM))
@@ -325,7 +325,7 @@ impl Device for DriveHandle {
         Ok(deviceinfoset.into_iter())
     }
 
-    fn fs_path(&self) -> Result<PathBuf, DriveError> {
+    fn fs_path(&self) -> Result<PathBuf, DeviceError> {
         let info = self.device_number()?;
 
         let path = PathBuf::from(format!(r"\\.\CDROM{}", info.DeviceNumber));
