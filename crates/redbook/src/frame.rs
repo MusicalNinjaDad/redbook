@@ -1125,16 +1125,16 @@ pub struct ByteSize(
     usize,
 );
 
-impl ByteSize {
-    const _SAFETY: () = {
-        assert!(ByteSize::MAX.is_valid());
-        assert!(ByteSize::ONE_FRAME.is_valid());
-        assert!(ByteSize::ZERO.is_valid());
-        assert!(ByteSize::MAX.frames() == Frame::MAX);
-        assert!(ByteSize::ONE_FRAME.frames() == Frame(1));
-        assert!(ByteSize::ZERO.frames() == Frame(1)); // TODO this should compile fail when everything else is sorted
-    };
+const _SAFETY: () = {
+    assert!(ByteSize::MAX.frames() == Frame::MAX);
+    assert!(ByteSize::ONE_FRAME.frames() == Frame(1));
+    assert!(ByteSize::ZERO.frames() == Frame::ZERO);
+    assert!(Frame::MAX.size() == ByteSize::MAX);
+    assert!(Frame(1).size() == ByteSize::ONE_FRAME);
+    assert!(Frame::ZERO.size() == ByteSize::ZERO);
+};
 
+impl ByteSize {
     /// The maximum byte size which can be derived from a [`Frame`]: [`Frame::MAX`]'s size in
     /// bytes.
     ///
