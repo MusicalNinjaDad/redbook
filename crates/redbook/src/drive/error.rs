@@ -45,6 +45,8 @@ pub enum DriveError {
     Io(io::Error),
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
     Toc(TocError),
+    /// TODO
+    Device(DeviceError),
 }
 
 impl DriveError {
@@ -61,6 +63,7 @@ impl DriveError {
             DriveError::Progress(_) => IoErrorKind::Other,
             DriveError::Io(error) => error.kind(),
             DriveError::Toc(error) => error.io_kind(),
+            DriveError::Device(_) => todo!(),
         }
     }
 }
@@ -82,6 +85,7 @@ impl Display for DriveError {
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             DriveError::Io(_) => f.write_str("I/O error"),
             DriveError::Toc(_) => f.write_str("TOC error"),
+            DriveError::Device(_) => write!(f, "device error"),
         }
     }
 }
@@ -91,6 +95,7 @@ impl StdError for DriveError {
         match self {
             DriveError::Io(error) => Some(error),
             DriveError::Toc(error) => Some(error),
+            DriveError::Device(error) => Some(error),
             // data-carrying variants are rendered in Display instead (issue #198)
             DriveError::NotFound(_)
             | DriveError::ZeroLengthTrack
@@ -124,6 +129,12 @@ impl From<TocError> for DriveError {
 impl From<crossbeam::channel::SendError<RipProgress>> for DriveError {
     fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
         Self::Progress(error.0)
+    }
+}
+
+impl From<DeviceError> for DriveError {
+    fn from(error: DeviceError) -> Self {
+        DriveError::Device(error)
     }
 }
 
