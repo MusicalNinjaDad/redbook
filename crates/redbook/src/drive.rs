@@ -298,29 +298,26 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
     /// Drives are yielded as `Result`s so that enumeration & drive-construction failures are
     /// propagated rather than silently ending iteration (issue #50); `None` is reserved for the
     /// expected end-of-enumeration condition.
-    type Item = Result<CdDrive<DEV>, DriveError>;
+    type Item = Result<CdDrive<DEV>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let _span = tracing::debug_span!("CdDrives::next");
-        let device = match self.devices.next()? {
-            Ok(device) => device,
-            Err(error) => return Some(Err(error)),
-        };
-        let path = match device.fs_path() {
-            Ok(path) => path,
-            Err(error) => return Some(Err(error)),
-        };
-        let tocentries = match device.read_toc() {
-            Ok(tocentries) => tocentries,
-            Err(error) => return Some(Err(error)),
-        };
+        let device = self.devices.next()?;
         let cx = self.cx.clone();
-        Some(Ok(CdDrive {
-            path,
-            device,
-            tocentries,
-            cx,
-        }))
+
+        let drive = try bikeshed Self::Item {
+            let device = device?;
+            let path = device.fs_path()?;
+            let tocentries = device.read_toc()?;
+            CdDrive {
+                path,
+                device,
+                tocentries,
+                cx,
+            }
+        };
+
+        Some(drive)
     }
 }
 
