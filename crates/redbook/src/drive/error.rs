@@ -16,7 +16,7 @@ use thread_safely::Context;
 use crate::{
     RipProgress,
     error::Error,
-    frame::InvalidByteSize,
+    frame::{InvalidByteSize, InvalidFrame},
     toc::{TocError, TrackNo},
 };
 
@@ -33,12 +33,33 @@ pub enum DriveError {
     ZeroLengthTrack,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
     Progress(RipProgress),
-    /// An error while processing the TOC obtained from the drive
-    Toc(TocError),
     /// TODO
     Device(DeviceError),
     /// A thread cancellation request was received
     ThreadCancellation,
+    /// Data read or computed from the inserted disc is invalid
+    InvalidData(InvalidData),
+}
+
+impl StdError for InvalidData {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            InvalidData::Toc(toc_error) => Some(toc_error),
+            InvalidData::InvalidFrame(invalid_frame) => Some(invalid_frame),
+        }
+    }
+}
+
+impl Display for InvalidData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InvalidData::Toc(_) => write!(f, "bad TOC read from disc"),
+            InvalidData::InvalidFrame(_) => write!(
+                f,
+                "attempt to reference an invalid frame while reading disc"
+            ),
+        }
+    }
 }
 
 impl DriveError {
@@ -49,9 +70,9 @@ impl DriveError {
             DriveError::NotFound(_) => IoErrorKind::NotFound,
             DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
             DriveError::Progress(_) => IoErrorKind::Other,
-            DriveError::Toc(error) => error.io_kind(),
             DriveError::Device(_) => todo!(),
             DriveError::ThreadCancellation => todo!(),
+            DriveError::InvalidData(_invalid_data) => todo!(),
         }
     }
 }
@@ -66,9 +87,9 @@ impl Display for DriveError {
             DriveError::Progress(RipProgress { track_number, .. }) => {
                 write!(f, "failed to update progress for {track_number}")
             }
-            DriveError::Toc(_) => f.write_str("TOC error"),
             DriveError::Device(_) => write!(f, "device error"),
             DriveError::ThreadCancellation => write!(f, "thread cancelled"),
+            DriveError::InvalidData(invalid_data) => Display::fmt(invalid_data, f),
         }
     }
 }
@@ -76,20 +97,32 @@ impl Display for DriveError {
 impl StdError for DriveError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            DriveError::Toc(error) => Some(error),
             DriveError::Device(error) => Some(error),
             // data-carrying variants are rendered in Display instead (issue #198)
             DriveError::NotFound(_)
             | DriveError::ZeroLengthTrack
             | DriveError::Progress(_)
-            | DriveError::ThreadCancellation => None,
+            | DriveError::ThreadCancellation
+            | DriveError::InvalidData(_) => None,
         }
     }
 }
 
 impl From<TocError> for DriveError {
     fn from(error: TocError) -> Self {
-        DriveError::Toc(error)
+        InvalidData::from(error).into()
+    }
+}
+
+impl From<InvalidFrame> for DriveError {
+    fn from(error: InvalidFrame) -> Self {
+        InvalidData::from(error).into()
+    }
+}
+
+impl From<InvalidData> for DriveError {
+    fn from(error: InvalidData) -> Self {
+        DriveError::InvalidData(error)
     }
 }
 
@@ -120,6 +153,27 @@ impl From<DriveError> for Error {
 impl From<DriveError> for io::Error {
     fn from(error: DriveError) -> Self {
         io::Error::new(error.io_kind(), error)
+    }
+}
+
+#[derive(Debug)]
+/// TODO
+pub enum InvalidData {
+    /// An error while processing the TOC obtained from the drive
+    Toc(TocError),
+    /// adsf
+    InvalidFrame(InvalidFrame),
+}
+
+impl From<TocError> for InvalidData {
+    fn from(error: TocError) -> Self {
+        InvalidData::Toc(error)
+    }
+}
+
+impl From<InvalidFrame> for InvalidData {
+    fn from(error: InvalidFrame) -> Self {
+        InvalidData::InvalidFrame(error)
     }
 }
 
