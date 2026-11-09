@@ -4,12 +4,7 @@ use std::{fs, path::Path};
 
 use tracing_result::Trace;
 
-use crate::{
-    Frame, LEADIN, Track,
-    frame::Msf,
-    toc::TrackNo,
-    win::{WinError, error::CdaError},
-};
+use crate::{Frame, LEADIN, Track, frame::Msf, toc::TrackNo, win::error::CdaError};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -45,7 +40,7 @@ pub struct CdaFile {
 
 impl CdaFile {
     /// Read the `.cda` file at `path`
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, WinError> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CdaError> {
         let path = path.as_ref();
         let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
 
@@ -192,20 +187,16 @@ impl TryFrom<CdaFile> for Track<'static> {
 /// - Only fatal errors are returned, e.g. for an invalid path. `.cda` files which fail to parse,
 ///   or which do not describe a normal audio track, are skipped with a warning rather than failing
 ///   the whole read.
-pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, WinError> {
+pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, CdaError> {
     let glob_path = path.as_ref().join("*.cda");
     let glob_pattern = glob_path
         .to_str()
-        .ok_or(WinError::InvalidFilename)
+        .ok_or_else(|| CdaError::InvalidFilename(glob_path.clone()))
         .or_error("drive path contains non utf-8")?;
     let paths = glob::glob(glob_pattern)
-        .map_err(|_| WinError::InvalidFilename)
+        .map_err(|_| CdaError::InvalidFilename(glob_path.clone()))
         .or_error("invalid glob pattern")?;
-    let valid_paths = paths.filter_map(|cda| {
-        cda.map_err(|_| WinError::InvalidFilename)
-            .or_error("unable to access globbed file")
-            .ok()
-    });
+    let valid_paths = paths.filter_map(|cda| cda.or_error("unable to access globbed file").ok());
     let cda_files =
         valid_paths.filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok());
     let tracks = cda_files.filter_map(|cda| {
