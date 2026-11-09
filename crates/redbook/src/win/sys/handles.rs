@@ -531,6 +531,9 @@ impl DeviceInfoSet {
     }
 
     /// Get the detail data for a given member of the device information set
+    ///
+    /// Returns Ok(None) if the member does not exist
+    /// TODO - make this a simple -> Result<DeviceDetails, DeviceError>
     pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, WinError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.

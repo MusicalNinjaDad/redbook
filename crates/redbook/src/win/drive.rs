@@ -5,14 +5,14 @@ use std::io;
 
 use crate::{
     Device,
-    drive::DriveError,
+    drive::error::DeviceError,
     win::sys::{DeviceInfoSet, DriveHandle},
 };
 #[cfg(test)]
 use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 
 impl IntoIterator for DeviceInfoSet {
-    type Item = Result<DriveHandle, DriveError>;
+    type Item = Result<DriveHandle, DeviceError>;
 
     type IntoIter = DeviceInfoSetIter;
 
@@ -31,7 +31,7 @@ impl Iterator for DeviceInfoSetIter {
     /// Items are `Result`s so that enumeration & drive-construction failures are propagated
     /// rather than silently ending iteration (issue #50); `None` is reserved for the expected
     /// end-of-enumeration condition (`ERROR_NO_MORE_ITEMS`).
-    type Item = Result<DriveHandle, DriveError>;
+    type Item = Result<DriveHandle, DeviceError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
@@ -46,17 +46,20 @@ impl Iterator for DeviceInfoSetIter {
         )
         .entered();
 
-        let drive_data = match self.infoset.get_member(drive_index) {
-            Ok(Some(drive_data)) => drive_data,
-            // expected end-of-enumeration condition
-            Ok(None) => return None,
-            Err(error) => return Some(Err(DriveError::from(error))),
+        let drive_data = match self
+            .infoset
+            .get_member(drive_index)
+            .map_err(DeviceError::from)
+            .transpose()?
+        {
+            Ok(drive_data) => drive_data,
+            Err(error) => return Some(Err(error)),
         };
 
         match DriveHandle::open(&drive_data.path()) {
             Ok(drive) => Some(Ok(drive)),
-            Err(error) if error.is_not_ready() => {
-                // ERROR_NOT_READY (21) = no disc in drive: expected, skip to the next device
+            Err(DeviceError::NotReady) => {
+                // no disc in drive: skip to the next device
                 drop(debug);
                 self.next()
             }
