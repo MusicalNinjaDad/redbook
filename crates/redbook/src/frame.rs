@@ -155,17 +155,18 @@ impl Frame {
     /// - For const contexts use [`Self::checked_new`]
     /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new(...).unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
-    pub fn new<N>(value: N) -> Result<Self, InvalidFrame>
+    pub const fn new<N>(value: N) -> Result<Self, InvalidFrame>
     where
-        u32: TryFrom<N>,
-        i128: From<N>,
+        u32: [const] TryFrom<N>,
+        <u32 as std::convert::TryFrom<N>>::Error: [const] Destruct,
+        i128: [const] From<N>,
         N: Copy,
     {
         u32::try_from(value)
             .ok()
             .map(Self)
             .and_then(Self::validate)
-            .ok_or_else(|| InvalidFrame::new(value))
+            .ok_or(InvalidFrame::new(value))
     }
 
     /// Creates a new `Frame` from any integer type, returning `None` if the value is above
@@ -329,6 +330,17 @@ impl Frame {
     // rhs is restricted by From
     // which only allows Frame & Msf
     // ============================
+
+    /// TODO Document & add equivalents for other operations
+    pub const fn try_add<R>(self, rhs: R) -> Result<Self, InvalidFrame>
+    where
+        Self: [const] From<R>,
+    {
+        // Frame::MAX.mul(2) == 0023_9C40 < u32::MAX
+        let rhs = Frame::from(rhs).cast::<u32>();
+        let v = self.cast::<u32>().checked_add(rhs).ok_or(InvalidFrame(rhs.into()))?;
+        Self::new(v)
+    }
 
     /// Strict addition. Computes `self + rhs`, panicking if the result is above [`Self::MAX`].
     ///
@@ -1485,9 +1497,9 @@ pub struct InvalidFrame(i128);
 
 impl InvalidFrame {
     /// Creates from the attempted value.
-    pub fn new<N>(attempt: N) -> Self
+    pub const fn new<N>(attempt: N) -> Self
     where
-        i128: From<N>,
+        i128: [const] From<N>,
     {
         Self(attempt.into())
     }

@@ -27,6 +27,7 @@
 #![feature(const_convert)]
 #![feature(const_destruct)]
 #![feature(const_option_ops)]
+#![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(error_generic_member_access)]
 #![cfg_attr(test, feature(fn_traits))]
