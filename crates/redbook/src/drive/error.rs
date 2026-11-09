@@ -28,8 +28,6 @@ pub enum DriveError {
     NotFound(TrackNo),
     /// The track has zero duration.
     ZeroLengthTrack,
-    /// The track is too long to buffer in memory; carries the track's size in bytes.
-    FileTooLarge(ByteSize),
     /// The data or arguments are invalid, e.g. frame offsets overflowing CD max.
     InvalidData,
     /// The operation is not supported, e.g. a buffer not sized for an exact number of frames.

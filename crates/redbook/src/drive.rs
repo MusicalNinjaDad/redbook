@@ -12,7 +12,9 @@ use tracing_result::Trace;
 pub use error::DriveError;
 
 use crate::{
-    Error, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo, drive::error::{DeviceError, OsError},
+    Error, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo,
+    drive::error::{DeviceError, OsError},
+    frame::ByteSize,
 };
 
 pub mod error;
@@ -82,10 +84,7 @@ pub trait Drive: Sized {
     ///
     /// Requires a thread [Context] to be provided so that long-running reads via
     /// [read_track][Drive::read_track] can be cancelled and provide status updates.
-    fn open<P: AsRef<Path> + ?Sized>(
-        path: &P,
-        cx: Context<RipProgress>,
-    ) -> Result<Self, Error>;
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> Result<Self, Error>;
 
     /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
@@ -112,19 +111,14 @@ pub trait Drive: Sized {
 
         dbg_span.record("track_details", format_args!("{track}"));
 
-        let track_size: usize = track
-            .duration
-            .size()
-            .checked_cast()
-            .ok_or(DriveError::FileTooLarge(track.duration.size()))
-            .or_error("")?;
+        let track_size = track.duration.size();
 
-        (track_size > 0)
+        (track_size > ByteSize::ZERO)
             .ok_or(DriveError::ZeroLengthTrack)
             .or_error("zero length track")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
-        let mut data = vec![0_u8; track_size];
+        let mut data = vec![0_u8; track_size.cast::<usize>()];
 
         let (bufs, last_buf) = data.as_chunks_mut::<{ MAX_CHUNK_BYTES.strict_cast() }>();
         let mut frames_read_so_far = Frame::default();
@@ -254,10 +248,7 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Drive for CdDrive<DEV> {
     type Device = DEV;
 
-    fn open<P: AsRef<Path> + ?Sized>(
-        path: &P,
-        cx: Context<RipProgress>,
-    ) -> Result<Self, Error> {
+    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> Result<Self, Error> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();
