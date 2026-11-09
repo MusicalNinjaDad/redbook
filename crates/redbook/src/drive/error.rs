@@ -17,7 +17,6 @@ use crate::{
     error::Error,
     frame::ByteSize,
     toc::{TocError, TrackNo},
-    win::WinError,
 };
 
 /// Error returned by [`Device`][crate::Device] / [`Drive`][crate::Drive] APIs.
@@ -29,8 +28,8 @@ use crate::{
 pub enum DriveError {
     /// The requested track was not found on the disc; carries the track number.
     NotFound(TrackNo),
-    /// The track has zero duration / fewer bytes were read than expected.
-    UnexpectedEof,
+    /// The track has zero duration.
+    ZeroLengthTrack,
     /// The track is too long to buffer in memory; carries the track's size in bytes.
     FileTooLarge(ByteSize),
     /// The data or arguments are invalid, e.g. frame offsets overflowing CD max.
@@ -45,24 +44,17 @@ pub enum DriveError {
     Progress,
     /// A wrapped [`io::Error`].
     Io(io::Error),
-    /// A wrapped [`win`][crate::win] (OS/hardware) error.
-    Win(WinError),
     /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
     Toc(TocError),
 }
 
 impl DriveError {
-    /// Whether the underlying OS error is `ERROR_NOT_READY` (no disc in drive).
-    pub fn is_not_ready(&self) -> bool {
-        matches!(self, DriveError::Win(error) if error.is_not_ready())
-    }
-
     /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
     /// behaviour of the call site which produced it.
     pub fn io_kind(&self) -> IoErrorKind {
         match self {
             DriveError::NotFound(_) => IoErrorKind::NotFound,
-            DriveError::UnexpectedEof => IoErrorKind::UnexpectedEof,
+            DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
             DriveError::FileTooLarge(_) => IoErrorKind::FileTooLarge,
             DriveError::InvalidData => IoErrorKind::InvalidData,
             DriveError::Unsupported => IoErrorKind::Unsupported,
@@ -70,7 +62,6 @@ impl DriveError {
             DriveError::Cancelled => IoErrorKind::Interrupted,
             DriveError::Progress => IoErrorKind::Other,
             DriveError::Io(error) => error.kind(),
-            DriveError::Win(error) => error.io_kind(),
             DriveError::Toc(error) => error.io_kind(),
         }
     }
@@ -82,7 +73,7 @@ impl Display for DriveError {
             DriveError::NotFound(track_number) => {
                 write!(f, "track {} not found on disc", track_number.cast::<u8>())
             }
-            DriveError::UnexpectedEof => f.write_str("unexpected end of data"),
+            DriveError::ZeroLengthTrack => f.write_str("unexpected end of data"),
             DriveError::FileTooLarge(size) => {
                 write!(f, "track too long to buffer in memory: {size}")
             }
@@ -93,7 +84,6 @@ impl Display for DriveError {
             DriveError::Progress => f.write_str("failed to send progress update"),
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             DriveError::Io(_) => f.write_str("I/O error"),
-            DriveError::Win(_) => f.write_str("OS / hardware error"),
             DriveError::Toc(_) => f.write_str("TOC error"),
         }
     }
@@ -103,11 +93,10 @@ impl StdError for DriveError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             DriveError::Io(error) => Some(error),
-            DriveError::Win(error) => Some(error),
             DriveError::Toc(error) => Some(error),
             // data-carrying variants are rendered in Display instead (issue #198)
             DriveError::NotFound(_)
-            | DriveError::UnexpectedEof
+            | DriveError::ZeroLengthTrack
             | DriveError::FileTooLarge(_)
             | DriveError::InvalidData
             | DriveError::Unsupported
@@ -127,12 +116,6 @@ impl From<io::Error> for DriveError {
 impl<R> From<Context<R>> for DriveError {
     fn from(_: Context<R>) -> Self {
         DriveError::Cancelled
-    }
-}
-
-impl From<WinError> for DriveError {
-    fn from(error: WinError) -> Self {
-        DriveError::Win(error)
     }
 }
 
@@ -264,7 +247,7 @@ mod tests {
             IoErrorKind::NotFound
         );
         assert_eq!(
-            io::Error::from(DriveError::UnexpectedEof).kind(),
+            io::Error::from(DriveError::ZeroLengthTrack).kind(),
             IoErrorKind::UnexpectedEof
         );
         assert_eq!(
@@ -289,6 +272,7 @@ mod tests {
         );
     }
 
+    #[cfg(false)]
     #[test]
     fn source_returns_directly_wrapped_win_error() {
         let win = WinError::NotReady;
@@ -303,7 +287,7 @@ mod tests {
 
     #[test]
     fn converts_into_root_error() {
-        let error = Error::from(DriveError::UnexpectedEof);
-        assert!(matches!(error, Error::Drive(DriveError::UnexpectedEof)));
+        let error = Error::from(DriveError::ZeroLengthTrack);
+        assert!(matches!(error, Error::Drive(DriveError::ZeroLengthTrack)));
     }
 }

@@ -121,7 +121,7 @@ pub trait Drive: Sized {
             .or_error("")?;
 
         (track_size > 0)
-            .ok_or(DriveError::UnexpectedEof)
+            .ok_or(DriveError::ZeroLengthTrack)
             .or_error("zero length track")?;
 
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
