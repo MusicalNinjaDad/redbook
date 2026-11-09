@@ -124,7 +124,7 @@ pub trait Drive: Sized {
         let mut frames_read_so_far = Frame::default();
         trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
 
-        for (i, buf) in bufs.iter_mut().enumerate() {
+        for buf in bufs.iter_mut() {
             self.cx().cancelled()?;
             self.cx()
                 .reply(RipProgress {
@@ -134,40 +134,26 @@ pub trait Drive: Sized {
                 })
                 .or_error("sending progress update")?;
 
-            // TODO #203 Simplify read_track by relying on frames_read_so_far and validate MAX_CHUNK_FRAMEs were read instead
-            let offset = MAX_CHUNK_FRAMES
-                .checked_mul(i)
-                .ok_or(DriveError::InvalidData)
-                .or_error("computing chunk offset")?;
-
-            debug_assert_eq!(
-                frames_read_so_far, offset,
-                "now reading chunk {i} but have only read {frames_read_so_far} frames so far"
-            );
-
             let start = track
                 .toc_entry
                 .start()
-                .checked_add(offset)
-                .ok_or(DriveError::InvalidData)
-                .or_error("computing read start")?;
+                .try_add(frames_read_so_far)
+                .or_error("calculating starting frame for next chunk")?;
 
             let frames_read = self.device().read_cdda(start, buf)?;
+
+            (frames_read == MAX_CHUNK_FRAMES)
+                .ok_or_else(|| DeviceError::UnexpectedEndOfRead {
+                    expected: MAX_CHUNK_FRAMES.cast(),
+                    received: frames_read.cast(),
+                })
+                .or_error("wrong number of frames read")?;
+
             frames_read_so_far = frames_read_so_far
-                .checked_add(frames_read)
-                .ok_or(DriveError::InvalidData)
+                .try_add(frames_read)
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
-
-        let offset = MAX_CHUNK_FRAMES
-            .checked_mul(bufs.len())
-            .ok_or(DriveError::InvalidData)
-            .or_error("computing last chunk offset")?;
-        debug_assert_eq!(
-            offset, frames_read_so_far,
-            "about to read last chunk. We are about to read from {offset}, but have only read {frames_read_so_far} frames so far"
-        );
 
         if !last_buf.is_empty() {
             self.cx().cancelled()?;
@@ -182,17 +168,22 @@ pub trait Drive: Sized {
             let start = track
                 .toc_entry
                 .start()
-                .checked_add(offset)
-                .ok_or(DriveError::InvalidData)
-                .or_error("computing last read start")?;
+                .try_add(frames_read_so_far)
+                .or_error("calculating starting from for last chunk")?;
 
             let frames_read = self.device().read_cdda(start, last_buf)?;
+
             frames_read_so_far = frames_read_so_far
-                .checked_add(frames_read)
-                .ok_or(DriveError::InvalidData)
+                .try_add(frames_read)
                 .or_error("accumulating frames read")?;
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
+
+        (frames_read_so_far == track.duration).ok_or_else(|| DeviceError::UnexpectedEndOfRead {
+            expected: track.duration.cast(),
+            received: frames_read_so_far.cast(),
+        })?;
+
         self.cx()
             .reply(RipProgress {
                 track_number,
