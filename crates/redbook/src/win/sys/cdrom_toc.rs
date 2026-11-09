@@ -202,7 +202,7 @@ mod tests {
     };
 
     impl CDROM_TOC {
-        fn to_toc(self) -> Result<Toc, crate::win::WinError> {
+        fn to_toc(self) -> Result<Toc, TocError> {
             let tocentries = &TocEntries::try_from(self)?;
             Ok(tocentries.try_into()?)
         }
