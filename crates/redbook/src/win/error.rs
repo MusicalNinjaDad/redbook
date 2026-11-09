@@ -12,138 +12,55 @@ use std::{
 };
 
 use crate::{
-    error::Error,
+    disc::error::{DeviceError, OsError},
     frame::{Frame, InvalidFrame, Msf},
-    toc::{TocError, error::InvalidTrackNo},
+    toc::error::InvalidTrackNo,
 };
 
-/// `ERROR_NOT_READY`: the device is not ready, e.g. no disc in the drive.
-pub const ERROR_NOT_READY: i32 = 21;
+use super::sys::ERROR_NOT_READY;
 
-/// Error returned by [`win`] APIs: OS/hardware failures and `.cda` file parsing failures.
-///
-/// Wrapped foreign errors convert via `From` / `?`.
+/// Error returned by [`win`] APIs. This is an OS-coloured type-wrapper around `io::Error`
+/// to allow for OS-specific parsing of error codes such as [`ERROR_NOT_READY`]
 #[derive(Debug)]
-pub enum WinError {
-    /// An error parsing a `.cda` file.
-    CdaError(CdaError),
-    /// A wrapped [`io::Error`], e.g. a raw OS error from a Windows API call.
-    Io(io::Error),
-    /// The device is not ready, e.g. no disc in the drive (`ERROR_NOT_READY`, 21).
-    NotReady,
-    /// The data is invalid.
-    InvalidData,
-    /// The filename/path is invalid.
-    InvalidFilename,
-    /// The operation is not supported by the device.
-    Unsupported,
-    /// The buffer is too large.
-    OutOfMemory,
-    /// Fewer bytes were returned than expected.
-    UnexpectedEof {
-        /// The number of bytes expected.
-        expected: u32,
-        /// The number of bytes actually received.
-        received: u32,
-    },
-    /// A wrapped [`toc`][crate::toc] error, e.g. from parsing the raw TOC.
-    Toc(TocError),
-}
+pub struct WinError(io::Error);
 
-impl WinError {
-    /// Whether this error is `ERROR_NOT_READY` (no disc in drive).
-    pub fn is_not_ready(&self) -> bool {
-        matches!(self, WinError::NotReady)
-    }
-
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> IoErrorKind {
-        match self {
-            WinError::CdaError(error) => error.io_kind(),
-            WinError::Io(error) => error.kind(),
-            WinError::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY).kind(),
-            WinError::InvalidData | WinError::Toc(_) => IoErrorKind::InvalidData,
-            WinError::InvalidFilename => IoErrorKind::InvalidFilename,
-            WinError::Unsupported => IoErrorKind::Unsupported,
-            WinError::OutOfMemory => IoErrorKind::OutOfMemory,
-            WinError::UnexpectedEof { .. } => IoErrorKind::UnexpectedEof,
+impl StdError for WinError {
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        if request.would_be_satisfied_by_value_of::<io::Error>() {
+            request.provide_value_with(|| self.to_io_error());
+        } else if request.would_be_satisfied_by_ref_of::<io::Error>() {
+            request.provide_ref(self.as_io_error());
         }
     }
 }
 
 impl Display for WinError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            // wrapped errors are returned by `source()`, not rendered here (issue #198)
-            WinError::CdaError(_) => f.write_str("invalid .cda file"),
-            WinError::Io(_) => f.write_str("I/O error"),
-            WinError::Toc(_) => f.write_str("TOC error"),
-            WinError::NotReady => f.write_str("device not ready (no disc in drive)"),
-            WinError::InvalidData => f.write_str("invalid data"),
-            WinError::InvalidFilename => f.write_str("invalid filename"),
-            WinError::Unsupported => f.write_str("operation not supported"),
-            WinError::OutOfMemory => f.write_str("buffer too large"),
-            WinError::UnexpectedEof { expected, received } => {
-                write!(f, "expected {expected} bytes, received {received}")
-            }
-        }
+        Display::fmt(&self.0, f)
     }
 }
 
-impl StdError for WinError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            WinError::CdaError(error) => Some(error),
-            WinError::Io(error) => Some(error),
-            WinError::Toc(error) => Some(error),
-            // data-carrying variants are rendered in Display instead (issue #198)
-            WinError::NotReady
-            | WinError::InvalidData
-            | WinError::InvalidFilename
-            | WinError::Unsupported
-            | WinError::OutOfMemory
-            | WinError::UnexpectedEof { .. } => None,
-        }
+impl OsError for WinError {
+    fn as_io_error(&self) -> &io::Error {
+        &self.0
+    }
+
+    fn into_io_error(self) -> io::Error {
+        self.0
     }
 }
 
 impl From<io::Error> for WinError {
     fn from(error: io::Error) -> Self {
-        if error.raw_os_error() == Some(ERROR_NOT_READY) {
-            WinError::NotReady
-        } else {
-            WinError::Io(error)
-        }
+        Self(error)
     }
 }
 
-impl From<CdaError> for WinError {
-    fn from(error: CdaError) -> Self {
-        WinError::CdaError(error)
-    }
-}
-
-impl From<TocError> for WinError {
-    fn from(error: TocError) -> Self {
-        WinError::Toc(error)
-    }
-}
-
-impl From<WinError> for Error {
+impl From<WinError> for DeviceError {
     fn from(error: WinError) -> Self {
-        Error::Win(error)
-    }
-}
-
-impl From<WinError> for io::Error {
-    fn from(error: WinError) -> Self {
-        match error {
-            // return the original OS error directly, preserving raw_os_error (status quo: call
-            // sites propagated the io::Error unchanged)
-            WinError::Io(error) => error,
-            WinError::NotReady => io::Error::from_raw_os_error(ERROR_NOT_READY),
-            other => io::Error::new(other.io_kind(), other),
+        match error.error_code() {
+            ERROR_NOT_READY => DeviceError::NotReady,
+            _ => DeviceError::Other(error.into_io_error()),
         }
     }
 }
