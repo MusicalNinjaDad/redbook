@@ -85,7 +85,7 @@ pub trait Drive: Sized {
     fn open<P: AsRef<Path> + ?Sized>(
         path: &P,
         cx: Context<RipProgress>,
-    ) -> Result<Self, DriveError>;
+    ) -> Result<Self, Error>;
 
     /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
@@ -257,7 +257,7 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
     fn open<P: AsRef<Path> + ?Sized>(
         path: &P,
         cx: Context<RipProgress>,
-    ) -> Result<Self, DriveError> {
+    ) -> Result<Self, Error> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();

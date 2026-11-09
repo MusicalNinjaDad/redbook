@@ -39,7 +39,7 @@ use std::{
     io,
 };
 
-use crate::drive;
+use crate::drive::{self, error::DeviceError};
 
 /// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -88,7 +88,7 @@ impl Display for Error {
             Error::Tagging(_) => f.write_str("tagging error"),
             Error::Track(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
-            Error::Win(_) => f.write_str("OS / hardware error"),
+            Error::Device(_) => f.write_str("device error"),
         }
     }
 }
@@ -101,11 +101,19 @@ impl StdError for Error {
             Error::Tagging(error) => Some(error),
             Error::Track(error) => Some(error),
             Error::Drive(error) => Some(error),
-            Error::Win(error) => Some(error),
+            Error::Device(error) => Some(error),
         }
     }
 }
 
+///TODO Why aren't similar impls here??
+impl From<DeviceError> for Error {
+    fn from(error: DeviceError) -> Self {
+        Self::Device(error)
+    }
+}
+
+/// TODO - NO! If an actual io::Error is there, must return that!
 impl From<Error> for io::Error {
     fn from(error: Error) -> Self {
         io::Error::new(error.io_kind(), error)

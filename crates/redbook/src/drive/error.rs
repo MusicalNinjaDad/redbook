@@ -158,6 +158,12 @@ pub enum DeviceError {
     Other(io::Error),
 }
 
+impl DeviceError {
+    pub fn io_kind(&self) -> io::ErrorKind {
+        todo!()
+    }
+}
+
 impl StdError for DeviceError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         use DeviceError::*;
