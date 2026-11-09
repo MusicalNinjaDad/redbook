@@ -12,8 +12,7 @@ use tracing_result::Trace;
 pub use error::DriveError;
 
 use crate::{
-    Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo,
-    drive::error::{DeviceError, OsError},
+    Error, Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo, drive::error::{DeviceError, OsError},
 };
 
 pub mod error;
@@ -58,7 +57,7 @@ pub trait Device: Sized {
     /// Read the Table of Contents from the disc and provide a parsed representation as a
     /// platform-independent [TocEntries]. If a cached version is available then it may be cloned
     /// and returned rather than re-reading from disc.
-    fn read_toc(&self) -> Result<TocEntries, DeviceError>;
+    fn read_toc(&self) -> Result<TocEntries, Error>;
 
     /// Read the Table of Contents from the disc and provide a raw_bytes representation of the
     /// returned data. The exact format of this data may be platform specific.

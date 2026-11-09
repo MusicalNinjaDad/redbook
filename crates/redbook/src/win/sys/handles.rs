@@ -10,9 +10,7 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Frame,
-    drive::error::{DeviceError, OsError},
-    win::{
+    ByteSize, Device, Error, Frame, TocEntries, drive::error::{DeviceError, OsError}, win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
@@ -409,7 +407,7 @@ impl Device for DriveHandle {
         Ok(frames_to_read)
     }
 
-    fn read_toc(&self) -> Result<crate::TocEntries, DeviceError> {
+    fn read_toc(&self) -> Result<TocEntries, Error> {
         let _debug = tracing::debug_span!("DriveHandle::read_toc").entered();
         // TODO why does this compile - check conversions are all still correct
         Ok(self.cdrom_toc()?.try_into()?)
