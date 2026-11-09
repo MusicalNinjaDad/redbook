@@ -282,6 +282,7 @@ impl DriveHandle {
 }
 
 impl Device for DriveHandle {
+    type OsError = WinError;
     type Iter = DeviceInfoSetIter;
 
     fn open<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, DriveError> {

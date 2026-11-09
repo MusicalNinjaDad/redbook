@@ -11,11 +11,20 @@ use tracing_result::Trace;
 
 pub use error::DriveError;
 
-use crate::{Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo};
+use crate::{
+    Frame, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, RipProgress, TocEntries, TrackNo,
+    drive::error::OsError,
+};
 
 pub mod error;
 /// The capabilites required of a low level device which can read CDs
 pub trait Device: Sized {
+    /// The coloured io::Error returned by this device.
+    ///
+    /// This allows for OS-specific parsing of non-overlapping error codes
+    /// (e.g. windows `ERROR_NOT_READY` == 21, vs linux `ENOMEDIUM` == 123)
+    type OsError: OsError;
+
     /// The type of Iterator available that provides all available devices on the system.
     ///
     /// Items are `Result`s so that enumeration / drive-construction failures are propagated
