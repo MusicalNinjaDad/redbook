@@ -338,7 +338,10 @@ impl Frame {
     {
         // Frame::MAX.mul(2) == 0023_9C40 < u32::MAX
         let rhs = Frame::from(rhs).cast::<u32>();
-        let v = self.cast::<u32>().checked_add(rhs).ok_or(InvalidFrame(rhs.into()))?;
+        let v = self
+            .cast::<u32>()
+            .checked_add(rhs)
+            .ok_or(InvalidFrame(rhs.into()))?;
         Self::new(v)
     }
 
