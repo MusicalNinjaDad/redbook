@@ -791,6 +791,9 @@ impl DeviceDetails {
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
     /// get the required size, then to call `check_size` before using DeviceDetails to store the
     /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
+    /// 
+    /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
+    /// paths?
     pub fn check_size(requiredsize: u32) -> Result<(), DeviceError> {
         (requiredsize <= size_of::<Self>() as u32)
             .ok_or(DeviceError::InvalidBufferSize(requiredsize.into()))
