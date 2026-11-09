@@ -14,9 +14,7 @@ use std::{
 use thread_safely::Context;
 
 use crate::{
-    error::Error,
-    frame::ByteSize,
-    toc::{TocError, TrackNo},
+    error::Error, frame::{ByteSize, InvalidByteSize}, toc::{TocError, TrackNo},
 };
 
 /// Error returned by [`Device`][crate::Device] / [`Drive`][crate::Drive] APIs.
@@ -141,7 +139,7 @@ impl From<DriveError> for io::Error {
 #[derive(Debug)]
 pub enum DeviceError {
     /// The provided/calculated buffer size is unsuitable or too large for this architecture
-    InvalidBufferSize,
+    InvalidBufferSize(i128),
     /// The device is not ready - usually because no disc is inserted
     NotReady,
     /// Less data was read than expected
@@ -163,7 +161,7 @@ impl StdError for DeviceError {
 
         match self {
             Other(e) => Some(e),
-            InvalidBufferSize | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
+            InvalidBufferSize(_) | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
         }
     }
 }
@@ -171,7 +169,7 @@ impl StdError for DeviceError {
 impl Display for DeviceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DeviceError::InvalidBufferSize => todo!(),
+            DeviceError::InvalidBufferSize(_) => todo!(),
             DeviceError::NotReady => write!(f, "device not ready, is a disc inserted?"),
             DeviceError::UnexpectedEndOfRead { expected, received } => {
                 write!(f, "expected {expected} bytes, received {received}")
@@ -179,6 +177,12 @@ impl Display for DeviceError {
             DeviceError::UnsupportedDevice => write!(f, "device does not support CD operations"),
             DeviceError::Other(error) => Display::fmt(error, f),
         }
+    }
+}
+
+impl From<InvalidByteSize> for DeviceError {
+    fn from(error: InvalidByteSize) -> Self {
+        Self::InvalidBufferSize(error.invalid_value())
     }
 }
 

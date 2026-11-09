@@ -1157,7 +1157,7 @@ impl ByteSize {
     pub fn new<N>(value: N) -> Result<Self, InvalidByteSize>
     where
         usize: TryFrom<N>,
-        i128: From<N>,
+        i128: BoundedCastFromInt<N>,
         N: Copy,
     {
         usize::try_from(value)
@@ -1655,9 +1655,14 @@ impl InvalidByteSize {
     /// Creates from the attempted value.
     pub fn new<N>(attempt: N) -> Self
     where
-        i128: From<N>,
+        i128: BoundedCastFromInt<N>,
     {
-        Self(attempt.into())
+        Self(i128::saturating_cast_from(attempt))
+    }
+
+    /// Returns the invalid value which was used to try to construct a ByteSize
+    pub fn invalid_value(&self) -> i128 {
+        self.0
     }
 }
 

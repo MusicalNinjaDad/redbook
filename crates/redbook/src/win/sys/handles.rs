@@ -10,7 +10,9 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Frame, drive::{DriveError, error::DeviceError}, win::{
+    ByteSize, Device, Frame,
+    drive::{DriveError, error::DeviceError},
+    win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
@@ -38,7 +40,7 @@ use crate::test_fixtures::albums::TestAlbum;
 mod safety {
     use crate::drive::error::OsError;
 
-use super::*;
+    use super::*;
     /// A open file handle which can only be created by calling
     /// [`into_drive_handle`][HANDLE::into_drive_handle], thus ensuring invariants are upheld.
     ///
@@ -333,7 +335,7 @@ impl Device for DriveHandle {
         Ok(path)
     }
 
-    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> Result<Frame, DriveError> {
+    fn read_cdda(&self, start: Frame, buf: &mut [u8]) -> Result<Frame, DeviceError> {
         let span = tracing::error_span!(
             "DriveHandle::read_cdda",
             %start,
@@ -343,9 +345,7 @@ impl Device for DriveHandle {
         )
         .entered();
 
-        let buf_size = ByteSize::checked_new(buf.len())
-            .ok_or(DriveError::OutOfMemory(buf.len()))
-            .or_error("buffer too large")?;
+        let buf_size = ByteSize::new(buf.len()).or_error("invalid buffer size")?;
 
         // the stored value is always <= ByteSize::MAX < u32::MAX, so casting to the DWORD
         // buffer size is infallible
