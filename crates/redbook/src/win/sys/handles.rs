@@ -628,7 +628,7 @@ impl DeviceInfoSet {
     fn check_required_buffer_size(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<(), WinError> {
+    ) -> Result<(), DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -657,15 +657,12 @@ impl DeviceInfoSet {
                 null_mut(),
             )
         };
-        let err = io::Error::last_os_error();
-        match (get_required_buffer_size, err.raw_os_error()) {
-            (0, Some(ERROR_INSUFFICIENT_BUFFER)) => tracing::debug!(requiredsize),
-            _ => {
-                tracing::error!(%err, "reading required buffer size");
-                return Err(WinError::from(err));
-            }
-        };
+        let err = WinError::get_from_os();
+        (get_required_buffer_size == 0 && err.error_code() == ERROR_INSUFFICIENT_BUFFER)
+            .ok_or(err)
+            .or_error("reading required buffer size")?;
 
+        tracing::debug!(requiredsize);
         DeviceDetails::check_size(requiredsize)
     }
 
@@ -791,7 +788,7 @@ impl DeviceDetails {
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
     /// get the required size, then to call `check_size` before using DeviceDetails to store the
     /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    /// 
+    ///
     /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
     /// paths?
     pub fn check_size(requiredsize: u32) -> Result<(), DeviceError> {
