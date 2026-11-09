@@ -39,6 +39,8 @@ use std::{
     io,
 };
 
+use crate::drive;
+
 /// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -58,8 +60,8 @@ pub enum Error {
     Track(crate::track::TrackError),
     /// A [`drive`][crate::drive] domain error.
     Drive(crate::drive::DriveError),
-    /// A [`win`] domain error (Windows hardware access).
-    Win(crate::win::WinError),
+    /// TODO
+    Device(drive::error::DeviceError),
 }
 
 impl Error {
@@ -72,7 +74,7 @@ impl Error {
             Error::Tagging(error) => error.io_kind(),
             Error::Track(error) => error.io_kind(),
             Error::Drive(error) => error.io_kind(),
-            Error::Win(error) => error.io_kind(),
+            Error::Device(error) => error.io_kind(),
         }
     }
 }
