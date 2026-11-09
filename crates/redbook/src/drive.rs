@@ -134,6 +134,7 @@ pub trait Drive: Sized {
                 })
                 .or_error("sending progress update")?;
 
+            // TODO #203 Simplify read_track by relying on frames_read_so_far and validate MAX_CHUNK_FRAMEs were read instead
             let offset = MAX_CHUNK_FRAMES
                 .checked_mul(i)
                 .ok_or(DriveError::InvalidData)
