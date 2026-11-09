@@ -115,6 +115,7 @@ pub enum CdaError {
         /// The duration as MSF.
         msf: Msf,
     },
+    /// TODO
     IoError(io::Error),
 }
 

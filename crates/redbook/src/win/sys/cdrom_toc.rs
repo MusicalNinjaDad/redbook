@@ -204,7 +204,7 @@ mod tests {
     impl CDROM_TOC {
         fn to_toc(self) -> Result<Toc, TocError> {
             let tocentries = &TocEntries::try_from(self)?;
-            Ok(tocentries.try_into()?)
+            tocentries.try_into()
         }
 
         /// Only takes the claimed number of tracks, thus avoiding the leadouts.

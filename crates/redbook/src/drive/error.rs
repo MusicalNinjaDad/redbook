@@ -174,6 +174,7 @@ pub enum DeviceError {
 }
 
 impl DeviceError {
+    /// TODO
     pub fn io_kind(&self) -> io::ErrorKind {
         todo!()
     }

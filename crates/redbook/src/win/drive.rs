@@ -46,12 +46,7 @@ impl Iterator for DeviceInfoSetIter {
         )
         .entered();
 
-        let drive_data = match self
-            .infoset
-            .get_member(drive_index)
-            .map_err(DeviceError::from)
-            .transpose()?
-        {
+        let drive_data = match self.infoset.get_member(drive_index).transpose()? {
             Ok(drive_data) => drive_data,
             Err(error) => return Some(Err(error)),
         };

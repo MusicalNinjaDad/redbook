@@ -10,7 +10,9 @@ use tracing::field::Empty;
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Error, Frame, TocEntries, drive::error::{DeviceError, OsError}, win::{
+    ByteSize, Device, Error, Frame, TocEntries,
+    drive::error::{DeviceError, OsError},
+    win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
@@ -433,7 +435,7 @@ impl IoControl for BOOL {
         let _span = tracing::error_span!("DeviceIoControl::validate", return_code = self, ?bytes_expected, %bytes_returned).entered();
 
         (*self != 0)
-            .ok_or_else(|| WinError::get_from_os())
+            .ok_or_else(WinError::get_from_os)
             .or_warn("error calling DeviceIoControl")?;
 
         if let Some(bytes_expected) = bytes_expected {

@@ -45,7 +45,7 @@ impl CdaFile {
         let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
 
         let raw = fs::read(path)?;
-        Ok(Self::new(raw)?)
+        Self::new(raw)
     }
 
     /// Create a new `CdaFile`
