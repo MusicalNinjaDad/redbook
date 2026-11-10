@@ -9,6 +9,7 @@ use std::{
     error::Error,
     fmt::{self, Display},
     io::{self, ErrorKind as IoErrorKind},
+    string::FromUtf8Error,
 };
 
 use thread_safely::Context;
@@ -85,8 +86,13 @@ impl From<UnknownMimeType> for DiscError {
 impl From<metaflac::Error> for DiscError {
     fn from(metaflac_error: metaflac::Error) -> Self {
         match metaflac_error.kind {
-            metaflac::ErrorKind::Io(io_error) => IoError::StdIoError(io_error).into(),
-            _ => ParsingError::VorbisTag(metaflac_error).into(),
+            metaflac::ErrorKind::Io(io_error) => IoError::from(io_error).into(),
+            metaflac::ErrorKind::StringDecoding(utf8_error) => {
+                ParsingError::from(utf8_error).into()
+            }
+            metaflac::ErrorKind::InvalidInput => {
+                ParsingError::MetaflacTaggingError(metaflac_error.to_string()).into()
+            }
         }
     }
 }
@@ -130,7 +136,11 @@ impl From<DiscError> for io::Error {
 #[derive(Debug)]
 pub enum ParsingError {
     UnknownMimeType(UnknownMimeType),
-    VorbisTag(metaflac::Error),
+    Utf8(FromUtf8Error),
+    /// An error from metaflac, which is *not* an `io::Error` or `FromUtf8Error`. E.g. invalid
+    /// Tag format or attempt to save a tag from one file to a different file. These are
+    /// stringly-typed by the downstream crate.
+    MetaflacTaggingError(String),
 }
 
 impl Error for ParsingError {
@@ -148,6 +158,12 @@ impl Display for ParsingError {
 impl From<UnknownMimeType> for ParsingError {
     fn from(value: UnknownMimeType) -> Self {
         Self::UnknownMimeType(value)
+    }
+}
+
+impl From<FromUtf8Error> for ParsingError {
+    fn from(value: FromUtf8Error) -> Self {
+        Self::Utf8(value)
     }
 }
 
