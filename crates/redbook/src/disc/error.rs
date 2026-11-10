@@ -24,7 +24,7 @@ use crate::Track;
 #[derive(Debug)]
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
-    TrackMismatch(TrackMismatch),
+    TocMismatch(TocMismatch),
     /// No MusicBrainz release was found / selected.
     NoReleases,
     /// A thread cancellation request was received via the [`Context`]
@@ -37,7 +37,7 @@ impl DiscError {
     /// behaviour of the call site which produced it.
     pub fn io_kind(&self) -> IoErrorKind {
         match self {
-            DiscError::TrackMismatch(_) => IoErrorKind::InvalidInput,
+            DiscError::TocMismatch(_) => IoErrorKind::InvalidInput,
             DiscError::NoReleases => IoErrorKind::Other,
             _ => todo!(),
         }
@@ -47,7 +47,7 @@ impl DiscError {
 impl Display for DiscError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DiscError::TrackMismatch(mismatch) => Display::fmt(mismatch, f),
+            DiscError::TocMismatch(mismatch) => Display::fmt(mismatch, f),
             DiscError::NoReleases => f.write_str("no releases found"),
             _ => todo!(),
         }
@@ -57,9 +57,15 @@ impl Display for DiscError {
 impl Error for DiscError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            DiscError::TrackMismatch(_) | DiscError::NoReleases => None,
+            DiscError::TocMismatch(_) | DiscError::NoReleases => None,
             _ => todo!(),
         }
+    }
+}
+
+impl From<TocMismatch> for DiscError {
+    fn from(value: TocMismatch) -> Self {
+        DiscError::TocMismatch(value)
     }
 }
 
@@ -132,7 +138,7 @@ impl From<io::Error> for IoError {
 
 /// Leaf error: the provided tracks do not match the TOC (see [`Disc::new`][crate::Disc::new]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum TrackMismatch {
+pub enum TocMismatch {
     /// A provided track differs from the corresponding TOC entry.
     Mismatch {
         /// The track as provided.
@@ -146,20 +152,20 @@ pub enum TrackMismatch {
     ExtraInToc(cdtoc::Track),
 }
 
-impl Display for TrackMismatch {
+impl Display for TocMismatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TrackMismatch::Mismatch { provided, from_toc } => {
+            TocMismatch::Mismatch { provided, from_toc } => {
                 write!(
                     f,
                     "track mismatch: toc {from_toc:?} vs provided track {provided}"
                 )
             }
-            TrackMismatch::ExtraProvided(track) => write!(
+            TocMismatch::ExtraProvided(track) => write!(
                 f,
                 "provided tracks contain more entries than the toc; first additional entry {track}"
             ),
-            TrackMismatch::ExtraInToc(toc_track) => write!(
+            TocMismatch::ExtraInToc(toc_track) => write!(
                 f,
                 "toc contains more entries than the provided tracks; first additional entry {toc_track:?}"
             ),
@@ -167,7 +173,7 @@ impl Display for TrackMismatch {
     }
 }
 
-impl Error for TrackMismatch {}
+impl Error for TocMismatch {}
 
 #[cfg(test)]
 mod tests {
@@ -179,7 +185,7 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: Error + Send + Sync + 'static>() {}
         assert_traits::<DiscError>();
-        assert_traits::<TrackMismatch>();
+        assert_traits::<TocMismatch>();
     }
 
     #[test]

@@ -26,7 +26,7 @@ use crate::{
     tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
 };
 
-pub use error::{DiscError, TrackMismatch};
+pub use error::{DiscError, TocMismatch};
 
 pub mod error;
 
@@ -133,7 +133,7 @@ impl Disc {
     pub fn new<T: IntoIterator<Item = Track<'static>>>(
         toc: Toc,
         tracks: T,
-    ) -> Result<Self, DiscError> {
+    ) -> Result<Self, TocMismatch> {
         let tracks: Vec<_> = tracks.into_iter().collect();
         let _info = tracing::info_span!("Disc::new", track_count = tracks.len()).entered();
 
@@ -142,18 +142,14 @@ impl Disc {
             .zip_longest(toc.audio_tracks())
             .try_for_each(|zipped| match zipped {
                 itertools::EitherOrBoth::Both(track, toc_track) if track == &toc_track => Ok(()),
-                itertools::EitherOrBoth::Both(track, toc_track) => {
-                    Err(DiscError::TrackMismatch(TrackMismatch::Mismatch {
-                        provided: *track,
-                        from_toc: toc_track,
-                    }))
+                itertools::EitherOrBoth::Both(track, toc_track) => Err(TocMismatch::Mismatch {
+                    provided: *track,
+                    from_toc: toc_track,
+                }),
+                itertools::EitherOrBoth::Left(track) => Err(TocMismatch::ExtraProvided(*track)),
+                itertools::EitherOrBoth::Right(toc_track) => {
+                    Err(TocMismatch::ExtraInToc(toc_track))
                 }
-                itertools::EitherOrBoth::Left(track) => Err(DiscError::TrackMismatch(
-                    TrackMismatch::ExtraProvided(*track),
-                )),
-                itertools::EitherOrBoth::Right(toc_track) => Err(DiscError::TrackMismatch(
-                    TrackMismatch::ExtraInToc(toc_track),
-                )),
             })
             .or_warn("mismatch between provided TOC & provided tracks")?;
 

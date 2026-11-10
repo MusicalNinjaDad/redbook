@@ -42,7 +42,7 @@ use std::{
 };
 
 use crate::{
-    disc::DiscError,
+    disc::{DiscError, TocMismatch},
     drive::{self, DriveError, error::DeviceError},
 };
 
@@ -126,6 +126,12 @@ impl From<DeviceError> for Error {
 impl From<DiscError> for Error {
     fn from(error: DiscError) -> Self {
         Error::Disc(error)
+    }
+}
+
+impl From<TocMismatch> for Error {
+    fn from(value: TocMismatch) -> Self {
+        DiscError::from(value).into()
     }
 }
 
