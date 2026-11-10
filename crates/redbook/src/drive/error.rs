@@ -18,7 +18,6 @@ use crate::{
 /// higher-level concerns.
 #[derive(Debug)]
 pub enum DriveError {
-    /// TODO
     Device(DeviceError),
     /// Attempted to read from an invalid location
     InvalidFrame(InvalidFrame),
@@ -129,12 +128,10 @@ pub enum DeviceError {
     UnsupportedDevice,
     /// Some other io::Error occurred
     Other(io::Error),
-    /// alskdjha
     InvalidToc(TocError),
 }
 
 impl DeviceError {
-    /// TODO
     pub fn io_kind(&self) -> io::ErrorKind {
         todo!()
     }
