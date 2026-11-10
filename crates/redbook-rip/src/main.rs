@@ -26,6 +26,7 @@ use metaflac::{
 };
 use redbook::{
     AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
+    disc::DiscError,
     tagging::{PictureExt, VorbisTagExt},
 };
 use thread_safely::Controller;
@@ -149,7 +150,7 @@ fn main() -> io::Result<()> {
                 tracing::debug!(?ripped.coverart);
 
                 if let Some(ref cover) = ripped.coverart {
-                    try bikeshed io::Result<_> {
+                    let _dont_fail_on_error = try bikeshed Result<_, DiscError> {
                         tracing::debug!("saving cover art");
                         let filename = cover.filename()?;
                         let coverart_path = output_dir.join(filename);

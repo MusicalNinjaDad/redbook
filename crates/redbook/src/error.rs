@@ -59,8 +59,6 @@ pub enum Error {
     Toc(crate::toc::TocError),
     /// A [`disc`][crate::disc] domain error.
     Disc(DiscError),
-    /// A [`tagging`][crate::tagging] domain error.
-    Tagging(crate::tagging::TaggingError),
     /// A track-encoding domain error.
     Track(crate::track::TrackError),
     /// A [`drive`][crate::drive] domain error.
@@ -75,7 +73,6 @@ impl Error {
         match self {
             Error::Toc(error) => error.io_kind(),
             Error::Disc(error) => error.io_kind(),
-            Error::Tagging(error) => error.io_kind(),
             Error::Track(error) => error.io_kind(),
             Error::Drive(error) => error.io_kind(),
             Error::Device(error) => error.io_kind(),
@@ -89,7 +86,6 @@ impl Display for Error {
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             Error::Toc(_) => f.write_str("TOC error"),
             Error::Disc(_) => f.write_str("disc error"),
-            Error::Tagging(_) => f.write_str("tagging error"),
             Error::Track(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
             Error::Device(_) => f.write_str("device error"),
@@ -102,7 +98,6 @@ impl StdError for Error {
         match self {
             Error::Toc(error) => Some(error),
             Error::Disc(error) => Some(error),
-            Error::Tagging(error) => Some(error),
             Error::Track(error) => Some(error),
             Error::Drive(error) => Some(error),
             Error::Device(error) => Some(error),

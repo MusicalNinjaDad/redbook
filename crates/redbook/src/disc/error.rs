@@ -25,6 +25,7 @@ use crate::Track;
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
     TocMismatch(TocMismatch),
+    ParsingError(ParsingError),
     /// No MusicBrainz release was found / selected.
     NoReleases,
     /// A thread cancellation request was received via the [`Context`]
@@ -69,6 +70,27 @@ impl From<TocMismatch> for DiscError {
     }
 }
 
+impl From<ParsingError> for DiscError {
+    fn from(value: ParsingError) -> Self {
+        Self::ParsingError(value)
+    }
+}
+
+impl From<UnknownMimeType> for DiscError {
+    fn from(value: UnknownMimeType) -> Self {
+        ParsingError::from(value).into()
+    }
+}
+
+impl From<metaflac::Error> for DiscError {
+    fn from(metaflac_error: metaflac::Error) -> Self {
+        match metaflac_error.kind {
+            metaflac::ErrorKind::Io(io_error) => IoError::StdIoError(io_error).into(),
+            _ => ParsingError::VorbisTag(metaflac_error).into(),
+        }
+    }
+}
+
 impl From<Context<!>> for DiscError {
     fn from(_: Context<!>) -> Self {
         Self::ThreadCancellation
@@ -106,33 +128,43 @@ impl From<DiscError> for io::Error {
 }
 
 #[derive(Debug)]
-pub enum IoError {
-    /// Fetching disc metadata from MusicBrainz.
-    ///
-    /// Boxed because the snafu-generated error is too large to keep the `Err` variant
-    /// small (`clippy::result_large_err`).
-    MusicBrainz(Box<musicbrainz_rs::ApiEndpointError>),
-    /// Fetching information directly, e.g. from downloading cover art.
-    Http(reqwest::Error),
-    /// Other cases, e.g. file system access
-    StdIoError(io::Error),
+pub enum ParsingError {
+    UnknownMimeType(UnknownMimeType),
+    VorbisTag(metaflac::Error),
 }
 
-impl From<musicbrainz_rs::ApiEndpointError> for IoError {
-    fn from(value: musicbrainz_rs::ApiEndpointError) -> Self {
-        Self::MusicBrainz(Box::new(value))
+impl Error for ParsingError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        todo!()
     }
 }
 
-impl From<reqwest::Error> for IoError {
-    fn from(value: reqwest::Error) -> Self {
-        Self::Http(value)
+impl Display for ParsingError {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
     }
 }
 
-impl From<io::Error> for IoError {
-    fn from(value: io::Error) -> Self {
-        Self::StdIoError(value)
+impl From<UnknownMimeType> for ParsingError {
+    fn from(value: UnknownMimeType) -> Self {
+        Self::UnknownMimeType(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnknownMimeType(Box<str>);
+
+impl Error for UnknownMimeType {}
+
+impl Display for UnknownMimeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl From<&str> for UnknownMimeType {
+    fn from(value: &str) -> Self {
+        Self(value.into())
     }
 }
 
@@ -174,6 +206,37 @@ impl Display for TocMismatch {
 }
 
 impl Error for TocMismatch {}
+
+#[derive(Debug)]
+pub enum IoError {
+    /// Fetching disc metadata from MusicBrainz.
+    ///
+    /// Boxed because the snafu-generated error is too large to keep the `Err` variant
+    /// small (`clippy::result_large_err`).
+    MusicBrainz(Box<musicbrainz_rs::ApiEndpointError>),
+    /// Fetching information directly, e.g. from downloading cover art.
+    Http(reqwest::Error),
+    /// Other cases, e.g. file system access
+    StdIoError(io::Error),
+}
+
+impl From<musicbrainz_rs::ApiEndpointError> for IoError {
+    fn from(value: musicbrainz_rs::ApiEndpointError) -> Self {
+        Self::MusicBrainz(Box::new(value))
+    }
+}
+
+impl From<reqwest::Error> for IoError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Http(value)
+    }
+}
+
+impl From<io::Error> for IoError {
+    fn from(value: io::Error) -> Self {
+        Self::StdIoError(value)
+    }
+}
 
 #[cfg(test)]
 mod tests {
