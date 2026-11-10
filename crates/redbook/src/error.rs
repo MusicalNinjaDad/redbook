@@ -41,7 +41,10 @@ use std::{
     io,
 };
 
-use crate::drive::{self, DriveError, error::DeviceError};
+use crate::{
+    disc::DiscError,
+    drive::{self, DriveError, error::DeviceError},
+};
 
 /// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -55,7 +58,7 @@ pub enum Error {
     /// A [`toc`][crate::toc] domain error.
     Toc(crate::toc::TocError),
     /// A [`disc`][crate::disc] domain error.
-    Disc(crate::disc::DiscError),
+    Disc(DiscError),
     /// A [`tagging`][crate::tagging] domain error.
     Tagging(crate::tagging::TaggingError),
     /// A track-encoding domain error.
@@ -117,6 +120,12 @@ impl From<DriveError> for Error {
 impl From<DeviceError> for Error {
     fn from(error: DeviceError) -> Self {
         Self::Device(error)
+    }
+}
+
+impl From<DiscError> for Error {
+    fn from(error: DiscError) -> Self {
+        Error::Disc(error)
     }
 }
 
