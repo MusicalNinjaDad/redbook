@@ -11,7 +11,7 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame, TocEntries,
-    drive::error::{DeviceError, OsError},
+    drive::error::{DeviceError, InvalidBufferSize, OsError},
     win::{
         MAX_PATH_CHARS, WinError,
         convert::{Guid, Sector, WinPath, WinString},
@@ -660,7 +660,8 @@ impl DeviceInfoSet {
             .or_error("reading required buffer size")?;
 
         tracing::debug!(requiredsize);
-        DeviceDetails::check_size(requiredsize)
+        DeviceDetails::check_size(requiredsize).or_error("device path too long")?;
+        Ok(())
     }
 
     #[expect(
@@ -788,9 +789,11 @@ impl DeviceDetails {
     ///
     /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
     /// paths?
-    pub fn check_size(requiredsize: u32) -> Result<(), DeviceError> {
-        (requiredsize <= size_of::<Self>() as u32)
-            .ok_or(DeviceError::InvalidBufferSize(requiredsize.into()))
+    pub fn check_size(requiredsize: u32) -> Result<(), InvalidBufferSize> {
+        (requiredsize <= size_of::<Self>() as u32).ok_or_else(|| InvalidBufferSize::TooSmall {
+            provided: size_of::<Self>(),
+            required: requiredsize.into(),
+        })
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]

@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "TODO")]
 //! Errors for the Drive domain: [DriveError], [DeviceError]
 use std::{
     error::Error,
@@ -114,8 +115,7 @@ impl From<DriveError> for io::Error {
 #[derive(Debug)]
 pub enum DeviceError {
     /// The provided/calculated buffer size is unsuitable for the purpose
-    /// or too large for this architecture
-    InvalidBufferSize(i128),
+    InvalidBufferSize(InvalidBufferSize),
     /// The device is not ready - usually because no disc is inserted
     NotReady,
     /// Less data was read than expected
@@ -169,16 +169,45 @@ impl Display for DeviceError {
     }
 }
 
+impl From<InvalidBufferSize> for DeviceError {
+    fn from(error: InvalidBufferSize) -> Self {
+        Self::InvalidBufferSize(error)
+    }
+}
+
 impl From<InvalidByteSize> for DeviceError {
     fn from(error: InvalidByteSize) -> Self {
-        // TODO #211 InvalidBufferSize stores an InvalidByteSize not i128
-        Self::InvalidBufferSize(error.invalid_value())
+        InvalidBufferSize::from(error).into()
     }
 }
 
 impl From<TocError> for DeviceError {
     fn from(error: TocError) -> Self {
         Self::InvalidToc(error)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InvalidBufferSize {
+    TooSmall { provided: usize, required: u128 },
+    InvalidForRead(InvalidByteSize),
+}
+
+impl Error for InvalidBufferSize {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        todo!()
+    }
+}
+
+impl Display for InvalidBufferSize {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl From<InvalidByteSize> for InvalidBufferSize {
+    fn from(error: InvalidByteSize) -> Self {
+        Self::InvalidForRead(error)
     }
 }
 
