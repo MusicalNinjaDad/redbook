@@ -27,7 +27,7 @@ pub enum DriveError {
     ZeroLengthTrack,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
     Progress(RipProgress),
-    /// A thread cancellation request was received
+    /// A thread cancellation request was received via the [`Context`]
     ThreadCancellation,
 }
 
