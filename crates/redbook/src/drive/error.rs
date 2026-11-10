@@ -109,14 +109,12 @@ impl From<DriveError> for io::Error {
 }
 
 /// Errors returned by [`trait Device`][crate::Device]
-///
-/// TODO: Keep the genuine io::Errors in all relevant variants
 #[derive(Debug)]
 pub enum DeviceError {
     /// The provided/calculated buffer size is unsuitable for the purpose
     InvalidBufferSize(InvalidBufferSize),
     /// The device is not ready - usually because no disc is inserted
-    NotReady,
+    NotReady(io::Error),
     /// Less data was read than expected
     UnexpectedEndOfRead {
         /// The number of bytes expected.
@@ -143,9 +141,7 @@ impl Error for DeviceError {
 
         match self {
             Other(e) => Some(e),
-            InvalidBufferSize(_) | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => {
-                None
-            }
+            InvalidBufferSize(_) | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
             _ => todo!(),
         }
     }
@@ -155,7 +151,6 @@ impl Display for DeviceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DeviceError::InvalidBufferSize(_) => todo!(),
-            DeviceError::NotReady => write!(f, "device not ready, is a disc inserted?"),
             DeviceError::UnexpectedEndOfRead { expected, received } => {
                 write!(f, "expected {expected} bytes, received {received}")
             }

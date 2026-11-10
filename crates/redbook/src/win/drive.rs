@@ -53,7 +53,7 @@ impl Iterator for DeviceInfoSetIter {
 
         match DriveHandle::open(&drive_data.path()) {
             Ok(drive) => Some(Ok(drive)),
-            Err(DeviceError::NotReady) => {
+            Err(DeviceError::NotReady(_)) => {
                 // no disc in drive: skip to the next device
                 drop(debug);
                 self.next()

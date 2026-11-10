@@ -62,7 +62,7 @@ impl From<io::Error> for WinError {
 impl From<WinError> for DeviceError {
     fn from(error: WinError) -> Self {
         match error.error_code() {
-            ERROR_NOT_READY => DeviceError::NotReady,
+            ERROR_NOT_READY => DeviceError::NotReady(error.into_io_error()),
             _ => DeviceError::Other(error.into_io_error()),
         }
     }
