@@ -1,3 +1,5 @@
+#![expect(missing_docs, reason = "TODO WIP")]
+
 //! Crate-root error type & [`Result`] alias: level 1 of redbook's error hierarchy.
 //!
 //! # Hierarchy
@@ -60,7 +62,6 @@ pub enum Error {
     Track(crate::track::TrackError),
     /// A [`drive`][crate::drive] domain error.
     Drive(DriveError),
-    /// TODO
     Device(drive::error::DeviceError),
 }
 
