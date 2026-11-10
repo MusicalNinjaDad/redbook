@@ -35,7 +35,7 @@ pub enum DiscError {
     /// A wrapped [`reqwest`] error, e.g. from downloading cover art.
     Http(reqwest::Error),
     /// A wrapped [`io::Error`].
-    Io(io::Error),
+    StdIo(io::Error),
 }
 
 impl DiscError {
@@ -47,7 +47,7 @@ impl DiscError {
             DiscError::NoReleases | DiscError::MusicBrainz(_) | DiscError::Http(_) => {
                 IoErrorKind::Other
             }
-            DiscError::Io(error) => error.kind(),
+            DiscError::StdIo(error) => error.kind(),
             _ => todo!(),
         }
     }
@@ -60,7 +60,7 @@ impl Display for DiscError {
             DiscError::NoReleases => f.write_str("no releases found"),
             DiscError::MusicBrainz(_) => f.write_str("MusicBrainz API error"),
             DiscError::Http(_) => f.write_str("HTTP error"),
-            DiscError::Io(_) => f.write_str("I/O error"),
+            DiscError::StdIo(_) => f.write_str("I/O error"),
             _ => todo!(),
         }
     }
@@ -71,7 +71,7 @@ impl StdError for DiscError {
         match self {
             DiscError::MusicBrainz(error) => Some(error),
             DiscError::Http(error) => Some(error),
-            DiscError::Io(error) => Some(error),
+            DiscError::StdIo(error) => Some(error),
             DiscError::TrackMismatch(_) | DiscError::NoReleases => None,
             _ => todo!(),
         }
@@ -98,7 +98,7 @@ impl From<Context<!>> for DiscError {
 
 impl From<io::Error> for DiscError {
     fn from(error: io::Error) -> Self {
-        DiscError::Io(error)
+        DiscError::StdIo(error)
     }
 }
 
