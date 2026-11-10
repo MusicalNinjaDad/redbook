@@ -1,12 +1,6 @@
-//! Level-2 error for [`drive`][crate::drive] (the [`Device`]/[`Drive`] traits): the
-//! [`DriveError`] enum.
-//!
-//! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error, data-carrying
-//! variants rendered by `Display`, and `From<DriveError> for io::Error` preserving the call
-//! site's previous [`io::ErrorKind`].
+//! Errors for the Drive domain: [DriveError], [DeviceError]
 use std::{
-    error::Error as StdError,
+    error::Error,
     fmt::{self, Display},
     io::{self, ErrorKind as IoErrorKind, RawOsError},
 };
@@ -15,64 +9,38 @@ use thread_safely::Context;
 
 use crate::{
     RipProgress,
-    error::Error,
     frame::{InvalidByteSize, InvalidFrame},
     toc::{TocError, TrackNo},
 };
 
-/// Error returned by [`Device`][crate::Device] / [`Drive`][crate::Drive] APIs.
-///
-/// Variants carry the data which led to the error (issue #193). Variants wrapping an underlying
-/// error are returned by `source()` and *not* rendered by `Display` (issue #198). Wrapped foreign
-/// errors convert via `From` / `?`.
+/// Error returned by [`Drive`][crate::Drive] APIs. Covers a possible wrapped [DeviceError] plus
+/// higher-level concerns.
 #[derive(Debug)]
 pub enum DriveError {
-    /// The requested track was not found on the disc; carries the track number.
+    /// TODO
+    Device(DeviceError),
+    /// Attempted to read from an invalid location
+    InvalidFrame(InvalidFrame),
+    /// The requested track was not found on the disc; carries the track number
     NotFound(TrackNo),
-    /// The track has zero duration.
+    /// The track has zero duration
     ZeroLengthTrack,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
     Progress(RipProgress),
-    /// TODO
-    Device(DeviceError),
     /// A thread cancellation request was received
     ThreadCancellation,
-    /// Data read or computed from the inserted disc is invalid
-    InvalidData(InvalidData),
 }
 
-impl StdError for InvalidData {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+impl Error for DriveError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            InvalidData::Toc(toc_error) => Some(toc_error),
-            InvalidData::InvalidFrame(invalid_frame) => Some(invalid_frame),
-        }
-    }
-}
-
-impl Display for InvalidData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            InvalidData::Toc(_) => write!(f, "bad TOC read from disc"),
-            InvalidData::InvalidFrame(_) => write!(
-                f,
-                "attempt to reference an invalid frame while reading disc"
-            ),
-        }
-    }
-}
-
-impl DriveError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> IoErrorKind {
-        match self {
-            DriveError::NotFound(_) => IoErrorKind::NotFound,
-            DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
-            DriveError::Progress(_) => IoErrorKind::Other,
-            DriveError::Device(_) => todo!(),
-            DriveError::ThreadCancellation => todo!(),
-            DriveError::InvalidData(_invalid_data) => todo!(),
+            DriveError::Device(error) => Some(error),
+            // data-carrying variants are rendered in Display instead (issue #198)
+            DriveError::NotFound(_)
+            | DriveError::ZeroLengthTrack
+            | DriveError::Progress(_)
+            | DriveError::ThreadCancellation => None,
+            _ => todo!(),
         }
     }
 }
@@ -89,40 +57,36 @@ impl Display for DriveError {
             }
             DriveError::Device(_) => write!(f, "device error"),
             DriveError::ThreadCancellation => write!(f, "thread cancelled"),
-            DriveError::InvalidData(invalid_data) => Display::fmt(invalid_data, f),
+            _ => todo!(),
         }
     }
 }
 
-impl StdError for DriveError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+impl DriveError {
+    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
+    /// behaviour of the call site which produced it.
+    pub fn io_kind(&self) -> IoErrorKind {
         match self {
-            DriveError::Device(error) => Some(error),
-            // data-carrying variants are rendered in Display instead (issue #198)
-            DriveError::NotFound(_)
-            | DriveError::ZeroLengthTrack
-            | DriveError::Progress(_)
-            | DriveError::ThreadCancellation
-            | DriveError::InvalidData(_) => None,
+            DriveError::NotFound(_) => IoErrorKind::NotFound,
+            DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
+            DriveError::Progress(_) => IoErrorKind::Other,
+            DriveError::Device(_) => todo!(),
+            DriveError::ThreadCancellation => todo!(),
+            _ => todo!(),
         }
     }
 }
 
-impl From<TocError> for DriveError {
-    fn from(error: TocError) -> Self {
-        InvalidData::from(error).into()
+impl From<DeviceError> for DriveError {
+    fn from(error: DeviceError) -> Self {
+        // TODO #212 - use Self:: throughout to simplify copy-pasting
+        DriveError::Device(error)
     }
 }
 
 impl From<InvalidFrame> for DriveError {
     fn from(error: InvalidFrame) -> Self {
-        InvalidData::from(error).into()
-    }
-}
-
-impl From<InvalidData> for DriveError {
-    fn from(error: InvalidData) -> Self {
-        DriveError::InvalidData(error)
+        Self::InvalidFrame(error)
     }
 }
 
@@ -132,48 +96,15 @@ impl From<crossbeam::channel::SendError<RipProgress>> for DriveError {
     }
 }
 
-impl From<DeviceError> for DriveError {
-    fn from(error: DeviceError) -> Self {
-        DriveError::Device(error)
-    }
-}
-
 impl From<Context<RipProgress>> for DriveError {
     fn from(_: Context<RipProgress>) -> Self {
         DriveError::ThreadCancellation
     }
 }
 
-impl From<DriveError> for Error {
-    fn from(error: DriveError) -> Self {
-        Error::Drive(error)
-    }
-}
-
 impl From<DriveError> for io::Error {
     fn from(error: DriveError) -> Self {
         io::Error::new(error.io_kind(), error)
-    }
-}
-
-#[derive(Debug)]
-/// TODO
-pub enum InvalidData {
-    /// An error while processing the TOC obtained from the drive
-    Toc(TocError),
-    /// adsf
-    InvalidFrame(InvalidFrame),
-}
-
-impl From<TocError> for InvalidData {
-    fn from(error: TocError) -> Self {
-        InvalidData::Toc(error)
-    }
-}
-
-impl From<InvalidFrame> for InvalidData {
-    fn from(error: InvalidFrame) -> Self {
-        InvalidData::InvalidFrame(error)
     }
 }
 
@@ -198,6 +129,8 @@ pub enum DeviceError {
     UnsupportedDevice,
     /// Some other io::Error occurred
     Other(io::Error),
+    /// alskdjha
+    InvalidToc(TocError),
 }
 
 impl DeviceError {
@@ -207,8 +140,8 @@ impl DeviceError {
     }
 }
 
-impl StdError for DeviceError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+impl Error for DeviceError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         use DeviceError::*;
 
         match self {
@@ -216,6 +149,7 @@ impl StdError for DeviceError {
             InvalidBufferSize(_) | NotReady | UnexpectedEndOfRead { .. } | UnsupportedDevice => {
                 None
             }
+            _ => todo!(),
         }
     }
 }
@@ -230,13 +164,21 @@ impl Display for DeviceError {
             }
             DeviceError::UnsupportedDevice => write!(f, "device does not support CD operations"),
             DeviceError::Other(error) => Display::fmt(error, f),
+            _ => todo!(),
         }
     }
 }
 
 impl From<InvalidByteSize> for DeviceError {
     fn from(error: InvalidByteSize) -> Self {
+        // TODO #211 InvalidBufferSize stores an InvalidByteSize not i128
         Self::InvalidBufferSize(error.invalid_value())
+    }
+}
+
+impl From<TocError> for DeviceError {
+    fn from(error: TocError) -> Self {
+        Self::InvalidToc(error)
     }
 }
 
@@ -251,7 +193,7 @@ impl From<InvalidByteSize> for DeviceError {
 /// Most implementations will be a simple new-type wrapper to provide colouring
 /// TODO: include WinError as full example
 pub trait OsError:
-    StdError + Send + Sync + 'static // C-GOOD-ERR
+    Error + Send + Sync + 'static // C-GOOD-ERR
     + From<io::Error>
     + Into<DeviceError>
 {
@@ -292,7 +234,7 @@ mod tests {
 
     #[test]
     fn error_is_send_sync_static() {
-        fn assert_traits<T: StdError + Send + Sync + 'static>() {}
+        fn assert_traits<T: Error + Send + Sync + 'static>() {}
         assert_traits::<DriveError>();
     }
 
@@ -344,7 +286,7 @@ mod tests {
         let win = WinError::NotReady;
         let error = DriveError::from(win);
         assert!(error.is_not_ready());
-        let source = StdError::source(&error).expect("wrapped win error should be the source");
+        let source = Error::source(&error).expect("wrapped win error should be the source");
         let win = source
             .downcast_ref::<WinError>()
             .expect("source should be the WinError directly");
@@ -353,7 +295,10 @@ mod tests {
 
     #[test]
     fn converts_into_root_error() {
-        let error = Error::from(DriveError::ZeroLengthTrack);
-        assert!(matches!(error, Error::Drive(DriveError::ZeroLengthTrack)));
+        let error = crate::Error::from(DriveError::ZeroLengthTrack);
+        assert!(matches!(
+            error,
+            crate::Error::Drive(DriveError::ZeroLengthTrack)
+        ));
     }
 }

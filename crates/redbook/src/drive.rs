@@ -59,7 +59,7 @@ pub trait Device: Sized {
     /// Read the Table of Contents from the disc and provide a parsed representation as a
     /// platform-independent [TocEntries]. If a cached version is available then it may be cloned
     /// and returned rather than re-reading from disc.
-    fn read_toc(&self) -> Result<TocEntries, Error>;
+    fn read_toc(&self) -> Result<TocEntries, DeviceError>;
 
     /// Read the Table of Contents from the disc and provide a raw_bytes representation of the
     /// returned data. The exact format of this data may be platform specific.
@@ -84,7 +84,10 @@ pub trait Drive: Sized {
     ///
     /// Requires a thread [Context] to be provided so that long-running reads via
     /// [read_track][Drive::read_track] can be cancelled and provide status updates.
-    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> Result<Self, Error>;
+    fn open<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        cx: Context<RipProgress>,
+    ) -> Result<Self, DriveError>;
 
     /// Retrieve the thread [Context].
     fn cx(&self) -> Context<RipProgress>;
@@ -237,7 +240,10 @@ impl<DEV: Device> CdDrive<DEV> {
 impl<DEV: Device> Drive for CdDrive<DEV> {
     type Device = DEV;
 
-    fn open<P: AsRef<Path> + ?Sized>(path: &P, cx: Context<RipProgress>) -> Result<Self, Error> {
+    fn open<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        cx: Context<RipProgress>,
+    ) -> Result<Self, DriveError> {
         let _err_span =
             tracing::error_span!("CdDrive::with_context", path = %path.as_ref().display())
                 .entered();
