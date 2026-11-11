@@ -150,6 +150,22 @@ impl From<Error> for io::Error {
     }
 }
 
+pub trait RedbookError: StdError + Send + Sync + 'static + Into<Error> + Into<io::Error> {
+    /// The underlying <E>, if present
+    fn underlying<T: StdError + 'static>(&self) -> Option<&T> {
+        let e = self as &dyn StdError;
+        e.sources().find_map(|err| err.downcast_ref::<T>())
+    }
+
+    /// The underlying io::Error *if present and it was generated from a genuine OS error*
+    fn true_io_error(&self) -> Option<&io::Error> {
+        self.underlying::<io::Error>()
+            .filter(|error| error.raw_os_error().is_some())
+    }
+}
+
+impl RedbookError for Error {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

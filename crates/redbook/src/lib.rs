@@ -30,6 +30,7 @@
 #![feature(const_result_trait_fn)]
 #![feature(const_try)]
 #![feature(error_generic_member_access)]
+#![feature(error_iter)]
 #![cfg_attr(test, feature(fn_traits))]
 #![feature(raw_os_error_ty)]
 #![feature(structural_match)]
