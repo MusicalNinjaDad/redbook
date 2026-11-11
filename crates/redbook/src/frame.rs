@@ -76,7 +76,7 @@ use crate::LEADIN;
 /// let buf = vec![0_u8; frames.size().strict_cast()];
 ///
 /// // One frame needs 2352 bytes in raw CDDA mode (excluding sub-channels)
-/// assert_eq!(Frame::SIZE_IN_BYTES, ByteSize::strict_new(2352));
+/// assert_eq!(ByteSize::ONE_FRAME, ByteSize::strict_new(2352));
 /// assert_eq!(buf.len(), 2352);
 /// ```
 ///
@@ -285,7 +285,7 @@ impl Frame {
     ///
     /// let one_second = Frame::ONE_SECOND;
     /// assert_eq!(one_second.size(), ByteSize::strict_new(75 * 2352));
-    /// assert_eq!(one_second.size().frames_exact(), one_second);
+    /// assert_eq!(one_second.size().frames(), one_second);
     /// ```
     pub const fn size(self) -> ByteSize {
         // Direct construction: strict_new causes a MIR-opt cycle for ByteSize::MAX
@@ -1268,9 +1268,9 @@ impl ByteSize {
         )
     }
 
-    /// Validates `self` is within upper bounds
+    /// Validates `self` is within upper bounds & an exact multiple of Frames
     pub const fn is_valid(&self) -> bool {
-        self <= &Self::MAX && self.rem(ByteSize::ONE_FRAME) == Self::ZERO
+        self <= &Self::MAX && self.0.rem(ByteSize::ONE_FRAME.0) == 0
     }
 
     /// Validates `self` and returns `None` if invalid
@@ -1279,11 +1279,8 @@ impl ByteSize {
     }
 
     /// Validates `self`, panicking if invalid
-    ///
-    /// # Panics
-    /// Panics if `self` is above [`Self::MAX`].
     pub const fn assert_valid(self) -> Self {
-        assert!(self.is_valid(), "semantic overflow");
+        assert!(self.is_valid(), "invalid ByteSize");
         self
     }
 
