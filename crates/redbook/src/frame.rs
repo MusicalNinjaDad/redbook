@@ -146,7 +146,7 @@ impl Frame {
     pub const ONE_SECOND: Self = Frame(75);
 
     /// One minute, i.e. 60 seconds.
-    pub const ONE_MINUTE: Self = Frame(Self::ONE_SECOND.into_inner() * 60);
+    pub const ONE_MINUTE: Self = Self::ONE_SECOND.strict_mul(60);
 
     /// Creates a new `Frame` from any integer type, returning [`InvalidFrame`] (carrying the
     /// offending value) if the value is above [`Self::MAX`].
@@ -1155,7 +1155,7 @@ impl ByteSize {
     ///
     /// As this is a `const`, the crate only compiles on targets where a `usize` is large
     /// enough to store every possible frame-derived byte size.
-    pub const MAX: Self = ByteSize(((0xFF * 60 * 75) + (0xFF * 75) + 0xFF) * 2352);
+    pub const MAX: Self = Frame::MAX.size();
 
     /// A zero [`ByteSize`]
     pub const ZERO: Self = ByteSize(0);
