@@ -290,7 +290,7 @@ pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{RippedTrack, Track, TrackError};
+pub use track::{EncodingError, RippedTrack, Track};
 
 use crate::{frame::ByteSize, win::DriveHandle};
 

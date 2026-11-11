@@ -10,7 +10,7 @@ use crate::{
     toc::{Control, TrackEntry, TrackNo},
 };
 
-pub use error::TrackError;
+pub use error::EncodingError;
 
 pub mod error;
 
@@ -133,12 +133,10 @@ impl RippedTrack {
     /// - [`TrackError::InvalidData`] if the raw data is not a whole number of samples
     /// - [`TrackError::Encode`] / [`TrackError::Output`] wrapping the underlying
     ///   [`flacenc`] errors if encoding fails
-    pub fn to_flac(&self) -> Result<MemSink<u8>, TrackError> {
+    pub fn to_flac(&self) -> Result<MemSink<u8>, EncodingError> {
         let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
-        let config = flacenc::config::Encoder::default()
-            .into_verified()
-            .expect("Config data error.");
-        (self.raw_data.len() % 2 == 0).ok_or(TrackError::InvalidData(self.raw_data.len()))?;
+        let config = flacenc::config::Encoder::default().into_verified()?;
+        (self.raw_data.len() % 2 == 0).ok_or(EncodingError::InvalidData(self.raw_data.len()))?;
         let samples: Vec<_> = self
             .raw_data
             .as_chunks::<2>()
@@ -152,10 +150,10 @@ impl RippedTrack {
             bits_per_sample,
             sample_rate,
         );
-        let flac_stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
-            .map_err(TrackError::from)?;
+        let flac_stream =
+            flacenc::encode_with_fixed_block_size(&config, source, config.block_size)?;
         let mut sink = flacenc::bitsink::ByteSink::new();
-        flac_stream.write(&mut sink).map_err(TrackError::from)?;
+        flac_stream.write(&mut sink)?;
         Ok(sink)
     }
 

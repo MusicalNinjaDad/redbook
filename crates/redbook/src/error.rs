@@ -42,6 +42,7 @@ use std::{
 };
 
 use crate::{
+    EncodingError,
     disc::{DiscError, TocMismatch},
     drive::{self, DriveError, error::DeviceError},
 };
@@ -60,7 +61,7 @@ pub enum Error {
     /// A [`disc`][crate::disc] domain error.
     Disc(DiscError),
     /// A track-encoding domain error.
-    Track(crate::track::TrackError),
+    Encoding(EncodingError),
     /// A [`drive`][crate::drive] domain error.
     Drive(DriveError),
     Device(drive::error::DeviceError),
@@ -73,7 +74,7 @@ impl Error {
         match self {
             Error::Toc(error) => error.io_kind(),
             Error::Disc(error) => error.io_kind(),
-            Error::Track(error) => error.io_kind(),
+            Error::Encoding(error) => error.io_kind(),
             Error::Drive(error) => error.io_kind(),
             Error::Device(error) => error.io_kind(),
         }
@@ -86,7 +87,7 @@ impl Display for Error {
             // wrapped errors are returned by `source()`, not rendered here (issue #198)
             Error::Toc(_) => f.write_str("TOC error"),
             Error::Disc(_) => f.write_str("disc error"),
-            Error::Track(_) => f.write_str("track encoding error"),
+            Error::Encoding(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
             Error::Device(_) => f.write_str("device error"),
         }
@@ -98,7 +99,7 @@ impl StdError for Error {
         match self {
             Error::Toc(error) => Some(error),
             Error::Disc(error) => Some(error),
-            Error::Track(error) => Some(error),
+            Error::Encoding(error) => Some(error),
             Error::Drive(error) => Some(error),
             Error::Device(error) => Some(error),
         }
@@ -127,6 +128,12 @@ impl From<DiscError> for Error {
 impl From<TocMismatch> for Error {
     fn from(value: TocMismatch) -> Self {
         DiscError::from(value).into()
+    }
+}
+
+impl From<EncodingError> for Error {
+    fn from(value: EncodingError) -> Self {
+        Self::Encoding(value)
     }
 }
 
