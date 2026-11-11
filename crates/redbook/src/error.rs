@@ -44,7 +44,8 @@ use std::{
 use crate::{
     EncodingError,
     disc::{DiscError, TocMismatch},
-    drive::{self, DriveError, error::DeviceError},
+    drive::{DriveError, error::DeviceError},
+    toc::TocError,
 };
 
 /// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
@@ -56,15 +57,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// a `From` conversion from a domain error or `io::Error`, or `?`.
 #[derive(Debug)]
 pub enum Error {
+    Device(DeviceError),
+    /// A [`drive`][crate::drive] domain error.
+    Drive(DriveError),
     /// A [`toc`][crate::toc] domain error.
-    Toc(crate::toc::TocError),
+    Toc(TocError),
     /// A [`disc`][crate::disc] domain error.
     Disc(DiscError),
     /// A track-encoding domain error.
     Encoding(EncodingError),
-    /// A [`drive`][crate::drive] domain error.
-    Drive(DriveError),
-    Device(drive::error::DeviceError),
 }
 
 impl Error {
@@ -106,28 +107,33 @@ impl StdError for Error {
     }
 }
 
-impl From<DriveError> for Error {
-    fn from(error: DriveError) -> Self {
-        Error::Drive(error)
-    }
-}
-
-///TODO Why aren't similar impls here??
 impl From<DeviceError> for Error {
     fn from(error: DeviceError) -> Self {
         Self::Device(error)
     }
 }
 
-impl From<DiscError> for Error {
-    fn from(error: DiscError) -> Self {
-        Error::Disc(error)
+impl From<DriveError> for Error {
+    fn from(error: DriveError) -> Self {
+        Error::Drive(error)
+    }
+}
+
+impl From<TocError> for Error {
+    fn from(value: TocError) -> Self {
+        Self::Toc(value)
     }
 }
 
 impl From<TocMismatch> for Error {
     fn from(value: TocMismatch) -> Self {
         DiscError::from(value).into()
+    }
+}
+
+impl From<DiscError> for Error {
+    fn from(error: DiscError) -> Self {
+        Error::Disc(error)
     }
 }
 

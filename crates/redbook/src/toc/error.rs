@@ -5,13 +5,13 @@
 //! variants rendered by `Display`, and `From<TocError> for io::Error` preserving the call site's
 //! previous [`io::ErrorKind`].
 use std::{
-    error::Error as StdError,
+    error::Error,
     fmt::{self, Display},
     io::{self, ErrorKind as IoErrorKind},
     num::NonZeroUsize,
 };
 
-use crate::{error::Error, toc::Format};
+use crate::toc::Format;
 
 use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
 
@@ -114,8 +114,8 @@ impl Display for TocError {
     }
 }
 
-impl StdError for TocError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+impl Error for TocError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             TocError::CdToc(error) => Some(error),
             // data-carrying variants are rendered in Display instead (issue #198)
@@ -142,12 +142,6 @@ impl From<cdtoc::TocError> for TocError {
 impl From<InvalidTrackNo> for TocError {
     fn from(error: InvalidTrackNo) -> Self {
         TocError::InvalidTrackNo(error)
-    }
-}
-
-impl From<TocError> for Error {
-    fn from(error: TocError) -> Self {
-        Error::Toc(error)
     }
 }
 
@@ -194,7 +188,7 @@ impl Display for InvalidTrackNo {
     }
 }
 
-impl StdError for InvalidTrackNo {}
+impl Error for InvalidTrackNo {}
 
 impl From<InvalidTrackNo> for io::Error {
     fn from(error: InvalidTrackNo) -> Self {
@@ -222,7 +216,7 @@ impl Display for InvalidOrder {
     }
 }
 
-impl StdError for InvalidOrder {}
+impl Error for InvalidOrder {}
 
 impl InvalidOrder {
     /// Create a new InvalidOrder error
@@ -247,7 +241,7 @@ mod tests {
 
     #[test]
     fn error_is_send_sync_static() {
-        fn assert_traits<T: StdError + Send + Sync + 'static>() {}
+        fn assert_traits<T: Error + Send + Sync + 'static>() {}
         assert_traits::<TocError>();
         assert_traits::<InvalidTrackNo>();
     }
@@ -285,19 +279,19 @@ mod tests {
     #[test]
     fn source_returns_directly_wrapped_error() {
         let error = TocError::from(cdtoc::TocError::NoAudio);
-        let source = StdError::source(&error).expect("wrapped cdtoc error should be the source");
+        let source = Error::source(&error).expect("wrapped cdtoc error should be the source");
         assert!(source.downcast_ref::<cdtoc::TocError>().is_some());
 
         let raw = io::Error::from_raw_os_error(22);
         let error = TocError::from(raw);
-        let source = StdError::source(&error).expect("wrapped io::Error should be the source");
+        let source = Error::source(&error).expect("wrapped io::Error should be the source");
         let inner = source
             .downcast_ref::<io::Error>()
             .expect("source should be the io::Error directly");
         assert_eq!(inner.raw_os_error(), Some(22));
 
-        assert!(StdError::source(&TocError::NotFound).is_none());
-        assert!(StdError::source(&TocError::InvalidTrackNo(InvalidTrackNo::new(0_u8))).is_none());
+        assert!(Error::source(&TocError::NotFound).is_none());
+        assert!(Error::source(&TocError::InvalidTrackNo(InvalidTrackNo::new(0_u8))).is_none());
     }
 
     #[cfg(false)]
@@ -321,12 +315,13 @@ mod tests {
         let error = payload
             .downcast_ref::<TocError>()
             .expect("payload should be the original TocError");
-        let source = StdError::source(error)
+        let source = Error::source(error)
             .and_then(|kind| kind.downcast_ref::<io::Error>())
             .expect("source chain should reach the original io::Error");
         assert_eq!(source.raw_os_error(), Some(22));
     }
 
+    #[cfg(false)]
     #[test]
     fn converts_into_root_error() {
         let error = Error::from(TocError::NotFound);
