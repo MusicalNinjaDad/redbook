@@ -9,7 +9,6 @@ use std::{
     error::Error,
     fmt::{self, Display},
     io::{self, ErrorKind as IoErrorKind},
-    string::FromUtf8Error,
 };
 
 use thread_safely::Context;
@@ -26,7 +25,7 @@ use crate::Track;
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
     TocMismatch(TocMismatch),
-    ParsingError(ParsingError),
+    TaggingError(TaggingError),
     /// No MusicBrainz release was found / selected.
     NoReleases,
     /// A thread cancellation request was received via the [`Context`]
@@ -71,29 +70,21 @@ impl From<TocMismatch> for DiscError {
     }
 }
 
-impl From<ParsingError> for DiscError {
-    fn from(value: ParsingError) -> Self {
-        Self::ParsingError(value)
+impl From<TaggingError> for DiscError {
+    fn from(value: TaggingError) -> Self {
+        Self::TaggingError(value)
     }
 }
 
 impl From<UnknownMimeType> for DiscError {
     fn from(value: UnknownMimeType) -> Self {
-        ParsingError::from(value).into()
+        TaggingError::from(value).into()
     }
 }
 
 impl From<metaflac::Error> for DiscError {
-    fn from(metaflac_error: metaflac::Error) -> Self {
-        match metaflac_error.kind {
-            metaflac::ErrorKind::Io(io_error) => IoError::from(io_error).into(),
-            metaflac::ErrorKind::StringDecoding(utf8_error) => {
-                ParsingError::from(utf8_error).into()
-            }
-            metaflac::ErrorKind::InvalidInput => {
-                ParsingError::MetaflacTaggingError(metaflac_error.to_string()).into()
-            }
-        }
+    fn from(value: metaflac::Error) -> Self {
+        TaggingError::from(value).into()
     }
 }
 
@@ -134,39 +125,34 @@ impl From<DiscError> for io::Error {
 }
 
 #[derive(Debug)]
-pub enum ParsingError {
+pub enum TaggingError {
     UnknownMimeType(UnknownMimeType),
-    Utf8(FromUtf8Error),
-    /// An error from metaflac, which is *not* an `io::Error` or `FromUtf8Error`. E.g. invalid
-    /// Tag format or attempt to save a tag from one file to a different file. These are
-    /// stringly-typed by the downstream crate.
-    MetaflacTaggingError(String),
+    MetaflacError(metaflac::Error),
 }
 
-impl Error for ParsingError {
+impl Error for TaggingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         todo!()
     }
 }
 
-impl Display for ParsingError {
+impl Display for TaggingError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         todo!()
     }
 }
 
-impl From<UnknownMimeType> for ParsingError {
+impl From<UnknownMimeType> for TaggingError {
     fn from(value: UnknownMimeType) -> Self {
         Self::UnknownMimeType(value)
     }
 }
 
-impl From<FromUtf8Error> for ParsingError {
-    fn from(value: FromUtf8Error) -> Self {
-        Self::Utf8(value)
+impl From<metaflac::Error> for TaggingError {
+    fn from(metaflac_error: metaflac::Error) -> Self {
+        Self::MetaflacError(metaflac_error)
     }
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnknownMimeType(Box<str>);
 

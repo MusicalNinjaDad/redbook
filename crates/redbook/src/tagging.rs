@@ -19,7 +19,7 @@ use musicbrainz_rs::entity::{
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
-use crate::disc::{DiscError, error::UnknownMimeType};
+use crate::disc::error::{TaggingError, UnknownMimeType};
 
 pub trait ArtistCreditsExt {
     fn artist_names(&self) -> impl Iterator<Item = String>;
@@ -177,7 +177,7 @@ pub trait VorbisTagExt {
     fn full_title(&self) -> String;
 
     /// Write tags to the given file
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), DiscError>;
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError>;
 
     fn discno(&self) -> Option<String>;
 
@@ -215,7 +215,7 @@ impl VorbisTagExt for VorbisComment {
             .unwrap_or_default()
     }
 
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), DiscError> {
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError> {
         let mut file_tag = Tag::read_from_path(path.as_ref()).or_warn("reading tags from file")?;
         file_tag
             .vorbis_comments_mut()
