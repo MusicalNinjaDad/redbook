@@ -36,7 +36,7 @@
 //!   for the glued crates (`cd_toc`, `musicbrainz_rs`, `flacenc`, `metaflac`), mainly unwrapping a
 //!   wrapped foreign error.
 use std::{
-    error::Error as StdError, fmt::{self, Debug, Display}, io,
+    error::Error as StdError, fmt::{self, Debug, Display}, io::{self, ErrorKind, RawOsError},
 };
 
 use crate::{
@@ -49,11 +49,10 @@ use crate::{
     toc::TocError,
 };
 
-
 #[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
 /// Well behaved Errors, which support the full range of [`std::error::Error`] functionality,
 /// including methods available to `dyn Error`. See the [API Guidelines] for more details.
-/// 
+///
 /// [API Guidelines]: https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err
 pub trait C_GOOD_ERROR = StdError + Send + Sync + 'static;
 
@@ -116,7 +115,7 @@ impl StdError for Error {
             Error::Encoding(error) => Some(error),
             Error::Drive(error) => Some(error),
             Error::Device(error) => Some(error),
-            _ => todo!(),
+            Error::IoError(error) => Some(error),
         }
     }
 }
@@ -189,14 +188,40 @@ pub trait RedbookError: C_GOOD_ERROR + Into<Error> + Into<io::Error> {
         e.sources().find_map(|err| err.downcast_ref::<T>())
     }
 
-    /// The underlying io::Error *if present and it was generated from a genuine OS error*
-    fn true_io_error(&self) -> Option<&io::Error> {
+    /// The underlying OS error code *if present there is an underlying io::Error and it was
+    /// generated from a genuine OS error*
+    /// 
+    /// Errors which do not originate from an io::Error, which originate from a hand-made io::Error,
+    /// or which originate from a 3rd-party error which has erased the initial io::Error will return
+    /// `None`.
+    /// 
+    /// If this function returns `Some(code)` you can guarantee that the error was created by
+    /// calling [`io::Error::last_os_error`] or [`io::Error::from_raw_os_error`]
+    fn raw_os_error(&self) -> Option<RawOsError> {
         self.underlying::<io::Error>()
-            .filter(|error| error.raw_os_error().is_some())
+            .and_then(|error| error.raw_os_error())
+    }
+
+    /// The io_errorkind associated with this `Error`. Implementations should ensure that this
+    /// provides the same value as `self.underlying::<io::Error>().map(io::Error::kind)` if 
+    /// such a value exists to avoid inconsistencies between `self.io_errorkind()` and 
+    /// `self.into_io_error().kind()`.
+    /// 
+    /// The default implementation of [`into_io_error`][RedbookError::into_io_error] uses this
+    /// function to generate an io::Error, *only* in cases where no underlying io::Error is
+    /// available.
+    fn io_errorkind(&self) -> ErrorKind;
+
+    fn into_io_error(self) -> io::Error {
+        todo!()
     }
 }
 
-impl RedbookError for Error {}
+impl RedbookError for Error {
+    fn io_errorkind(&self) -> ErrorKind {
+        todo!()
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -206,6 +231,14 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<Error>();
+    }
+
+    #[test]
+    fn underlying_io_error() {
+        let ioerr = io::Error::other("handcrafted");
+        let rberr: Error = io::Error::other("handcrafted").into();
+        assert_eq!(ioerr.kind(), rberr.underlying::<io::Error>().unwrap().kind());
+        assert_eq!(ioerr.to_string(), rberr.underlying::<io::Error>().unwrap().to_string());
     }
 
     #[cfg(false)]
