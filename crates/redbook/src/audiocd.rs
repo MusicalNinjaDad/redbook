@@ -34,10 +34,11 @@ use crate::{
 /// - the full device path (e.g. `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d555642414e313035a920&0#{53f56308-b7bf-11d0-95f2-00a0e91efb8b}`
 ///
 /// ```rust no_run
-/// # use std::io;
-/// # use redbook::AudioCd;
+/// # use redbook::{AudioCd, Result};
+/// # fn main() -> Result<()> {
 /// let mut cd = AudioCd::open("E:", Default::default())?;
-/// # io::Result::Ok(())
+/// # Result::Ok(())
+/// # }
 /// ```
 ///
 /// ## Indirect construction
@@ -47,14 +48,17 @@ use crate::{
 /// `TryFrom<CdDrive>`.
 ///
 /// ```
+/// # use redbook::{AudioCd, CdDrives, Result};
 /// # use std::io;
-/// # use redbook::{AudioCd, CdDrives};
+/// # fn main() -> Result<()> {
 /// let first_drive = CdDrives::all(Default::default())?
 ///     .next()
 ///     .ok_or(io::Error::other("no drives found"))??;
 /// let mut cd = AudioCd::try_from(first_drive)?;
-/// # io::Result::Ok(())
+/// # Result::Ok(())
+/// # }
 /// ```
+/// TODO: #218 Add NoDrives error for CdDrives::all
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,
