@@ -46,7 +46,7 @@ struct EncodingProgress {
 }
 
 #[cfg(windows)]
-fn main() -> io::Result<()> {
+fn main() -> redbook::Result<()> {
     use redbook::drive::CdDrives;
 
     output::init_tracing()?;
@@ -101,7 +101,7 @@ fn main() -> io::Result<()> {
         .map_err(io::Error::other)
     });
 
-    let ripper = thread::spawn(move || try bikeshed io::Result<()> {
+    let ripper = thread::spawn(move || try bikeshed redbook::Result<()> {
         loop {
             select! {
                 recv(to_rip_rx) -> tracks => {
@@ -299,7 +299,7 @@ fn rip_tracks(
     cd: Arc<Mutex<AudioCd>>,
     tracks: Vec<usize>,
     ripped_tracks: Sender<RippedTrack>,
-) -> io::Result<()> {
+) -> redbook::Result<()> {
     let cd_lock = cd
         .lock()
         .expect("TODO #68 error handling & tracing on poison");

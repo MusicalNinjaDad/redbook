@@ -7,7 +7,6 @@
 
 #[cfg(target_family = "windows")]
 use std::fs;
-use std::io;
 
 #[cfg(target_family = "windows")]
 use cdtoc::Toc;
@@ -21,7 +20,7 @@ use tracing_subscriber::{
 };
 
 #[cfg(target_family = "windows")]
-fn main() -> io::Result<()> {
+fn main() -> redbook::Result<()> {
     registry()
         .with(layer().with_filter(LevelFilter::DEBUG))
         .init();

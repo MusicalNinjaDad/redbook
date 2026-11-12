@@ -41,8 +41,10 @@ use std::{
     io::{self, RawOsError},
 };
 
+use thread_safely::Context;
+
 use crate::{
-    EncodingError,
+    EncodingError, RipProgress,
     disc::{
         DiscError, TocMismatch,
         error::{TaggingError, UnknownMimeType},
@@ -115,6 +117,12 @@ impl From<DeviceError> for Error {
 impl From<DriveError> for Error {
     fn from(error: DriveError) -> Self {
         Error::Drive(error)
+    }
+}
+
+impl From<Context<RipProgress>> for Error {
+    fn from(cx: Context<RipProgress>) -> Self {
+        DriveError::from(cx).into()
     }
 }
 

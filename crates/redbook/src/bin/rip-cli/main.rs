@@ -30,6 +30,7 @@ use metaflac::{
     Block, Tag,
     block::{Picture, PictureType},
 };
+use redbook::error::RedbookError;
 #[cfg(target_family = "windows")]
 use redbook::{
     AudioCd, RippedTrack, TrackNo,
@@ -254,7 +255,7 @@ fn main() -> Exit<()> {
 
                 let start = std::time::Instant::now();
                 let ripped =
-                    try bikeshed io::Result<_> { cd.rip(track_number).or_warn("")? }.ok()?;
+                    try bikeshed redbook::Result<_> { cd.rip(track_number).or_warn("")? }.ok()?;
                 let duration = start.elapsed().human(Truncate::Millis).to_string();
 
                 tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
@@ -342,12 +343,14 @@ fn main() -> Exit<()> {
 #[FromResidual(Result<_, Self::Residual>)]
 #[repr(u8)]
 #[must_use]
+/// TODO #217 fix the error codes in cli apps
 pub enum Exit<T: _T> {
     Ok(T) = 0,
     Error(String) = 1,
     InvocationError(String) = 2,
     IO(String) = 3,
     Logging(String) = 4,
+    Redbook(String) = 5,
 }
 
 impl<T: _T> From<clap::Error> for Exit<T> {
@@ -367,13 +370,13 @@ impl<T: _T> From<io::Error> for Exit<T> {
 // the `io::Error` and its `source()` chain
 impl<T: _T> From<redbook::Error> for Exit<T> {
     fn from(e: redbook::Error) -> Self {
-        Self::from(io::Error::from(e))
+        Self::Redbook(e.full_message().to_string())
     }
 }
 
 impl<T: _T> From<redbook::drive::DriveError> for Exit<T> {
     fn from(e: redbook::drive::DriveError) -> Self {
-        Self::from(io::Error::from(e))
+        Self::Redbook(e.full_message().to_string())
     }
 }
 

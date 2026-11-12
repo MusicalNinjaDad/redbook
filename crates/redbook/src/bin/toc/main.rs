@@ -5,7 +5,7 @@ use std::{io, path::PathBuf};
 use redbook::{AudioCd, drive::CdDrives};
 
 #[cfg(target_family = "windows")]
-fn main() -> io::Result<()> {
+fn main() -> redbook::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let drive = args.get(1).map(PathBuf::from);
     let cd = match drive {

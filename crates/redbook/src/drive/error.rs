@@ -10,6 +10,7 @@ use thread_safely::Context;
 
 use crate::{
     RipProgress,
+    error::RedbookError,
     frame::{InvalidByteSize, InvalidFrame},
     toc::{TocError, TrackNo},
 };
@@ -30,6 +31,8 @@ pub enum DriveError {
     /// A thread cancellation request was received via the [`Context`]
     ThreadCancellation,
 }
+
+impl RedbookError for DriveError {}
 
 impl Error for DriveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
