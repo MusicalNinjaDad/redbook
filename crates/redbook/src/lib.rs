@@ -70,9 +70,9 @@
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::{self, Write}};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, tagging::{PictureExt, VorbisTagExt}};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, tagging::{PictureExt, VorbisTagExt}};
 //! use thread_safely::Controller;
-//!
+//! # fn main() -> Result<()> {
 //! // Allow for status updates & cancellation mid-rip
 //! let (rip_controller, rip_context) = Controller::<RipProgress>::new();
 //!
@@ -112,7 +112,8 @@
 //!     let path = album_directory.join(artwork.filename()?);
 //!     fs::write(path, artwork.data)?;
 //! }
-//! # io::Result::Ok(())
+//! # Result::Ok(())
+//! # }
 //! ```
 //!
 //! # Structure

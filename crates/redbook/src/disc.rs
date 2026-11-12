@@ -41,10 +41,9 @@ pub mod error;
 ///
 /// ```no_run
 /// use cdtoc::Toc;
-/// # use std::io;
-/// use redbook::{Disc, Frame, Track, TrackNo};
+/// use redbook::{Disc, Frame, Track, TrackNo, Result};
 ///
-/// # fn main() -> io::Result<()> {
+/// # fn main() -> Result<()> {
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
 /// let tracks = [
 ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
@@ -66,7 +65,7 @@ pub mod error;
 /// assert_eq!(disc.title().unwrap(), "Iron-Oxide");
 /// assert_eq!(disc.main_artist().unwrap(), "Ferris");
 /// let track1_details = disc.tag_for(TrackNo::strict_new(1)).unwrap();
-/// # io::Result::Ok(())
+/// # Result::Ok(())
 /// # }
 /// ```
 pub struct Disc {
@@ -111,11 +110,10 @@ impl Disc {
     /// # Examples
     ///
     /// ```
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
-    /// # use std::io;
     ///
-    /// # fn main() -> io::Result<()> {
+    /// # fn main() -> Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
@@ -124,7 +122,7 @@ impl Disc {
     ///
     /// let disc = Disc::new(toc, tracks)?;
     /// assert_eq!(disc.tracks().count(), 1);
-    /// # io::Result::Ok(())
+    /// # Result::Ok(())
     /// # }
     /// ```
     ///
@@ -187,11 +185,10 @@ impl Disc {
     /// # Example
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
-    /// # use std::io;
     ///
-    /// # fn main() -> io::Result<()> {
+    /// # fn main() -> Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
@@ -209,7 +206,7 @@ impl Disc {
     /// }
     ///
     /// let release = disc.release();
-    /// # io::Result::Ok(())
+    /// # Result::Ok(())
     /// # }
     /// ```
     pub fn release(&self) -> Option<&Release> {
@@ -721,12 +718,11 @@ impl Disc {
     /// # Examples
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo};
+    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
-    /// # use std::io;
     /// use metaflac::block::VorbisComment;
     ///
-    /// # fn main() -> io::Result<()> {
+    /// # fn main() -> Result<()> {
     /// let toc = Toc::from_cdtoc("1+96+2D2B").unwrap();
     /// let tracks = [
     ///     Track::new(TrackNo::strict_new(1), Frame::strict_new(0x96_u32), Frame::strict_new(0x2d2b_u32 - 0x96)),
@@ -740,7 +736,7 @@ impl Disc {
     ///     // Use tags for encoding
     ///     let _title = tags.title();
     /// }
-    /// # io::Result::Ok(())
+    /// # Result::Ok(())
     /// # }
     /// ```
     pub fn tag_for(&self, track_number: TrackNo) -> Option<VorbisComment> {
