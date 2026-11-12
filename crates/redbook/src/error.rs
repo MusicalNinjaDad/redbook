@@ -22,6 +22,7 @@
 //!      or `TODO #219 rehome cda parsing`
 //!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`TocError`]
 //!      returns `TocError::InvalidTrackNo(error)`
+//!    - From [`io::Error`] for [`Error`] boxes the error into `Error::Other`
 //! 1. All errors provide [`into_io_error`][RedbookError::into_io_error] but *not* `From<_> for io::Error`
 //!    to ensure that  callsites can make an explicit decision regarding `ErrorKind`, whether to
 //!    wrap self as a source, and how to handle errors which originate from an io::Error further
@@ -62,8 +63,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Crate-root error: level 1 of the error hierarchy.
 ///
-/// Wraps the per-domain level-2 errors (or an [`io::Error`] directly); construct via the variant,
-/// a `From` conversion from a domain error or `io::Error`, or `?`.
+/// Wraps the per-domain level-2 errors (or any other [`C_GOOD_ERROR`], boxed); construct via the
+/// variant, a `From` conversion from a domain error or `io::Error`, [`Error::other`], or `?`.
 #[derive(Debug)]
 pub enum Error {
     DeviceError(DeviceError),
@@ -75,8 +76,20 @@ pub enum Error {
     DiscError(DiscError),
     /// A track-encoding domain error.
     EncodingError(EncodingError),
-    /// A direct io::Error occuring in a function returning [`redbook::Error`]
-    IoError(io::Error),
+    /// Any other error, boxed so the concrete type stays reachable via downcast and
+    /// [`StdError::source`]
+    Other(Box<dyn C_GOOD_ERROR>),
+}
+
+impl Error {
+    /// Box any [`C_GOOD_ERROR`] into [`Error::Other`], preserving the concrete type in the
+    /// source chain.
+    pub fn other<E>(error: E) -> Self
+    where
+        E: Into<Box<dyn C_GOOD_ERROR>>,
+    {
+        Self::Other(error.into())
+    }
 }
 
 impl Display for Error {
@@ -87,7 +100,7 @@ impl Display for Error {
             Error::EncodingError(_) => write!(f, "track encoding error"),
             Error::DriveError(_) => write!(f, "drive error"),
             Error::DeviceError(_) => write!(f, "device error"),
-            Error::IoError(_) => write!(f, "I/O error"),
+            Error::Other(_) => write!(f, "other error"),
         }
     }
 }
@@ -100,7 +113,7 @@ impl StdError for Error {
             Error::EncodingError(error) => Some(error),
             Error::DriveError(error) => Some(error),
             Error::DeviceError(error) => Some(error),
-            Error::IoError(error) => Some(error),
+            Error::Other(error) => Some(&**error),
         }
     }
 }
@@ -263,7 +276,7 @@ impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
 
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
-        Self::IoError(error)
+        Self::other(error)
     }
 }
 
@@ -428,6 +441,20 @@ mod tests {
         let regen = rberr.into_io_error();
         assert_eq!(regen.kind(), ioerr.kind());
         assert_eq!(regen.to_string(), "I/O error");
+    }
+
+    #[test]
+    fn other_boxes_any_c_good_error_with_fidelity() {
+        let error = Error::other(std::fmt::Error);
+        assert!(matches!(error, Error::Other(_)));
+        assert_eq!(error.to_string(), "other error");
+        let source = StdError::source(&error).expect("boxed error should be the source");
+        assert!(source.downcast_ref::<std::fmt::Error>().is_some());
+        assert!(error.underlying::<std::fmt::Error>().is_some());
+        // io::Errors up-convert into the same variant but keep their label
+        let io_error: Error = io::Error::other("handcrafted").into();
+        assert!(matches!(io_error, Error::Other(_)));
+        assert_eq!(io_error.to_string(), "other error");
     }
 
     #[test]

@@ -98,14 +98,14 @@ fn main() -> redbook::Result<()> {
             app.on_select_release(select_release(app_.clone(), cd));
             app.on_rip(rip(app_, to_rip_tx));
         })
-        .map_err(io::Error::other)
+        .map_err(redbook::Error::other)
     });
 
     let ripper = thread::spawn(move || try bikeshed redbook::Result<()> {
         loop {
             select! {
                 recv(to_rip_rx) -> tracks => {
-                    rip_tracks(cd.clone(), tracks.map_err(io::Error::other)?, ripped_tx.clone())?;
+                    rip_tracks(cd.clone(), tracks.map_err(redbook::Error::other)?, ripped_tx.clone())?;
                 }
                 default(Duration::from_millis(100)) => {
                     rip_context.cancelled()?;
@@ -127,11 +127,11 @@ fn main() -> redbook::Result<()> {
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
             try bikeshed redbook::Result<_> {
-                enc_context.cancelled().map_err(io::Error::other)?;
+                enc_context.cancelled().map_err(redbook::Error::other)?;
                 progress.doing = Some(ripped.tags.track().unwrap_or_default());
                 enc_context
                     .reply(progress.clone())
-                    .map_err(io::Error::other)
+                    .map_err(redbook::Error::other)
                     .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
@@ -316,7 +316,7 @@ fn rip_tracks(
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
         ripped_tracks
             .send(ripped)
-            .map_err(io::Error::other)
+            .map_err(redbook::Error::other)
             .or_error("sending")?;
     }
     Ok(())
