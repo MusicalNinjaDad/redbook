@@ -58,16 +58,11 @@ pub enum TocError {
 }
 
 impl RedbookError for TocError {
-    fn into_io_error(self) -> io::Error {
-        let fallback = match &self {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        match self {
             TocError::NotFound => io::ErrorKind::NotFound,
             _ => io::ErrorKind::InvalidData,
-        };
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(fallback);
-        io::Error::new(kind, self)
+        }
     }
 }
 
@@ -173,8 +168,8 @@ impl Display for InvalidTrackNo {
 impl Error for InvalidTrackNo {}
 
 impl RedbookError for InvalidTrackNo {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -201,8 +196,8 @@ impl Display for InvalidOrder {
 impl Error for InvalidOrder {}
 
 impl RedbookError for InvalidOrder {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 

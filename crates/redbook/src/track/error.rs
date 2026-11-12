@@ -26,14 +26,10 @@ pub enum EncodingError {
 }
 
 impl RedbookError for EncodingError {
-    fn into_io_error(self) -> io::Error {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
         // encoding failures are data failures; an underlying io::Error (e.g. from the output
-        // sink) keeps its own kind
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(io::ErrorKind::InvalidData);
-        io::Error::new(kind, self)
+        // sink) keeps its own kind via the default `into_io_error`
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -163,12 +159,8 @@ impl From<flacenc::error::OutputError<ByteSink>> for FlacError {
 }
 
 impl RedbookError for FlacError {
-    fn into_io_error(self) -> io::Error {
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(io::ErrorKind::InvalidData);
-        io::Error::new(kind, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 

@@ -37,20 +37,15 @@ pub enum DriveError {
 }
 
 impl RedbookError for DriveError {
-    fn into_io_error(self) -> io::Error {
-        let fallback = match &self {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        match self {
             DriveError::DeviceError(_) => io::ErrorKind::Other,
             DriveError::InvalidFrame(_) => io::ErrorKind::InvalidData,
             DriveError::NotFound(_) => io::ErrorKind::NotFound,
             DriveError::ZeroLengthTrack => io::ErrorKind::UnexpectedEof,
             DriveError::Progress(_) => io::ErrorKind::Other,
             DriveError::ThreadCancellation => io::ErrorKind::Interrupted,
-        };
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(fallback);
-        io::Error::new(kind, self)
+        }
     }
 }
 
@@ -172,19 +167,14 @@ pub enum DeviceError {
 }
 
 impl RedbookError for DeviceError {
-    fn into_io_error(self) -> io::Error {
-        let fallback = match &self {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        match self {
             DeviceError::InvalidBufferSize(_) => io::ErrorKind::InvalidData,
             DeviceError::NotReady(_) | DeviceError::Other(_) => io::ErrorKind::Other,
             DeviceError::UnexpectedEndOfRead { .. } => io::ErrorKind::UnexpectedEof,
             DeviceError::UnsupportedDevice => io::ErrorKind::Unsupported,
             DeviceError::TocError(_) => io::ErrorKind::InvalidData,
-        };
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(fallback);
-        io::Error::new(kind, self)
+        }
     }
 }
 
@@ -283,8 +273,8 @@ impl Display for InvalidBufferSize {
 }
 
 impl RedbookError for InvalidBufferSize {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 

@@ -31,19 +31,14 @@ pub enum DiscError {
 }
 
 impl RedbookError for DiscError {
-    fn into_io_error(self) -> io::Error {
-        let fallback = match &self {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        match self {
             DiscError::TocMismatch(_) => io::ErrorKind::InvalidInput,
             DiscError::TaggingError(_) => io::ErrorKind::InvalidData,
             DiscError::NoReleases => io::ErrorKind::Other,
             DiscError::ThreadCancellation => io::ErrorKind::Interrupted,
             DiscError::IoError(_) => io::ErrorKind::Other,
-        };
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(fallback);
-        io::Error::new(kind, self)
+        }
     }
 }
 
@@ -161,12 +156,8 @@ impl From<metaflac::Error> for TaggingError {
 }
 
 impl RedbookError for TaggingError {
-    fn into_io_error(self) -> io::Error {
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(io::ErrorKind::InvalidData);
-        io::Error::new(kind, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -176,8 +167,8 @@ pub struct UnknownMimeType(Box<str>);
 impl Error for UnknownMimeType {}
 
 impl RedbookError for UnknownMimeType {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -233,8 +224,8 @@ impl Display for TocMismatch {
 impl Error for TocMismatch {}
 
 impl RedbookError for TocMismatch {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidInput, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidInput
     }
 }
 

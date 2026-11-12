@@ -1514,8 +1514,8 @@ impl Display for InvalidFrame {
 impl StdError for InvalidFrame {}
 
 impl RedbookError for InvalidFrame {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -1552,8 +1552,8 @@ impl Display for InvalidByteSize {
 impl StdError for InvalidByteSize {}
 
 impl RedbookError for InvalidByteSize {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 
@@ -1599,8 +1599,8 @@ impl From<InvalidByteSize> for ParseByteSizeError {
 }
 
 impl RedbookError for ParseByteSizeError {
-    fn into_io_error(self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, self)
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
+        io::ErrorKind::InvalidData
     }
 }
 

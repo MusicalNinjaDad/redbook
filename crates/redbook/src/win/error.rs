@@ -118,17 +118,13 @@ pub enum CdaError {
 }
 
 impl RedbookError for CdaError {
-    fn into_io_error(self) -> io::Error {
+    fn fallback_io_errorkind(&self) -> io::ErrorKind {
         // .cda parsing failures are data failures; a wrapped io::Error keeps its own kind
-        let fallback = match &self {
+        // via the default `into_io_error`
+        match self {
             CdaError::IoError(_) => io::ErrorKind::Other,
             _ => io::ErrorKind::InvalidData,
-        };
-        let kind = self
-            .underlying::<io::Error>()
-            .map(io::Error::kind)
-            .unwrap_or(fallback);
-        io::Error::new(kind, self)
+        }
     }
 }
 
