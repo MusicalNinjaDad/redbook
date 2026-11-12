@@ -79,6 +79,8 @@ pub enum Error {
     /// Any other error, boxed so the concrete type stays reachable via downcast and
     /// [`StdError::source`]
     Other(Box<dyn C_GOOD_ERROR>),
+    /// A related thread cancellation request was received
+    ThreadCancellation,
 }
 
 impl Error {
@@ -101,6 +103,7 @@ impl Display for Error {
             Error::DriveError(_) => write!(f, "drive error"),
             Error::DeviceError(_) => write!(f, "device error"),
             Error::Other(_) => write!(f, "other error"),
+            Error::ThreadCancellation => write!(f, "thread cancelled"),
         }
     }
 }
@@ -114,6 +117,7 @@ impl StdError for Error {
             Error::DriveError(error) => Some(error),
             Error::DeviceError(error) => Some(error),
             Error::Other(error) => Some(&**error),
+            Error::ThreadCancellation => None,
         }
     }
 }
@@ -151,12 +155,6 @@ impl From<DriveError> for Error {
 impl From<crossbeam::channel::SendError<RipProgress>> for Error {
     fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
         DriveError::from(error).into()
-    }
-}
-
-impl From<Context<RipProgress>> for Error {
-    fn from(cx: Context<RipProgress>) -> Self {
-        DriveError::from(cx).into()
     }
 }
 
@@ -226,12 +224,6 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-impl From<Context<!>> for Error {
-    fn from(cx: Context<!>) -> Self {
-        DiscError::from(cx).into()
-    }
-}
-
 impl From<EncodingError> for Error {
     fn from(error: EncodingError) -> Self {
         Self::EncodingError(error)
@@ -277,6 +269,12 @@ impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Self::other(error)
+    }
+}
+
+impl<R> From<Context<R>> for Error {
+    fn from(_: Context<R>) -> Self {
+        Self::ThreadCancellation
     }
 }
 
@@ -440,7 +438,7 @@ mod tests {
         );
         let regen = rberr.into_io_error();
         assert_eq!(regen.kind(), ioerr.kind());
-        assert_eq!(regen.to_string(), "I/O error");
+        assert_eq!(regen.to_string(), "other error");
     }
 
     #[test]
@@ -506,7 +504,7 @@ mod tests {
     fn error_report() {
         let rberr: Error = io::Error::other("handcrafted").into();
         let rpt = rberr.full_message();
-        assert_eq!(rpt.to_string(), "I/O error: handcrafted")
+        assert_eq!(rpt.to_string(), "other error: handcrafted")
     }
 
     #[cfg(false)]

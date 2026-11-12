@@ -127,7 +127,7 @@ fn main() -> redbook::Result<()> {
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
             try bikeshed redbook::Result<_> {
-                enc_context.cancelled().map_err(redbook::Error::other)?;
+                enc_context.cancelled()?;
                 progress.doing = Some(ripped.tags.track().unwrap_or_default());
                 enc_context
                     .reply(progress.clone())
