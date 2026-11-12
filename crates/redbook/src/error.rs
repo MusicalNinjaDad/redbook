@@ -43,7 +43,10 @@ use std::{
 
 use crate::{
     EncodingError,
-    disc::{DiscError, TocMismatch},
+    disc::{
+        DiscError, TocMismatch,
+        error::{TaggingError, UnknownMimeType},
+    },
     drive::{DriveError, error::DeviceError},
     toc::TocError,
 };
@@ -66,6 +69,8 @@ pub enum Error {
     Disc(DiscError),
     /// A track-encoding domain error.
     Encoding(EncodingError),
+    /// A direct io::Error occuring in a function returning [`redbook::Error`]
+    IoError(io::Error),
 }
 
 impl Error {
@@ -78,6 +83,7 @@ impl Error {
             Error::Encoding(error) => error.io_kind(),
             Error::Drive(error) => error.io_kind(),
             Error::Device(error) => error.io_kind(),
+            _ => todo!(),
         }
     }
 }
@@ -91,6 +97,7 @@ impl Display for Error {
             Error::Encoding(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
             Error::Device(_) => f.write_str("device error"),
+            _ => todo!(),
         }
     }
 }
@@ -103,6 +110,7 @@ impl StdError for Error {
             Error::Encoding(error) => Some(error),
             Error::Drive(error) => Some(error),
             Error::Device(error) => Some(error),
+            _ => todo!(),
         }
     }
 }
@@ -143,10 +151,28 @@ impl From<EncodingError> for Error {
     }
 }
 
+impl From<UnknownMimeType> for Error {
+    fn from(value: UnknownMimeType) -> Self {
+        DiscError::from(value).into()
+    }
+}
+
+impl From<TaggingError> for Error {
+    fn from(value: TaggingError) -> Self {
+        DiscError::from(value).into()
+    }
+}
+
 /// TODO - NO! If an actual io::Error is there, must return that!
 impl From<Error> for io::Error {
     fn from(error: Error) -> Self {
         io::Error::new(error.io_kind(), error)
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(value: io::Error) -> Self {
+        Self::IoError(value)
     }
 }
 
