@@ -1,17 +1,18 @@
 //! Level-2 error for [`toc`][crate::toc]: the [`TocError`] enum & the [`InvalidTrackNo`] leaf.
 //!
 //! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error, data-carrying
-//! variants rendered by `Display`, and `From<TocError> for io::Error` preserving the call site's
-//! previous [`io::ErrorKind`].
+//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error, and
+//! data-carrying variants rendered by `Display`. Conversion to [`io::Error`] is explicit via
+//! [`RedbookError::into_io_error`][crate::error::RedbookError::into_io_error], never via
+//! `From<_> for io::Error`.
 use std::{
     error::Error,
     fmt::{self, Display},
-    io::{self, ErrorKind as IoErrorKind},
+    io,
     num::NonZeroUsize,
 };
 
-use crate::toc::Format;
+use crate::{error::RedbookError, toc::Format};
 
 use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
 
@@ -56,23 +57,17 @@ pub enum TocError {
     CdToc(cdtoc::TocError),
 }
 
-impl TocError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> IoErrorKind {
-        match self {
-            TocError::NotFound => IoErrorKind::NotFound,
-            TocError::CdToc(_) => IoErrorKind::InvalidData,
-            TocError::InvalidTrackEntry(_)
-            | TocError::InvalidLeadoutEntry(_)
-            | TocError::InvalidInfoEntry(_)
-            | TocError::InvalidTrackNo(_)
-            | TocError::MultiDisc
-            | TocError::InfoMismatch { .. }
-            | TocError::InconsistentSessionInfo
-            | TocError::LeadoutMismatch { .. }
-            | TocError::InvalidOrder { .. } => IoErrorKind::InvalidData,
-        }
+impl RedbookError for TocError {
+    fn into_io_error(self) -> io::Error {
+        let fallback = match &self {
+            TocError::NotFound => io::ErrorKind::NotFound,
+            _ => io::ErrorKind::InvalidData,
+        };
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(fallback);
+        io::Error::new(kind, self)
     }
 }
 
@@ -138,12 +133,6 @@ impl From<InvalidTrackNo> for TocError {
     }
 }
 
-impl From<TocError> for io::Error {
-    fn from(error: TocError) -> Self {
-        io::Error::new(error.io_kind(), error)
-    }
-}
-
 /// Interop downgrade to [`cdtoc`]'s error type: a wrapped [`cdtoc::TocError`] is simply
 /// unwrapped; other kinds map to the closest `cdtoc` semantic (`SectorOrder`).
 ///
@@ -183,9 +172,9 @@ impl Display for InvalidTrackNo {
 
 impl Error for InvalidTrackNo {}
 
-impl From<InvalidTrackNo> for io::Error {
-    fn from(error: InvalidTrackNo) -> Self {
-        io::Error::new(IoErrorKind::InvalidData, error)
+impl RedbookError for InvalidTrackNo {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
     }
 }
 
@@ -210,6 +199,12 @@ impl Display for InvalidOrder {
 }
 
 impl Error for InvalidOrder {}
+
+impl RedbookError for InvalidOrder {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
+    }
+}
 
 impl InvalidOrder {
     /// Create a new InvalidOrder error

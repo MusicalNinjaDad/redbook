@@ -224,11 +224,13 @@
 //! code all the way down; a wrapped error is not also rendered by `Display`, while data-carrying
 //! variants are rendered by `Display` and return `None` from `source()`.
 //!
-//! Every error type implements `From<This> for io::Error` for interop with IO-centric downstream
-//! code: the [`io::ErrorKind`] matches the call site's previous behaviour and the original error
-//! remains retrievable via downcast. Relevant cases also implement `From<This> for
-//! other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`, `flacenc`, `metaflac`),
-//! which mainly unwrap a wrapped foreign error.
+//! Every error type implements [`RedbookError`][error::RedbookError], which provides
+//! [`into_io_error`][error::RedbookError::into_io_error] for interop with IO-centric downstream
+//! code — but deliberately *not* `From<This> for io::Error`, so that each call site makes an
+//! explicit decision about the [`io::ErrorKind`], whether to wrap the error as a source, and how
+//! to handle an underlying `io::Error` further down the stack. Relevant cases also implement
+//! `From<This> for other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`,
+//! `flacenc`, `metaflac`), which mainly unwrap a wrapped foreign error.
 //!
 //! # Safety
 //!

@@ -73,7 +73,7 @@ fn main() -> redbook::Result<()> {
     let setup = thread::spawn(move || {
         let cd = cd_;
         let context = context_;
-        try bikeshed io::Result<()> {
+        try bikeshed redbook::Result<()> {
             let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
             let disc = disc_lock.disc_mut();
             context.cancelled()?;
@@ -126,8 +126,8 @@ fn main() -> redbook::Result<()> {
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
-            try bikeshed io::Result<_> {
-                enc_context.cancelled()?;
+            try bikeshed redbook::Result<_> {
+                enc_context.cancelled().map_err(io::Error::other)?;
                 progress.doing = Some(ripped.tags.track().unwrap_or_default());
                 enc_context
                     .reply(progress.clone())

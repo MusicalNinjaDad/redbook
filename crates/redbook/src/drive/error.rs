@@ -3,7 +3,7 @@
 use std::{
     error::Error,
     fmt::{self, Display},
-    io::{self, ErrorKind as IoErrorKind, RawOsError},
+    io::{self, RawOsError},
 };
 
 use thread_safely::Context;
@@ -36,7 +36,23 @@ pub enum DriveError {
     ThreadCancellation,
 }
 
-impl RedbookError for DriveError {}
+impl RedbookError for DriveError {
+    fn into_io_error(self) -> io::Error {
+        let fallback = match &self {
+            DriveError::DeviceError(_) => io::ErrorKind::Other,
+            DriveError::InvalidFrame(_) => io::ErrorKind::InvalidData,
+            DriveError::NotFound(_) => io::ErrorKind::NotFound,
+            DriveError::ZeroLengthTrack => io::ErrorKind::UnexpectedEof,
+            DriveError::Progress(_) => io::ErrorKind::Other,
+            DriveError::ThreadCancellation => io::ErrorKind::Interrupted,
+        };
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(fallback);
+        io::Error::new(kind, self)
+    }
+}
 
 impl Error for DriveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -64,21 +80,6 @@ impl Display for DriveError {
             DriveError::DeviceError(_) => write!(f, "device error"),
             DriveError::InvalidFrame(_) => write!(f, "invalid frame"),
             DriveError::ThreadCancellation => write!(f, "thread cancelled"),
-        }
-    }
-}
-
-impl DriveError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> IoErrorKind {
-        match self {
-            DriveError::NotFound(_) => IoErrorKind::NotFound,
-            DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
-            DriveError::Progress(_) => IoErrorKind::Other,
-            DriveError::DeviceError(_) => todo!(),
-            DriveError::ThreadCancellation => todo!(),
-            _ => todo!(),
         }
     }
 }
@@ -149,12 +150,6 @@ impl From<Context<RipProgress>> for DriveError {
     }
 }
 
-impl From<DriveError> for io::Error {
-    fn from(error: DriveError) -> Self {
-        io::Error::new(error.io_kind(), error)
-    }
-}
-
 /// Errors returned by [`trait Device`][crate::Device]
 #[derive(Debug)]
 pub enum DeviceError {
@@ -176,9 +171,20 @@ pub enum DeviceError {
     TocError(TocError),
 }
 
-impl DeviceError {
-    pub fn io_kind(&self) -> io::ErrorKind {
-        todo!()
+impl RedbookError for DeviceError {
+    fn into_io_error(self) -> io::Error {
+        let fallback = match &self {
+            DeviceError::InvalidBufferSize(_) => io::ErrorKind::InvalidData,
+            DeviceError::NotReady(_) | DeviceError::Other(_) => io::ErrorKind::Other,
+            DeviceError::UnexpectedEndOfRead { .. } => io::ErrorKind::UnexpectedEof,
+            DeviceError::UnsupportedDevice => io::ErrorKind::Unsupported,
+            DeviceError::TocError(_) => io::ErrorKind::InvalidData,
+        };
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(fallback);
+        io::Error::new(kind, self)
     }
 }
 
@@ -276,6 +282,12 @@ impl Display for InvalidBufferSize {
     }
 }
 
+impl RedbookError for InvalidBufferSize {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
+    }
+}
+
 impl From<InvalidByteSize> for InvalidBufferSize {
     fn from(error: InvalidByteSize) -> Self {
         Self::InvalidByteSize(error)
@@ -292,6 +304,14 @@ impl From<InvalidByteSize> for InvalidBufferSize {
 ///
 /// Most implementations will be a simple new-type wrapper to provide colouring
 /// TODO: include WinError as full example
+///
+/// # Boundary
+///
+/// `OsError` and [`RedbookError`] are mutually exclusive: an `OsError` is only produced by
+/// low-level [`Device`][crate::Device] implementations and is consumed when converting into a
+/// [`RedbookError`] (e.g. `From<WinError> for DeviceError`); it must not leak past the boundary
+/// of a `Device` implementation. The trait remains `pub` so that third-party `Device`
+/// implementations can use it.
 pub trait OsError:
     Error + Send + Sync + 'static // C-GOOD-ERR
     + From<io::Error>

@@ -11,6 +11,7 @@ use tracing_result::Trace;
 
 use crate::{
     TocEntries,
+    error::RedbookError,
     frame::Msf,
     toc::{Control, Point, RawTocEntry, TocEntry},
 };
@@ -173,6 +174,6 @@ impl TryFrom<RawTocDescriptors> for TocEntries {
             .collect::<io::Result<Vec<TocEntry>>>()?
             .into_iter()
             .collect::<Result<_, crate::toc::TocError>>()
-            .map_err(io::Error::from)
+            .map_err(|error| error.into_io_error())
     }
 }

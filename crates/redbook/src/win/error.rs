@@ -1,10 +1,10 @@
-//! Level-2 error for the [`win`] module (Windows hardware access): the [`WinError`] enum, plus
+//! Level-2 error for the [`win`] module (Windows hardware access): the [`WinError`] struct, plus
 //! [`CdaError`] for `.cda` file parsing.
 //!
 //! Follows the crate-wide conventions documented in [`crate::error`]. In addition, OS errors get
-//! dedicated handling: a wrapped [`io::Error`] from the OS is returned directly from
-//! `From<WinError> for io::Error` (preserving `raw_os_error`), and `ERROR_NOT_READY` (21, no disc
-//! in drive) is surfaced as the dedicated [`WinError::NotReady`] variant.
+//! dedicated handling via [`OsError`]: the wrapped [`io::Error`] from the OS is available
+//! directly (preserving `raw_os_error`), and `ERROR_NOT_READY` (21, no disc in drive) is
+//! surfaced as [`DeviceError::NotReady`].
 use std::{
     error::Error as StdError,
     fmt::{self, Display},
@@ -16,6 +16,7 @@ use glob::GlobError;
 
 use crate::{
     drive::error::{DeviceError, OsError},
+    error::RedbookError,
     frame::{Frame, InvalidFrame, Msf},
     toc::error::InvalidTrackNo,
 };
@@ -116,11 +117,18 @@ pub enum CdaError {
     IoError(io::Error),
 }
 
-impl CdaError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`]: `.cda` parsing
-    /// failures are data failures.
-    pub fn io_kind(&self) -> IoErrorKind {
-        IoErrorKind::InvalidData
+impl RedbookError for CdaError {
+    fn into_io_error(self) -> io::Error {
+        // .cda parsing failures are data failures; a wrapped io::Error keeps its own kind
+        let fallback = match &self {
+            CdaError::IoError(_) => io::ErrorKind::Other,
+            _ => io::ErrorKind::InvalidData,
+        };
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(fallback);
+        io::Error::new(kind, self)
     }
 }
 
@@ -185,15 +193,6 @@ impl From<InvalidTrackNo> for CdaError {
 impl From<InvalidFrame> for CdaError {
     fn from(error: InvalidFrame) -> Self {
         CdaError::InvalidFrame(error)
-    }
-}
-
-impl From<CdaError> for io::Error {
-    fn from(error: CdaError) -> Self {
-        match error {
-            CdaError::IoError(e) => e,
-            _ => io::Error::new(error.io_kind(), error),
-        }
     }
 }
 

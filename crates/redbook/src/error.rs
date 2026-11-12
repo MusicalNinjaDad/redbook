@@ -288,8 +288,14 @@ pub trait RedbookError: C_GOOD_ERROR + Sized {
             .and_then(|error| error.raw_os_error())
     }
 
-    /// Map to an io::Error with a default ErrorKind, unless an actual io::Error exists in the
-    /// source tree. TODO improve docs
+    /// Convert into an [`io::Error`], wrapping `self` as the payload so the full typed error
+    /// tree remains reachable via downcast and [`StdError::source`].
+    ///
+    /// The [`io::ErrorKind`] is taken from an underlying [`io::Error`] in the source chain when
+    /// one exists (preserving e.g. `ErrorKind::NotFound` or the kind of a genuine OS error);
+    /// otherwise it defaults to [`io::ErrorKind::Other`]. Call sites which need a more specific
+    /// kind should construct the [`io::Error`] themselves, e.g.
+    /// `io::Error::new(io::ErrorKind::InvalidData, error)`.
     fn into_io_error(self) -> io::Error {
         let kind = self
             .underlying::<io::Error>()
@@ -315,6 +321,30 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<Error>();
+    }
+
+    #[test]
+    fn all_tree_error_types_implement_redbook_error() {
+        fn assert_redbook<T: RedbookError>() {}
+        assert_redbook::<Error>();
+        assert_redbook::<DeviceError>();
+        assert_redbook::<DriveError>();
+        assert_redbook::<InvalidBufferSize>();
+        assert_redbook::<TocError>();
+        assert_redbook::<crate::toc::error::InvalidTrackNo>();
+        assert_redbook::<InvalidOrder>();
+        assert_redbook::<DiscError>();
+        assert_redbook::<TocMismatch>();
+        assert_redbook::<TaggingError>();
+        assert_redbook::<UnknownMimeType>();
+        assert_redbook::<IoError>();
+        assert_redbook::<EncodingError>();
+        assert_redbook::<FlacError>();
+        assert_redbook::<crate::win::CdaError>();
+        assert_redbook::<InvalidByteSize>();
+        assert_redbook::<crate::frame::InvalidFrame>();
+        assert_redbook::<crate::frame::ParseByteSizeError>();
+        assert_redbook::<crate::hex::ParseHexError>();
     }
 
     #[test]
@@ -391,6 +421,51 @@ mod tests {
         let regen = rberr.into_io_error();
         assert_eq!(regen.kind(), ioerr.kind());
         assert_eq!(regen.to_string(), "I/O error");
+    }
+
+    #[test]
+    fn into_io_error_uses_better_kind_than_other_where_defined() {
+        use crate::toc::TocError;
+        // per-type overrides restore the status-quo kinds
+        assert_eq!(
+            TocError::NotFound.into_io_error().kind(),
+            io::ErrorKind::NotFound
+        );
+        assert_eq!(
+            TocError::from(cdtoc::TocError::NoAudio)
+                .into_io_error()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            DriveError::ZeroLengthTrack.into_io_error().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            EncodingError::InvalidData(2353).into_io_error().kind(),
+            io::ErrorKind::InvalidData
+        );
+        // errors without an io::Error in the chain and without an override default to Other
+        assert_eq!(
+            Error::from(DiscError::NoReleases).into_io_error().kind(),
+            io::ErrorKind::Other
+        );
+    }
+
+    #[test]
+    fn into_io_error_preserves_kind_of_underlying_io_error() {
+        // an io::Error anywhere in the source chain wins over the per-type fallback kind
+        let raw = io::Error::from_raw_os_error(5);
+        let expected_kind = raw.kind();
+        let error = DeviceError::Other(raw);
+        let io_error = error.into_io_error();
+        assert_eq!(io_error.kind(), expected_kind);
+        // the typed error is still the payload, so the tree (and the raw OS code) survives
+        let payload = io_error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<DeviceError>())
+            .expect("payload should be the DeviceError");
+        assert_eq!(payload.raw_os_error(), Some(5));
     }
 
     #[test]

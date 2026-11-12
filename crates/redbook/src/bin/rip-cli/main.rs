@@ -272,7 +272,7 @@ fn main() -> Exit<()> {
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
-            try bikeshed io::Result<_> {
+            try bikeshed redbook::Result<_> {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
@@ -365,9 +365,8 @@ impl<T: _T> From<io::Error> for Exit<T> {
     }
 }
 
-// redbook library errors convert via their `From<_> for io::Error` impl, which preserves the
-// status-quo `ErrorKind`; the full typed error (with its data-carrying context) travels inside
-// the `io::Error` and its `source()` chain
+// redbook library errors up-convert via `From<redbook::Error> for Exit`; the full typed error
+// (with its data-carrying context and source chain) is rendered via `RedbookError::full_message`
 impl<T: _T> From<redbook::Error> for Exit<T> {
     fn from(e: redbook::Error) -> Self {
         Self::Redbook(e.full_message().to_string())

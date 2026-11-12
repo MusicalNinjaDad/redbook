@@ -1,19 +1,20 @@
 #![expect(missing_docs, reason = "TODO")]
-//! Level-2 error for [`disc`][crate::disc]: the [`DiscError`] enum & the [`TrackMismatch`] leaf.
+//! Level-2 error for [`disc`][crate::disc]: the [`DiscError`] enum & the [`TocMismatch`] leaf.
 //!
 //! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error, data-carrying
-//! variants rendered by `Display`, and `From<DiscError> for io::Error` preserving the call site's
-//! previous [`io::ErrorKind`].
+//! `Error`/`Display`/`source`, `source()` returning the directly wrapped error and
+//! data-carrying variants rendered by `Display`. Conversion to [`io::Error`] is explicit via
+//! [`RedbookError::into_io_error`][crate::error::RedbookError::into_io_error], never via
+//! `From<_> for io::Error`.
 use std::{
     error::Error,
     fmt::{self, Display},
-    io::{self, ErrorKind as IoErrorKind},
+    io,
 };
 
 use thread_safely::Context;
 
-use crate::Track;
+use crate::{Track, error::RedbookError};
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.
@@ -29,15 +30,20 @@ pub enum DiscError {
     IoError(IoError),
 }
 
-impl DiscError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> IoErrorKind {
-        match self {
-            DiscError::TocMismatch(_) => IoErrorKind::InvalidInput,
-            DiscError::NoReleases => IoErrorKind::Other,
-            _ => todo!(),
-        }
+impl RedbookError for DiscError {
+    fn into_io_error(self) -> io::Error {
+        let fallback = match &self {
+            DiscError::TocMismatch(_) => io::ErrorKind::InvalidInput,
+            DiscError::TaggingError(_) => io::ErrorKind::InvalidData,
+            DiscError::NoReleases => io::ErrorKind::Other,
+            DiscError::ThreadCancellation => io::ErrorKind::Interrupted,
+            DiscError::IoError(_) => io::ErrorKind::Other,
+        };
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(fallback);
+        io::Error::new(kind, self)
     }
 }
 
@@ -118,12 +124,6 @@ impl From<io::Error> for DiscError {
     }
 }
 
-impl From<DiscError> for io::Error {
-    fn from(error: DiscError) -> Self {
-        io::Error::new(error.io_kind(), error)
-    }
-}
-
 #[derive(Debug)]
 pub enum TaggingError {
     UnknownMimeType(UnknownMimeType),
@@ -159,10 +159,27 @@ impl From<metaflac::Error> for TaggingError {
         Self::MetaflacError(error)
     }
 }
+
+impl RedbookError for TaggingError {
+    fn into_io_error(self) -> io::Error {
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(io::ErrorKind::InvalidData);
+        io::Error::new(kind, self)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnknownMimeType(Box<str>);
 
 impl Error for UnknownMimeType {}
+
+impl RedbookError for UnknownMimeType {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
+    }
+}
 
 impl Display for UnknownMimeType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -215,6 +232,12 @@ impl Display for TocMismatch {
 
 impl Error for TocMismatch {}
 
+impl RedbookError for TocMismatch {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidInput, self)
+    }
+}
+
 #[derive(Debug)]
 pub enum IoError {
     /// Fetching disc metadata from MusicBrainz.
@@ -265,6 +288,8 @@ impl Error for IoError {
         }
     }
 }
+
+impl RedbookError for IoError {}
 
 #[cfg(test)]
 mod tests {

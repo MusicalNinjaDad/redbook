@@ -29,8 +29,11 @@ module docs). Every error type implements `std::error::Error + Send + Sync + 'st
 enums are not `#[non_exhaustive]`. Context is the *data which led to the error*, stored in the
 variant itself — there is no stringly-typed `.context(...)` API. A variant wrapping an underlying
 error is returned by `source()` and *not* rendered by `Display`; data-carrying variants are
-rendered by `Display` and return `None` from `source()`. All error types convert to `io::Error`
-preserving the call site's status-quo `ErrorKind`.
+rendered by `Display` and return `None` from `source()`. All error types implement
+`RedbookError` and convert to `io::Error` explicitly via `into_io_error()` — never via
+`From<_> for io::Error` — so each call site decides the `ErrorKind` and how to treat an
+underlying `io::Error` further down the stack; the kind of any underlying `io::Error` is
+preserved, otherwise a per-type default applies (`ErrorKind::Other` at worst).
 
 ```mermaid
 flowchart TD
@@ -147,8 +150,9 @@ flowchart TD
 Notes: `Device::Iter` / `CdDrives` yield `Result<_, DriveError>` items (#50) — `None` is reserved
 for the expected end-of-enumeration; no-disc (`ERROR_NOT_READY`) drives are still skipped.
 `hex::ParseHexError` is deliberately outside the hierarchy (#165). Wrapped OS errors keep
-`raw_os_error` end-to-end (`From<WinError> for io::Error` returns the original `io::Error`
-directly for `WinError::Io`).
+`raw_os_error` end-to-end: `RedbookError::raw_os_error` walks the `source()` chain to the
+original `io::Error` (e.g. via `DeviceError::NotReady`/`Other`, which `WinError` converts into
+at the `Device` boundary).
 
 ### Example
 

@@ -1,16 +1,19 @@
 #![expect(missing_docs, reason = "TODO")]
-//! Level-2 error for track encoding: the [`TrackError`] enum.
+//! Level-2 error for track encoding: the [`EncodingError`] enum.
 //!
 //! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`, and `From<TrackError> for io::Error` mapping to
-//! [`io::ErrorKind::InvalidData`] (encoding failures are data failures).
+//! `Error`/`Display`/`source`. Conversion to [`io::Error`] is explicit via
+//! [`RedbookError::into_io_error`][crate::error::RedbookError::into_io_error], never via
+//! `From<_> for io::Error`.
 use std::{
     error::Error,
     fmt::{self, Display},
-    io::{self, ErrorKind as IoErrorKind},
+    io,
 };
 
 use flacenc::bitsink::ByteSink;
+
+use crate::error::RedbookError;
 
 /// Error returned by [`RippedTrack::to_flac`][crate::RippedTrack::to_flac].
 ///
@@ -22,10 +25,15 @@ pub enum EncodingError {
     FlacError(FlacError),
 }
 
-impl EncodingError {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`].
-    pub fn io_kind(&self) -> IoErrorKind {
-        IoErrorKind::InvalidData
+impl RedbookError for EncodingError {
+    fn into_io_error(self) -> io::Error {
+        // encoding failures are data failures; an underlying io::Error (e.g. from the output
+        // sink) keeps its own kind
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(io::ErrorKind::InvalidData);
+        io::Error::new(kind, self)
     }
 }
 
@@ -83,12 +91,6 @@ impl From<flacenc::error::SourceError> for EncodingError {
 impl From<flacenc::error::OutputError<ByteSink>> for EncodingError {
     fn from(error: flacenc::error::OutputError<ByteSink>) -> Self {
         FlacError::from(error).into()
-    }
-}
-
-impl From<EncodingError> for io::Error {
-    fn from(error: EncodingError) -> Self {
-        io::Error::new(error.io_kind(), error)
     }
 }
 
@@ -157,6 +159,16 @@ impl From<flacenc::error::SourceError> for FlacError {
 impl From<flacenc::error::OutputError<ByteSink>> for FlacError {
     fn from(error: flacenc::error::OutputError<ByteSink>) -> Self {
         Self::OutputError(error)
+    }
+}
+
+impl RedbookError for FlacError {
+    fn into_io_error(self) -> io::Error {
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(io::ErrorKind::InvalidData);
+        io::Error::new(kind, self)
     }
 }
 

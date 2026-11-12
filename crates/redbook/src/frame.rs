@@ -5,14 +5,14 @@ use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     error::Error as StdError,
     fmt::{Debug, Display},
-    io::{self, ErrorKind as IoErrorKind},
+    io,
     marker::{Destruct, StructuralPartialEq},
     num::{ParseIntError, TryFromIntError},
     ops::{Div, Rem},
     str::FromStr,
 };
 
-use crate::LEADIN;
+use crate::{LEADIN, error::RedbookError};
 
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
 ///
@@ -1513,9 +1513,9 @@ impl Display for InvalidFrame {
 
 impl StdError for InvalidFrame {}
 
-impl From<InvalidFrame> for io::Error {
-    fn from(error: InvalidFrame) -> Self {
-        io::Error::new(IoErrorKind::InvalidData, error)
+impl RedbookError for InvalidFrame {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
     }
 }
 
@@ -1551,9 +1551,9 @@ impl Display for InvalidByteSize {
 
 impl StdError for InvalidByteSize {}
 
-impl From<InvalidByteSize> for io::Error {
-    fn from(error: InvalidByteSize) -> Self {
-        io::Error::new(IoErrorKind::InvalidData, error)
+impl RedbookError for InvalidByteSize {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
     }
 }
 
@@ -1598,9 +1598,9 @@ impl From<InvalidByteSize> for ParseByteSizeError {
     }
 }
 
-impl From<ParseByteSizeError> for io::Error {
-    fn from(error: ParseByteSizeError) -> Self {
-        io::Error::new(IoErrorKind::InvalidData, error)
+impl RedbookError for ParseByteSizeError {
+    fn into_io_error(self) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, self)
     }
 }
 
