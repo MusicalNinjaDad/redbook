@@ -42,12 +42,11 @@ impl Error for DriveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             DriveError::DeviceError(error) => Some(error),
-            // data-carrying variants are rendered in Display instead (issue #198)
+            DriveError::InvalidFrame(error) => Some(error),
             DriveError::NotFound(_)
             | DriveError::ZeroLengthTrack
             | DriveError::Progress(_)
             | DriveError::ThreadCancellation => None,
-            _ => todo!(),
         }
     }
 }
@@ -58,13 +57,13 @@ impl Display for DriveError {
             DriveError::NotFound(track_number) => {
                 write!(f, "track {} not found on disc", track_number.cast::<u8>())
             }
-            DriveError::ZeroLengthTrack => f.write_str("unexpected end of data"),
+            DriveError::ZeroLengthTrack => write!(f, "unexpected end of data"),
             DriveError::Progress(RipProgress { track_number, .. }) => {
                 write!(f, "failed to update progress for {track_number}")
             }
             DriveError::DeviceError(_) => write!(f, "device error"),
+            DriveError::InvalidFrame(_) => write!(f, "invalid frame"),
             DriveError::ThreadCancellation => write!(f, "thread cancelled"),
-            _ => todo!(),
         }
     }
 }
@@ -189,8 +188,10 @@ impl Error for DeviceError {
 
         match self {
             Other(e) => Some(e),
-            InvalidBufferSize(_) | UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
-            _ => todo!(),
+            NotReady(e) => Some(e),
+            TocError(e) => Some(e),
+            InvalidBufferSize(e) => Some(e),
+            UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
         }
     }
 }
@@ -198,13 +199,14 @@ impl Error for DeviceError {
 impl Display for DeviceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DeviceError::InvalidBufferSize(_) => todo!(),
+            DeviceError::InvalidBufferSize(_) => write!(f, "invalid buffer size"),
+            DeviceError::NotReady(_) => write!(f, "device not ready"),
+            DeviceError::TocError(_) => write!(f, "TOC error"),
+            DeviceError::Other(_) => write!(f, "I/O error"),
             DeviceError::UnexpectedEndOfRead { expected, received } => {
                 write!(f, "expected {expected} bytes, received {received}")
             }
             DeviceError::UnsupportedDevice => write!(f, "device does not support CD operations"),
-            DeviceError::Other(error) => Display::fmt(error, f),
-            _ => todo!(),
         }
     }
 }
@@ -253,13 +255,24 @@ pub enum InvalidBufferSize {
 
 impl Error for InvalidBufferSize {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        todo!()
+        match self {
+            InvalidBufferSize::InvalidByteSize(error) => Some(error),
+            InvalidBufferSize::TooSmall { .. } => None,
+        }
     }
 }
 
 impl Display for InvalidBufferSize {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InvalidBufferSize::InvalidByteSize(_) => write!(f, "invalid byte size"),
+            InvalidBufferSize::TooSmall { provided, required } => {
+                write!(
+                    f,
+                    "buffer size {provided} is too small; {required} required"
+                )
+            }
+        }
     }
 }
 
@@ -387,5 +400,37 @@ mod tests {
             error,
             crate::Error::DriveError(DriveError::ZeroLengthTrack)
         ));
+    }
+
+    #[test]
+    fn wrapped_child_errors_are_source_not_display() {
+        let error = DeviceError::Other(io::Error::from_raw_os_error(5));
+        assert_eq!(error.to_string(), "I/O error");
+        let source = Error::source(&error).expect("wrapped io::Error should be the source");
+        assert_eq!(
+            source.downcast_ref::<io::Error>().unwrap().raw_os_error(),
+            Some(5)
+        );
+
+        let error = DriveError::from(InvalidFrame::new(0x1_0000_0000u64));
+        assert_eq!(error.to_string(), "invalid frame");
+        assert!(
+            Error::source(&error)
+                .and_then(|s| s.downcast_ref::<InvalidFrame>())
+                .is_some()
+        );
+
+        let buffer = InvalidBufferSize::TooSmall {
+            provided: 1,
+            required: 2,
+        };
+        let error = DeviceError::from(buffer);
+        assert_eq!(error.to_string(), "invalid buffer size");
+        assert!(
+            Error::source(&error)
+                .and_then(|s| s.downcast_ref::<InvalidBufferSize>())
+                .is_some()
+        );
+        assert!(Error::source(&buffer).is_none());
     }
 }

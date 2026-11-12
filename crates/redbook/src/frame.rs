@@ -1570,9 +1570,9 @@ pub enum ParseByteSizeError {
 impl Display for ParseByteSizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            // wrapped errors are returned by `source()`, not rendered here (issue #198)
-            ParseByteSizeError::Int(_) => f.write_str("invalid integer"),
-            ParseByteSizeError::TooLarge(error) => Display::fmt(error, f),
+            // wrapped errors are returned by `source()`, not rendered here
+            ParseByteSizeError::Int(_) => write!(f, "invalid integer"),
+            ParseByteSizeError::TooLarge(_) => write!(f, "byte size too large"),
         }
     }
 }
@@ -1581,8 +1581,7 @@ impl StdError for ParseByteSizeError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             ParseByteSizeError::Int(error) => Some(error),
-            // data-carrying variants are rendered in Display instead (issue #198)
-            ParseByteSizeError::TooLarge(_) => None,
+            ParseByteSizeError::TooLarge(error) => Some(error),
         }
     }
 }
@@ -1613,6 +1612,22 @@ mod tests {
     use crate::{MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES};
 
     use rstest::rstest;
+
+    #[test]
+    fn parse_byte_size_error_wraps_source_not_display() {
+        let error = ParseByteSizeError::from(InvalidByteSize::new(u64::MAX));
+        assert_eq!(error.to_string(), "byte size too large");
+        let source = StdError::source(&error).expect("wrapped leaf should be the source");
+        assert!(source.downcast_ref::<InvalidByteSize>().is_some());
+        assert_eq!(
+            source.to_string(),
+            format!("invalid byte size: {:#X}", i128::from(u64::MAX))
+        );
+
+        let int_error: ParseByteSizeError = "x".parse::<u64>().unwrap_err().into();
+        assert_eq!(int_error.to_string(), "invalid integer");
+        assert!(StdError::source(&int_error).is_some());
+    }
 
     #[test]
     fn leadin_conversion() {

@@ -36,14 +36,17 @@ impl Display for EncodingError {
                 f,
                 "invalid raw track data: {len} bytes is not a whole number of samples"
             ),
-            _ => todo!(),
+            EncodingError::FlacError(_) => write!(f, "FLAC encoding error"),
         }
     }
 }
 
 impl Error for EncodingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        todo!()
+        match self {
+            EncodingError::FlacError(error) => Some(error),
+            EncodingError::InvalidData(_) => None,
+        }
     }
 }
 
@@ -103,13 +106,23 @@ pub enum FlacError {
 
 impl Error for FlacError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        todo!()
+        match self {
+            FlacError::InvalidEncoder(error) => Some(error),
+            FlacError::OutputError(error) => Some(error),
+            // documented exception to the tree rule: flacenc's SourceErrorKind is !Send, so only
+            // its message is retained and there is no source to return
+            FlacError::InvalidData(_) => None,
+        }
     }
 }
 
 impl Display for FlacError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FlacError::InvalidEncoder(_) => write!(f, "invalid encoder configuration"),
+            FlacError::InvalidData(message) => write!(f, "invalid source data: {message}"),
+            FlacError::OutputError(_) => write!(f, "FLAC output error"),
+        }
     }
 }
 
@@ -156,6 +169,27 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: Error + Send + Sync + 'static>() {}
         assert_traits::<EncodingError>();
+        assert_traits::<FlacError>();
+    }
+
+    #[test]
+    fn wrapped_child_errors_are_source_not_display() {
+        let error = EncodingError::from(FlacError::InvalidData("boom".to_string()));
+        assert_eq!(error.to_string(), "FLAC encoding error");
+        let flac = Error::source(&error)
+            .and_then(|s| s.downcast_ref::<FlacError>())
+            .expect("source should be the FlacError");
+        assert_eq!(flac.to_string(), "invalid source data: boom");
+        // the documented !Send carve-out: no source below FlacError::InvalidData
+        assert!(Error::source(flac).is_none());
+
+        // data-carrying variant: rendered in Display, no source
+        let error = EncodingError::InvalidData(2353);
+        assert_eq!(
+            error.to_string(),
+            "invalid raw track data: 2353 bytes is not a whole number of samples"
+        );
+        assert!(Error::source(&error).is_none());
     }
 
     #[cfg(false)]

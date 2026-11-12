@@ -82,11 +82,11 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::TocError(_) => f.write_str("TOC error"),
-            Error::DiscError(_) => f.write_str("disc error"),
-            Error::EncodingError(_) => f.write_str("track encoding error"),
-            Error::DriveError(_) => f.write_str("drive error"),
-            Error::DeviceError(_) => f.write_str("device error"),
+            Error::TocError(_) => write!(f, "TOC error"),
+            Error::DiscError(_) => write!(f, "disc error"),
+            Error::EncodingError(_) => write!(f, "track encoding error"),
+            Error::DriveError(_) => write!(f, "drive error"),
+            Error::DeviceError(_) => write!(f, "device error"),
             Error::IoError(_) => write!(f, "I/O error"),
         }
     }
@@ -353,6 +353,26 @@ mod tests {
             error,
             Error::EncodingError(EncodingError::FlacError(FlacError::InvalidData(_)))
         ));
+    }
+
+    #[test]
+    fn source_chain_preserves_fidelity_from_root() {
+        use crate::toc::error::InvalidTrackNo;
+
+        let error = Error::from(TocError::from(InvalidTrackNo::new(100_u8)));
+        // rule 2: each layer renders only its own message
+        assert_eq!(error.to_string(), "TOC error");
+        let toc = StdError::source(&error)
+            .and_then(|s| s.downcast_ref::<TocError>())
+            .expect("source should be the TocError");
+        assert_eq!(toc.to_string(), "invalid track number in TOC");
+        // rule 3: the wrapped leaf is reachable via `source()` ...
+        let leaf = StdError::source(toc)
+            .and_then(|s| s.downcast_ref::<InvalidTrackNo>())
+            .expect("source should be the InvalidTrackNo");
+        assert_eq!(leaf.to_string(), "invalid track number: 0x0064");
+        // ... and via the RedbookError helper walking the whole chain
+        assert!(error.underlying::<InvalidTrackNo>().is_some());
     }
 
     /// TODO Test io::Error::other(_, wrapped_error), split this meaningfully (and rstest it?)

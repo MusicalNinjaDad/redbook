@@ -69,9 +69,6 @@ impl From<WinError> for DeviceError {
 }
 
 /// Error from parsing a `.cda` file (see [`super::cda::CdaFile`]).
-///
-/// Variants carry the data which led to the error; leaf payloads are rendered by [`Display`]
-/// and return `None` from `source()` (issue #198).
 #[derive(Debug)]
 pub enum CdaError {
     /// The track number is outside the valid range 1..=99.
@@ -130,8 +127,8 @@ impl CdaError {
 impl Display for CdaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CdaError::InvalidTrackNo(error) => Display::fmt(error, f),
-            CdaError::InvalidFrame(error) => Display::fmt(error, f),
+            CdaError::InvalidTrackNo(_) => write!(f, "invalid track number in .cda file"),
+            CdaError::InvalidFrame(_) => write!(f, "invalid frame in .cda file"),
             CdaError::InvalidLength { expected, actual } => {
                 write!(
                     f,
@@ -152,19 +149,30 @@ impl Display for CdaError {
                     "mismatched start: relative frame {relative} / msf {absolute:?}"
                 )
             }
-            CdaError::MissingNullByte => f.write_str("missing null byte"),
+            CdaError::MissingNullByte => write!(f, "missing null byte"),
             CdaError::MismatchedDuration { frames, msf } => {
                 write!(f, "mismatched duration {frames} frames / {msf:?}")
             }
-            CdaError::IoError(error) => Display::fmt(error, f),
+            CdaError::IoError(_) => write!(f, "I/O error"),
         }
     }
 }
 
 impl StdError for CdaError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        // all variants carry data which is rendered in Display (issue #198)
-        None
+        match self {
+            CdaError::InvalidTrackNo(error) => Some(error),
+            CdaError::InvalidFrame(error) => Some(error),
+            CdaError::IoError(error) => Some(error),
+            CdaError::InvalidLength { .. }
+            | CdaError::InvalidHeader(_)
+            | CdaError::InvalidChunkSize { .. }
+            | CdaError::InvalidFilename(_)
+            | CdaError::InvalidVersion(_)
+            | CdaError::MismatchedStart { .. }
+            | CdaError::MissingNullByte
+            | CdaError::MismatchedDuration { .. } => None,
+        }
     }
 }
 
@@ -219,6 +227,29 @@ mod tests {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<WinError>();
         assert_traits::<CdaError>();
+    }
+
+    #[test]
+    fn wrapped_child_errors_are_source_not_display() {
+        let error = CdaError::InvalidTrackNo(InvalidTrackNo::new(0_u16));
+        assert_eq!(error.to_string(), "invalid track number in .cda file");
+        assert!(
+            StdError::source(&error)
+                .and_then(|s| s.downcast_ref::<InvalidTrackNo>())
+                .is_some()
+        );
+
+        let error = CdaError::IoError(io::Error::from_raw_os_error(5));
+        assert_eq!(error.to_string(), "I/O error");
+        assert_eq!(
+            StdError::source(&error)
+                .and_then(|s| s.downcast_ref::<io::Error>())
+                .unwrap()
+                .raw_os_error(),
+            Some(5)
+        );
+
+        assert!(StdError::source(&CdaError::MissingNullByte).is_none());
     }
 
     #[cfg(false)]

@@ -19,11 +19,6 @@ use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
 pub type TocResult<T> = Result<T, TocError>;
 
 /// Error returned by [`toc`][crate::toc] APIs: TOC parsing & validation failures.
-///
-/// Variants carry the data which led to the error (issue #193). Variants wrapping an underlying
-/// error ([`CdToc`][TocError::CdToc], [`Io`][TocError::Io]) are returned by `source()` and *not*
-/// rendered by `Display`; data-carrying variants are rendered by `Display` and return `None` from
-/// `source()` (issue #198). Wrapped foreign errors convert via `From` / `?` (issue #194).
 #[derive(Debug)]
 pub enum TocError {
     /// A raw entry is not a valid track entry (ADR != 1).
@@ -93,23 +88,22 @@ impl Display for TocError {
             TocError::InvalidInfoEntry(raw) => {
                 write!(f, "entry not valid as an info entry: {raw:?}")
             }
-            TocError::InvalidTrackNo(error) => Display::fmt(error, f),
-            TocError::MultiDisc => f.write_str("TOC entries appear to be from multiple discs"),
+            TocError::InvalidTrackNo(_) => write!(f, "invalid track number in TOC"),
+            TocError::MultiDisc => write!(f, "TOC entries appear to be from multiple discs"),
             TocError::InfoMismatch { entry, found } => write!(
                 f,
                 "info entry {entry:?} does not match the track entries (found {found:?})"
             ),
             TocError::InconsistentSessionInfo => {
-                f.write_str("some entries have session info, others do not")
+                write!(f, "some entries have session info, others do not")
             }
             TocError::LeadoutMismatch { sessions, leadouts } => write!(
                 f,
                 "found {leadouts} leadout entries but {sessions:?} sessions"
             ),
-            TocError::InvalidOrder(error) => Display::fmt(error, f),
-            TocError::NotFound => f.write_str("required TOC element not found"),
-            // wrapped errors are returned by `source()`, not rendered here (issue #198)
-            TocError::CdToc(_) => f.write_str("cdtoc error"),
+            TocError::InvalidOrder(_) => write!(f, "invalid entry order in TOC"),
+            TocError::NotFound => write!(f, "required TOC element not found"),
+            TocError::CdToc(_) => write!(f, "cdtoc error"),
         }
     }
 }
@@ -118,16 +112,15 @@ impl Error for TocError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             TocError::CdToc(error) => Some(error),
-            // data-carrying variants are rendered in Display instead (issue #198)
+            TocError::InvalidTrackNo(error) => Some(error),
+            TocError::InvalidOrder(error) => Some(error),
             TocError::InvalidTrackEntry(_)
             | TocError::InvalidLeadoutEntry(_)
             | TocError::InvalidInfoEntry(_)
-            | TocError::InvalidTrackNo(_)
             | TocError::MultiDisc
             | TocError::InfoMismatch { .. }
             | TocError::InconsistentSessionInfo
             | TocError::LeadoutMismatch { .. }
-            | TocError::InvalidOrder { .. }
             | TocError::NotFound => None,
         }
     }
@@ -252,8 +245,13 @@ mod tests {
             TocError::NotFound.to_string(),
             "required TOC element not found"
         );
+        // wrapped leaf errors are not rendered by Display; they are available via `source()`
         assert_eq!(
             TocError::InvalidTrackNo(InvalidTrackNo::new(100_u8)).to_string(),
+            "invalid track number in TOC"
+        );
+        assert_eq!(
+            InvalidTrackNo::new(100_u8).to_string(),
             "invalid track number: 0x0064"
         );
         assert_eq!(

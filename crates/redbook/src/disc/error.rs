@@ -17,10 +17,6 @@ use crate::Track;
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.
-///
-/// Variants carry the data which led to the error (issue #193). Variants wrapping an underlying
-/// error are returned by `source()` and *not* rendered by `Display` (issue #198). Wrapped foreign
-/// errors convert via `From` / `?`.
 #[derive(Debug)]
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
@@ -48,9 +44,11 @@ impl DiscError {
 impl Display for DiscError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DiscError::TocMismatch(mismatch) => Display::fmt(mismatch, f),
-            DiscError::NoReleases => f.write_str("no releases found"),
-            _ => todo!(),
+            DiscError::TocMismatch(_) => write!(f, "provided tracks do not match the TOC"),
+            DiscError::TaggingError(_) => write!(f, "tagging error"),
+            DiscError::IoError(_) => write!(f, "I/O error"),
+            DiscError::NoReleases => write!(f, "no releases found"),
+            DiscError::ThreadCancellation => write!(f, "thread cancelled"),
         }
     }
 }
@@ -58,8 +56,10 @@ impl Display for DiscError {
 impl Error for DiscError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            DiscError::TocMismatch(_) | DiscError::NoReleases => None,
-            _ => todo!(),
+            DiscError::TocMismatch(error) => Some(error),
+            DiscError::TaggingError(error) => Some(error),
+            DiscError::IoError(error) => Some(error),
+            DiscError::NoReleases | DiscError::ThreadCancellation => None,
         }
     }
 }
@@ -132,13 +132,19 @@ pub enum TaggingError {
 
 impl Error for TaggingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        todo!()
+        match self {
+            TaggingError::UnknownMimeType(error) => Some(error),
+            TaggingError::MetaflacError(error) => Some(error),
+        }
     }
 }
 
 impl Display for TaggingError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TaggingError::UnknownMimeType(_) => write!(f, "unknown MIME type"),
+            TaggingError::MetaflacError(_) => write!(f, "metaflac error"),
+        }
     }
 }
 
@@ -160,7 +166,7 @@ impl Error for UnknownMimeType {}
 
 impl Display for UnknownMimeType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.0, f)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -240,6 +246,26 @@ impl From<io::Error> for IoError {
     }
 }
 
+impl Display for IoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IoError::MusicBrainz(_) => write!(f, "MusicBrainz API error"),
+            IoError::Http(_) => write!(f, "HTTP error"),
+            IoError::StdIoError(_) => write!(f, "I/O error"),
+        }
+    }
+}
+
+impl Error for IoError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            IoError::MusicBrainz(error) => Some(&**error),
+            IoError::Http(error) => Some(error),
+            IoError::StdIoError(error) => Some(error),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -250,6 +276,48 @@ mod tests {
         fn assert_traits<T: Error + Send + Sync + 'static>() {}
         assert_traits::<DiscError>();
         assert_traits::<TocMismatch>();
+        assert_traits::<TaggingError>();
+        assert_traits::<IoError>();
+    }
+
+    #[test]
+    fn wrapped_child_errors_are_source_not_display() {
+        let toc_track = cdtoc::Toc::from_cdtoc("1+96+2D2B")
+            .unwrap()
+            .audio_track(1)
+            .unwrap();
+        let error = DiscError::from(TocMismatch::ExtraInToc(toc_track));
+        assert_eq!(error.to_string(), "provided tracks do not match the TOC");
+        let source = Error::source(&error).expect("wrapped TocMismatch should be the source");
+        assert!(source.downcast_ref::<TocMismatch>().is_some());
+
+        let error = DiscError::from(UnknownMimeType::from("application/x-unknown"));
+        assert_eq!(error.to_string(), "tagging error");
+        let tagging = Error::source(&error)
+            .and_then(|s| s.downcast_ref::<TaggingError>())
+            .expect("source should be the TaggingError");
+        assert_eq!(tagging.to_string(), "unknown MIME type");
+        assert!(
+            Error::source(tagging)
+                .and_then(|s| s.downcast_ref::<UnknownMimeType>())
+                .is_some()
+        );
+
+        let error = DiscError::from(io::Error::from_raw_os_error(5));
+        assert_eq!(error.to_string(), "I/O error");
+        let io = Error::source(&error)
+            .and_then(|s| s.downcast_ref::<IoError>())
+            .expect("source should be the disc IoError");
+        assert_eq!(io.to_string(), "I/O error");
+        assert_eq!(
+            Error::source(io)
+                .and_then(|s| s.downcast_ref::<io::Error>())
+                .unwrap()
+                .raw_os_error(),
+            Some(5)
+        );
+
+        assert!(Error::source(&DiscError::NoReleases).is_none());
     }
 
     #[cfg(false)]
