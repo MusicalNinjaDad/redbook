@@ -31,6 +31,7 @@
 #![feature(const_try)]
 #![feature(error_generic_member_access)]
 #![feature(error_iter)]
+#![feature(error_reporter)]
 #![cfg_attr(test, feature(fn_traits))]
 #![feature(raw_os_error_ty)]
 #![feature(structural_match)]

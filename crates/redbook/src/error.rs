@@ -36,7 +36,9 @@
 //!   for the glued crates (`cd_toc`, `musicbrainz_rs`, `flacenc`, `metaflac`), mainly unwrapping a
 //!   wrapped foreign error.
 use std::{
-    error::Error as StdError, fmt::{self, Debug, Display}, io::{self, ErrorKind, RawOsError},
+    error::{Error as StdError, Report},
+    fmt::{self, Debug, Display},
+    io::{self, RawOsError},
 };
 
 use crate::{
@@ -78,31 +80,15 @@ pub enum Error {
     IoError(io::Error),
 }
 
-impl Error {
-    /// The [`io::ErrorKind`] this error maps to when converted to [`io::Error`], matching the
-    /// behaviour of the call site which produced it.
-    pub fn io_kind(&self) -> io::ErrorKind {
-        match self {
-            Error::Toc(error) => error.io_kind(),
-            Error::Disc(error) => error.io_kind(),
-            Error::Encoding(error) => error.io_kind(),
-            Error::Drive(error) => error.io_kind(),
-            Error::Device(error) => error.io_kind(),
-            _ => todo!(),
-        }
-    }
-}
-
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            // wrapped errors are returned by `source()`, not rendered here (issue #198)
             Error::Toc(_) => f.write_str("TOC error"),
             Error::Disc(_) => f.write_str("disc error"),
             Error::Encoding(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
             Error::Device(_) => f.write_str("device error"),
-            _ => todo!(),
+            Error::IoError(_) => write!(f, "I/O error"),
         }
     }
 }
@@ -168,20 +154,13 @@ impl From<TaggingError> for Error {
     }
 }
 
-/// TODO - NO! If an actual io::Error is there, must return that!
-impl From<Error> for io::Error {
-    fn from(error: Error) -> Self {
-        io::Error::new(error.io_kind(), error)
-    }
-}
-
 impl From<io::Error> for Error {
     fn from(value: io::Error) -> Self {
         Self::IoError(value)
     }
 }
 
-pub trait RedbookError: C_GOOD_ERROR + Into<Error> + Into<io::Error> {
+pub trait RedbookError: C_GOOD_ERROR + Into<Error> {
     /// The underlying <E>, if present
     fn underlying<T: StdError + 'static>(&self) -> Option<&T> {
         let e = self as &dyn StdError;
@@ -190,11 +169,11 @@ pub trait RedbookError: C_GOOD_ERROR + Into<Error> + Into<io::Error> {
 
     /// The underlying OS error code *if present there is an underlying io::Error and it was
     /// generated from a genuine OS error*
-    /// 
+    ///
     /// Errors which do not originate from an io::Error, which originate from a hand-made io::Error,
     /// or which originate from a 3rd-party error which has erased the initial io::Error will return
     /// `None`.
-    /// 
+    ///
     /// If this function returns `Some(code)` you can guarantee that the error was created by
     /// calling [`io::Error::last_os_error`] or [`io::Error::from_raw_os_error`]
     fn raw_os_error(&self) -> Option<RawOsError> {
@@ -202,26 +181,24 @@ pub trait RedbookError: C_GOOD_ERROR + Into<Error> + Into<io::Error> {
             .and_then(|error| error.raw_os_error())
     }
 
-    /// The io_errorkind associated with this `Error`. Implementations should ensure that this
-    /// provides the same value as `self.underlying::<io::Error>().map(io::Error::kind)` if 
-    /// such a value exists to avoid inconsistencies between `self.io_errorkind()` and 
-    /// `self.into_io_error().kind()`.
-    /// 
-    /// The default implementation of [`into_io_error`][RedbookError::into_io_error] uses this
-    /// function to generate an io::Error, *only* in cases where no underlying io::Error is
-    /// available.
-    fn io_errorkind(&self) -> ErrorKind;
-
+    /// Map to an io::Error with a default ErrorKind, unless an actual io::Error exists in the
+    /// source tree. TODO improve docs
     fn into_io_error(self) -> io::Error {
-        todo!()
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .unwrap_or(io::ErrorKind::Other);
+        io::Error::new(kind, self)
+    }
+
+    /// This simply calls `Report::new(self)` and is included solely to make discovery simpler
+    /// while [`std:error::Report`] is new and may be unknown.
+    fn full_message(self) -> Report<Self> {
+        Report::new(self)
     }
 }
 
-impl RedbookError for Error {
-    fn io_errorkind(&self) -> ErrorKind {
-        todo!()
-    }
-}
+impl RedbookError for Error {}
 
 #[cfg(test)]
 mod tests {
@@ -233,12 +210,29 @@ mod tests {
         assert_traits::<Error>();
     }
 
+    /// TODO Test io::Error::other(_, wrapped_error), split this meaningfully (and rstest it?)
     #[test]
     fn underlying_io_error() {
         let ioerr = io::Error::other("handcrafted");
         let rberr: Error = io::Error::other("handcrafted").into();
-        assert_eq!(ioerr.kind(), rberr.underlying::<io::Error>().unwrap().kind());
-        assert_eq!(ioerr.to_string(), rberr.underlying::<io::Error>().unwrap().to_string());
+        assert_eq!(
+            rberr.underlying::<io::Error>().unwrap().kind(),
+            ioerr.kind()
+        );
+        assert_eq!(
+            rberr.underlying::<io::Error>().unwrap().to_string(),
+            ioerr.to_string()
+        );
+        let regen = rberr.into_io_error();
+        assert_eq!(regen.kind(), ioerr.kind());
+        assert_eq!(regen.to_string(), "I/O error");
+    }
+
+    #[test]
+    fn error_report() {
+        let rberr: Error = io::Error::other("handcrafted").into();
+        let rpt = rberr.full_message();
+        assert_eq!(rpt.to_string(), "I/O error: handcrafted")
     }
 
     #[cfg(false)]
