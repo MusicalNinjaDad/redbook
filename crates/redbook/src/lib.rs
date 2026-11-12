@@ -71,8 +71,8 @@
 //! is available in the separate crate `redbook-rip` in the same repo.
 //!
 //! ```no_run
-//! use std::{fs::{self, File}, io::{self, Write}};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, tagging::{PictureExt, VorbisTagExt}};
+//! use std::{fs::{self, File}, io::Write};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, drive::DriveError, tagging::{PictureExt, VorbisTagExt}};
 //! use thread_safely::Controller;
 //! # fn main() -> Result<()> {
 //! // Allow for status updates & cancellation mid-rip
@@ -82,7 +82,7 @@
 //! let mut available_drives = CdDrives::all(rip_context)?;
 //! let mut first_drive = available_drives
 //!     .next()
-//!     .ok_or(io::Error::other("No drives found"))??;
+//!     .ok_or(DriveError::NoDrivesFound)??;
 //! let mut cd = AudioCd::try_from(first_drive)?;
 //!
 //! // Get additional meta data from musicbrainz

@@ -48,17 +48,15 @@ use crate::{
 /// `TryFrom<CdDrive>`.
 ///
 /// ```
-/// # use redbook::{AudioCd, CdDrives, Result};
-/// # use std::io;
+/// # use redbook::{AudioCd, CdDrives, Result, drive::DriveError};
 /// # fn main() -> Result<()> {
 /// let first_drive = CdDrives::all(Default::default())?
 ///     .next()
-///     .ok_or(io::Error::other("no drives found"))??;
+///     .ok_or(DriveError::NoDrivesFound)??;
 /// let mut cd = AudioCd::try_from(first_drive)?;
 /// # Result::Ok(())
 /// # }
 /// ```
-/// TODO: #218 Add NoDrives error for CdDrives::all
 pub struct AudioCd {
     drive: CdDrive,
     disc: Disc,

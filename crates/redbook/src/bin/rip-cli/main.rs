@@ -34,7 +34,7 @@ use redbook::error::RedbookError;
 #[cfg(target_family = "windows")]
 use redbook::{
     AudioCd, RippedTrack, TrackNo,
-    drive::CdDrives,
+    drive::{CdDrives, DriveError},
     tagging::{PictureExt, VorbisTagExt},
 };
 #[cfg(target_family = "windows")]
@@ -75,7 +75,7 @@ fn main() -> Exit<()> {
         None => {
             let drive = CdDrives::all(Default::default())?
                 .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))??;
+                .ok_or(DriveError::NoDrivesFound)??;
             AudioCd::try_from(drive)?
         }
     };

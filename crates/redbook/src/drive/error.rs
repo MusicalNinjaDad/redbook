@@ -28,6 +28,9 @@ pub enum DriveError {
     InvalidFrame(InvalidFrame),
     /// The requested track was not found on the disc; carries the track number
     NotFound(TrackNo),
+    /// No CD drives were found on the system; [`CdDrives::all`][crate::drive::CdDrives::all]
+    /// yielded no drives.
+    NoDrivesFound,
     /// The track has zero duration
     ZeroLengthTrack,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
@@ -42,6 +45,7 @@ impl RedbookError for DriveError {
             DriveError::DeviceError(_) => io::ErrorKind::Other,
             DriveError::InvalidFrame(_) => io::ErrorKind::InvalidData,
             DriveError::NotFound(_) => io::ErrorKind::NotFound,
+            DriveError::NoDrivesFound => io::ErrorKind::NotFound,
             DriveError::ZeroLengthTrack => io::ErrorKind::UnexpectedEof,
             DriveError::Progress(_) => io::ErrorKind::Other,
             DriveError::ThreadCancellation => io::ErrorKind::Interrupted,
@@ -55,6 +59,7 @@ impl Error for DriveError {
             DriveError::DeviceError(error) => Some(error),
             DriveError::InvalidFrame(error) => Some(error),
             DriveError::NotFound(_)
+            | DriveError::NoDrivesFound
             | DriveError::ZeroLengthTrack
             | DriveError::Progress(_)
             | DriveError::ThreadCancellation => None,
@@ -68,6 +73,7 @@ impl Display for DriveError {
             DriveError::NotFound(track_number) => {
                 write!(f, "track {} not found on disc", track_number.cast::<u8>())
             }
+            DriveError::NoDrivesFound => write!(f, "no drives found"),
             DriveError::ZeroLengthTrack => write!(f, "unexpected end of data"),
             DriveError::Progress(RipProgress { track_number, .. }) => {
                 write!(f, "failed to update progress for {track_number}")

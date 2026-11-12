@@ -47,7 +47,7 @@ struct EncodingProgress {
 
 #[cfg(windows)]
 fn main() -> redbook::Result<()> {
-    use redbook::drive::CdDrives;
+    use redbook::drive::{CdDrives, DriveError};
 
     output::init_tracing()?;
 
@@ -60,7 +60,7 @@ fn main() -> redbook::Result<()> {
 
     let drive = CdDrives::all(rip_context.clone())?
         .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))??;
+        .ok_or(DriveError::NoDrivesFound)??;
     let cd = AudioCd::try_from(drive)?;
     let cd = Arc::new(Mutex::from(cd));
 
