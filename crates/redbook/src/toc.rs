@@ -11,10 +11,9 @@ use std::{
     fmt::Display,
     hint::cold_path,
     marker::StructuralPartialEq,
-    num::{NonZeroU8, NonZeroUsize, ParseIntError},
+    num::{NonZeroU8, NonZeroUsize},
     ops::{Deref, DerefMut},
     slice,
-    str::FromStr,
 };
 
 use bitflags::bitflags;
@@ -195,14 +194,6 @@ impl Display for Point {
 const impl From<u8> for Point {
     fn from(n: u8) -> Self {
         Point(n)
-    }
-}
-
-impl FromStr for Point {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
     }
 }
 

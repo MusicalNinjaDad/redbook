@@ -361,7 +361,6 @@ mod tests {
         assert_redbook::<crate::win::CdaError>();
         assert_redbook::<InvalidByteSize>();
         assert_redbook::<crate::frame::InvalidFrame>();
-        assert_redbook::<crate::frame::ParseByteSizeError>();
         assert_redbook::<crate::hex::ParseHexError>();
     }
 
