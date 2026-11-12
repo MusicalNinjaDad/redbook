@@ -19,7 +19,7 @@ use flacenc::bitsink::ByteSink;
 pub enum EncodingError {
     /// The raw track data is not a whole number of samples; carries the raw data length in bytes.
     InvalidData(usize),
-    Flac(FlacError),
+    FlacError(FlacError),
 }
 
 impl EncodingError {
@@ -48,32 +48,38 @@ impl Error for EncodingError {
 }
 
 impl From<FlacError> for EncodingError {
-    fn from(value: FlacError) -> Self {
-        Self::Flac(value)
+    fn from(error: FlacError) -> Self {
+        Self::FlacError(error)
+    }
+}
+
+impl From<flacenc::error::VerifyError> for EncodingError {
+    fn from(error: flacenc::error::VerifyError) -> Self {
+        FlacError::from(error).into()
     }
 }
 
 impl From<(flacenc::config::Encoder, flacenc::error::VerifyError)> for EncodingError {
-    fn from(value: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
-        FlacError::from(value).into()
+    fn from(error: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
+        FlacError::from(error).into()
     }
 }
 
 impl From<flacenc::error::EncodeError> for EncodingError {
-    fn from(value: flacenc::error::EncodeError) -> Self {
-        FlacError::from(value).into()
+    fn from(error: flacenc::error::EncodeError) -> Self {
+        FlacError::from(error).into()
     }
 }
 
 impl From<flacenc::error::SourceError> for EncodingError {
-    fn from(value: flacenc::error::SourceError) -> Self {
-        FlacError::from(value).into()
+    fn from(error: flacenc::error::SourceError) -> Self {
+        FlacError::from(error).into()
     }
 }
 
 impl From<flacenc::error::OutputError<ByteSink>> for EncodingError {
-    fn from(value: flacenc::error::OutputError<ByteSink>) -> Self {
-        FlacError::from(value).into()
+    fn from(error: flacenc::error::OutputError<ByteSink>) -> Self {
+        FlacError::from(error).into()
     }
 }
 
@@ -108,20 +114,20 @@ impl Display for FlacError {
 }
 
 impl From<flacenc::error::VerifyError> for FlacError {
-    fn from(value: flacenc::error::VerifyError) -> Self {
-        Self::InvalidEncoder(value)
+    fn from(error: flacenc::error::VerifyError) -> Self {
+        Self::InvalidEncoder(error)
     }
 }
 
 impl From<(flacenc::config::Encoder, flacenc::error::VerifyError)> for FlacError {
-    fn from(value: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
-        Self::InvalidEncoder(value.1)
+    fn from(error: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
+        Self::InvalidEncoder(error.1)
     }
 }
 
 impl From<flacenc::error::EncodeError> for FlacError {
-    fn from(encode_error: flacenc::error::EncodeError) -> Self {
-        match encode_error {
+    fn from(error: flacenc::error::EncodeError) -> Self {
+        match error {
             flacenc::error::EncodeError::Source(source_error) => source_error.into(),
             flacenc::error::EncodeError::Config(verify_error) => verify_error.into(),
             _ => todo!(),
@@ -130,14 +136,14 @@ impl From<flacenc::error::EncodeError> for FlacError {
 }
 
 impl From<flacenc::error::SourceError> for FlacError {
-    fn from(value: flacenc::error::SourceError) -> Self {
-        Self::InvalidData(value.to_string())
+    fn from(error: flacenc::error::SourceError) -> Self {
+        Self::InvalidData(error.to_string())
     }
 }
 
 impl From<flacenc::error::OutputError<ByteSink>> for FlacError {
-    fn from(value: flacenc::error::OutputError<ByteSink>) -> Self {
-        Self::OutputError(value)
+    fn from(error: flacenc::error::OutputError<ByteSink>) -> Self {
+        Self::OutputError(error)
     }
 }
 

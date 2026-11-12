@@ -12,14 +12,18 @@ use crate::{
     RipProgress,
     error::RedbookError,
     frame::{InvalidByteSize, InvalidFrame},
-    toc::{TocError, TrackNo},
+    toc::{
+        TocError, TrackNo,
+        error::{InvalidOrder, InvalidTrackNo},
+    },
+    win::WinError,
 };
 
 /// Error returned by [`Drive`][crate::Drive] APIs. Covers a possible wrapped [DeviceError] plus
 /// higher-level concerns.
 #[derive(Debug)]
 pub enum DriveError {
-    Device(DeviceError),
+    DeviceError(DeviceError),
     /// Attempted to read from an invalid location
     InvalidFrame(InvalidFrame),
     /// The requested track was not found on the disc; carries the track number
@@ -37,7 +41,7 @@ impl RedbookError for DriveError {}
 impl Error for DriveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            DriveError::Device(error) => Some(error),
+            DriveError::DeviceError(error) => Some(error),
             // data-carrying variants are rendered in Display instead (issue #198)
             DriveError::NotFound(_)
             | DriveError::ZeroLengthTrack
@@ -58,7 +62,7 @@ impl Display for DriveError {
             DriveError::Progress(RipProgress { track_number, .. }) => {
                 write!(f, "failed to update progress for {track_number}")
             }
-            DriveError::Device(_) => write!(f, "device error"),
+            DriveError::DeviceError(_) => write!(f, "device error"),
             DriveError::ThreadCancellation => write!(f, "thread cancelled"),
             _ => todo!(),
         }
@@ -73,7 +77,7 @@ impl DriveError {
             DriveError::NotFound(_) => IoErrorKind::NotFound,
             DriveError::ZeroLengthTrack => IoErrorKind::UnexpectedEof,
             DriveError::Progress(_) => IoErrorKind::Other,
-            DriveError::Device(_) => todo!(),
+            DriveError::DeviceError(_) => todo!(),
             DriveError::ThreadCancellation => todo!(),
             _ => todo!(),
         }
@@ -82,8 +86,49 @@ impl DriveError {
 
 impl From<DeviceError> for DriveError {
     fn from(error: DeviceError) -> Self {
-        // TODO #212 - use Self:: throughout to simplify copy-pasting
-        DriveError::Device(error)
+        Self::DeviceError(error)
+    }
+}
+
+impl From<InvalidBufferSize> for DriveError {
+    fn from(error: InvalidBufferSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<InvalidByteSize> for DriveError {
+    fn from(error: InvalidByteSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<WinError> for DriveError {
+    fn from(error: WinError) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<TocError> for DriveError {
+    fn from(error: TocError) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<cdtoc::TocError> for DriveError {
+    fn from(error: cdtoc::TocError) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<InvalidTrackNo> for DriveError {
+    fn from(error: InvalidTrackNo) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<InvalidOrder> for DriveError {
+    fn from(error: InvalidOrder) -> Self {
+        DeviceError::from(error).into()
     }
 }
 
@@ -101,7 +146,7 @@ impl From<crossbeam::channel::SendError<RipProgress>> for DriveError {
 
 impl From<Context<RipProgress>> for DriveError {
     fn from(_: Context<RipProgress>) -> Self {
-        DriveError::ThreadCancellation
+        Self::ThreadCancellation
     }
 }
 
@@ -129,7 +174,7 @@ pub enum DeviceError {
     UnsupportedDevice,
     /// Some other io::Error occurred
     Other(io::Error),
-    InvalidToc(TocError),
+    TocError(TocError),
 }
 
 impl DeviceError {
@@ -178,14 +223,32 @@ impl From<InvalidByteSize> for DeviceError {
 
 impl From<TocError> for DeviceError {
     fn from(error: TocError) -> Self {
-        Self::InvalidToc(error)
+        Self::TocError(error)
+    }
+}
+
+impl From<cdtoc::TocError> for DeviceError {
+    fn from(error: cdtoc::TocError) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidTrackNo> for DeviceError {
+    fn from(error: InvalidTrackNo) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidOrder> for DeviceError {
+    fn from(error: InvalidOrder) -> Self {
+        TocError::from(error).into()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InvalidBufferSize {
     TooSmall { provided: usize, required: u128 },
-    InvalidForRead(InvalidByteSize),
+    InvalidByteSize(InvalidByteSize),
 }
 
 impl Error for InvalidBufferSize {
@@ -202,7 +265,7 @@ impl Display for InvalidBufferSize {
 
 impl From<InvalidByteSize> for InvalidBufferSize {
     fn from(error: InvalidByteSize) -> Self {
-        Self::InvalidForRead(error)
+        Self::InvalidByteSize(error)
     }
 }
 
@@ -322,7 +385,7 @@ mod tests {
         let error = crate::Error::from(DriveError::ZeroLengthTrack);
         assert!(matches!(
             error,
-            crate::Error::Drive(DriveError::ZeroLengthTrack)
+            crate::Error::DriveError(DriveError::ZeroLengthTrack)
         ));
     }
 }

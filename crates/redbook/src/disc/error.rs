@@ -30,7 +30,7 @@ pub enum DiscError {
     NoReleases,
     /// A thread cancellation request was received via the [`Context`]
     ThreadCancellation,
-    IO(IoError),
+    IoError(IoError),
 }
 
 impl DiscError {
@@ -65,26 +65,26 @@ impl Error for DiscError {
 }
 
 impl From<TocMismatch> for DiscError {
-    fn from(value: TocMismatch) -> Self {
-        DiscError::TocMismatch(value)
+    fn from(error: TocMismatch) -> Self {
+        Self::TocMismatch(error)
     }
 }
 
 impl From<TaggingError> for DiscError {
-    fn from(value: TaggingError) -> Self {
-        Self::TaggingError(value)
+    fn from(error: TaggingError) -> Self {
+        Self::TaggingError(error)
     }
 }
 
 impl From<UnknownMimeType> for DiscError {
-    fn from(value: UnknownMimeType) -> Self {
-        TaggingError::from(value).into()
+    fn from(error: UnknownMimeType) -> Self {
+        TaggingError::from(error).into()
     }
 }
 
 impl From<metaflac::Error> for DiscError {
-    fn from(value: metaflac::Error) -> Self {
-        TaggingError::from(value).into()
+    fn from(error: metaflac::Error) -> Self {
+        TaggingError::from(error).into()
     }
 }
 
@@ -95,26 +95,26 @@ impl From<Context<!>> for DiscError {
 }
 
 impl From<IoError> for DiscError {
-    fn from(value: IoError) -> Self {
-        Self::IO(value)
+    fn from(error: IoError) -> Self {
+        Self::IoError(error)
     }
 }
 
 impl From<musicbrainz_rs::ApiEndpointError> for DiscError {
-    fn from(value: musicbrainz_rs::ApiEndpointError) -> Self {
-        IoError::from(value).into()
+    fn from(error: musicbrainz_rs::ApiEndpointError) -> Self {
+        IoError::from(error).into()
     }
 }
 
 impl From<reqwest::Error> for DiscError {
-    fn from(value: reqwest::Error) -> Self {
-        IoError::from(value).into()
+    fn from(error: reqwest::Error) -> Self {
+        IoError::from(error).into()
     }
 }
 
 impl From<io::Error> for DiscError {
-    fn from(value: io::Error) -> Self {
-        IoError::from(value).into()
+    fn from(error: io::Error) -> Self {
+        IoError::from(error).into()
     }
 }
 
@@ -143,14 +143,14 @@ impl Display for TaggingError {
 }
 
 impl From<UnknownMimeType> for TaggingError {
-    fn from(value: UnknownMimeType) -> Self {
-        Self::UnknownMimeType(value)
+    fn from(error: UnknownMimeType) -> Self {
+        Self::UnknownMimeType(error)
     }
 }
 
 impl From<metaflac::Error> for TaggingError {
-    fn from(metaflac_error: metaflac::Error) -> Self {
-        Self::MetaflacError(metaflac_error)
+    fn from(error: metaflac::Error) -> Self {
+        Self::MetaflacError(error)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -223,20 +223,20 @@ pub enum IoError {
 }
 
 impl From<musicbrainz_rs::ApiEndpointError> for IoError {
-    fn from(value: musicbrainz_rs::ApiEndpointError) -> Self {
-        Self::MusicBrainz(Box::new(value))
+    fn from(error: musicbrainz_rs::ApiEndpointError) -> Self {
+        Self::MusicBrainz(Box::new(error))
     }
 }
 
 impl From<reqwest::Error> for IoError {
-    fn from(value: reqwest::Error) -> Self {
-        Self::Http(value)
+    fn from(error: reqwest::Error) -> Self {
+        Self::Http(error)
     }
 }
 
 impl From<io::Error> for IoError {
-    fn from(value: io::Error) -> Self {
-        Self::StdIoError(value)
+    fn from(error: io::Error) -> Self {
+        Self::StdIoError(error)
     }
 }
 

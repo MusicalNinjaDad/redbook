@@ -135,13 +135,13 @@ impl Error for TocError {
 
 impl From<cdtoc::TocError> for TocError {
     fn from(error: cdtoc::TocError) -> Self {
-        TocError::CdToc(error)
+        Self::CdToc(error)
     }
 }
 
 impl From<InvalidTrackNo> for TocError {
     fn from(error: InvalidTrackNo) -> Self {
-        TocError::InvalidTrackNo(error)
+        Self::InvalidTrackNo(error)
     }
 }
 
@@ -231,7 +231,7 @@ impl InvalidOrder {
 
 impl From<InvalidOrder> for TocError {
     fn from(error: InvalidOrder) -> Self {
-        TocError::InvalidOrder(error)
+        Self::InvalidOrder(error)
     }
 }
 

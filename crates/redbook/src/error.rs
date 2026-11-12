@@ -38,10 +38,16 @@ use crate::{
     EncodingError, RipProgress,
     disc::{
         DiscError, TocMismatch,
-        error::{TaggingError, UnknownMimeType},
+        error::{IoError, TaggingError, UnknownMimeType},
     },
-    drive::{DriveError, error::DeviceError},
-    toc::TocError,
+    drive::{
+        DriveError,
+        error::{DeviceError, InvalidBufferSize},
+    },
+    frame::InvalidByteSize,
+    toc::{TocError, error::InvalidOrder},
+    track::error::FlacError,
+    win::WinError,
 };
 
 #[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
@@ -60,15 +66,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// a `From` conversion from a domain error or `io::Error`, or `?`.
 #[derive(Debug)]
 pub enum Error {
-    Device(DeviceError),
+    DeviceError(DeviceError),
     /// A [`drive`][crate::drive] domain error.
-    Drive(DriveError),
+    DriveError(DriveError),
     /// A [`toc`][crate::toc] domain error.
     TocError(TocError),
     /// A [`disc`][crate::disc] domain error.
     DiscError(DiscError),
     /// A track-encoding domain error.
-    Encoding(EncodingError),
+    EncodingError(EncodingError),
     /// A direct io::Error occuring in a function returning [`redbook::Error`]
     IoError(io::Error),
 }
@@ -78,9 +84,9 @@ impl Display for Error {
         match self {
             Error::TocError(_) => f.write_str("TOC error"),
             Error::DiscError(_) => f.write_str("disc error"),
-            Error::Encoding(_) => f.write_str("track encoding error"),
-            Error::Drive(_) => f.write_str("drive error"),
-            Error::Device(_) => f.write_str("device error"),
+            Error::EncodingError(_) => f.write_str("track encoding error"),
+            Error::DriveError(_) => f.write_str("drive error"),
+            Error::DeviceError(_) => f.write_str("device error"),
             Error::IoError(_) => write!(f, "I/O error"),
         }
     }
@@ -91,9 +97,9 @@ impl StdError for Error {
         match self {
             Error::TocError(error) => Some(error),
             Error::DiscError(error) => Some(error),
-            Error::Encoding(error) => Some(error),
-            Error::Drive(error) => Some(error),
-            Error::Device(error) => Some(error),
+            Error::EncodingError(error) => Some(error),
+            Error::DriveError(error) => Some(error),
+            Error::DeviceError(error) => Some(error),
             Error::IoError(error) => Some(error),
         }
     }
@@ -101,13 +107,37 @@ impl StdError for Error {
 
 impl From<DeviceError> for Error {
     fn from(error: DeviceError) -> Self {
-        Self::Device(error)
+        Self::DeviceError(error)
+    }
+}
+
+impl From<InvalidBufferSize> for Error {
+    fn from(error: InvalidBufferSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<InvalidByteSize> for Error {
+    fn from(error: InvalidByteSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<WinError> for Error {
+    fn from(error: WinError) -> Self {
+        DeviceError::from(error).into()
     }
 }
 
 impl From<DriveError> for Error {
     fn from(error: DriveError) -> Self {
-        Error::Drive(error)
+        Self::DriveError(error)
+    }
+}
+
+impl From<crossbeam::channel::SendError<RipProgress>> for Error {
+    fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
+        DriveError::from(error).into()
     }
 }
 
@@ -118,44 +148,122 @@ impl From<Context<RipProgress>> for Error {
 }
 
 impl From<TocError> for Error {
-    fn from(value: TocError) -> Self {
-        Self::TocError(value)
+    fn from(error: TocError) -> Self {
+        Self::TocError(error)
     }
 }
 
-impl From<TocMismatch> for Error {
-    fn from(value: TocMismatch) -> Self {
-        DiscError::from(value).into()
+impl From<cdtoc::TocError> for Error {
+    fn from(error: cdtoc::TocError) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidOrder> for Error {
+    fn from(error: InvalidOrder) -> Self {
+        TocError::from(error).into()
     }
 }
 
 impl From<DiscError> for Error {
     fn from(error: DiscError) -> Self {
-        Error::DiscError(error)
+        Self::DiscError(error)
     }
 }
 
-impl From<EncodingError> for Error {
-    fn from(value: EncodingError) -> Self {
-        Self::Encoding(value)
-    }
-}
-
-impl From<UnknownMimeType> for Error {
-    fn from(value: UnknownMimeType) -> Self {
-        DiscError::from(value).into()
+impl From<TocMismatch> for Error {
+    fn from(error: TocMismatch) -> Self {
+        DiscError::from(error).into()
     }
 }
 
 impl From<TaggingError> for Error {
-    fn from(value: TaggingError) -> Self {
-        DiscError::from(value).into()
+    fn from(error: TaggingError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<UnknownMimeType> for Error {
+    fn from(error: UnknownMimeType) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<metaflac::Error> for Error {
+    fn from(error: metaflac::Error) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<IoError> for Error {
+    fn from(error: IoError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<musicbrainz_rs::ApiEndpointError> for Error {
+    fn from(error: musicbrainz_rs::ApiEndpointError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(error: reqwest::Error) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<Context<!>> for Error {
+    fn from(cx: Context<!>) -> Self {
+        DiscError::from(cx).into()
+    }
+}
+
+impl From<EncodingError> for Error {
+    fn from(error: EncodingError) -> Self {
+        Self::EncodingError(error)
+    }
+}
+
+impl From<FlacError> for Error {
+    fn from(error: FlacError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::VerifyError> for Error {
+    fn from(error: flacenc::error::VerifyError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<(flacenc::config::Encoder, flacenc::error::VerifyError)> for Error {
+    fn from(error: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::EncodeError> for Error {
+    fn from(error: flacenc::error::EncodeError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::SourceError> for Error {
+    fn from(error: flacenc::error::SourceError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
+    fn from(error: flacenc::error::OutputError<flacenc::bitsink::ByteSink>) -> Self {
+        EncodingError::from(error).into()
     }
 }
 
 impl From<io::Error> for Error {
-    fn from(value: io::Error) -> Self {
-        Self::IoError(value)
+    fn from(error: io::Error) -> Self {
+        Self::IoError(error)
     }
 }
 
@@ -207,6 +315,44 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<Error>();
+    }
+
+    #[test]
+    fn subtree_errors_upconvert_via_from() {
+        // grandchild of Error via DeviceError
+        let error = Error::from(InvalidBufferSize::TooSmall {
+            provided: 1,
+            required: 2,
+        });
+        assert!(matches!(
+            error,
+            Error::DeviceError(DeviceError::InvalidBufferSize(
+                InvalidBufferSize::TooSmall { .. }
+            ))
+        ));
+        // great-grandchild of Error: the same impl works verbatim
+        let error = Error::from(InvalidByteSize::new(u64::MAX));
+        assert!(matches!(
+            error,
+            Error::DeviceError(DeviceError::InvalidBufferSize(
+                InvalidBufferSize::InvalidByteSize(_)
+            ))
+        ));
+        // grandchild of Error via TocError
+        let error = Error::from(cdtoc::TocError::NoAudio);
+        assert!(matches!(error, Error::TocError(TocError::CdToc(_))));
+        // great-grandchild of Error via DiscError
+        let error = Error::from(UnknownMimeType::from("application/x-unknown"));
+        assert!(matches!(
+            error,
+            Error::DiscError(DiscError::TaggingError(TaggingError::UnknownMimeType(_)))
+        ));
+        // grandchild of Error via EncodingError
+        let error = Error::from(FlacError::InvalidData("boom".to_string()));
+        assert!(matches!(
+            error,
+            Error::EncodingError(EncodingError::FlacError(FlacError::InvalidData(_)))
+        ));
     }
 
     /// TODO Test io::Error::other(_, wrapped_error), split this meaningfully (and rstest it?)
