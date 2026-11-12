@@ -36,9 +36,7 @@
 //!   for the glued crates (`cd_toc`, `musicbrainz_rs`, `flacenc`, `metaflac`), mainly unwrapping a
 //!   wrapped foreign error.
 use std::{
-    error::Error as StdError,
-    fmt::{self, Display},
-    io,
+    error::Error as StdError, fmt::{self, Debug, Display}, io,
 };
 
 use crate::{
@@ -50,6 +48,14 @@ use crate::{
     drive::{DriveError, error::DeviceError},
     toc::TocError,
 };
+
+
+#[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
+/// Well behaved Errors, which support the full range of [`std::error::Error`] functionality,
+/// including methods available to `dyn Error`. See the [API Guidelines] for more details.
+/// 
+/// [API Guidelines]: https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err
+pub trait C_GOOD_ERROR = StdError + Send + Sync + 'static;
 
 /// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -176,7 +182,7 @@ impl From<io::Error> for Error {
     }
 }
 
-pub trait RedbookError: StdError + Send + Sync + 'static + Into<Error> + Into<io::Error> {
+pub trait RedbookError: C_GOOD_ERROR + Into<Error> + Into<io::Error> {
     /// The underlying <E>, if present
     fn underlying<T: StdError + 'static>(&self) -> Option<&T> {
         let e = self as &dyn StdError;

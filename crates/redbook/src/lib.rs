@@ -34,6 +34,7 @@
 #![cfg_attr(test, feature(fn_traits))]
 #![feature(raw_os_error_ty)]
 #![feature(structural_match)]
+#![feature(trait_alias)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
