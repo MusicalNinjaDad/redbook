@@ -1,40 +1,31 @@
 #![expect(missing_docs, reason = "TODO WIP")]
 
-//! Crate-root error type & [`Result`] alias: level 1 of redbook's error hierarchy.
+//! Crate-root error type & [`Result`] alias. Documentation of overall error handling.
 //!
-//! # Hierarchy
+//! # Principles
 //!
-//! Errors form a 2-3 level tree:
-//!
-//! 1. [`Error`] - the crate-root enum, re-exported as [`redbook::Error`][crate::Error]. Used by
-//!    public APIs which span multiple domains; the re-exported [`Result`] alias defaults to it.
-//! 2. Domain errors (e.g. `toc::TocError`, `drive::DriveError`) - one enum per module. Most public
-//!    signatures return `Result<_, DomainError>` directly (or a domain `Result` alias such as
-//!    [`toc::TocResult`][crate::toc::TocResult]).
-//! 3. Leaf errors - variants of the domain enums, or dedicated leaf structs (e.g.
-//!    [`toc::error::InvalidTrackNo`]) which carry the offending value. Variants wrapping a foreign
-//!    error hold it in a single tuple field (e.g. `Io(io::Error)`, `CdToc(cdtoc::TocError)`).
-//!
-//! # Conventions
-//!
-//! - All error types are hand-rolled: they implement [`std::error::Error`] and are
-//!   `Send + Sync + 'static` (C-GOOD-ERR, compile-time asserted in tests). Error enums are
-//!   deliberately *not* `#[non_exhaustive]`: extending them is a semver-breaking change, preferred
-//!   over forcing `_ =>` arms downstream (issue #197).
-//! - `source()` returns the *directly wrapped* error, so drilling down via `source()` walks the
-//!   whole chain (a wrapped `io::Error` keeps its original [`io::ErrorKind`] / raw OS error all the
-//!   way down). A variant which wraps an underlying error is *not* also rendered by [`Display`]
-//!   (issue #198): either `source()` or `Display`, never both. Variants which carry plain data
-//!   (not an error) instead render the data in `Display` and return `None` from `source()`.
-//! - Context is the *data which led to the error*, stored in the variant itself (issue #193) -
-//!   there is no stringly-typed `.context(...)` API. Constructors which capture a wrapped value
-//!   allow closure-free `.map_err(MyError::new)`, and `From` conversions make `?` work directly at
-//!   call sites (issues #190, #194).
-//! - Every error type implements `From<This> for io::Error` for interop; the [`io::ErrorKind`] is
-//!   chosen to match the call site's previous behaviour, and the original error remains available
-//!   via [`io::Error::get_ref`]. Relevant cases also implement `From<This> for other_crate::Error`
-//!   for the glued crates (`cd_toc`, `musicbrainz_rs`, `flacenc`, `metaflac`), mainly unwrapping a
-//!   wrapped foreign error.
+//! 1. All errors fulfil the [`C-GOOD-ERROR`][API Guidlines] expectation of implementing:
+//!    `std::error::Error + Send + Sync + 'static`
+//! 1. All errors build a tree and preserve fidelity by wrapping any source errors,
+//!    [except where this breaks rule 1][crate::track::error::FlacError::InvalidData]
+//! 1. Display implementations do not delegate to source errors
+//! 1. Source errors are available via [`Error::source`]
+//! 1. Additionally [`RedbookError::underlying`], and [`RedbookError::raw_os_error`] provide
+//!    easy, direct access to specific elements in the error stack
+//! 1. [`full_message`][RedbookError::full_message] provides easily discoverable access to [`Report`]
+//!    which prints the entire error message stack
+//! 1. All errors allow up-conversion via `From` where this is unambiguous. E.g.
+//!    - From [`disc::error::TocMismatch`][crate::disc::error::TocMismatch] for [`Error`] returns
+//!      `Error::DiscError(DiscError::TocMismatch(error))`
+//!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`Error`] is
+//!      not possible as this could refer to either `Error::TocError(TocError::InvalidTrackNo(error))`
+//!      or `TODO #219 rehome cda parsing`
+//!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`TocError`]
+//!      returns `TocError::InvalidTrackNo(error)`
+//! 1. All errors provide [`into_io_error`][RedbookError::into_io_error] but *not* `From<_> for io::Error`
+//!    to ensure that  callsites can make an explicit decision regarding `ErrorKind`, whether to
+//!    wrap self as a source, and how to handle errors which originate from an io::Error further
+//!    down the stack.
 use std::{
     error::{Error as StdError, Report},
     fmt::{self, Debug, Display},
@@ -73,9 +64,9 @@ pub enum Error {
     /// A [`drive`][crate::drive] domain error.
     Drive(DriveError),
     /// A [`toc`][crate::toc] domain error.
-    Toc(TocError),
+    TocError(TocError),
     /// A [`disc`][crate::disc] domain error.
-    Disc(DiscError),
+    DiscError(DiscError),
     /// A track-encoding domain error.
     Encoding(EncodingError),
     /// A direct io::Error occuring in a function returning [`redbook::Error`]
@@ -85,8 +76,8 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Toc(_) => f.write_str("TOC error"),
-            Error::Disc(_) => f.write_str("disc error"),
+            Error::TocError(_) => f.write_str("TOC error"),
+            Error::DiscError(_) => f.write_str("disc error"),
             Error::Encoding(_) => f.write_str("track encoding error"),
             Error::Drive(_) => f.write_str("drive error"),
             Error::Device(_) => f.write_str("device error"),
@@ -98,8 +89,8 @@ impl Display for Error {
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Error::Toc(error) => Some(error),
-            Error::Disc(error) => Some(error),
+            Error::TocError(error) => Some(error),
+            Error::DiscError(error) => Some(error),
             Error::Encoding(error) => Some(error),
             Error::Drive(error) => Some(error),
             Error::Device(error) => Some(error),
@@ -128,7 +119,7 @@ impl From<Context<RipProgress>> for Error {
 
 impl From<TocError> for Error {
     fn from(value: TocError) -> Self {
-        Self::Toc(value)
+        Self::TocError(value)
     }
 }
 
@@ -140,7 +131,7 @@ impl From<TocMismatch> for Error {
 
 impl From<DiscError> for Error {
     fn from(error: DiscError) -> Self {
-        Error::Disc(error)
+        Error::DiscError(error)
     }
 }
 
@@ -168,7 +159,7 @@ impl From<io::Error> for Error {
     }
 }
 
-pub trait RedbookError: C_GOOD_ERROR + Into<Error> {
+pub trait RedbookError: C_GOOD_ERROR + Sized {
     /// The underlying <E>, if present
     fn underlying<T: StdError + 'static>(&self) -> Option<&T> {
         let e = self as &dyn StdError;
