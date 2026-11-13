@@ -181,7 +181,7 @@ mod miri {
             cd.disc.tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()
         );
-        let toc_entries: Vec<_> = cd.disc.tracks().map(|track| track.toc_entry).collect();
+        let toc_entries: Vec<_> = cd.drive.toc().into_iter().map(Clone::clone).collect();
         assert_eq!(album.expected_audio_toc_entries(), toc_entries);
     }
 }

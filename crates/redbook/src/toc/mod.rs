@@ -9,7 +9,6 @@ use std::{
     cmp::Ordering,
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::Display,
-    hint::cold_path,
     marker::StructuralPartialEq,
     num::{NonZeroU8, NonZeroUsize},
     ops::{Deref, DerefMut},
@@ -19,7 +18,7 @@ use std::{
 use bitflags::bitflags;
 use cdtoc::Toc;
 use derive_more::Display;
-use itertools::{EitherOrBoth, Itertools};
+use itertools::Itertools;
 use try_partialord::TrySort;
 
 use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
@@ -1193,6 +1192,19 @@ impl TocEntry {
     }
 }
 
+// TODO add PartialEq for other entry types
+impl PartialEq<TrackEntry> for TocEntry {
+    fn eq(&self, track_entry: &TrackEntry) -> bool {
+        matches!(self, TocEntry::Track(entry) if entry == track_entry)
+    }
+}
+
+impl PartialEq<TocEntry> for TrackEntry {
+    fn eq(&self, tocentry: &TocEntry) -> bool {
+        matches!(tocentry, TocEntry::Track(entry) if entry == self)
+    }
+}
+
 impl Display for TrackEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -1453,24 +1465,6 @@ impl<'entries> IntoIterator for &'entries TocEntries {
 
     fn into_iter(self) -> Self::IntoIter {
         self.entries.iter()
-    }
-}
-
-impl<'meta, V> PartialEq<V> for TocEntries
-where
-    for<'v> &'v V: IntoIterator<Item = &'v Track<'meta>>,
-{
-    fn eq(&self, tracks: &V) -> bool {
-        for pair in self.iter().zip_longest(tracks) {
-            match pair {
-                EitherOrBoth::Both(TocEntry::Track(entry), track) if entry == track => {}
-                _ => {
-                    cold_path();
-                    return false;
-                }
-            }
-        }
-        true
     }
 }
 
