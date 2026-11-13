@@ -1547,23 +1547,6 @@ mod tests {
 
     use rstest::rstest;
 
-    #[cfg(false)]
-    #[test]
-    fn parse_byte_size_error_wraps_source_not_display() {
-        let error = ParseByteSizeError::from(InvalidByteSize::new(u64::MAX));
-        assert_eq!(error.to_string(), "byte size too large");
-        let source = StdError::source(&error).expect("wrapped leaf should be the source");
-        assert!(source.downcast_ref::<InvalidByteSize>().is_some());
-        assert_eq!(
-            source.to_string(),
-            format!("invalid byte size: {:#X}", i128::from(u64::MAX))
-        );
-
-        let int_error: ParseByteSizeError = "x".parse::<u64>().unwrap_err().into();
-        assert_eq!(int_error.to_string(), "invalid integer");
-        assert!(StdError::source(&int_error).is_some());
-    }
-
     #[test]
     fn leadin_conversion() {
         let msf = Msf {
