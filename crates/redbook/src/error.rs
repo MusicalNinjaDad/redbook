@@ -332,7 +332,7 @@ pub trait RedbookError: C_GOOD_ERROR + Sized {
             .map(io::Error::kind)
             .or_else(|| {
                 let e = &self as &dyn StdError;
-                e.sources().flat_map(request_value::<io::ErrorKind>).last()
+                e.sources().filter_map(request_value::<io::ErrorKind>).last()
             })
             .unwrap_or(io::ErrorKind::Other);
         io::Error::new(kind, self)
