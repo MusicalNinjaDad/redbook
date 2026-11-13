@@ -335,12 +335,17 @@ impl RedbookError for Error {}
 mod tests {
     use super::*;
 
+    // MV: Pointless - compile-time guarantee via trait bounds
     #[test]
     fn error_is_send_sync_static() {
         fn assert_traits<T: StdError + Send + Sync + 'static>() {}
         assert_traits::<Error>();
     }
 
+    /// MV: coupled. Doesn't catch new errors which don't implement. Either replace with
+    /// programatic identification of all errors (there's a crate that adds an variants-iterator
+    /// derive to enums, used in build_safely; but I don't think that would help much here),
+    /// or remove as it just adds coupling and noise
     #[test]
     fn all_tree_error_types_implement_redbook_error() {
         fn assert_redbook<T: RedbookError>() {}
@@ -364,6 +369,8 @@ mod tests {
         assert_redbook::<crate::hex::ParseHexError>();
     }
 
+    /// MV: what's the point? Doesn't catch gaps in From, just checks a random sample? Remove or
+    /// explain value
     #[test]
     fn subtree_errors_upconvert_via_from() {
         // grandchild of Error via DeviceError
@@ -440,6 +447,7 @@ mod tests {
         assert_eq!(regen.to_string(), "other error");
     }
 
+    /// MV: RStest this
     #[test]
     fn other_boxes_any_c_good_error_with_fidelity() {
         let error = Error::other(std::fmt::Error);
@@ -454,6 +462,7 @@ mod tests {
         assert_eq!(io_error.to_string(), "other error");
     }
 
+    /// MV: Random sample - remove
     #[test]
     fn into_io_error_uses_better_kind_than_other_where_defined() {
         use crate::toc::TocError;
@@ -483,6 +492,7 @@ mod tests {
         );
     }
 
+    /// MV: rstest
     #[test]
     fn into_io_error_preserves_kind_of_underlying_io_error() {
         // an io::Error anywhere in the source chain wins over the per-type fallback kind
