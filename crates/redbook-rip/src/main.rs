@@ -305,6 +305,7 @@ fn rip_tracks(
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
+        // TODO #220 trait for Units/InvalidUnits with Errortype & input vs data errorkind?
         // `track_number` is a CLI-provided usize, so use the const Option-returning
         // constructor here rather than the `Result`-returning `new`
         let track_number = TrackNo::checked_new(track_number).ok_or(io::Error::new(
