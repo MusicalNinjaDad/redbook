@@ -5,7 +5,6 @@ use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     error::Error as StdError,
     fmt::{Debug, Display},
-    io,
     marker::{Destruct, StructuralPartialEq},
     num::TryFromIntError,
     ops::{Div, Rem},
@@ -1497,13 +1496,11 @@ impl Display for InvalidFrame {
     }
 }
 
-impl StdError for InvalidFrame {}
-
-impl RedbookError for InvalidFrame {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
+impl StdError for InvalidFrame {
+    // No provide: InvalidData or InvalidInput
 }
+
+impl RedbookError for InvalidFrame {}
 
 /// Leaf error: a value which is not a valid [`ByteSize`] (i.e. above [`ByteSize::MAX`] or not an
 /// exact multiple of [`Frame`]s).
@@ -1535,13 +1532,11 @@ impl Display for InvalidByteSize {
     }
 }
 
-impl StdError for InvalidByteSize {}
-
-impl RedbookError for InvalidByteSize {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
+impl StdError for InvalidByteSize {
+    // No provide: InvalidData or InvalidInput
 }
+
+impl RedbookError for InvalidByteSize {}
 
 #[cfg(test)]
 mod tests {
