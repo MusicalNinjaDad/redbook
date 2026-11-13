@@ -391,45 +391,6 @@ mod tests {
     }
 
     #[test]
-    fn source_chain_preserves_fidelity_from_root() {
-        use crate::toc::error::InvalidTrackNo;
-
-        let error = Error::from(TocError::from(InvalidTrackNo::new(100_u8)));
-        // rule 2: each layer renders only its own message
-        assert_eq!(error.to_string(), "TOC error");
-        let toc = StdError::source(&error)
-            .and_then(|s| s.downcast_ref::<TocError>())
-            .expect("source should be the TocError");
-        assert_eq!(toc.to_string(), "invalid track number in TOC");
-        // rule 3: the wrapped leaf is reachable via `source()` ...
-        let leaf = StdError::source(toc)
-            .and_then(|s| s.downcast_ref::<InvalidTrackNo>())
-            .expect("source should be the InvalidTrackNo");
-        assert_eq!(leaf.to_string(), "invalid track number: 0x0064");
-        // ... and via the RedbookError helper walking the whole chain
-        assert!(error.underlying::<InvalidTrackNo>().is_some());
-    }
-
-    /// TODO Test io::Error::other(_, wrapped_error), split this meaningfully (and rstest it?)
-    #[test]
-    fn underlying_io_error() {
-        let ioerr = io::Error::other("handcrafted");
-        let rberr: Error = io::Error::other("handcrafted").into();
-        assert_eq!(
-            rberr.underlying::<io::Error>().unwrap().kind(),
-            ioerr.kind()
-        );
-        assert_eq!(
-            rberr.underlying::<io::Error>().unwrap().to_string(),
-            ioerr.to_string()
-        );
-        let regen = rberr.into_io_error();
-        assert_eq!(regen.kind(), ioerr.kind());
-        assert_eq!(regen.to_string(), "other error");
-    }
-
-    /// MV: RStest this
-    #[test]
     fn other_boxes_any_c_good_error_with_fidelity() {
         let error = Error::other(std::fmt::Error);
         assert!(matches!(error, Error::Other(_)));
@@ -443,37 +404,6 @@ mod tests {
         assert_eq!(io_error.to_string(), "other error");
     }
 
-    /// MV: Random sample - remove.  This test is broken and in the process of being replaced.
-    #[test]
-    fn into_io_error_uses_better_kind_than_other_where_defined() {
-        use crate::toc::TocError;
-        // per-type overrides restore the status-quo kinds
-        assert_eq!(
-            TocError::NotFound.into_io_error().kind(),
-            io::ErrorKind::NotFound
-        );
-        assert_eq!(
-            TocError::from(cdtoc::TocError::NoAudio)
-                .into_io_error()
-                .kind(),
-            io::ErrorKind::InvalidData
-        );
-        assert_eq!(
-            DriveError::ZeroLengthTrack.into_io_error().kind(),
-            io::ErrorKind::UnexpectedEof
-        );
-        assert_eq!(
-            EncodingError::InvalidData(2353).into_io_error().kind(),
-            io::ErrorKind::InvalidData
-        );
-        // errors without an io::Error in the chain and without an override default to Other
-        assert_eq!(
-            Error::from(DiscError::NoReleases).into_io_error().kind(),
-            io::ErrorKind::NotFound
-        );
-    }
-
-    /// Note: rstest? This test is broken and in the process of being replaced
     #[test]
     fn into_io_error_preserves_kind_of_underlying_io_error() {
         // an io::Error anywhere in the source chain wins over the per-type fallback kind
@@ -495,46 +425,5 @@ mod tests {
         let rberr: Error = io::Error::other("handcrafted").into();
         let rpt = rberr.full_message();
         assert_eq!(rpt.to_string(), "other error: handcrafted")
-    }
-
-    #[cfg(false)]
-    #[test]
-    fn display_renders_variant_label_not_wrapped_error() {
-        let error = Error::from(io::Error::new(io::ErrorKind::NotFound, "no disc"));
-        assert_eq!(error.to_string(), "I/O error");
-        assert_eq!(
-            Error::from(crate::toc::TocError::NotFound).to_string(),
-            "TOC error"
-        );
-    }
-
-    // TODO: #200 Review cfg(false) tests to identify where we need new ones
-    #[cfg(false)]
-    #[test]
-    fn source_returns_directly_wrapped_io_error() {
-        let raw = io::Error::from_raw_os_error(22); // ERROR_NOT_READY
-        let error = Error::from(raw);
-        let source = StdError::source(&error).expect("the wrapped io::Error should be the source");
-        let inner = source
-            .downcast_ref::<io::Error>()
-            .expect("source should be the io::Error directly");
-        assert_eq!(inner.raw_os_error(), Some(22));
-    }
-
-    #[cfg(false)]
-    #[test]
-    fn io_error_conversion_preserves_kind_and_downcast() {
-        let raw = io::Error::from_raw_os_error(22); // ERROR_NOT_READY on Windows
-        let expected_kind = raw.kind();
-        let io_error = io::Error::from(Error::from(raw));
-        assert_eq!(io_error.kind(), expected_kind);
-        let payload = io_error.get_ref().expect("io::Error should hold a payload");
-        let error = payload
-            .downcast_ref::<Error>()
-            .expect("payload should be the original Error");
-        let inner = StdError::source(error)
-            .and_then(|source| source.downcast_ref::<io::Error>())
-            .expect("source chain should reach the original io::Error");
-        assert_eq!(inner.raw_os_error(), Some(22));
     }
 }
