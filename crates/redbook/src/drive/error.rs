@@ -172,17 +172,7 @@ pub enum DeviceError {
     TocError(TocError),
 }
 
-impl RedbookError for DeviceError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        match self {
-            DeviceError::InvalidBufferSize(_) => io::ErrorKind::InvalidData,
-            DeviceError::NotReady(_) | DeviceError::Other(_) => io::ErrorKind::Other,
-            DeviceError::UnexpectedEndOfRead { .. } => io::ErrorKind::UnexpectedEof,
-            DeviceError::UnsupportedDevice => io::ErrorKind::Unsupported,
-            DeviceError::TocError(_) => io::ErrorKind::InvalidData,
-        }
-    }
-}
+impl RedbookError for DeviceError {}
 
 impl Error for DeviceError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -194,6 +184,29 @@ impl Error for DeviceError {
             TocError(e) => Some(e),
             InvalidBufferSize(e) => Some(e),
             UnexpectedEndOfRead { .. } | UnsupportedDevice => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            DeviceError::InvalidBufferSize(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            DeviceError::NotReady(_) => {
+                request.provide_value(io::ErrorKind::NotConnected);
+            }
+            DeviceError::Other(_) => {
+                request.provide_value(io::ErrorKind::Other);
+            }
+            DeviceError::UnexpectedEndOfRead { .. } => {
+                request.provide_value(io::ErrorKind::UnexpectedEof);
+            }
+            DeviceError::UnsupportedDevice => {
+                request.provide_value(io::ErrorKind::Unsupported);
+            }
+            DeviceError::TocError(_) => {
+                // delegated
+            }
         }
     }
 }
