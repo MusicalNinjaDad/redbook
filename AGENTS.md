@@ -1,6 +1,6 @@
 # redbook
 
-This is a rust project for working with CDDA CD digital audio as per RedBook (IEC 60908:1999). It consists of a library in `src` and a series of binaries in `src/bin`
+This is a rust project for working with CDDA CD digital audio as per RedBook (IEC 60908:1999). It consists of a library in `crates/redbook/src` and a series of binaries in `crates/redbook/src/bin` (plus the GUI app in the separate crate `crates/redbook-rip`)
 
 ## MUST USE - MANDATORY INFORMATION & SKILLS
 
@@ -28,15 +28,19 @@ parts of the CD audio landscape into a single, coherent whole.
 
 There are 3 key entry points to the crate, one each for hardware, CD structure, and music data.
 
-- [AudioCd] & [AudioCdExt]  - for interfacing with hardware
+- [AudioCd]                 - for interfacing with hardware
 - [Disc]                    - for working with the contents of a CD
 - [RippedTrack]             - for the actual music of a given track
 
 ## Binaries overview
 
-### rip
+### rip-cli
 
-Is a basic windows CLI to rip audio CDs to flac. This is the main application.
+Is a basic windows CLI to rip audio CDs to flac (`crates/redbook/src/bin/rip-cli`). The GUI app `rip` lives in the separate crate `crates/redbook-rip`.
+
+### drives
+
+Lists the available CD drives.
 
 ### toc
 
@@ -108,7 +112,7 @@ ALWAYS use the following rules to understand priorities. If you have conflicting
 
 - **Documentation**: Fully defined below. Follow these standards now.
 - **Error Handling**: Standards under development. For now, prefer custom error types (or `io::Result` / directly propogated error types, where appropriate) for library code (not `anyhow`) and use `?` for propagation. Avoid `unwrap`/`expect` in library code.
-- **Testing**: Standards under development. For now, follow standard Rust conventions (`#[test]`, `cargo test`, `assert_eq!`). Focus tests on behavior, not implementation.
+- **Testing**: Standards under development. For now, follow standard Rust conventions (`#[test]`, `assert_eq!`); run them via `cargo stage --strict --json` (see above), not `cargo test` directly. Focus tests on behavior, not implementation.
 
 *Detailed project-specific standards for error handling and testing will be added in future iterations.*
 
@@ -190,10 +194,10 @@ Function length is driven entirely by readability.
 - **Algorithmic functions** should be *shorter, focussed* on the specific task at hand, and do ONLY ONE THING.
 - It is equally confusing to need to make 5 jumps to read the full implementation of a single task (do not emulate Java, C++, Uncle-Bob idioms) as it is to search through a long function that does many things to find the relevant section (no god-functions).
 - Adding an abstraction should always make the code simpler to read and reason about.
-- An example of a good orchestrator function can be found at `src/bin/rip/main.rs::main`
+- An example of a good orchestrator function can be found at `crates/redbook/src/bin/rip-cli/main.rs::main`
   - `Rip::try_parse()?` & `init_tracing()?` are separate functions
   - `match (cd.disc().release(), ripper.non_interactive)` & `let selected_track = match (ripper.all, ripper.track_number)` are larger orchestration blocks representing the core raison-d'être for the function and their purpose is clearly identifiable from the opening line, making it easy to skip or dive into the related block
-- An example of well-separated algorithmic functions can be found at `src/disc.rs::impl Disc`
+- An example of well-separated algorithmic functions can be found at `crates/redbook/src/disc.rs` (`impl Disc`)
   - `update_musicbrainz` only handles the logic of fetching data from the network leveraging
   - `set_musicbrainz` to store the data and maintain invariants (which can then also be a useful pub fn)
   - `Toc::musicbrainz_id` to generate the id (which can then also be a useful pub fn)

@@ -206,12 +206,16 @@
 //!
 //! 1. [`Error`] - the crate-root enum, used by APIs which span multiple domains (e.g.
 //!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.
-//! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError`, `tagging::TaggingError`,
-//!    `track::TrackError`, `win::WinError` - one enum per module, returned by most public
-//!    signatures as `Result<_, DomainError>`.
+//! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError` &
+//!    `drive::error::DeviceError`, `track::EncodingError`, returned by most public signatures as
+//!    `Result<_, DomainError>`. (`disc::error` additionally holds the nested `TaggingError`,
+//!    `IoError`, `TocMismatch` & `UnknownMimeType`; `win::WinError` is the OS-coloured
+//!    `io::Error` wrapper consumed at the `Device` boundary, and `win::CdaError` covers `.cda`
+//!    parsing.)
 //! 3. Leaf errors - variants of the domain enums, or dedicated leaf structs (e.g.
 //!    `toc::error::InvalidTrackNo`) which carry the offending value. Variants wrapping a foreign
-//!    error hold it in a single tuple field (e.g. `Io(io::Error)`, `CdToc(cdtoc::TocError)`).
+//!    error hold it in a single tuple field (e.g. `CdToc(cdtoc::TocError)`,
+//!    `MetaflacError(metaflac::Error)`).
 //!
 //! All error types are hand-rolled: they implement [`std::error::Error`] and are
 //! `Send + Sync + 'static`. Error enums are deliberately not `#[non_exhaustive]` (extending them

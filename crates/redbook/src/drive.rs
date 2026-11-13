@@ -97,8 +97,7 @@ pub trait Drive: Sized {
     ///
     /// # Errors
     /// - [`DriveError::NotFound`] if `track_number` does not identify an audio track on the disc
-    /// - [`DriveError::UnexpectedEof`] if the track has zero duration
-    /// - [`DriveError::FileTooLarge`] if the track is too long to buffer in memory
+    /// - [`DriveError::ZeroLengthTrack`] if the track has zero duration
     fn read_track(&self, track_number: TrackNo) -> Result<Vec<u8>, DriveError> {
         let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();
