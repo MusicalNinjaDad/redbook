@@ -320,10 +320,6 @@ pub mod error;
 pub mod frame;
 
 #[forbid(unsafe_code)]
-#[doc(hidden)]
-pub mod hex;
-
-#[forbid(unsafe_code)]
 pub mod tagging;
 
 #[forbid(unsafe_code)]
