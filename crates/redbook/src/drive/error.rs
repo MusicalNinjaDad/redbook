@@ -39,19 +39,7 @@ pub enum DriveError {
     ThreadCancellation,
 }
 
-impl RedbookError for DriveError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        match self {
-            DriveError::DeviceError(_) => io::ErrorKind::Other,
-            DriveError::InvalidFrame(_) => io::ErrorKind::InvalidData,
-            DriveError::NotFound(_) => io::ErrorKind::NotFound,
-            DriveError::NoDrivesFound => io::ErrorKind::NotFound,
-            DriveError::ZeroLengthTrack => io::ErrorKind::UnexpectedEof,
-            DriveError::Progress(_) => io::ErrorKind::Other,
-            DriveError::ThreadCancellation => io::ErrorKind::Interrupted,
-        }
-    }
-}
+impl RedbookError for DriveError {}
 
 impl Error for DriveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -63,6 +51,32 @@ impl Error for DriveError {
             | DriveError::ZeroLengthTrack
             | DriveError::Progress(_)
             | DriveError::ThreadCancellation => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            DriveError::DeviceError(_) => {
+                // delegated
+            }
+            DriveError::InvalidFrame(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            DriveError::NotFound(_) => {
+                request.provide_value(io::ErrorKind::NotFound);
+            }
+            DriveError::NoDrivesFound => {
+                request.provide_value(io::ErrorKind::NotFound);
+            }
+            DriveError::ZeroLengthTrack => {
+                request.provide_value(io::ErrorKind::UnexpectedEof);
+            }
+            DriveError::Progress(_) => {
+                request.provide_value(io::ErrorKind::BrokenPipe);
+            }
+            DriveError::ThreadCancellation => {
+                request.provide_value(io::ErrorKind::Interrupted);
+            }
         }
     }
 }
@@ -275,6 +289,10 @@ impl Error for InvalidBufferSize {
             InvalidBufferSize::TooSmall { .. } => None,
         }
     }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        request.provide_value(io::ErrorKind::InvalidData);
+    }
 }
 
 impl Display for InvalidBufferSize {
@@ -288,12 +306,6 @@ impl Display for InvalidBufferSize {
                 )
             }
         }
-    }
-}
-
-impl RedbookError for InvalidBufferSize {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
     }
 }
 
