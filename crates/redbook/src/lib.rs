@@ -290,7 +290,7 @@
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 #[doc(inline)]
-pub use disc::Disc;
+pub use disc::{Disc, tagging};
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
@@ -315,9 +315,6 @@ pub mod drive;
 
 #[forbid(unsafe_code)]
 pub mod error;
-
-#[forbid(unsafe_code)]
-pub mod tagging;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]

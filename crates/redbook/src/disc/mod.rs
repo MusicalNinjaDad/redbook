@@ -29,6 +29,7 @@ use crate::{
 pub use error::{DiscError, TocMismatch};
 
 pub mod error;
+pub mod tagging;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Represents a logical CD with additional metadata such as track names and cover art.
