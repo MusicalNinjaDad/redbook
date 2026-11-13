@@ -296,13 +296,13 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use error::{Error, Result};
 #[doc(inline)]
-pub use frame::Frame;
+pub use toc::frame::{self, Frame};
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{EncodingError, RippedTrack, Track};
 
-use crate::{frame::ByteSize, win::DriveHandle};
+use crate::{toc::frame::ByteSize, win::DriveHandle};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -315,9 +315,6 @@ pub mod drive;
 
 #[forbid(unsafe_code)]
 pub mod error;
-
-#[forbid(unsafe_code)]
-pub mod frame;
 
 #[forbid(unsafe_code)]
 pub mod tagging;

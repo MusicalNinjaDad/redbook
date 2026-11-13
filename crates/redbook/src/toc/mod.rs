@@ -25,7 +25,6 @@ use try_partialord::TrySort;
 use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
 
 pub use error::{InvalidTrackNo, TocError, TocResult};
-
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub mod b0000 {
     use super::Point;
@@ -68,6 +67,8 @@ pub mod b0010 {
 }
 
 pub mod error;
+
+pub mod frame;
 
 /// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
 /// read from the disc.
