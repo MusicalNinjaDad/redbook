@@ -117,16 +117,7 @@ pub enum CdaError {
     IoError(io::Error),
 }
 
-impl RedbookError for CdaError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        // .cda parsing failures are data failures; a wrapped io::Error keeps its own kind
-        // via the default `into_io_error`
-        match self {
-            CdaError::IoError(_) => io::ErrorKind::Other,
-            _ => io::ErrorKind::InvalidData,
-        }
-    }
-}
+impl RedbookError for CdaError {}
 
 impl Display for CdaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -176,6 +167,28 @@ impl StdError for CdaError {
             | CdaError::MismatchedStart { .. }
             | CdaError::MissingNullByte
             | CdaError::MismatchedDuration { .. } => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            CdaError::InvalidTrackNo(_)
+            | CdaError::InvalidFrame(_)
+            | CdaError::InvalidLength { .. }
+            | CdaError::InvalidHeader(_)
+            | CdaError::InvalidChunkSize { .. }
+            | CdaError::InvalidVersion(_)
+            | CdaError::MismatchedStart { .. }
+            | CdaError::MissingNullByte
+            | CdaError::MismatchedDuration { .. } => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            CdaError::InvalidFilename(_) => {
+                request.provide_value(io::ErrorKind::InvalidFilename);
+            }
+            CdaError::IoError(io_error) => {
+                request.provide_value(io_error.kind());
+            }
         }
     }
 }
