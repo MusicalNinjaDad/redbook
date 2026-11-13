@@ -10,7 +10,10 @@ use std::{
     num::ParseIntError,
 };
 
-use crate::hex::HexErrorKind::{InvalidValue, NotPairs};
+use crate::{
+    error::RedbookError,
+    hex::HexErrorKind::{InvalidValue, NotPairs},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseHexError {
@@ -25,6 +28,8 @@ impl ParseHexError {
 }
 
 impl Error for ParseHexError {}
+
+impl RedbookError for ParseHexError {}
 
 impl Display for ParseHexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

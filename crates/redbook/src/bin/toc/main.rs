@@ -1,11 +1,14 @@
 #[cfg(target_family = "windows")]
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 #[cfg(target_family = "windows")]
-use redbook::{AudioCd, drive::CdDrives};
+use redbook::{
+    AudioCd,
+    drive::{CdDrives, DriveError},
+};
 
 #[cfg(target_family = "windows")]
-fn main() -> io::Result<()> {
+fn main() -> redbook::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let drive = args.get(1).map(PathBuf::from);
     let cd = match drive {
@@ -13,7 +16,7 @@ fn main() -> io::Result<()> {
         None => {
             let drive = CdDrives::all(Default::default())?
                 .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+                .ok_or(DriveError::NoDrivesFound)??;
             AudioCd::try_from(drive)?
         }
     };

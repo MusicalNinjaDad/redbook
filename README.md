@@ -18,37 +18,165 @@ Most of what this library provides is "glue", bringing together crates which cov
 
 There are 3 key entry points to the crate, one each for hardware, CD structure, and music data.
 
-- `struct AudioCd` & `trait AudioCdExt` - the main entry point for interfacing with hardware
+- `struct AudioCd` - the main entry point for interfacing with hardware
 - `struct Disc` - the main entry point for working with the contents of a CD
 - `struct RippedTrack` - the main entry point for the actual music of a given track
+
+### Errors
+
+The library uses a hand-rolled 3-level error hierarchy (full conventions in the `redbook::error`
+module docs). Every error type implements `std::error::Error + Send + Sync + 'static`; error
+enums are not `#[non_exhaustive]`. Context is the *data which led to the error*, stored in the
+variant itself — there is no stringly-typed `.context(...)` API. A variant wrapping an underlying
+error is returned by `source()` and *not* rendered by `Display`; data-carrying variants are
+rendered by `Display` and return `None` from `source()`. All error types implement
+`RedbookError` and convert to `io::Error` explicitly via `into_io_error()` — never via
+`From<_> for io::Error` — so each call site decides the `ErrorKind` and how to treat an
+underlying `io::Error` further down the stack; the kind of any underlying `io::Error` is
+preserved, otherwise a per-type default applies (`ErrorKind::Other` at worst).
+
+```mermaid
+flowchart TD
+    subgraph L1["Level 1 — crate root: crates/redbook/src/error.rs"]
+        Error["redbook::Error — enum · impl Error<br/>redbook::Result<T, E = Error>"]
+    end
+
+    Error -->|"DeviceError(DeviceError)"| DeviceError
+    Error -->|"DriveError(DriveError)"| DriveError
+    Error -->|"TocError(TocError)"| TocError
+    Error -->|"DiscError(DiscError)"| DiscError
+    Error -->|"EncodingError(EncodingError)"| EncodingError
+    Error -->|"Other(Box<dyn C_GOOD_ERROR>)"| IO["any other error, incl. io::Error — foreign"]
+    Error --> ThreadCancellation["ThreadCancellation"]
+
+    subgraph L2toc["Level 2 — toc: toc/error.rs (toc::TocResult<T> alias)"]
+        TocError["toc::TocError — enum · impl Error"]
+        TocError --> TE1["InvalidTrackEntry(RawTocEntry)"]
+        TocError --> TE2["InvalidLeadoutEntry(RawTocEntry)"]
+        TocError --> TE3["InvalidInfoEntry(RawTocEntry)"]
+        TocError --> TE4["InvalidTrackNo(InvalidTrackNo)"]
+        TocError --> TE5["MultipleDiscs"]
+        TocError --> TE6["InfoMismatch { entry: InfoEntry, found: Option<TrackNo> }"]
+        TocError --> TE7["InconsistentSessionInfo"]
+        TocError --> TE8["LeadoutMismatch { sessions: Option<NonZeroUsize>, leadouts: usize }"]
+        TocError --> TE9["InvalidOrder(InvalidOrder)"]
+        TocError --> TE10["NotFound"]
+        TocError -->|"CdToc(cdtoc::TocError)"| CDTOC["cdtoc::TocError — foreign"]
+    end
+    TE4 --> ITN
+    TE9 --> INO
+
+    subgraph L2disc["Level 2 — disc: disc/error.rs"]
+        DiscError["disc::DiscError — enum · impl Error"]
+        DiscError --> DM["TocMismatch(TocMismatch)"]
+        DiscError --> DT["TaggingError(TaggingError)"]
+        DiscError --> D2["NoReleases"]
+        DiscError --> D3["ThreadCancellation — From<Context<R>>"]
+        DiscError --> DIo["IoError(IoError)"]
+    end
+    DM --> TM["disc::error::TocMismatch — enum · impl Error"]
+    TM --> TM1["Mismatch { provided: Track, from_toc: cdtoc::Track }"]
+    TM --> TM2["ExtraProvided(Track)"]
+    TM --> TM3["ExtraInToc(cdtoc::Track)"]
+    DT --> TG["disc::error::TaggingError — enum · impl Error"]
+    TG --> TG1["UnknownMimeType(UnknownMimeType)"]
+    TG -->|"MetaflacError(metaflac::Error)"| MF["metaflac::Error — foreign"]
+    TG1 --> UM
+    DIo --> IOE["disc::error::IoError — enum · impl Error"]
+    IOE -->|"MusicBrainz(Box<ApiEndpointError>)"| MB["musicbrainz_rs::ApiEndpointError — foreign"]
+    IOE -->|"Http(reqwest::Error)"| REQ["reqwest::Error — foreign"]
+    IOE -->|"StdIoError(io::Error)"| IO
+
+    subgraph L2track["Level 2 — track: track/error.rs"]
+        EncodingError["track::EncodingError — enum · impl Error"]
+        EncodingError --> TR1["InvalidData(usize) — raw byte length"]
+        EncodingError --> TR2["FlacError(FlacError)"]
+    end
+    TR2 --> FE["track::error::FlacError — enum · impl Error"]
+    FE --> FE1["InvalidEncoder(flacenc::error::VerifyError)"]
+    FE --> FE2["InvalidData(String) — flacenc SourceError is !Send, message retained"]
+    FE -->|"OutputError(OutputError<ByteSink>)"| FEO["flacenc::OutputError — foreign"]
+
+    subgraph L2drive["Level 2 — drive: drive/error.rs"]
+        DriveError["drive::DriveError — enum · impl Error"]
+        DriveError -->|"DeviceError(DeviceError)"| DeviceError
+        DriveError --> DR1["NotFound(TrackNo)"]
+        DriveError --> DR2["NoDrivesFound"]
+        DriveError --> DR3["ZeroLengthTrack"]
+        DriveError --> DR4["InvalidFrame(InvalidFrame)"]
+        DriveError --> DR5["Progress(RipProgress)"]
+        DriveError --> DR6["ThreadCancellation — From<Context<RipProgress>>"]
+    end
+
+    subgraph L2dev["Level 2 — drive: drive/error.rs (Device trait contract)"]
+        DeviceError["drive::error::DeviceError — enum · impl Error"]
+        DeviceError --> DV1["InvalidBufferSize(InvalidBufferSize)"]
+        DeviceError -->|"NotReady(io::Error) — ERROR_NOT_READY = 21, no disc in drive"| IO
+        DeviceError --> DV2["UnexpectedEndOfRead { expected, received }"]
+        DeviceError --> DV3["UnsupportedDevice"]
+        DeviceError -->|"Other(io::Error)"| IO
+        DeviceError -->|"TocError(TocError)"| TocError
+    end
+    DV1 --> IBSZ
+
+    subgraph L2win["Level 2 — win: win/error.rs"]
+        WinError["win::WinError — struct, OsError wrapper around io::Error<br/>converts into DeviceError::NotReady / DeviceError::Other at the Device boundary"]
+        WinError -->|"From<WinError> for DeviceError"| DeviceError
+
+        CdaError["win::error::CdaError — enum · impl Error (.cda file parsing)"]
+        CdaError --> C1["InvalidTrackNo(InvalidTrackNo)"]
+        CdaError --> C2["InvalidFrame(InvalidFrame)"]
+        CdaError --> C3["InvalidLength { expected, actual }"]
+        CdaError --> C4["InvalidHeader([u8; 4])"]
+        CdaError --> C5["InvalidChunkSize { expected, actual }"]
+        CdaError --> C6["InvalidFilename(PathBuf)"]
+        CdaError --> C7["InvalidVersion(u16)"]
+        CdaError --> C8["MismatchedStart { relative, absolute: Msf }"]
+        CdaError --> C9["MissingNullByte"]
+        CdaError --> C10["MismatchedDuration { frames: Frame, msf: Msf }"]
+        CdaError -->|"IoError(io::Error)"| IO
+    end
+    C1 --> ITN
+    C2 --> IF
+
+    subgraph L3["Level 3 — leaf structs: frame.rs / toc/error.rs / drive/error.rs / disc/error.rs"]
+        ITN["toc::error::InvalidTrackNo(i128) — struct · impl Error<br/>wide ctor InvalidTrackNo::new (i128: From<N>)<br/>TrackNo::new -> Result<_, InvalidTrackNo>, checked_new -> Option"]
+        INO["toc::error::InvalidOrder — struct · impl Error<br/>InvalidOrder::new(format, first_entry, second_entry)"]
+        IF["frame::InvalidFrame(i128) — struct · impl Error<br/>Frame::new -> Result<_, InvalidFrame>"]
+        IBS["frame::InvalidByteSize(i128) — struct · impl Error<br/>ByteSize::new -> Result<_, InvalidByteSize>"]
+        IBSZ["drive::error::InvalidBufferSize — enum · impl Error"]
+        UM["disc::error::UnknownMimeType(Box<str>) — struct · impl Error"]
+    end
+```
+
+Notes: `Device::Iter` yields `Result<_, DeviceError>` items and `CdDrives` yields
+`Result<_, Error>` items (#50) — `None` is reserved for the expected end-of-enumeration;
+no-disc (`ERROR_NOT_READY`) drives are still skipped. `hex::ParseHexError` is deliberately
+outside the hierarchy (#165). Wrapped OS errors keep
+`raw_os_error` end-to-end: `RedbookError::raw_os_error` walks the `source()` chain to the
+original `io::Error` (e.g. via `DeviceError::NotReady`/`Other`, which `WinError` converts into
+at the `Device` boundary).
 
 ### Example
 
 ```rust
-// Open a handle to the drive and read table of contents from the CD
-let mut cd: AudioCd = AudioCd::new(drive_path)?;
+use redbook::{AudioCd, CdDrives, RipProgress, TrackNo, Result, drive::DriveError};
+use thread_safely::Controller;
+
+// Allow for status updates & cancellation mid-rip
+let (rip_controller, rip_context) = Controller::<RipProgress>::new();
+
+// Find & open the first available CD drive
+let mut available_drives = CdDrives::all(rip_context)?;
+let drive = available_drives.next().ok_or(DriveError::NoDrivesFound)??;
+let mut cd = AudioCd::try_from(drive)?;
 
 // Try to get data on this cd from musicbrainz. Continue on (network) errors.
-let _ = cd.disc_mut().update_musicbrainz();
+let _ignore_failure = cd.disc_mut().update_musicbrainz();
 
-// There are often multiple releases with the same tracks - select the right one.
-cd.disc_mut().set_release(2);
-
-// Try to get the cover art from CoverArtArchive based on the musicbrainz info.
-let _ = cd.disc_mut().update_cover_art();
-
-// Make the AudioCd immutable, so we can safely spawn separate threads to rip & encode data.
-let cd = cd.lock();
-
-// rip the first track
-let track1 = cd.rip(TrackNo(1))?;
-
-// encode the first track to flac
-let track1_flac = track1.to_flac();
-
-// get the tags & embeddable cover art
-let tags: Option<VorbisComment> = disc.tag_for(TrackNo(1));
-let cover: Option<&Picture> = disc.cover_art();
+// Rip the first track & encode it to flac
+let track1 = cd.rip(TrackNo::strict_new(1))?;
+let flac = track1.to_flac()?;
 ```
 
 ### Core functionality alternatives
@@ -84,10 +212,9 @@ are designed to be directly usable as output from a CLI binary.
 ### Thread Safety
 
 File handles are not `Sync`, but you almost certainly will want to split reading data from a CD
-and processing that data into separate threads. To facilitate this `AudioCdExt` and
-`AudioCdExtMut` are separate traits. See the example for how to take advantage to initially
-update and mutate metadata, before obtaining calling `lock` and spawning
-threads to use that data.
+and processing that data into separate threads. To share an `AudioCd` between threads, wrap it
+in an `Arc<Mutex<AudioCd>>`: update & mutate metadata via `disc_mut()` first, then lock and
+spawn threads to read & encode.
 
 ### Nightly only
 
@@ -111,8 +238,9 @@ Currently this library only supports things I want to use personally. That means
 
 ## Apps
 
-- rip.exe     - rip a CD to flac
-- rip_cli.exe - pure cli ripper
+- rip.exe     - GUI app to rip a CD to flac (separate crate `redbook-rip`)
+- rip-cli.exe - pure cli ripper
+- drives.exe  - list the available CD drives
 - toc.exe     - dump the TOC as windows reads it
 - tag.exe     - read tags from a flac file
 

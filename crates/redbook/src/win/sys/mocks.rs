@@ -601,7 +601,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                 .expect("DeviceDetails has space for MAX_PATH_CHARS, we should be below that");
             let mut data = DeviceDetails::default();
             match data.set_path(&WinString::from(album_path)) {
-                Ok(words) if words == path_len + 1 => {
+                words if words == path_len + 1 => {
                     // SAFETY:
                     // - validated pointer is not NULL (in match arm)
                     // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W

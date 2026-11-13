@@ -27,7 +27,7 @@ use bindgen::{
     STORAGE_DEVICE_NUMBER, TRACK_DATA,
 };
 
-pub(super) use bindgen::{GUID, GUID_DEVINTERFACE_CDROM, PCWSTR};
+pub(super) use bindgen::{ERROR_NOT_READY, GUID, GUID_DEVINTERFACE_CDROM, PCWSTR};
 
 pub use handles::{DeviceInfoSet, DriveHandle};
 

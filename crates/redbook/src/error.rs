@@ -1,0 +1,429 @@
+#![expect(missing_docs, reason = "TODO WIP")]
+
+//! Crate-root error type & [`Result`] alias. Documentation of overall error handling.
+//!
+//! # Principles
+//!
+//! 1. All errors fulfil the [`C-GOOD-ERROR`][API Guidlines] expectation of implementing:
+//!    `std::error::Error + Send + Sync + 'static`
+//! 1. All errors build a tree and preserve fidelity by wrapping any source errors,
+//!    [except where this breaks rule 1][crate::track::error::FlacError::InvalidData]
+//! 1. Display implementations do not delegate to source errors
+//! 1. Source errors are available via [`Error::source`]
+//! 1. Additionally [`RedbookError::underlying`], and [`RedbookError::raw_os_error`] provide
+//!    easy, direct access to specific elements in the error stack
+//! 1. [`full_message`][RedbookError::full_message] provides easily discoverable access to [`Report`]
+//!    which prints the entire error message stack
+//! 1. All errors allow up-conversion via `From` where this is unambiguous. E.g.
+//!    - From [`disc::error::TocMismatch`][crate::disc::error::TocMismatch] for [`Error`] returns
+//!      `Error::DiscError(DiscError::TocMismatch(error))`
+//!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`Error`] is
+//!      not possible as this could refer to either `Error::TocError(TocError::InvalidTrackNo(error))`
+//!      or `TODO #219 rehome cda parsing`
+//!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`TocError`]
+//!      returns `TocError::InvalidTrackNo(error)`
+//!    - From [`io::Error`] for [`Error`] boxes the error into `Error::Other`
+//! 1. All errors provide [`into_io_error`][RedbookError::into_io_error] but *not* `From<_> for io::Error`
+//!    to ensure that  callsites can make an explicit decision regarding `ErrorKind`, whether to
+//!    wrap self as a source, and how to handle errors which originate from an io::Error further
+//!    down the stack.
+use std::{
+    error::{Error as StdError, Report, request_value},
+    fmt::{self, Debug, Display},
+    io::{self, RawOsError},
+};
+
+use thread_safely::Context;
+
+use crate::{
+    EncodingError, RipProgress,
+    disc::{
+        DiscError, TocMismatch,
+        error::{IoError, TaggingError, UnknownMimeType},
+    },
+    drive::{
+        DriveError,
+        error::{DeviceError, InvalidBufferSize},
+    },
+    frame::InvalidByteSize,
+    toc::{TocError, error::InvalidOrder},
+    track::error::FlacError,
+    win::WinError,
+};
+
+#[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
+/// Well behaved Errors, which support the full range of [`std::error::Error`] functionality,
+/// including methods available to `dyn Error`. See the [API Guidelines] for more details.
+///
+/// [API Guidelines]: https://rust-lang.github.io/api-guidelines/interoperability.html#c-good-err
+pub trait C_GOOD_ERROR = StdError + Send + Sync + 'static;
+
+/// [`std::result::Result`] alias which defaults to the crate-root [`Error`].
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Crate-root error: level 1 of the error hierarchy.
+///
+/// Wraps the per-domain level-2 errors (or any other [`C_GOOD_ERROR`], boxed); construct via the
+/// variant, a `From` conversion from a domain error or `io::Error`, [`Error::other`], or `?`.
+#[derive(Debug)]
+pub enum Error {
+    DeviceError(DeviceError),
+    /// A [`drive`][crate::drive] domain error.
+    DriveError(DriveError),
+    /// A [`toc`][crate::toc] domain error.
+    TocError(TocError),
+    /// A [`disc`][crate::disc] domain error.
+    DiscError(DiscError),
+    /// A track-encoding domain error.
+    EncodingError(EncodingError),
+    /// Any other error, boxed so the concrete type stays reachable via downcast and
+    /// [`StdError::source`]
+    Other(Box<dyn C_GOOD_ERROR>),
+    /// A related thread cancellation request was received
+    ThreadCancellation,
+}
+
+impl Error {
+    /// Box any [`C_GOOD_ERROR`] into [`Error::Other`], preserving the concrete type in the
+    /// source chain.
+    pub fn other<E>(error: E) -> Self
+    where
+        E: Into<Box<dyn C_GOOD_ERROR>>,
+    {
+        Self::Other(error.into())
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::TocError(_) => write!(f, "TOC error"),
+            Error::DiscError(_) => write!(f, "disc error"),
+            Error::EncodingError(_) => write!(f, "track encoding error"),
+            Error::DriveError(_) => write!(f, "drive error"),
+            Error::DeviceError(_) => write!(f, "device error"),
+            Error::Other(_) => write!(f, "other error"),
+            Error::ThreadCancellation => write!(f, "thread cancelled"),
+        }
+    }
+}
+
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Error::TocError(error) => Some(error),
+            Error::DiscError(error) => Some(error),
+            Error::EncodingError(error) => Some(error),
+            Error::DriveError(error) => Some(error),
+            Error::DeviceError(error) => Some(error),
+            Error::Other(error) => Some(&**error),
+            Error::ThreadCancellation => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            Error::Other(_) => {
+                request.provide_value(io::ErrorKind::Other);
+            }
+            Error::ThreadCancellation => {
+                request.provide_value(io::ErrorKind::Interrupted);
+            }
+            _ => (),
+        }
+    }
+}
+
+impl From<DeviceError> for Error {
+    fn from(error: DeviceError) -> Self {
+        Self::DeviceError(error)
+    }
+}
+
+impl From<InvalidBufferSize> for Error {
+    fn from(error: InvalidBufferSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<InvalidByteSize> for Error {
+    fn from(error: InvalidByteSize) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<WinError> for Error {
+    fn from(error: WinError) -> Self {
+        DeviceError::from(error).into()
+    }
+}
+
+impl From<DriveError> for Error {
+    fn from(error: DriveError) -> Self {
+        Self::DriveError(error)
+    }
+}
+
+impl From<crossbeam::channel::SendError<RipProgress>> for Error {
+    fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
+        DriveError::from(error).into()
+    }
+}
+
+impl From<TocError> for Error {
+    fn from(error: TocError) -> Self {
+        Self::TocError(error)
+    }
+}
+
+impl From<cdtoc::TocError> for Error {
+    fn from(error: cdtoc::TocError) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidOrder> for Error {
+    fn from(error: InvalidOrder) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<DiscError> for Error {
+    fn from(error: DiscError) -> Self {
+        Self::DiscError(error)
+    }
+}
+
+impl From<TocMismatch> for Error {
+    fn from(error: TocMismatch) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<TaggingError> for Error {
+    fn from(error: TaggingError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<UnknownMimeType> for Error {
+    fn from(error: UnknownMimeType) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<metaflac::Error> for Error {
+    fn from(error: metaflac::Error) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<IoError> for Error {
+    fn from(error: IoError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<musicbrainz_rs::ApiEndpointError> for Error {
+    fn from(error: musicbrainz_rs::ApiEndpointError) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(error: reqwest::Error) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<EncodingError> for Error {
+    fn from(error: EncodingError) -> Self {
+        Self::EncodingError(error)
+    }
+}
+
+impl From<FlacError> for Error {
+    fn from(error: FlacError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::VerifyError> for Error {
+    fn from(error: flacenc::error::VerifyError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<(flacenc::config::Encoder, flacenc::error::VerifyError)> for Error {
+    fn from(error: (flacenc::config::Encoder, flacenc::error::VerifyError)) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::EncodeError> for Error {
+    fn from(error: flacenc::error::EncodeError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::SourceError> for Error {
+    fn from(error: flacenc::error::SourceError) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
+    fn from(error: flacenc::error::OutputError<flacenc::bitsink::ByteSink>) -> Self {
+        EncodingError::from(error).into()
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Self {
+        Self::other(error)
+    }
+}
+
+impl<R> From<Context<R>> for Error {
+    fn from(_: Context<R>) -> Self {
+        Self::ThreadCancellation
+    }
+}
+
+pub trait RedbookError: C_GOOD_ERROR + Sized {
+    /// The underlying <E>, if present
+    fn underlying<T: StdError + 'static>(&self) -> Option<&T> {
+        let e = self as &dyn StdError;
+        e.sources().find_map(|err| err.downcast_ref::<T>())
+    }
+
+    /// The underlying OS error code *if present there is an underlying io::Error and it was
+    /// generated from a genuine OS error*
+    ///
+    /// Errors which do not originate from an io::Error, which originate from a hand-made io::Error,
+    /// or which originate from a 3rd-party error which has erased the initial io::Error will return
+    /// `None`.
+    ///
+    /// If this function returns `Some(code)` you can guarantee that the error was created by
+    /// calling [`io::Error::last_os_error`] or [`io::Error::from_raw_os_error`]
+    fn raw_os_error(&self) -> Option<RawOsError> {
+        self.underlying::<io::Error>()
+            .and_then(|error| error.raw_os_error())
+    }
+
+    /// Convert into an [`io::Error`], wrapping `self` as the payload so the full typed error
+    /// tree remains reachable via downcast and [`StdError::source`].
+    ///
+    /// The [`io::ErrorKind`] is taken from an underlying [`io::Error`] in the source chain when
+    /// one exists (preserving e.g. `ErrorKind::NotFound` or the kind of a genuine OS error);
+    /// otherwise it defaults to [`io::ErrorKind::Other`]. Call sites which need a more specific
+    /// kind should construct the [`io::Error`] themselves, e.g.
+    /// `io::Error::new(io::ErrorKind::InvalidData, error)`.
+    fn into_io_error(self) -> io::Error {
+        let kind = self
+            .underlying::<io::Error>()
+            .map(io::Error::kind)
+            .or_else(|| {
+                let e = &self as &dyn StdError;
+                e.sources()
+                    .filter_map(request_value::<io::ErrorKind>)
+                    .last()
+            })
+            .unwrap_or(io::ErrorKind::Other);
+        io::Error::new(kind, self)
+    }
+
+    /// This simply calls `Report::new(self)` and is included solely to make discovery simpler
+    /// while [`std:error::Report`] is new and may be unknown.
+    fn full_message(self) -> Report<Self> {
+        Report::new(self)
+    }
+}
+
+impl RedbookError for Error {}
+
+#[cfg(test)]
+mod tests {
+    use crate::{TrackNo, toc::InvalidTrackNo};
+
+    use super::*;
+
+    #[test]
+    fn underlying_messages() {
+        let error = TrackNo::new(100)
+            .map_err(TocError::from)
+            .map_err(Error::from)
+            .unwrap_err();
+        assert_eq!(error.to_string(), "TOC error");
+
+        let tocerror = error.underlying::<TocError>().unwrap();
+        assert_eq!(tocerror.to_string(), "invalid track number in TOC");
+
+        let invalid_trackno = error.underlying::<InvalidTrackNo>().unwrap();
+        assert_eq!(invalid_trackno.to_string(), "invalid track number: 0x0064");
+
+        assert_eq!(
+            error.full_message().to_string(),
+            "TOC error: invalid track number in TOC: invalid track number: 0x0064"
+        );
+    }
+
+    #[test]
+    fn io_error() {
+        let error = TrackNo::new(100)
+            .map_err(TocError::from)
+            .map_err(Error::from)
+            .unwrap_err();
+
+        assert!(error.underlying::<io::Error>().is_none());
+        assert!(error.raw_os_error().is_none());
+
+        let io_error = error.into_io_error();
+
+        assert_eq!(io_error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(io_error.to_string(), "TOC error");
+
+        let redbook_error = io_error.downcast::<Error>().unwrap();
+        assert_eq!(
+            redbook_error.full_message().to_string(),
+            "TOC error: invalid track number in TOC: invalid track number: 0x0064"
+        );
+    }
+
+    #[test]
+    fn other_boxes_any_c_good_error_with_fidelity() {
+        let error = Error::other(std::fmt::Error);
+        assert!(matches!(error, Error::Other(_)));
+        assert_eq!(error.to_string(), "other error");
+        let source = StdError::source(&error).expect("boxed error should be the source");
+        assert!(source.downcast_ref::<std::fmt::Error>().is_some());
+        assert!(error.underlying::<std::fmt::Error>().is_some());
+        // io::Errors up-convert into the same variant but keep their label
+        let io_error: Error = io::Error::other("handcrafted").into();
+        assert!(matches!(io_error, Error::Other(_)));
+        assert_eq!(io_error.to_string(), "other error");
+    }
+
+    #[test]
+    fn into_io_error_preserves_kind_of_underlying_io_error() {
+        // an io::Error anywhere in the source chain wins over the per-type fallback kind
+        let raw = io::Error::from_raw_os_error(5);
+        let expected_kind = raw.kind();
+        let error = DeviceError::Other(raw);
+        let io_error = error.into_io_error();
+        assert_eq!(io_error.kind(), expected_kind);
+        // the typed error is still the payload, so the tree (and the raw OS code) survives
+        let payload = io_error
+            .get_ref()
+            .and_then(|e| e.downcast_ref::<DeviceError>())
+            .expect("payload should be the DeviceError");
+        assert_eq!(payload.raw_os_error(), Some(5));
+    }
+
+    #[test]
+    fn error_report() {
+        let rberr: Error = io::Error::other("handcrafted").into();
+        let rpt = rberr.full_message();
+        assert_eq!(rpt.to_string(), "other error: handcrafted")
+    }
+}

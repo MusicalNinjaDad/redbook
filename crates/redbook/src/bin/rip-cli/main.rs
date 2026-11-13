@@ -30,10 +30,11 @@ use metaflac::{
     Block, Tag,
     block::{Picture, PictureType},
 };
+use redbook::error::RedbookError;
 #[cfg(target_family = "windows")]
 use redbook::{
     AudioCd, RippedTrack, TrackNo,
-    drive::CdDrives,
+    drive::{CdDrives, DriveError},
     tagging::{PictureExt, VorbisTagExt},
 };
 #[cfg(target_family = "windows")]
@@ -74,7 +75,7 @@ fn main() -> Exit<()> {
         None => {
             let drive = CdDrives::all(Default::default())?
                 .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+                .ok_or(DriveError::NoDrivesFound)??;
             AudioCd::try_from(drive)?
         }
     };
@@ -240,7 +241,9 @@ fn main() -> Exit<()> {
     let ripper = thread::spawn(move || {
         for track_number in track_numbers.clone() {
             try {
-                let track_number = TrackNo::new(track_number)?;
+                // `track_number` is a CLI-provided usize, so use the const Option-returning
+                // constructor here rather than the `Result`-returning `new`
+                let track_number = TrackNo::checked_new(track_number)?;
                 let track = cd.disc().track(track_number).unwrap();
                 let track_name = track.title().unwrap_or_default();
 
@@ -252,7 +255,7 @@ fn main() -> Exit<()> {
 
                 let start = std::time::Instant::now();
                 let ripped =
-                    try bikeshed io::Result<_> { cd.rip(track_number).or_warn("")? }.ok()?;
+                    try bikeshed redbook::Result<_> { cd.rip(track_number).or_warn("")? }.ok()?;
                 let duration = start.elapsed().human(Truncate::Millis).to_string();
 
                 tracing::info!(target: SPAN_TARGET, duration, "rip_track_done");
@@ -269,7 +272,7 @@ fn main() -> Exit<()> {
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
-            try bikeshed io::Result<_> {
+            try bikeshed redbook::Result<_> {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
                 let track_name = tag.full_title();
@@ -283,7 +286,7 @@ fn main() -> Exit<()> {
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
-                let flac = ripped.to_flac();
+                let flac = ripped.to_flac()?;
                 flac_file
                     .write_all(flac.as_slice())
                     .or_warn("writing flac file")?;
@@ -340,12 +343,14 @@ fn main() -> Exit<()> {
 #[FromResidual(Result<_, Self::Residual>)]
 #[repr(u8)]
 #[must_use]
+/// TODO #217 fix the error codes in cli apps
 pub enum Exit<T: _T> {
     Ok(T) = 0,
     Error(String) = 1,
     InvocationError(String) = 2,
     IO(String) = 3,
     Logging(String) = 4,
+    Redbook(String) = 5,
 }
 
 impl<T: _T> From<clap::Error> for Exit<T> {
@@ -357,6 +362,20 @@ impl<T: _T> From<clap::Error> for Exit<T> {
 impl<T: _T> From<io::Error> for Exit<T> {
     fn from(e: io::Error) -> Self {
         Self::IO(e.to_string())
+    }
+}
+
+// redbook library errors up-convert via `From<redbook::Error> for Exit`; the full typed error
+// (with its data-carrying context and source chain) is rendered via `RedbookError::full_message`
+impl<T: _T> From<redbook::Error> for Exit<T> {
+    fn from(e: redbook::Error) -> Self {
+        Self::Redbook(e.full_message().to_string())
+    }
+}
+
+impl<T: _T> From<redbook::drive::DriveError> for Exit<T> {
+    fn from(e: redbook::drive::DriveError) -> Self {
+        Self::Redbook(e.full_message().to_string())
     }
 }
 

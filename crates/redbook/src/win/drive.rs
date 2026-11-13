@@ -3,17 +3,16 @@
 #[cfg(test)]
 use std::io;
 
-use tracing_result::Trace;
-
 use crate::{
     Device,
+    drive::error::DeviceError,
     win::sys::{DeviceInfoSet, DriveHandle},
 };
 #[cfg(test)]
 use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 
 impl IntoIterator for DeviceInfoSet {
-    type Item = DriveHandle;
+    type Item = Result<DriveHandle, DeviceError>;
 
     type IntoIter = DeviceInfoSetIter;
 
@@ -29,7 +28,10 @@ pub struct DeviceInfoSetIter {
 }
 
 impl Iterator for DeviceInfoSetIter {
-    type Item = DriveHandle;
+    /// Items are `Result`s so that enumeration & drive-construction failures are propagated
+    /// rather than silently ending iteration (issue #50); `None` is reserved for the expected
+    /// end-of-enumeration condition (`ERROR_NO_MORE_ITEMS`).
+    type Item = Result<DriveHandle, DeviceError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let drive_index = self.current_index;
@@ -44,24 +46,19 @@ impl Iterator for DeviceInfoSetIter {
         )
         .entered();
 
-        let drive_data = self
-            .infoset
-            .get_member(drive_index)
-            .or_warn("error getting drive data")
-            .ok()
-            .flatten()?;
+        let drive_data = match self.infoset.get_member(drive_index).transpose()? {
+            Ok(drive_data) => drive_data,
+            Err(error) => return Some(Err(error)),
+        };
 
         match DriveHandle::open(&drive_data.path()) {
-            Ok(drive) => Some(drive),
-            Err(error) if error.raw_os_error() == Some(21) => {
-                // OS error 21 (device not ready) = no disc in drive
+            Ok(drive) => Some(Ok(drive)),
+            Err(DeviceError::NotReady(_)) => {
+                // no disc in drive: skip to the next device
                 drop(debug);
                 self.next()
             }
-            Err(error) => {
-                tracing::error!(%error, "opening device");
-                None
-            }
+            Err(error) => Some(Err(error)),
         }
     }
 }

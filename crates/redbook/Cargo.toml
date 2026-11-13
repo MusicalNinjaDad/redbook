@@ -19,6 +19,7 @@ bitflags.workspace = true
 build_safely.workspace = true       # for doc link
 cdtoc.workspace = true
 clap.workspace = true
+crossbeam.workspace = true
 derive_more = { workspace = true, features = ["display"] }
 errno.workspace = true
 exit_safely.workspace = true

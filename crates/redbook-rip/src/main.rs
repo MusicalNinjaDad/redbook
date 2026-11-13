@@ -26,6 +26,7 @@ use metaflac::{
 };
 use redbook::{
     AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
+    disc::DiscError,
     tagging::{PictureExt, VorbisTagExt},
 };
 use thread_safely::Controller;
@@ -45,8 +46,8 @@ struct EncodingProgress {
 }
 
 #[cfg(windows)]
-fn main() -> io::Result<()> {
-    use redbook::drive::CdDrives;
+fn main() -> redbook::Result<()> {
+    use redbook::drive::{CdDrives, DriveError};
 
     output::init_tracing()?;
 
@@ -59,7 +60,7 @@ fn main() -> io::Result<()> {
 
     let drive = CdDrives::all(rip_context.clone())?
         .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no CD found"))?;
+        .ok_or(DriveError::NoDrivesFound)??;
     let cd = AudioCd::try_from(drive)?;
     let cd = Arc::new(Mutex::from(cd));
 
@@ -72,7 +73,7 @@ fn main() -> io::Result<()> {
     let setup = thread::spawn(move || {
         let cd = cd_;
         let context = context_;
-        try bikeshed io::Result<()> {
+        try bikeshed redbook::Result<()> {
             let mut disc_lock = cd.lock().expect("TODO #68 tracing on poison");
             let disc = disc_lock.disc_mut();
             context.cancelled()?;
@@ -97,14 +98,14 @@ fn main() -> io::Result<()> {
             app.on_select_release(select_release(app_.clone(), cd));
             app.on_rip(rip(app_, to_rip_tx));
         })
-        .map_err(io::Error::other)
+        .map_err(redbook::Error::other)
     });
 
-    let ripper = thread::spawn(move || try bikeshed io::Result<()> {
+    let ripper = thread::spawn(move || try bikeshed redbook::Result<()> {
         loop {
             select! {
                 recv(to_rip_rx) -> tracks => {
-                    rip_tracks(cd.clone(), tracks.map_err(io::Error::other)?, ripped_tx.clone())?;
+                    rip_tracks(cd.clone(), tracks.map_err(redbook::Error::other)?, ripped_tx.clone())?;
                 }
                 default(Duration::from_millis(100)) => {
                     rip_context.cancelled()?;
@@ -125,12 +126,12 @@ fn main() -> io::Result<()> {
                 clippy::unnecessary_operation,
                 reason = "clippy error - need to raise issue linking to bikeshed tracking issue"
             )]
-            try bikeshed io::Result<_> {
+            try bikeshed redbook::Result<_> {
                 enc_context.cancelled()?;
                 progress.doing = Some(ripped.tags.track().unwrap_or_default());
                 enc_context
                     .reply(progress.clone())
-                    .map_err(io::Error::other)
+                    .map_err(redbook::Error::other)
                     .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
@@ -149,7 +150,7 @@ fn main() -> io::Result<()> {
                 tracing::debug!(?ripped.coverart);
 
                 if let Some(ref cover) = ripped.coverart {
-                    try bikeshed io::Result<_> {
+                    let _dont_fail_on_error = try bikeshed Result<_, DiscError> {
                         tracing::debug!("saving cover art");
                         let filename = cover.filename()?;
                         let coverart_path = output_dir.join(filename);
@@ -161,7 +162,7 @@ fn main() -> io::Result<()> {
                 let flac_path = output_dir.join(tag.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
-                let flac = ripped.to_flac();
+                let flac = ripped.to_flac()?;
                 flac_file
                     .write_all(flac.as_slice())
                     .or_warn("writing flac file")?;
@@ -298,24 +299,25 @@ fn rip_tracks(
     cd: Arc<Mutex<AudioCd>>,
     tracks: Vec<usize>,
     ripped_tracks: Sender<RippedTrack>,
-) -> io::Result<()> {
+) -> redbook::Result<()> {
     let cd_lock = cd
         .lock()
         .expect("TODO #68 error handling & tracing on poison");
     let disc = cd_lock.disc();
     for track_number in tracks {
-        let track_number = TrackNo::new(track_number).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("invalid track number: {track_number}"),
-            )
-        })?;
+        // TODO #220 trait for Units/InvalidUnits with Errortype & input vs data errorkind?
+        // `track_number` is a CLI-provided usize, so use the const Option-returning
+        // constructor here rather than the `Result`-returning `new`
+        let track_number = TrackNo::checked_new(track_number).ok_or(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid track number: {track_number}"),
+        ))?;
         let track = disc.track(track_number);
         tracing::info!(ripping = ?track);
         let ripped = cd_lock.rip(track_number).or_error("ripping")?;
         ripped_tracks
             .send(ripped)
-            .map_err(io::Error::other)
+            .map_err(redbook::Error::other)
             .or_error("sending")?;
     }
     Ok(())

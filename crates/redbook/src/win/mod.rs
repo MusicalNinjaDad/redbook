@@ -1,5 +1,6 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
+pub use error::{CdaError, WinError};
 pub use sys::DriveHandle;
 
 #[forbid(unsafe_code)]
@@ -10,6 +11,8 @@ pub mod convert;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+pub mod error;
 
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod sys;

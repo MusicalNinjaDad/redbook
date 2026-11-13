@@ -27,9 +27,15 @@
 #![feature(const_convert)]
 #![feature(const_destruct)]
 #![feature(const_option_ops)]
+#![feature(const_result_trait_fn)]
 #![feature(const_try)]
+#![feature(error_generic_member_access)]
+#![feature(error_iter)]
+#![feature(error_reporter)]
 #![cfg_attr(test, feature(fn_traits))]
+#![feature(raw_os_error_ty)]
 #![feature(structural_match)]
+#![feature(trait_alias)]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
@@ -65,16 +71,18 @@
 //! is available in the separate crate `redbook-rip` in the same repo.
 //!
 //! ```no_run
-//! use std::{fs::{self, File}, io::{self, Write}};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, tagging::{PictureExt, VorbisTagExt}};
+//! use std::{fs::{self, File}, io::Write};
+//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, drive::DriveError, tagging::{PictureExt, VorbisTagExt}};
 //! use thread_safely::Controller;
-//!
+//! # fn main() -> Result<()> {
 //! // Allow for status updates & cancellation mid-rip
 //! let (rip_controller, rip_context) = Controller::<RipProgress>::new();
 //!
 //! // Find & open the first available CD drive
 //! let mut available_drives = CdDrives::all(rip_context)?;
-//! let mut first_drive = available_drives.next().ok_or(io::Error::other("No drives found"))?;
+//! let mut first_drive = available_drives
+//!     .next()
+//!     .ok_or(DriveError::NoDrivesFound)??;
 //! let mut cd = AudioCd::try_from(first_drive)?;
 //!
 //! // Get additional meta data from musicbrainz
@@ -84,7 +92,7 @@
 //! let track_1 = cd.rip(TrackNo::strict_new(1))?;
 //!
 //! // Encode to flac
-//! let flac = track_1.to_flac();
+//! let flac = track_1.to_flac()?;
 //!
 //! // Get associated data
 //! let RippedTrack {tags, coverart, ..} = track_1;
@@ -106,7 +114,8 @@
 //!     let path = album_directory.join(artwork.filename()?);
 //!     fs::write(path, artwork.data)?;
 //! }
-//! # io::Result::Ok(())
+//! # Result::Ok(())
+//! # }
 //! ```
 //!
 //! # Structure
@@ -192,24 +201,40 @@
 //!
 //! ## Errors
 //!
-//! I've made a deliberate choice to use [`io::Error`][std::io::Error] as the error type throughout
-//! the library. The reasons for this choice are:
-//! - downstream usage is most likely to convert to an io::Error anyway, whether directly or indirectly.
-//! - `io::Error` is well known, versatile with meaningful [`ErrorKind`][std::io::ErrorKind]s and
-//!   powerful functionality.
-//! - `io::Error` is widely understood, a custom error type adds conversion overhead to code and
-//!   cognitive overhead for developers
-//! - semantically, all errors are related to IO
+//! The library uses a structured error hierarchy (see [`error`] for the full conventions; a
+//! diagram of the full tree is in the `Errors` section of `README.md`):
 //!
-//! The following `ErrorKind`s are primarily used when constructing and converting new errors:
-//! - `ErrorKind::InvalidData` - data conversion errors and un-parsable responses
-//! - `ErrorKind::NotFound` - attempts to read a track which does not exist
-//! - `ErrorKind::UnexpectedEOF` - data returned is too short to be valid
-//! - `ErrorKind::Unsupported` - operations which cannot be performed, e.g. attempting to read
-//!   a non-integer number of frames from a disc.
+//! 1. [`Error`] - the crate-root enum, used by APIs which span multiple domains (e.g.
+//!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.
+//! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError` &
+//!    `drive::error::DeviceError`, `track::EncodingError`, returned by most public signatures as
+//!    `Result<_, DomainError>`. (`disc::error` additionally holds the nested `TaggingError`,
+//!    `IoError`, `TocMismatch` & `UnknownMimeType`; `win::WinError` is the OS-coloured
+//!    `io::Error` wrapper consumed at the `Device` boundary, and `win::CdaError` covers `.cda`
+//!    parsing.)
+//! 3. Leaf errors - variants of the domain enums, or dedicated leaf structs (e.g.
+//!    `toc::error::InvalidTrackNo`) which carry the offending value. Variants wrapping a foreign
+//!    error hold it in a single tuple field (e.g. `CdToc(cdtoc::TocError)`,
+//!    `MetaflacError(metaflac::Error)`).
 //!
-//! A future version *may* introduce a custom error type with a large number of
-//! variants and implement `From<...> for io::Error` but at the moment this seems like overhead.
+//! All error types are hand-rolled: they implement [`std::error::Error`] and are
+//! `Send + Sync + 'static`. Error enums are deliberately not `#[non_exhaustive]` (extending them
+//! is a semver-breaking change, preferred over forced `_ =>` arms downstream). Context is the
+//! data which led to the error, stored in the variant itself - there is no stringly-typed
+//! `.context(...)` API; constructors which capture a wrapped value allow closure-free
+//! `.map_err(MyError::new)`, and `From` conversions make `?` work directly.
+//!
+//! `source()` returns the directly wrapped error, so a wrapped OS error keeps its raw OS error
+//! code all the way down; a wrapped error is not also rendered by `Display`, while data-carrying
+//! variants are rendered by `Display` and return `None` from `source()`.
+//!
+//! Every error type implements [`RedbookError`][error::RedbookError], which provides
+//! [`into_io_error`][error::RedbookError::into_io_error] for interop with IO-centric downstream
+//! code — but deliberately *not* `From<This> for io::Error`, so that each call site makes an
+//! explicit decision about the [`io::ErrorKind`], whether to wrap the error as a source, and how
+//! to handle an underlying `io::Error` further down the stack. Relevant cases also implement
+//! `From<This> for other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`,
+//! `flacenc`, `metaflac`), which mainly unwrap a wrapped foreign error.
 //!
 //! # Safety
 //!
@@ -269,11 +294,13 @@ pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
+pub use error::{Error, Result};
+#[doc(inline)]
 pub use frame::Frame;
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{RippedTrack, Track};
+pub use track::{EncodingError, RippedTrack, Track};
 
 use crate::{frame::ByteSize, win::DriveHandle};
 
@@ -285,6 +312,9 @@ pub mod disc;
 
 #[forbid(unsafe_code)]
 pub mod drive;
+
+#[forbid(unsafe_code)]
+pub mod error;
 
 #[forbid(unsafe_code)]
 pub mod frame;
@@ -344,4 +374,8 @@ const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
 /// # TODOs
 /// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
 /// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = ByteSize::strict_new(64 * KB).frames_floor();
+const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
+    64_u32
+        .strict_mul(KB)
+        .strict_div(ByteSize::ONE_FRAME.strict_cast()),
+);

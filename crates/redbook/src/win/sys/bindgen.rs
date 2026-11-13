@@ -44,6 +44,7 @@ pub const DIGCF_DEVICEINTERFACE: i32 = 16;
 pub const DIGCF_PRESENT: i32 = 2;
 pub const DUPLICATE_SAME_ACCESS: i32 = 2;
 pub const ERROR_INSUFFICIENT_BUFFER: i32 = 122;
+pub const ERROR_NOT_READY: i32 = 21;
 pub const ERROR_NO_MORE_ITEMS: i32 = 259;
 pub const FALSE: i32 = 0;
 pub const FILE_DEVICE_CD_ROM: i32 = 2;

@@ -10,12 +10,10 @@ use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::Display,
     hint::cold_path,
-    io::{self, ErrorKind},
     marker::StructuralPartialEq,
-    num::{NonZeroU8, NonZeroUsize, ParseIntError},
+    num::{NonZeroU8, NonZeroUsize},
     ops::{Deref, DerefMut},
     slice,
-    str::FromStr,
 };
 
 use bitflags::bitflags;
@@ -24,7 +22,9 @@ use derive_more::Display;
 use itertools::{EitherOrBoth, Itertools};
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf};
+use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
+
+pub use error::{InvalidTrackNo, TocError, TocResult};
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub mod b0000 {
@@ -67,6 +67,8 @@ pub mod b0010 {
     pub const LEADOUT_TRACK_ID: Point = Point(0xA2);
 }
 
+pub mod error;
+
 /// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
 /// read from the disc.
 ///
@@ -91,7 +93,7 @@ pub struct Point(pub u8);
 impl Point {
     /// Whether this is a "normal" track number, i.e. convertible to a [`TrackNo`] (1..=99)
     pub const fn is_normal(&self) -> bool {
-        TrackNo::new(self.0).is_some()
+        TrackNo::checked_new(self.0).is_some()
     }
 
     /// Whether this is a lead-in/lead-out POINT code: [`b0000::LEADOUT_TRACK_ID`] (0xAA) or
@@ -195,14 +197,6 @@ const impl From<u8> for Point {
     }
 }
 
-impl FromStr for Point {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
-    }
-}
-
 /// The kind of a raw [`Point`] value in a TOC track descriptor.
 ///
 /// Returned by [`Point::kind`]. Extensible in future, e.g. with ADR 5 (recordable disc)
@@ -257,10 +251,10 @@ pub enum PointKind {
 /// ```
 /// use redbook::TrackNo;
 ///
-/// assert_eq!(TrackNo::new(7_u16), Some(TrackNo::strict_new(7)));
-/// assert_eq!(TrackNo::new(0_u8), None);
-/// assert_eq!(TrackNo::new(100_u8), None);
-/// assert_eq!(TrackNo::new(256_u16), None);
+/// assert_eq!(TrackNo::new(7_u16), Ok(TrackNo::strict_new(7)));
+/// assert!(TrackNo::new(0_u8).is_err());
+/// assert!(TrackNo::new(100_u8).is_err());
+/// assert!(TrackNo::new(256_u16).is_err());
 /// assert_eq!(TrackNo::MAX.cast::<u8>(), 99);
 /// ```
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
@@ -273,14 +267,36 @@ impl TrackNo {
     /// Redbook defines the valid range for track numbers as 1..=99
     pub const MAX: Self = Self(NonZeroU8::new(99).unwrap());
 
+    /// Creates a new `TrackNo` from any integer type, returning [`InvalidTrackNo`] (carrying the
+    /// offending value) if the value does not fit in a `u8` (track numbers are stored on disc in
+    /// a single byte) or is outside 1..=[`Self::MAX`].
+    ///
+    /// # Note
+    /// - For const contexts use [`Self::checked_new`]
+    /// - For a panicking constructor use [`Self::strict_new`]
+    /// - For a saturating constructor use [`Self::saturating_new`]
+    pub fn new<N>(value: N) -> Result<Self, InvalidTrackNo>
+    where
+        u8: TryFrom<N>,
+        i128: From<N>,
+        N: Copy,
+    {
+        u8::try_from(value)
+            .ok()
+            .and_then(Self::from_u8)
+            .and_then(Self::validate)
+            .ok_or_else(|| InvalidTrackNo::new(value))
+    }
+
     /// Creates a new `TrackNo` from any integer type, returning `None` if the value does not
     /// fit in a `u8` (track numbers are stored on disc in a single byte) or is outside
     /// 1..=[`Self::MAX`].
     ///
     /// # Note
-    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::new().unwrap()`
+    /// - For a `Result`-returning constructor use [`Self::new`]
+    /// - For a panicking constructor use [`Self::strict_new`] directly, not `Self::checked_new(...).unwrap()`
     /// - For a saturating constructor use [`Self::saturating_new`]
-    pub const fn new<N>(value: N) -> Option<Self>
+    pub const fn checked_new<N>(value: N) -> Option<Self>
     where
         u8: [const] CheckedCastFromInt<N>,
     {
@@ -303,8 +319,8 @@ impl TrackNo {
     where
         u8: [const] CheckedCastFromInt<N>,
     {
-        match Self::new(value) {
-            Some(track_no) => track_no,
+        match Self::from_u8(u8::strict_cast_from(value)) {
+            Some(track_no) => track_no.assert_valid(),
             None => panic!("invalid track number: must be within 1..=99"),
         }
     }
@@ -319,11 +335,10 @@ impl TrackNo {
     where
         u8: [const] BoundedCastFromInt<N>,
     {
-        let inner = u8::saturating_cast_from(value)
-            .max(1)
-            .min(Self::MAX.0.get());
-        // Cannot panic: inner is clamped into 1..=99
-        Self(NonZeroU8::new(inner).unwrap())
+        // Cannot panic: saturating_cast_from(value).max(1) is always >= 1
+        Self::from_u8(u8::saturating_cast_from(value).max(1))
+            .unwrap()
+            .saturate()
     }
 
     /// Returns the underlying `u8` representation.
@@ -372,12 +387,14 @@ impl TrackNo {
 
     /// Validates `self` is within the valid range (always true: the invariant is upheld by the
     /// private [`NonZeroU8`] field & the validating constructors)
-    pub const fn is_valid(&self) -> bool {
+    const fn is_valid(&self) -> bool {
         self.0.get() <= Self::MAX.0.get()
     }
 
-    /// Validates `self` and returns `None` if invalid
-    pub const fn validate(self) -> Option<Self> {
+    /// Validates `self` and returns `None` if invalid.
+    ///
+    /// Private as no-one else should be able to construct an invalid TrackNo
+    const fn validate(self) -> Option<Self> {
         self.is_valid().then_some(self)
     }
 
@@ -385,14 +402,14 @@ impl TrackNo {
     ///
     /// # Panics
     /// Panics if `self` is above [`Self::MAX`].
-    pub const fn assert_valid(self) -> Self {
+    const fn assert_valid(self) -> Self {
         assert!(self.is_valid(), "semantic overflow");
         self
     }
 
     /// Replaces invalid values with [`Self::MAX`]. No need to saturate at 0 as this is covered
     /// by the internal representation.
-    pub const fn saturate(self) -> Self {
+    const fn saturate(self) -> Self {
         match self.is_valid() {
             true => self,
             false => Self::MAX,
@@ -425,6 +442,14 @@ const impl PartialEq for TrackNo {
 }
 
 impl StructuralPartialEq for TrackNo {}
+
+impl TryFrom<Point> for TrackNo {
+    type Error = InvalidTrackNo;
+
+    fn try_from(point: Point) -> Result<Self, Self::Error> {
+        Self::new(point.0)
+    }
+}
 
 impl Display for TrackNo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -821,17 +846,12 @@ impl RawTocEntry {
     /// before attempting the conversion.
     pub fn kind(&self) -> TocEntryKind {
         use TocEntryKind::*;
-        use TrackKind::*;
 
-        match (self.adr, self.point.kind(), self.control().kind()) {
-            (1, PointKind::LeadIn, Audio) => AudioLeadout,
-            (1, PointKind::LeadIn, Data) => DataLeadout,
-            (1, PointKind::FirstTrackInfo, Audio) => FirstAudioTrackInfo,
-            (1, PointKind::FirstTrackInfo, Data) => FirstDataTrackInfo,
-            (1, PointKind::LastTrackInfo, Audio) => LastAudioTrackInfo,
-            (1, PointKind::LastTrackInfo, Data) => LastDataTrackInfo,
-            (1, PointKind::Normal, Audio) => AudioTrack,
-            (1, PointKind::Normal, Data) => DataTrack,
+        match (self.adr, self.point.kind()) {
+            (1, PointKind::LeadIn) => Leadout,
+            (1, PointKind::FirstTrackInfo) => FirstTrackInfo,
+            (1, PointKind::LastTrackInfo) => LastTrackInfo,
+            (1, PointKind::Normal) => Track,
             _ => Unknown,
         }
     }
@@ -938,28 +958,17 @@ impl From<InfoEntry> for TocEntry {
 /// first. Or use `From<RawTocEntry> for Option<TocEntry>` directly to identify, validate and
 /// convert in one step.
 impl TryFrom<RawTocEntry> for TrackEntry {
-    type Error = io::Error;
+    type Error = TocError;
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
-        match (raw.adr(), raw.point()) {
-            (1, point) if point.is_normal() => {
-                let track = TrackNo::new(point.0)
-                    .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "invalid track entry"))?;
-                Ok(TrackEntry::new(
-                    track,
-                    raw.pmsf().into(),
-                    raw.control(),
-                    raw.session(),
-                ))
-            }
-            _ => Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "not a track entry: adr={}, point={:?}",
-                    raw.adr(),
-                    raw.point()
-                ),
+        match raw.adr() {
+            1 => Ok(TrackEntry::new(
+                TrackNo::try_from(raw.point)?,
+                raw.pmsf().into(),
+                raw.control(),
+                raw.session(),
             )),
+            _ => Err(TocError::InvalidTrackEntry(raw)),
         }
     }
 }
@@ -969,7 +978,7 @@ impl TryFrom<RawTocEntry> for TrackEntry {
 /// Fails when the entry is not a lead-out entry (ADR ≠ 1 or POINT is not a lead-out code).
 /// Use [`RawTocEntry::kind`] to check applicability first.
 impl TryFrom<RawTocEntry> for LeadoutEntry {
-    type Error = io::Error;
+    type Error = TocError;
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
         match (raw.adr(), raw.point()) {
@@ -978,14 +987,7 @@ impl TryFrom<RawTocEntry> for LeadoutEntry {
                 raw.control(),
                 raw.session(),
             )),
-            _ => Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "not a leadout entry: adr={}, point={:?}",
-                    raw.adr(),
-                    raw.point()
-                ),
-            )),
+            _ => Err(TocError::InvalidLeadoutEntry(raw)),
         }
     }
 }
@@ -996,31 +998,15 @@ impl TryFrom<RawTocEntry> for LeadoutEntry {
 /// info is missing, or when the PMIN payload is not a normal track number.
 /// Use [`RawTocEntry::kind`] to check applicability first.
 impl TryFrom<RawTocEntry> for InfoEntry {
-    type Error = io::Error;
+    type Error = TocError;
 
     fn try_from(raw: RawTocEntry) -> Result<Self, Self::Error> {
         let info_type = match (raw.adr(), raw.point().info_kind()) {
             (1, Some(info_type)) => info_type,
-            _ => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "not an info entry: adr={}, point={:?}",
-                        raw.adr(),
-                        raw.point()
-                    ),
-                ));
-            }
+            _ => return Err(TocError::InvalidInfoEntry(raw)),
         };
-        let session = raw.session().ok_or_else(|| {
-            io::Error::new(ErrorKind::InvalidData, "info entry requires session info")
-        })?;
-        let track = TrackNo::new(raw.pmsf().as_u8s().0).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                "invalid info entry: non-normal track number in PMIN",
-            )
-        })?;
+        let session = raw.session().ok_or(TocError::InvalidInfoEntry(raw))?;
+        let track = TrackNo::new(raw.pmsf().as_u8s().0)?;
         Ok(InfoEntry::new(session, track, raw.control(), info_type))
     }
 }
@@ -1040,9 +1026,9 @@ impl From<RawTocEntry> for Option<TocEntry> {
         use TocEntryKind::*;
 
         match raw.kind() {
-            AudioTrack | DataTrack => TrackEntry::try_from(raw).ok().map(TocEntry::Track),
-            AudioLeadout | DataLeadout => LeadoutEntry::try_from(raw).ok().map(TocEntry::Leadout),
-            FirstAudioTrackInfo | FirstDataTrackInfo | LastAudioTrackInfo | LastDataTrackInfo => {
+            Track => TrackEntry::try_from(raw).ok().map(TocEntry::Track),
+            Leadout => LeadoutEntry::try_from(raw).ok().map(TocEntry::Leadout),
+            FirstTrackInfo | LastTrackInfo => {
                 InfoEntry::try_from(raw).ok().map(TocEntry::TrackInfo)
             }
             Unknown => Some(TocEntry::Unknown(raw)),
@@ -1181,40 +1167,17 @@ impl TocEntry {
     /// deconstructing the related entry data.
     pub fn kind(&self) -> TocEntryKind {
         use FirstLast::*;
-        use TocEntry::*;
-        use TocEntryKind::*;
-        use TrackKind::*;
 
-        match (self, self.control().kind()) {
-            (Track(_), Audio) => AudioTrack,
-            (Track(_), Data) => DataTrack,
-            (Leadout(_), Audio) => AudioLeadout,
-            (Leadout(_), Data) => DataLeadout,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: First, ..
-                }),
-                Audio,
-            ) => FirstAudioTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: First, ..
-                }),
-                Data,
-            ) => FirstDataTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: Last, ..
-                }),
-                Audio,
-            ) => LastAudioTrackInfo,
-            (
-                TrackInfo(InfoEntry {
-                    info_type: Last, ..
-                }),
-                Data,
-            ) => LastDataTrackInfo,
-            (TocEntry::Unknown(_), _) => TocEntryKind::Unknown,
+        match self {
+            TocEntry::Track(_) => TocEntryKind::Track,
+            TocEntry::Leadout(_) => TocEntryKind::Leadout,
+            TocEntry::TrackInfo(InfoEntry {
+                info_type: First, ..
+            }) => TocEntryKind::FirstTrackInfo,
+            TocEntry::TrackInfo(InfoEntry {
+                info_type: Last, ..
+            }) => TocEntryKind::LastTrackInfo,
+            TocEntry::Unknown(_) => TocEntryKind::Unknown,
         }
     }
 }
@@ -1233,7 +1196,7 @@ impl Display for TrackEntry {
 
 impl PartialEq<cdtoc::Track> for TrackEntry {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (Some(self.track) == TrackNo::new(toc_track.number()))
+        (Some(self.track) == TrackNo::checked_new(toc_track.number()))
             && Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf)
     }
 }
@@ -1293,7 +1256,7 @@ pub trait Ctrl {
     fn control(&self) -> Control;
 
     /// whether this is an audio or a data track
-    fn kind(&self) -> TrackKind {
+    fn track_kind(&self) -> TrackKind {
         match self.control().contains(Control::DATA_TRACK) {
             true => TrackKind::Data,
             false => TrackKind::Audio,
@@ -1302,12 +1265,12 @@ pub trait Ctrl {
 
     /// represents a data track
     fn is_data(&self) -> bool {
-        matches!(self.kind(), TrackKind::Data)
+        matches!(self.track_kind(), TrackKind::Data)
     }
 
     /// represents an audio track
     fn is_audio(&self) -> bool {
-        matches!(self.kind(), TrackKind::Audio)
+        matches!(self.track_kind(), TrackKind::Audio)
     }
 }
 
@@ -1317,26 +1280,14 @@ impl Ctrl for Control {
     }
 }
 
-/// The kind of TocEntry. Returned by [TocEntry::kind] and used in `io::Result<TocEntries>::collect()`
+/// The kind of TocEntry. Returned by [TocEntry::kind] and used in `Result<TocEntries, TocError>::collect()`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[expect(missing_docs, reason = "clear naming")]
 pub enum TocEntryKind {
-    /// An audio track
-    AudioTrack,
-    /// A data track
-    DataTrack,
-    /// The leadout for an audio session
-    AudioLeadout,
-    /// The leadout for a data session
-    DataLeadout,
-    /// First track number, encoded as start minute
-    FirstAudioTrackInfo,
-    /// Last track number, encoded as start minute
-    LastAudioTrackInfo,
-    /// First track number, encoded as start minute
-    FirstDataTrackInfo,
-    /// Last track number, encoded as start minute
-    LastDataTrackInfo,
-    /// An entry type which we do not specifically abstract, not required for audio CD handling
+    Track,
+    Leadout,
+    FirstTrackInfo,
+    LastTrackInfo,
     Unknown,
     /// An entry will all zeros
     Zero,
@@ -1345,10 +1296,10 @@ pub enum TocEntryKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted.
 ///
-/// Construction is available via `FromIterator<TocEntry> for io::Result<TocEntries>`
+/// Construction is available via `FromIterator<TocEntry> for Result<TocEntries, TocError>`
 pub struct TocEntries {
     entries: Vec<TocEntry>,
-    leadouts: Leadouts,
+    format: Format,
 }
 
 /// Filtering helpers over iterators of [`TocEntry`] references.
@@ -1427,6 +1378,39 @@ impl TocEntries {
             .filter_map_tracks()
             .next()
     }
+
+    /// Is this pair of entries well sorted?
+    ///
+    /// Primarily designed for used in `.map_windows().try_for_each()`
+    pub fn well_sorted(format: Format, entries: &[&TocEntry; 2]) -> Result<(), InvalidOrder> {
+        use Format::*;
+        use TocEntryKind::*;
+        use TrackKind::*;
+
+        let [this_entry, next_entry] = entries;
+        match (
+            format,
+            this_entry.kind(),
+            this_entry.track_kind(),
+            next_entry.kind(),
+            next_entry.track_kind(),
+        ) {
+            (B0000, Track, _, Track, _)
+            | (B0000, Track, _, Leadout, _)
+            | (B0010(_), FirstTrackInfo, Audio, LastTrackInfo, Audio)
+            | (B0010(_), LastTrackInfo, Audio, Track, Audio)
+            | (B0010(_), Track, Audio, Track, Audio)
+            | (B0010(_), Track, Audio, Leadout, Audio)
+            | (B0010(_), FirstTrackInfo, Data, LastTrackInfo, Data)
+            | (B0010(_), LastTrackInfo, Data, Track, Data)
+            | (B0010(_), Track, Data, Track, Data)
+            | (B0010(_), Track, Data, Leadout, Data)
+            | (B0010(_), Leadout, _, Unknown, _)
+            | (B0010(_), Unknown, _, Unknown, _)
+            | (B0010(_), Unknown, _, FirstTrackInfo, _) => Ok(()),
+            _ => Err(InvalidOrder::new(&format, this_entry, next_entry)),
+        }
+    }
 }
 
 /// Whether only the final leadout is present, or leadouts are available for every session.
@@ -1435,11 +1419,20 @@ impl TocEntries {
 /// - `Final`: Sessions have not been identified, intra-session leadout positions are unknown
 /// - `PerSession(n)`: Sessions are identified, intra-session leadout positions must be available
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Leadouts {
-    /// Multiple sessions exist but only the final leadout is available
-    Final,
-    /// Every session has a leadout available, includes the number of sessions found.
-    PerSession(NonZeroUsize),
+pub enum Format {
+    /// Summary form TOC
+    ///
+    /// # Note
+    /// - If multiple sessions exist, only the final leadout is available.
+    /// - No dedicated information entries are available
+    B0000,
+    /// Full form TOC.
+    ///
+    /// # Note
+    /// - Every session has a leadout available
+    /// - Dedicated information entries are present for each session
+    /// - Includes the number of sessions found
+    B0010(NonZeroUsize),
 }
 
 impl<'entries> IntoIterator for &'entries TocEntries {
@@ -1471,7 +1464,7 @@ where
 }
 
 impl TryFrom<TocEntries> for Toc {
-    type Error = io::Error;
+    type Error = TocError;
 
     fn try_from(entries: TocEntries) -> Result<Self, Self::Error> {
         Self::try_from(&entries)
@@ -1479,7 +1472,7 @@ impl TryFrom<TocEntries> for Toc {
 }
 
 impl TryFrom<&TocEntries> for Toc {
-    type Error = io::Error;
+    type Error = TocError;
 
     fn try_from(entries: &TocEntries) -> Result<Self, Self::Error> {
         let audio = entries
@@ -1502,38 +1495,28 @@ impl TryFrom<&TocEntries> for Toc {
             .filter_map(TocEntry::leadoutentry)
             .map(LeadoutEntry::start)
             .find_map(Frame::cast)
-            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "No leadout found"))?;
-        Toc::from_parts(audio, data, leadout)
-            .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))
+            .ok_or(TocError::NotFound)?;
+        Ok(Toc::from_parts(audio, data, leadout)?)
     }
 }
 
-impl FromIterator<TocEntry> for io::Result<TocEntries> {
+impl FromIterator<TocEntry> for TocResult<TocEntries> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
-        let _span = tracing::debug_span!("FromIterator<TocEntry> for io::Result<TocEntries>");
+        let _span = tracing::debug_span!("FromIterator<TocEntry> for Result<TocEntries, TocError>");
         use FirstLast::*;
-        use Leadouts::*;
-        use TocEntryKind::*;
 
         let mut entries: Vec<_> = iter.into_iter().collect();
 
-        (!entries.is_empty())
-            .ok_or_else(|| io::Error::new(ErrorKind::NotFound, "no TOC entries"))?;
+        (!entries.is_empty()).ok_or(TocError::NotFound)?;
 
         // INVARIANT: all tracks are expected to be sorted
-        entries.try_sort().map_err(|_| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                "Entries appear to be from multiple discs",
-            )
-        })?;
+        entries.try_sort().map_err(|_| TocError::MultipleDiscs)?;
 
         if let Some(first_audio_info) = entries
             .iter()
             .filter_audio()
             .filter_map(TocEntry::infoentry)
             .find(|e| matches!(e.info_type(), First))
-            .map(InfoEntry::trackno)
         {
             let first_audio_found = entries
                 .iter()
@@ -1541,10 +1524,12 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 .filter_map(TocEntry::trackentry)
                 .map(TrackEntry::trackno)
                 .next();
-            (Some(first_audio_info) == first_audio_found).ok_or_else(|| io::Error::new(
-                ErrorKind::InvalidData,
-                format!("info entry claims first audio track is number {first_audio_info:?}, but first audio track found is number {first_audio_found:?}")
-            ))?;
+            (Some(first_audio_info.trackno()) == first_audio_found).ok_or(
+                TocError::InfoMismatch {
+                    entry: *first_audio_info,
+                    found: first_audio_found,
+                },
+            )?;
         }
 
         if let Some(last_audio_info) = entries
@@ -1553,7 +1538,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .filter_audio()
             .filter_map(TocEntry::infoentry)
             .find(|e| matches!(e.info_type(), Last))
-            .map(InfoEntry::trackno)
         {
             let last_audio_found = entries
                 .iter()
@@ -1562,10 +1546,12 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 .filter_map(TocEntry::trackentry)
                 .map(TrackEntry::trackno)
                 .next();
-            (Some(last_audio_info) == last_audio_found).ok_or_else(|| io::Error::new(
-                ErrorKind::InvalidData,
-                format!("info entry claims last audio track is number {last_audio_info:?}, but last audio track found is number {last_audio_found:?}")
-            ))?;
+            (Some(last_audio_info.trackno()) == last_audio_found).ok_or(
+                TocError::InfoMismatch {
+                    entry: *last_audio_info,
+                    found: last_audio_found,
+                },
+            )?;
         }
 
         if let Some(first_data_info) = entries
@@ -1573,7 +1559,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .filter_data()
             .filter_map(TocEntry::infoentry)
             .find(|e| matches!(e.info_type(), First))
-            .map(InfoEntry::trackno)
         {
             let first_data_found = entries
                 .iter()
@@ -1581,10 +1566,12 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 .filter_map(TocEntry::trackentry)
                 .map(TrackEntry::trackno)
                 .next();
-            (Some(first_data_info) == first_data_found).ok_or_else(|| io::Error::new(
-                ErrorKind::InvalidData,
-                format!("info entry claims first data track is number {first_data_info:?}, but first data track found is number {first_data_found:?}")
-            ))?;
+            (Some(first_data_info.trackno()) == first_data_found).ok_or(
+                TocError::InfoMismatch {
+                    entry: *first_data_info,
+                    found: first_data_found,
+                },
+            )?;
         }
 
         if let Some(last_data_info) = entries
@@ -1593,7 +1580,6 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .filter_data()
             .filter_map(TocEntry::infoentry)
             .find(|e| matches!(e.info_type(), Last))
-            .map(InfoEntry::trackno)
         {
             let last_data_found = entries
                 .iter()
@@ -1602,10 +1588,10 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
                 .filter_map(TocEntry::trackentry)
                 .map(TrackEntry::trackno)
                 .next();
-            (Some(last_data_info) == last_data_found).ok_or_else(|| io::Error::new(
-                ErrorKind::InvalidData,
-                format!("info entry claims last data track is number {last_data_info:?}, but last data track found is number {last_data_found:?}")
-            ))?;
+            (Some(last_data_info.trackno()) == last_data_found).ok_or(TocError::InfoMismatch {
+                entry: *last_data_info,
+                found: last_data_found,
+            })?;
         }
 
         let has_entries_without_session = entries
@@ -1619,75 +1605,37 @@ impl FromIterator<TocEntry> for io::Result<TocEntries> {
             .find(Option::is_some)
             .is_some();
 
-        (has_session_info != has_entries_without_session).ok_or_else(|| {
-            io::Error::new(
-                ErrorKind::InvalidData,
-                "Some entries have session info, others do not",
-            )
-        })?;
+        (has_session_info != has_entries_without_session)
+            .ok_or(TocError::InconsistentSessionInfo)?;
 
         let sessions = has_session_info
             .then(|| entries.iter().map(|entry| entry.session()).dedup().count())
             .and_then(NonZeroUsize::new);
 
-        let leadout_count: NonZeroUsize = entries
-            .iter()
-            .filter_map(TocEntry::leadoutentry)
-            .count()
-            .try_into()
-            .map_err(|_| io::Error::new(ErrorKind::InvalidData, "No leadout entries found"))?;
+        let leadout_count = entries.iter().filter_map(TocEntry::leadoutentry).count();
 
-        let leadouts = match (sessions, leadout_count) {
-            (None, NonZeroUsize::MIN) => Leadouts::Final,
-            (None, l) => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("found {l} leadouts but no session information"),
-                ));
+        let format = match (sessions, leadout_count) {
+            (None, 1) => Format::B0000,
+            (None, leadouts) => {
+                return Err(TocError::LeadoutMismatch {
+                    sessions: None,
+                    leadouts,
+                });
             }
-            (Some(s), l) if s == l => Leadouts::PerSession(s),
-            (Some(s), l) => {
-                // s != l
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    format!("found {s} sessions but {l} leadout entries"),
-                ));
+            (Some(session_count), leadouts) if session_count.get() == leadouts => {
+                Format::B0010(session_count)
+            }
+            (Some(_), leadouts) => {
+                return Err(TocError::LeadoutMismatch { sessions, leadouts });
             }
         };
 
         entries
             .iter()
-            .map_windows(|[this_entry, next_entry]| (*this_entry, *next_entry))
-            .try_for_each(|(this_entry, next_entry)| {
-                match (this_entry.kind(), next_entry.kind(), leadouts) {
-                    (FirstAudioTrackInfo, LastAudioTrackInfo, PerSession(_)) |
-                    (LastAudioTrackInfo, AudioTrack, PerSession(_)) |
-                    (AudioTrack, AudioTrack, _) |
-                    (AudioTrack, DataTrack, Final) |
-                    (AudioTrack, AudioLeadout, _) |
-                    (AudioLeadout, Unknown, PerSession(_)) |
-                    (AudioLeadout, FirstAudioTrackInfo, PerSession(_)) |
-                    (AudioLeadout, FirstDataTrackInfo, PerSession(_)) |
-                    (FirstDataTrackInfo, LastDataTrackInfo, PerSession(_)) |
-                    (LastDataTrackInfo, DataTrack, PerSession(_)) |
-                    (DataTrack, DataTrack, Final) |
-                    (DataTrack, AudioTrack, Final) |
-                    (DataTrack, DataLeadout, _) |
-                    (DataLeadout, Unknown, PerSession(_)) |
-                    (DataLeadout, FirstAudioTrackInfo, PerSession(_)) |
-                    (DataLeadout, FirstDataTrackInfo, PerSession(_)) |
-                    (Unknown, Unknown, PerSession(_)) |
-                    (Unknown, FirstAudioTrackInfo, PerSession(_)) |
-                    (Unknown, FirstDataTrackInfo, PerSession(_))
-                    => Ok(()),
-                    (this, next, _) => {dbg!(this_entry); dbg!(next_entry);Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!("invalid toc entry order. {this} cannot be followed by {next} with leadouts {leadouts:?}"),
-                    ))},
-                }
-            })?;
+            .map_windows(|entries| TocEntries::well_sorted(format, entries))
+            .try_for_each(|x| x)?;
 
-        let tocentries = TocEntries { entries, leadouts };
+        let tocentries = TocEntries { entries, format };
 
         Ok(tocentries)
     }
@@ -1706,9 +1654,9 @@ mod tests {
         // compile-time proof: these only compile if TrackNo & Point are usable in const contexts
         const ONE: TrackNo = TrackNo::strict_new(1);
         const MAX: TrackNo = TrackNo::MAX;
-        const NEW_OK: Option<TrackNo> = TrackNo::new(42_u8);
-        const NEW_ZERO: Option<TrackNo> = TrackNo::new(0_u8);
-        const NEW_OVER: Option<TrackNo> = TrackNo::new(100_u8);
+        const NEW_OK: Option<TrackNo> = TrackNo::checked_new(42_u8);
+        const NEW_ZERO: Option<TrackNo> = TrackNo::checked_new(0_u8);
+        const NEW_OVER: Option<TrackNo> = TrackNo::checked_new(100_u8);
         const CAST: usize = ONE.cast();
         const AS_U8: u8 = ONE.cast();
         const EQ: bool = ONE == TrackNo::strict_new(1);
@@ -1721,7 +1669,7 @@ mod tests {
 
         // cross-check the const-evaluated values against runtime evaluation
         let one = TrackNo::strict_new(1);
-        assert_eq!(NEW_OK, TrackNo::new(42_u8));
+        assert_eq!(NEW_OK, TrackNo::checked_new(42_u8));
         assert_eq!(NEW_ZERO, None);
         assert_eq!(NEW_OVER, None);
         assert_eq!(CAST, one.cast::<usize>());
@@ -1925,47 +1873,35 @@ mod tests {
     }
 
     #[rstest]
-    #[case(Point(1), Control::default(), TocEntryKind::AudioTrack)]
-    #[case(Point(99), Control::default(), TocEntryKind::AudioTrack)]
+    #[case(Point(1), Control::default(), TocEntryKind::Track)]
+    #[case(Point(99), Control::default(), TocEntryKind::Track)]
     #[case(
         Point(1),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::DataTrack
+        TocEntryKind::Track
     )]
-    #[case(
-        b0000::LEADOUT_TRACK_ID,
-        Control::default(),
-        TocEntryKind::AudioLeadout
-    )]
-    #[case(
-        b0010::LEADOUT_TRACK_ID,
-        Control::default(),
-        TocEntryKind::AudioLeadout
-    )]
+    #[case(b0000::LEADOUT_TRACK_ID, Control::default(), TocEntryKind::Leadout)]
+    #[case(b0010::LEADOUT_TRACK_ID, Control::default(), TocEntryKind::Leadout)]
     #[case(
         b0000::LEADOUT_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::DataLeadout
+        TocEntryKind::Leadout
     )]
     #[case(
         b0010::FIRST_TRACK_ID,
         Control::default(),
-        TocEntryKind::FirstAudioTrackInfo
+        TocEntryKind::FirstTrackInfo
     )]
-    #[case(
-        b0010::LAST_TRACK_ID,
-        Control::default(),
-        TocEntryKind::LastAudioTrackInfo
-    )]
+    #[case(b0010::LAST_TRACK_ID, Control::default(), TocEntryKind::LastTrackInfo)]
     #[case(
         b0010::FIRST_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::FirstDataTrackInfo
+        TocEntryKind::FirstTrackInfo
     )]
     #[case(
         b0010::LAST_TRACK_ID,
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
-        TocEntryKind::LastDataTrackInfo
+        TocEntryKind::LastTrackInfo
     )]
     #[case(Point(0xB0), Control::default(), TocEntryKind::Unknown)]
     // ADR != 1 is always Unknown
@@ -2206,7 +2142,7 @@ mod tests {
     where
         u8: CheckedCastFromInt<T>,
     {
-        assert_eq!(TrackNo::new(value), expected);
+        assert_eq!(TrackNo::checked_new(value), expected);
     }
 
     #[test]

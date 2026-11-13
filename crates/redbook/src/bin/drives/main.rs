@@ -7,7 +7,6 @@
 
 #[cfg(target_family = "windows")]
 use std::fs;
-use std::io;
 
 #[cfg(target_family = "windows")]
 use cdtoc::Toc;
@@ -21,12 +20,14 @@ use tracing_subscriber::{
 };
 
 #[cfg(target_family = "windows")]
-fn main() -> io::Result<()> {
+fn main() -> redbook::Result<()> {
     registry()
         .with(layer().with_filter(LevelFilter::DEBUG))
         .init();
 
-    let drives: Vec<CdDrive> = CdDrives::all(Default::default()).or_error("")?.collect();
+    let drives: Vec<CdDrive> = CdDrives::all(Default::default())
+        .or_error("")?
+        .collect::<Result<_, _>>()?;
 
     for cd in drives {
         let path = cd.path();

@@ -7,6 +7,7 @@ use metaflac::block::{Picture, PictureType};
 
 use crate::{
     Frame, LEADIN, TocEntries, Track,
+    error::RedbookError,
     frame::Msf,
     tagging::PictureExt,
     test_fixtures::track_descriptor::RawTocDescriptors,
@@ -91,7 +92,9 @@ impl TestAlbum {
         let toc_dump = super::load_hex_file(&path);
         RawTocDescriptors::new(toc_dump)
             .and_then(TocEntries::try_from)
-            .and_then(cdtoc::Toc::try_from)
+            .and_then(|entries| {
+                cdtoc::Toc::try_from(entries).map_err(|error| error.into_io_error())
+            })
             .unwrap()
     }
 
