@@ -290,7 +290,7 @@
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 #[doc(inline)]
-pub use disc::{Disc, tagging};
+pub use disc::{Disc, tagging, track};
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
@@ -322,9 +322,6 @@ pub mod test_fixtures;
 
 #[forbid(unsafe_code)]
 pub mod toc;
-
-#[forbid(unsafe_code)]
-mod track;
 
 // provides abstractions over direct hardware access
 pub mod win;
