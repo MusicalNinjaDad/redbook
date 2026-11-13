@@ -325,7 +325,9 @@ pub trait RedbookError: C_GOOD_ERROR + Sized {
             .map(io::Error::kind)
             .or_else(|| {
                 let e = &self as &dyn StdError;
-                e.sources().filter_map(request_value::<io::ErrorKind>).last()
+                e.sources()
+                    .filter_map(request_value::<io::ErrorKind>)
+                    .last()
             })
             .unwrap_or(io::ErrorKind::Other);
         io::Error::new(kind, self)
@@ -467,7 +469,7 @@ mod tests {
         // errors without an io::Error in the chain and without an override default to Other
         assert_eq!(
             Error::from(DiscError::NoReleases).into_io_error().kind(),
-            io::ErrorKind::Other
+            io::ErrorKind::NotFound
         );
     }
 
