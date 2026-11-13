@@ -30,17 +30,7 @@ pub enum DiscError {
     IoError(IoError),
 }
 
-impl RedbookError for DiscError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        match self {
-            DiscError::TocMismatch(_) => io::ErrorKind::InvalidInput,
-            DiscError::TaggingError(_) => io::ErrorKind::InvalidData,
-            DiscError::NoReleases => io::ErrorKind::Other,
-            DiscError::ThreadCancellation => io::ErrorKind::Interrupted,
-            DiscError::IoError(_) => io::ErrorKind::Other,
-        }
-    }
-}
+impl RedbookError for DiscError {}
 
 impl Display for DiscError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -61,6 +51,26 @@ impl Error for DiscError {
             DiscError::TaggingError(error) => Some(error),
             DiscError::IoError(error) => Some(error),
             DiscError::NoReleases | DiscError::ThreadCancellation => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            DiscError::TocMismatch(_) => {
+                request.provide_value(io::ErrorKind::InvalidInput);
+            }
+            DiscError::TaggingError(_) => {
+                // delegate
+            }
+            DiscError::NoReleases => {
+                request.provide_value(io::ErrorKind::NotFound);
+            }
+            DiscError::ThreadCancellation => {
+                request.provide_value(io::ErrorKind::Interrupted);
+            }
+            DiscError::IoError(_) => {
+                // delegate
+            }
         }
     }
 }
@@ -132,6 +142,25 @@ impl Error for TaggingError {
             TaggingError::MetaflacError(error) => Some(error),
         }
     }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            TaggingError::UnknownMimeType(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            TaggingError::MetaflacError(error) => match &error.kind {
+                metaflac::ErrorKind::Io(error) => {
+                    request.provide_value(error.kind());
+                }
+                metaflac::ErrorKind::StringDecoding(_) => {
+                    request.provide_value(io::ErrorKind::InvalidData);
+                }
+                metaflac::ErrorKind::InvalidInput => {
+                    request.provide_value(io::ErrorKind::InvalidInput);
+                }
+            },
+        }
+    }
 }
 
 impl Display for TaggingError {
@@ -155,22 +184,16 @@ impl From<metaflac::Error> for TaggingError {
     }
 }
 
-impl RedbookError for TaggingError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
-}
+impl RedbookError for TaggingError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnknownMimeType(Box<str>);
 
-impl Error for UnknownMimeType {}
-
-impl RedbookError for UnknownMimeType {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
+impl Error for UnknownMimeType {
+    // no provide - this could be InvalidData or InvalidInput
 }
+
+impl RedbookError for UnknownMimeType {}
 
 impl Display for UnknownMimeType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -221,12 +244,8 @@ impl Display for TocMismatch {
     }
 }
 
-impl Error for TocMismatch {}
-
-impl RedbookError for TocMismatch {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidInput
-    }
+impl Error for TocMismatch {
+    // no provide - could be InvalidData or InvalidInput
 }
 
 #[derive(Debug)]
