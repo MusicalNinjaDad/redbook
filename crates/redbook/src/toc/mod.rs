@@ -66,6 +66,8 @@ pub mod b0010 {
     pub const LEADOUT_TRACK_ID: Point = Point(0xA2);
 }
 
+pub mod cda;
+
 pub mod error;
 
 pub mod frame;
