@@ -297,6 +297,20 @@ impl Error for IoError {
             IoError::StdIoError(error) => Some(error),
         }
     }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            IoError::MusicBrainz(_) => {
+                request.provide_value(io::ErrorKind::Other); // no access to relevant details
+            }
+            IoError::Http(_) => {
+                request.provide_value(io::ErrorKind::Other); // no access to relevant details via match
+            }
+            IoError::StdIoError(error) => {
+                request.provide_value(error.kind());
+            }
+        }
+    }
 }
 
 impl RedbookError for IoError {}
