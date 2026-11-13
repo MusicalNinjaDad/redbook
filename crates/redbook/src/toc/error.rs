@@ -57,14 +57,7 @@ pub enum TocError {
     CdToc(cdtoc::TocError),
 }
 
-impl RedbookError for TocError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        match self {
-            TocError::NotFound => io::ErrorKind::NotFound,
-            _ => io::ErrorKind::InvalidData,
-        }
-    }
-}
+impl RedbookError for TocError {}
 
 impl Display for TocError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -176,11 +169,7 @@ impl Error for InvalidTrackNo {
     // Does not `provide` io::ErrorKind: context dependent InvalidData / InvalidInput
 }
 
-impl RedbookError for InvalidTrackNo {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
-}
+impl RedbookError for InvalidTrackNo {}
 
 /// An incorrectly ordered pair of [`TocEntry`]s, for a given [`Format`][super::Format]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -202,13 +191,11 @@ impl Display for InvalidOrder {
     }
 }
 
-impl Error for InvalidOrder {}
-
-impl RedbookError for InvalidOrder {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
+impl Error for InvalidOrder {
+    // Does not `provide` io::ErrorKind: context dependent InvalidData / InvalidInput
 }
+
+impl RedbookError for InvalidOrder {}
 
 impl InvalidOrder {
     /// Create a new InvalidOrder error
