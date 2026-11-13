@@ -32,7 +32,7 @@ pub enum TocError {
     /// A track-number value is outside the valid range 1..=99.
     InvalidTrackNo(InvalidTrackNo),
     /// The entries cannot be sorted: they appear to be from multiple discs.
-    MultiDisc,
+    MultipleDiscs,
     /// An info entry (POINT 0xA0/0xA1) disagrees with the actual first/last track found.
     InfoMismatch {
         /// The info entry as read from the disc.
@@ -79,7 +79,7 @@ impl Display for TocError {
                 write!(f, "entry not valid as an info entry: {raw:?}")
             }
             TocError::InvalidTrackNo(_) => write!(f, "invalid track number in TOC"),
-            TocError::MultiDisc => write!(f, "TOC entries appear to be from multiple discs"),
+            TocError::MultipleDiscs => write!(f, "TOC entries appear to be from multiple discs"),
             TocError::InfoMismatch { entry, found } => write!(
                 f,
                 "info entry {entry:?} does not match the track entries (found {found:?})"
@@ -107,11 +107,31 @@ impl Error for TocError {
             TocError::InvalidTrackEntry(_)
             | TocError::InvalidLeadoutEntry(_)
             | TocError::InvalidInfoEntry(_)
-            | TocError::MultiDisc
+            | TocError::MultipleDiscs
             | TocError::InfoMismatch { .. }
             | TocError::InconsistentSessionInfo
             | TocError::LeadoutMismatch { .. }
             | TocError::NotFound => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            TocError::NotFound => {
+                request.provide_value(io::ErrorKind::NotFound);
+            }
+            TocError::CdToc(_)
+            | TocError::InconsistentSessionInfo
+            | TocError::InfoMismatch { .. }
+            | TocError::InvalidInfoEntry(_)
+            | TocError::InvalidLeadoutEntry(_)
+            | TocError::InvalidOrder(_)
+            | TocError::InvalidTrackEntry(_)
+            | TocError::InvalidTrackNo(_)
+            | TocError::LeadoutMismatch { .. }
+            | TocError::MultipleDiscs => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
         }
     }
 }
@@ -152,7 +172,9 @@ impl Display for InvalidTrackNo {
     }
 }
 
-impl Error for InvalidTrackNo {}
+impl Error for InvalidTrackNo {
+    // Does not `provide` io::ErrorKind: context dependent InvalidData / InvalidInput
+}
 
 impl RedbookError for InvalidTrackNo {
     fn fallback_io_errorkind(&self) -> io::ErrorKind {
@@ -232,7 +254,7 @@ mod tests {
             "invalid track number: 0x0064"
         );
         assert_eq!(
-            TocError::MultiDisc.to_string(),
+            TocError::MultipleDiscs.to_string(),
             "TOC entries appear to be from multiple discs"
         );
     }

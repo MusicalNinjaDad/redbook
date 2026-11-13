@@ -1510,7 +1510,7 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
         (!entries.is_empty()).ok_or(TocError::NotFound)?;
 
         // INVARIANT: all tracks are expected to be sorted
-        entries.try_sort().map_err(|_| TocError::MultiDisc)?;
+        entries.try_sort().map_err(|_| TocError::MultipleDiscs)?;
 
         if let Some(first_audio_info) = entries
             .iter()

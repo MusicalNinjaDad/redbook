@@ -28,7 +28,7 @@
 //!    wrap self as a source, and how to handle errors which originate from an io::Error further
 //!    down the stack.
 use std::{
-    error::{Error as StdError, Report},
+    error::{Error as StdError, Report, request_value},
     fmt::{self, Debug, Display},
     io::{self, RawOsError},
 };
@@ -118,6 +118,18 @@ impl StdError for Error {
             Error::DeviceError(error) => Some(error),
             Error::Other(error) => Some(&**error),
             Error::ThreadCancellation => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            Error::Other(_) => {
+                request.provide_value(io::ErrorKind::Other);
+            }
+            Error::ThreadCancellation => {
+                request.provide_value(io::ErrorKind::Interrupted);
+            }
+            _ => (),
         }
     }
 }
@@ -318,7 +330,11 @@ pub trait RedbookError: C_GOOD_ERROR + Sized {
         let kind = self
             .underlying::<io::Error>()
             .map(io::Error::kind)
-            .unwrap_or_else(|| RedbookError::fallback_io_errorkind(&self));
+            .or_else(|| {
+                let e = &self as &dyn StdError;
+                e.sources().flat_map(request_value::<io::ErrorKind>).last()
+            })
+            .unwrap_or(io::ErrorKind::Other);
         io::Error::new(kind, self)
     }
 
@@ -333,80 +349,50 @@ impl RedbookError for Error {}
 
 #[cfg(test)]
 mod tests {
+    use crate::{TrackNo, toc::InvalidTrackNo};
+
     use super::*;
 
-    // MV: Pointless - compile-time guarantee via trait bounds
     #[test]
-    fn error_is_send_sync_static() {
-        fn assert_traits<T: StdError + Send + Sync + 'static>() {}
-        assert_traits::<Error>();
+    fn underlying_messages() {
+        let error = TrackNo::new(100)
+            .map_err(TocError::from)
+            .map_err(Error::from)
+            .unwrap_err();
+        assert_eq!(error.to_string(), "TOC error");
+
+        let tocerror = error.underlying::<TocError>().unwrap();
+        assert_eq!(tocerror.to_string(), "invalid track number in TOC");
+
+        let invalid_trackno = error.underlying::<InvalidTrackNo>().unwrap();
+        assert_eq!(invalid_trackno.to_string(), "invalid track number: 0x0064");
+
+        assert_eq!(
+            error.full_message().to_string(),
+            "TOC error: invalid track number in TOC: invalid track number: 0x0064"
+        );
     }
 
-    /// MV: coupled. Doesn't catch new errors which don't implement. Either replace with
-    /// programatic identification of all errors (there's a crate that adds an variants-iterator
-    /// derive to enums, used in build_safely; but I don't think that would help much here),
-    /// or remove as it just adds coupling and noise
     #[test]
-    fn all_tree_error_types_implement_redbook_error() {
-        fn assert_redbook<T: RedbookError>() {}
-        assert_redbook::<Error>();
-        assert_redbook::<DeviceError>();
-        assert_redbook::<DriveError>();
-        assert_redbook::<InvalidBufferSize>();
-        assert_redbook::<TocError>();
-        assert_redbook::<crate::toc::error::InvalidTrackNo>();
-        assert_redbook::<InvalidOrder>();
-        assert_redbook::<DiscError>();
-        assert_redbook::<TocMismatch>();
-        assert_redbook::<TaggingError>();
-        assert_redbook::<UnknownMimeType>();
-        assert_redbook::<IoError>();
-        assert_redbook::<EncodingError>();
-        assert_redbook::<FlacError>();
-        assert_redbook::<crate::win::CdaError>();
-        assert_redbook::<InvalidByteSize>();
-        assert_redbook::<crate::frame::InvalidFrame>();
-        assert_redbook::<crate::hex::ParseHexError>();
-    }
+    fn io_error() {
+        let error = TrackNo::new(100)
+            .map_err(TocError::from)
+            .map_err(Error::from)
+            .unwrap_err();
 
-    /// MV: what's the point? Doesn't catch gaps in From, just checks a random sample? Remove or
-    /// explain value
-    #[test]
-    fn subtree_errors_upconvert_via_from() {
-        // grandchild of Error via DeviceError
-        let error = Error::from(InvalidBufferSize::TooSmall {
-            provided: 1,
-            required: 2,
-        });
-        assert!(matches!(
-            error,
-            Error::DeviceError(DeviceError::InvalidBufferSize(
-                InvalidBufferSize::TooSmall { .. }
-            ))
-        ));
-        // great-grandchild of Error: the same impl works verbatim
-        let error = Error::from(InvalidByteSize::new(u64::MAX));
-        assert!(matches!(
-            error,
-            Error::DeviceError(DeviceError::InvalidBufferSize(
-                InvalidBufferSize::InvalidByteSize(_)
-            ))
-        ));
-        // grandchild of Error via TocError
-        let error = Error::from(cdtoc::TocError::NoAudio);
-        assert!(matches!(error, Error::TocError(TocError::CdToc(_))));
-        // great-grandchild of Error via DiscError
-        let error = Error::from(UnknownMimeType::from("application/x-unknown"));
-        assert!(matches!(
-            error,
-            Error::DiscError(DiscError::TaggingError(TaggingError::UnknownMimeType(_)))
-        ));
-        // grandchild of Error via EncodingError
-        let error = Error::from(FlacError::InvalidData("boom".to_string()));
-        assert!(matches!(
-            error,
-            Error::EncodingError(EncodingError::FlacError(FlacError::InvalidData(_)))
-        ));
+        assert!(error.underlying::<io::Error>().is_none());
+        assert!(error.raw_os_error().is_none());
+
+        let io_error = error.into_io_error();
+
+        assert_eq!(io_error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(io_error.to_string(), "TOC error");
+
+        let redbook_error = io_error.downcast::<Error>().unwrap();
+        assert_eq!(
+            redbook_error.full_message().to_string(),
+            "TOC error: invalid track number in TOC: invalid track number: 0x0064"
+        );
     }
 
     #[test]
@@ -462,7 +448,7 @@ mod tests {
         assert_eq!(io_error.to_string(), "other error");
     }
 
-    /// MV: Random sample - remove
+    /// MV: Random sample - remove.  This test is broken and in the process of being replaced.
     #[test]
     fn into_io_error_uses_better_kind_than_other_where_defined() {
         use crate::toc::TocError;
@@ -492,7 +478,7 @@ mod tests {
         );
     }
 
-    /// MV: rstest
+    /// Note: rstest? This test is broken and in the process of being replaced
     #[test]
     fn into_io_error_preserves_kind_of_underlying_io_error() {
         // an io::Error anywhere in the source chain wins over the per-type fallback kind
