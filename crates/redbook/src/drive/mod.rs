@@ -113,7 +113,7 @@ pub trait Drive: Sized {
 
         dbg_span.record("track_details", format_args!("{track}"));
 
-        let track_size = track.duration.size();
+        let track_size = track.duration().size();
 
         (track_size > ByteSize::ZERO)
             .ok_or(DriveError::ZeroLengthTrack)
@@ -132,12 +132,11 @@ pub trait Drive: Sized {
                 .reply(RipProgress {
                     track_number,
                     processed: frames_read_so_far,
-                    total: track.duration,
+                    total: track.duration(),
                 })
                 .or_error("sending progress update")?;
 
             let start = track
-                .toc_entry
                 .start()
                 .try_add(frames_read_so_far)
                 .or_error("calculating starting frame for next chunk")?;
@@ -163,12 +162,11 @@ pub trait Drive: Sized {
                 .reply(RipProgress {
                     track_number,
                     processed: frames_read_so_far,
-                    total: track.duration,
+                    total: track.duration(),
                 })
                 .or_error("sending progress update")?;
 
             let start = track
-                .toc_entry
                 .start()
                 .try_add(frames_read_so_far)
                 .or_error("calculating starting from for last chunk")?;
@@ -181,16 +179,18 @@ pub trait Drive: Sized {
             trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
         }
 
-        (frames_read_so_far == track.duration).ok_or_else(|| DeviceError::UnexpectedEndOfRead {
-            expected: track.duration.cast(),
-            received: frames_read_so_far.cast(),
+        (frames_read_so_far == track.duration()).ok_or_else(|| {
+            DeviceError::UnexpectedEndOfRead {
+                expected: track.duration().cast(),
+                received: frames_read_so_far.cast(),
+            }
         })?;
 
         self.cx()
             .reply(RipProgress {
                 track_number,
                 processed: frames_read_so_far,
-                total: track.duration,
+                total: track.duration(),
             })
             .or_error("sending progress update")?;
 

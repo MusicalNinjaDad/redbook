@@ -1,3 +1,4 @@
+#![expect(missing_docs, reason = "TODO")]
 //! Provides [`Track`] & associated types
 
 use std::fmt::Display;
@@ -7,7 +8,8 @@ use metaflac::block::{Picture, VorbisComment};
 
 use crate::{
     Frame,
-    toc::{Control, TrackEntry, TrackNo},
+    frame::Msf,
+    toc::{TrackEntry, TrackNo},
 };
 
 pub use error::EncodingError;
@@ -24,10 +26,10 @@ pub mod error;
 ///
 /// - Typically constructed as `<'static>` and then cloned when referencing metadata
 pub struct Track<'meta> {
-    /// TOC entry for this track, containing track number and start position.
-    pub toc_entry: TrackEntry,
+    trackno: TrackNo,
+    start: Frame,
     /// Duration of this track in frames.
-    pub duration: Frame,
+    duration: Frame,
     /// Optional reference to MusicBrainz track metadata.
     pub(crate) meta: Option<&'meta musicbrainz_rs::entity::release::Track>,
 }
@@ -36,8 +38,9 @@ impl<'meta> Display for Track<'meta> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{toc}, duration: {dur}, has metadata: {meta}",
-            toc = self.toc_entry,
+            "track: {trackno}, start: {start}, duration: {dur}, has metadata: {meta}",
+            trackno = self.trackno,
+            start = self.start,
             dur = self.duration,
             meta = self.meta.is_some()
         )
@@ -51,9 +54,10 @@ impl Track<'static> {
     /// - `track_number` needs no validation: a [`TrackNo`] is always a valid track number
     ///   (1..=99). "Special" POINT values (e.g. 0xA0..=0xA2, 0xAA) are
     ///   [`Point`][crate::toc::Point]s, not track numbers
-    pub fn new(track_number: TrackNo, start: Frame, duration: Frame) -> Self {
+    pub fn new(trackno: TrackNo, start: Frame, duration: Frame) -> Self {
         Self {
-            toc_entry: TrackEntry::new(track_number, start, Control::default(), None),
+            trackno,
+            start,
             duration,
             meta: None,
         }
@@ -63,7 +67,15 @@ impl Track<'static> {
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
     pub fn track_number(&self) -> TrackNo {
-        self.toc_entry.trackno()
+        self.trackno
+    }
+
+    pub fn start(&self) -> Frame {
+        self.start
+    }
+
+    pub fn duration(&self) -> Frame {
+        self.duration
     }
 
     /// Returns the track title from MusicBrainz metadata, if available.
@@ -90,7 +102,7 @@ impl<'meta> Track<'meta> {
                     _ => trk_num,
                 }
             })
-            .unwrap_or_else(|| format!("{:02}", self.toc_entry.trackno()));
+            .unwrap_or_else(|| format!("{:02}", self.trackno));
         [track_num, self.title().unwrap_or_default()].join(" ")
     }
 
@@ -100,9 +112,19 @@ impl<'meta> Track<'meta> {
     }
 }
 
+impl PartialEq<TrackEntry> for Track<'_> {
+    fn eq(&self, track_entry: &TrackEntry) -> bool {
+        track_entry.is_audio_track()
+            && (self.trackno == track_entry.trackno())
+            && (self.start == track_entry.start())
+    }
+}
+
 impl PartialEq<cdtoc::Track> for Track<'_> {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (&self.toc_entry == toc_track) && (self.duration == toc_track.duration())
+        (self.trackno.cast::<u8>() == toc_track.number())
+            && (Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf))
+            && (self.duration == toc_track.duration())
     }
 }
 

@@ -239,8 +239,8 @@ mod tests {
                 TrackNo::checked_new(cda.track_number),
                 Some(track.track_number())
             );
-            assert_eq!(cda.start, track.toc_entry.start());
-            assert_eq!(cda.duration, track.duration);
+            assert_eq!(cda.start, track.start());
+            assert_eq!(cda.duration, track.duration());
             assert_matches!(Track::try_from(cda), Ok(_));
             // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);

@@ -576,6 +576,14 @@ impl PartialOrd for TrackEntry {
     }
 }
 
+impl PartialEq<Track<'_>> for TrackEntry {
+    fn eq(&self, track: &Track<'_>) -> bool {
+        self.is_audio_track()
+            && (self.track == track.track_number())
+            && (self.start == track.start())
+    }
+}
+
 /// Entry in a CD TOC (Table of Contents) for the lead-out.
 ///
 /// The lead-out marks the end of a session. It has no track number, only an absolute start
@@ -1455,7 +1463,7 @@ where
     fn eq(&self, tracks: &V) -> bool {
         for pair in self.iter().zip_longest(tracks) {
             match pair {
-                EitherOrBoth::Both(TocEntry::Track(entry), track) if entry == &track.toc_entry => {}
+                EitherOrBoth::Both(TocEntry::Track(entry), track) if entry == track => {}
                 _ => {
                     cold_path();
                     return false;
