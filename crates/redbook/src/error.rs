@@ -311,13 +311,6 @@ pub trait RedbookError: C_GOOD_ERROR + Sized {
             .and_then(|error| error.raw_os_error())
     }
 
-    /// TODO better docs here & update into_io_error
-    ///
-    /// Override this to provide custom logic for into_io_error. Don't override into_io_error
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::Other
-    }
-
     /// Convert into an [`io::Error`], wrapping `self` as the payload so the full typed error
     /// tree remains reachable via downcast and [`StdError::source`].
     ///
