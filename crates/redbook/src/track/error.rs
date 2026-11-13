@@ -25,13 +25,7 @@ pub enum EncodingError {
     FlacError(FlacError),
 }
 
-impl RedbookError for EncodingError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        // encoding failures are data failures; an underlying io::Error (e.g. from the output
-        // sink) keeps its own kind via the default `into_io_error`
-        io::ErrorKind::InvalidData
-    }
-}
+impl RedbookError for EncodingError {}
 
 impl Display for EncodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -50,6 +44,17 @@ impl Error for EncodingError {
         match self {
             EncodingError::FlacError(error) => Some(error),
             EncodingError::InvalidData(_) => None,
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            EncodingError::InvalidData(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            EncodingError::FlacError(_) => {
+                // delegate
+            }
         }
     }
 }
@@ -112,6 +117,26 @@ impl Error for FlacError {
             FlacError::InvalidData(_) => None,
         }
     }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            FlacError::InvalidEncoder(_) => {
+                request.provide_value(io::ErrorKind::Other);
+            }
+            FlacError::InvalidData(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            FlacError::OutputError(output_error) => match &output_error {
+                flacenc::error::OutputError::Range(_) => {
+                    request.provide_value(io::ErrorKind::InvalidData);
+                }
+                flacenc::error::OutputError::Sink(infallible) => match *infallible {},
+                _ => {
+                    // non-exhaustive. Nothing is better than wrong...
+                }
+            },
+        }
+    }
 }
 
 impl Display for FlacError {
@@ -158,11 +183,7 @@ impl From<flacenc::error::OutputError<ByteSink>> for FlacError {
     }
 }
 
-impl RedbookError for FlacError {
-    fn fallback_io_errorkind(&self) -> io::ErrorKind {
-        io::ErrorKind::InvalidData
-    }
-}
+impl RedbookError for FlacError {}
 
 #[cfg(test)]
 mod tests {
