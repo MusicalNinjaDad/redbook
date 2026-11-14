@@ -1,4 +1,3 @@
-#![expect(missing_docs, reason = "needs update")]
 //! Test fixtures for album data
 
 use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
@@ -6,12 +5,8 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries, Track,
-    error::RedbookError,
-    frame::Msf,
-    tagging::PictureExt,
-    test_fixtures::track_descriptor::RawTocDescriptors,
-    toc::{Control, TrackEntry, TrackNo},
+    Frame, LEADIN, TocEntries, Track, error::RedbookError, frame::Msf, tagging::PictureExt,
+    test_fixtures::track_descriptor::RawTocDescriptors, toc::TrackNo,
 };
 
 /// Test album identifier for parameterized tests
@@ -86,15 +81,18 @@ impl TestAlbum {
         }
     }
 
-    /// Load and parse the TOC.hex file
-    pub fn expected_toc(&self) -> cdtoc::Toc {
-        let path = self.toc_path();
-        let toc_dump = super::load_hex_file(&path);
+    /// Load and parse the TOC.hex file (READ TOC format 0b0010) as full [`TocEntries`]
+    pub fn expected_toc_entries_b0010(&self) -> TocEntries {
+        let toc_dump = super::load_hex_file(&self.toc_path());
         RawTocDescriptors::new(toc_dump)
             .and_then(TocEntries::try_from)
-            .and_then(|entries| {
-                cdtoc::Toc::try_from(entries).map_err(|error| error.into_io_error())
-            })
+            .unwrap()
+    }
+
+    /// Load and parse the TOC.hex file
+    pub fn expected_toc(&self) -> cdtoc::Toc {
+        cdtoc::Toc::try_from(self.expected_toc_entries_b0010())
+            .map_err(|error| error.into_io_error())
             .unwrap()
     }
 
@@ -131,332 +129,163 @@ impl TestAlbum {
         }
     }
 
-    /// Get just the TocEntry values for comparison with iter_audio()
-    pub fn expected_audio_toc_entries(&self) -> Vec<TrackEntry> {
-        self.expected_audio_tracks_minimal()
-            .into_iter()
-            .map(|track| track.toc_entry)
-            .collect()
-    }
-
     /// Expected tracks as Track objects (without metadata)
     pub fn expected_audio_tracks_minimal(&self) -> Vec<Track<'static>> {
-        match self {
+        let track_data: Vec<(u8, Msf, Frame)> = match self {
             TestAlbum::DefinitelyMaybe => vec![
-                Track {
-                    toc_entry: track_entry_unchecked(1, 0x00, 0x02, 0x21),
-                    duration: Frame::strict_new(24242_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(2, 0x05, 0x19, 0x32),
-                    duration: Frame::strict_new(23138_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(3, 0x0A, 0x22, 0x0D),
-                    duration: Frame::strict_new(20762_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(4, 0x0F, 0x0B, 0x00),
-                    duration: Frame::strict_new(20168_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(5, 0x13, 0x27, 0x44),
-                    duration: Frame::strict_new(28272_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(6, 0x19, 0x38, 0x41),
-                    duration: Frame::strict_new(21280_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(7, 0x1E, 0x28, 0x2D),
-                    duration: Frame::strict_new(19338_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(8, 0x22, 0x3A, 0x21),
-                    duration: Frame::strict_new(21700_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(9, 0x27, 0x2F, 0x3A),
-                    duration: Frame::strict_new(11425_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(10, 0x2A, 0x14, 0x08),
-                    duration: Frame::strict_new(29455_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(11, 0x30, 0x34, 0x3F),
-                    duration: Frame::strict_new(14440_u32),
-                    meta: None,
-                },
+                (1, Msf::new(0x00, 0x02, 0x21), Frame::strict_new(24242_u32)),
+                (2, Msf::new(0x05, 0x19, 0x32), Frame::strict_new(23138_u32)),
+                (3, Msf::new(0x0A, 0x22, 0x0D), Frame::strict_new(20762_u32)),
+                (4, Msf::new(0x0F, 0x0B, 0x00), Frame::strict_new(20168_u32)),
+                (5, Msf::new(0x13, 0x27, 0x44), Frame::strict_new(28272_u32)),
+                (6, Msf::new(0x19, 0x38, 0x41), Frame::strict_new(21280_u32)),
+                (7, Msf::new(0x1E, 0x28, 0x2D), Frame::strict_new(19338_u32)),
+                (8, Msf::new(0x22, 0x3A, 0x21), Frame::strict_new(21700_u32)),
+                (9, Msf::new(0x27, 0x2F, 0x3A), Frame::strict_new(11425_u32)),
+                (10, Msf::new(0x2A, 0x14, 0x08), Frame::strict_new(29455_u32)),
+                (11, Msf::new(0x30, 0x34, 0x3F), Frame::strict_new(14440_u32)),
             ],
             TestAlbum::TheWallDisc1 => vec![
-                Track {
-                    toc_entry: track_entry_unchecked(1, 0x00, 0x02, 0x00),
-                    duration: Frame::strict_new(14967_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(2, 0x03, 0x15, 0x2A),
-                    duration: Frame::strict_new(11240_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(3, 0x05, 0x33, 0x20),
-                    duration: Frame::strict_new(14248_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(4, 0x09, 0x01, 0x1E),
-                    duration: Frame::strict_new(8287_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(5, 0x0A, 0x33, 0x43),
-                    duration: Frame::strict_new(17960_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(6, 0x0E, 0x33, 0x1B),
-                    duration: Frame::strict_new(25040_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(7, 0x14, 0x19, 0x11),
-                    duration: Frame::strict_new(12568_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(8, 0x17, 0x0C, 0x3C),
-                    duration: Frame::strict_new(9625_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(9, 0x19, 0x15, 0x0A),
-                    duration: Frame::strict_new(15832_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(10, 0x1C, 0x34, 0x11),
-                    duration: Frame::strict_new(16240_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(11, 0x20, 0x1C, 0x39),
-                    duration: Frame::strict_new(19230_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(12, 0x24, 0x2D, 0x0C),
-                    duration: Frame::strict_new(5603_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(13, 0x25, 0x3B, 0x41),
-                    duration: Frame::strict_new(5570_u32),
-                    meta: None,
-                },
+                (1, Msf::new(0x00, 0x02, 0x00), Frame::strict_new(14967_u32)),
+                (2, Msf::new(0x03, 0x15, 0x2A), Frame::strict_new(11240_u32)),
+                (3, Msf::new(0x05, 0x33, 0x20), Frame::strict_new(14248_u32)),
+                (4, Msf::new(0x09, 0x01, 0x1E), Frame::strict_new(8287_u32)),
+                (5, Msf::new(0x0A, 0x33, 0x43), Frame::strict_new(17960_u32)),
+                (6, Msf::new(0x0E, 0x33, 0x1B), Frame::strict_new(25040_u32)),
+                (7, Msf::new(0x14, 0x19, 0x11), Frame::strict_new(12568_u32)),
+                (8, Msf::new(0x17, 0x0C, 0x3C), Frame::strict_new(9625_u32)),
+                (9, Msf::new(0x19, 0x15, 0x0A), Frame::strict_new(15832_u32)),
+                (10, Msf::new(0x1C, 0x34, 0x11), Frame::strict_new(16240_u32)),
+                (11, Msf::new(0x20, 0x1C, 0x39), Frame::strict_new(19230_u32)),
+                (12, Msf::new(0x24, 0x2D, 0x0C), Frame::strict_new(5603_u32)),
+                (13, Msf::new(0x25, 0x3B, 0x41), Frame::strict_new(5570_u32)),
             ],
             TestAlbum::TheWallDisc2 => vec![
-                Track {
-                    toc_entry: track_entry_unchecked(1, 0x00, 0x02, 0x00),
-                    duration: Frame::strict_new(21115_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(2, 0x04, 0x2B, 0x28),
-                    duration: Frame::strict_new(12020_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(3, 0x07, 0x17, 0x3C),
-                    duration: Frame::strict_new(15340_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(4, 0x0A, 0x30, 0x19),
-                    duration: Frame::strict_new(6980_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(5, 0x0C, 0x15, 0x1E),
-                    duration: Frame::strict_new(6537_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(6, 0x0D, 0x30, 0x2A),
-                    duration: Frame::strict_new(28628_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(7, 0x14, 0x0A, 0x14),
-                    duration: Frame::strict_new(7210_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(8, 0x15, 0x2E, 0x1E),
-                    duration: Frame::strict_new(19255_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(9, 0x1A, 0x03, 0x0A),
-                    duration: Frame::strict_new(19780_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(10, 0x1E, 0x1A, 0x41),
-                    duration: Frame::strict_new(17877_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(11, 0x22, 0x19, 0x11),
-                    duration: Frame::strict_new(2268_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(12, 0x22, 0x37, 0x23),
-                    duration: Frame::strict_new(23980_u32),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(13, 0x28, 0x0F, 0x0F),
-                    duration: Frame::strict_new(7735_u32),
-                    meta: None,
-                },
+                (1, Msf::new(0x00, 0x02, 0x00), Frame::strict_new(21115_u32)),
+                (2, Msf::new(0x04, 0x2B, 0x28), Frame::strict_new(12020_u32)),
+                (3, Msf::new(0x07, 0x17, 0x3C), Frame::strict_new(15340_u32)),
+                (4, Msf::new(0x0A, 0x30, 0x19), Frame::strict_new(6980_u32)),
+                (5, Msf::new(0x0C, 0x15, 0x1E), Frame::strict_new(6537_u32)),
+                (6, Msf::new(0x0D, 0x30, 0x2A), Frame::strict_new(28628_u32)),
+                (7, Msf::new(0x14, 0x0A, 0x14), Frame::strict_new(7210_u32)),
+                (8, Msf::new(0x15, 0x2E, 0x1E), Frame::strict_new(19255_u32)),
+                (9, Msf::new(0x1A, 0x03, 0x0A), Frame::strict_new(19780_u32)),
+                (10, Msf::new(0x1E, 0x1A, 0x41), Frame::strict_new(17877_u32)),
+                (11, Msf::new(0x22, 0x19, 0x11), Frame::strict_new(2268_u32)),
+                (12, Msf::new(0x22, 0x37, 0x23), Frame::strict_new(23980_u32)),
+                (13, Msf::new(0x28, 0x0F, 0x0F), Frame::strict_new(7735_u32)),
             ],
             TestAlbum::BatOutOfHellRevamped => vec![
-                Track {
-                    toc_entry: track_entry_unchecked(1, 0x00, 0x02, 0x00),
-                    duration: Frame::from(Msf::new(0x09, 0x34, 0x16))
-                        .strict_sub(Msf::new(0x00, 0x02, 0x00)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(2, 0x09, 0x34, 0x16),
-                    duration: Frame::from(Msf::new(0x0e, 0x38, 0x34))
-                        .strict_sub(Msf::new(0x09, 0x34, 0x16)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(3, 0x0e, 0x38, 0x34),
-                    duration: Frame::from(Msf::new(0x13, 0x25, 0x19))
-                        .strict_sub(Msf::new(0x0e, 0x38, 0x34)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(4, 0x13, 0x25, 0x19),
-                    duration: Frame::from(Msf::new(0x17, 0x39, 0x00))
-                        .strict_sub(Msf::new(0x13, 0x25, 0x19)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(5, 0x17, 0x39, 0x00),
-                    duration: Frame::from(Msf::new(0x1D, 0x16, 0x0A))
-                        .strict_sub(Msf::new(0x17, 0x39, 0x00)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(6, 0x1D, 0x16, 0x0A),
-                    duration: Frame::from(Msf::new(0x25, 0x32, 0x05))
-                        .strict_sub(Msf::new(0x1D, 0x16, 0x0A)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(7, 0x25, 0x32, 0x05),
-                    duration: Frame::from(Msf::new(0x2e, 0x21, 0x19))
-                        .strict_sub(Msf::new(0x25, 0x32, 0x05)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(8, 0x2e, 0x21, 0x19),
-                    duration: Frame::from(Msf::new(0x32, 0x39, 0x07))
-                        .strict_sub(Msf::new(0x2e, 0x21, 0x19)),
-                    meta: None,
-                },
+                (
+                    1,
+                    Msf::new(0x00, 0x02, 0x00),
+                    Frame::from(Msf::new(0x09, 0x34, 0x16)).strict_sub(Msf::new(0x00, 0x02, 0x00)),
+                ),
+                (
+                    2,
+                    Msf::new(0x09, 0x34, 0x16),
+                    Frame::from(Msf::new(0x0e, 0x38, 0x34)).strict_sub(Msf::new(0x09, 0x34, 0x16)),
+                ),
+                (
+                    3,
+                    Msf::new(0x0e, 0x38, 0x34),
+                    Frame::from(Msf::new(0x13, 0x25, 0x19)).strict_sub(Msf::new(0x0e, 0x38, 0x34)),
+                ),
+                (
+                    4,
+                    Msf::new(0x13, 0x25, 0x19),
+                    Frame::from(Msf::new(0x17, 0x39, 0x00)).strict_sub(Msf::new(0x13, 0x25, 0x19)),
+                ),
+                (
+                    5,
+                    Msf::new(0x17, 0x39, 0x00),
+                    Frame::from(Msf::new(0x1D, 0x16, 0x0A)).strict_sub(Msf::new(0x17, 0x39, 0x00)),
+                ),
+                (
+                    6,
+                    Msf::new(0x1D, 0x16, 0x0A),
+                    Frame::from(Msf::new(0x25, 0x32, 0x05)).strict_sub(Msf::new(0x1D, 0x16, 0x0A)),
+                ),
+                (
+                    7,
+                    Msf::new(0x25, 0x32, 0x05),
+                    Frame::from(Msf::new(0x2e, 0x21, 0x19)).strict_sub(Msf::new(0x25, 0x32, 0x05)),
+                ),
+                (
+                    8,
+                    Msf::new(0x2e, 0x21, 0x19),
+                    Frame::from(Msf::new(0x32, 0x39, 0x07)).strict_sub(Msf::new(0x2e, 0x21, 0x19)),
+                ),
             ],
             TestAlbum::TheBoyWhoKnewTooMuch => vec![
-                Track {
-                    toc_entry: track_entry_unchecked(0x01, 0x00, 0x02, 0x00),
-                    duration: Frame::from(Msf::new(0x04, 0x00, 0x07))
-                        .strict_sub(Msf::new(0x00, 0x02, 0x00)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x02, 0x04, 0x00, 0x07),
-                    duration: Frame::from(Msf::new(0x07, 0x22, 0x2B))
-                        .strict_sub(Msf::new(0x04, 0x00, 0x07)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x03, 0x07, 0x22, 0x2B),
-                    duration: Frame::from(Msf::new(0x0B, 0x12, 0x18))
-                        .strict_sub(Msf::new(0x07, 0x22, 0x2B)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x04, 0x0B, 0x12, 0x18),
-                    duration: Frame::from(Msf::new(0x0F, 0x02, 0x1E))
-                        .strict_sub(Msf::new(0x0B, 0x12, 0x18)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x05, 0x0F, 0x02, 0x1E),
-                    duration: Frame::from(Msf::new(0x13, 0x12, 0x44))
-                        .strict_sub(Msf::new(0x0F, 0x02, 0x1E)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x06, 0x13, 0x12, 0x44),
-                    duration: Frame::from(Msf::new(0x16, 0x09, 0x0D))
-                        .strict_sub(Msf::new(0x13, 0x12, 0x44)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x07, 0x16, 0x09, 0x0D),
-                    duration: Frame::from(Msf::new(0x19, 0x0B, 0x07))
-                        .strict_sub(Msf::new(0x16, 0x09, 0x0D)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x08, 0x19, 0x0B, 0x07),
-                    duration: Frame::from(Msf::new(0x1C, 0x1F, 0x06))
-                        .strict_sub(Msf::new(0x19, 0x0B, 0x07)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x09, 0x1C, 0x1F, 0x06),
-                    duration: Frame::from(Msf::new(0x1F, 0x34, 0x15))
-                        .strict_sub(Msf::new(0x1C, 0x1F, 0x06)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x0A, 0x1F, 0x34, 0x15),
-                    duration: Frame::from(Msf::new(0x22, 0x33, 0x02))
-                        .strict_sub(Msf::new(0x1F, 0x34, 0x15)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x0B, 0x22, 0x33, 0x02),
-                    duration: Frame::from(Msf::new(0x25, 0x31, 0x05))
-                        .strict_sub(Msf::new(0x22, 0x33, 0x02)),
-                    meta: None,
-                },
-                Track {
-                    toc_entry: track_entry_unchecked(0x0C, 0x25, 0x31, 0x05),
-                    duration: Frame::strict_new(15221_u32),
-                    meta: None,
-                },
+                (
+                    0x01,
+                    Msf::new(0x00, 0x02, 0x00),
+                    Frame::from(Msf::new(0x04, 0x00, 0x07)).strict_sub(Msf::new(0x00, 0x02, 0x00)),
+                ),
+                (
+                    0x02,
+                    Msf::new(0x04, 0x00, 0x07),
+                    Frame::from(Msf::new(0x07, 0x22, 0x2B)).strict_sub(Msf::new(0x04, 0x00, 0x07)),
+                ),
+                (
+                    0x03,
+                    Msf::new(0x07, 0x22, 0x2B),
+                    Frame::from(Msf::new(0x0B, 0x12, 0x18)).strict_sub(Msf::new(0x07, 0x22, 0x2B)),
+                ),
+                (
+                    0x04,
+                    Msf::new(0x0B, 0x12, 0x18),
+                    Frame::from(Msf::new(0x0F, 0x02, 0x1E)).strict_sub(Msf::new(0x0B, 0x12, 0x18)),
+                ),
+                (
+                    0x05,
+                    Msf::new(0x0F, 0x02, 0x1E),
+                    Frame::from(Msf::new(0x13, 0x12, 0x44)).strict_sub(Msf::new(0x0F, 0x02, 0x1E)),
+                ),
+                (
+                    0x06,
+                    Msf::new(0x13, 0x12, 0x44),
+                    Frame::from(Msf::new(0x16, 0x09, 0x0D)).strict_sub(Msf::new(0x13, 0x12, 0x44)),
+                ),
+                (
+                    0x07,
+                    Msf::new(0x16, 0x09, 0x0D),
+                    Frame::from(Msf::new(0x19, 0x0B, 0x07)).strict_sub(Msf::new(0x16, 0x09, 0x0D)),
+                ),
+                (
+                    0x08,
+                    Msf::new(0x19, 0x0B, 0x07),
+                    Frame::from(Msf::new(0x1C, 0x1F, 0x06)).strict_sub(Msf::new(0x19, 0x0B, 0x07)),
+                ),
+                (
+                    0x09,
+                    Msf::new(0x1C, 0x1F, 0x06),
+                    Frame::from(Msf::new(0x1F, 0x34, 0x15)).strict_sub(Msf::new(0x1C, 0x1F, 0x06)),
+                ),
+                (
+                    0x0A,
+                    Msf::new(0x1F, 0x34, 0x15),
+                    Frame::from(Msf::new(0x22, 0x33, 0x02)).strict_sub(Msf::new(0x1F, 0x34, 0x15)),
+                ),
+                (
+                    0x0B,
+                    Msf::new(0x22, 0x33, 0x02),
+                    Frame::from(Msf::new(0x25, 0x31, 0x05)).strict_sub(Msf::new(0x22, 0x33, 0x02)),
+                ),
+                (
+                    0x0C,
+                    Msf::new(0x25, 0x31, 0x05),
+                    Frame::strict_new(15221_u32),
+                ),
             ],
-        }
+        };
+        track_data
+            .into_iter()
+            .map(|(trackno, start, duration)| {
+                Track::new(TrackNo::strict_new(trackno), Frame::from(start), duration)
+            })
+            .collect()
     }
 
     /// Load musicbrainz data from the musicbrainz.json file for this album
@@ -580,15 +409,4 @@ impl TestAlbum {
             TestAlbum::TheBoyWhoKnewTooMuch => Some(0),
         }
     }
-}
-
-/// Build a [`TrackEntry`] for fixture data directly from raw TOC values (default control
-/// codes, no session info)
-fn track_entry_unchecked(track: u8, min: u8, sec: u8, frames: u8) -> TrackEntry {
-    TrackEntry::new(
-        TrackNo::strict_new(track),
-        Frame::from(Msf::new(min, sec, frames)),
-        Control::default(),
-        None,
-    )
 }

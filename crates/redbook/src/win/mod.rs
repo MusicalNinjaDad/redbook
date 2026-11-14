@@ -14,6 +14,15 @@ pub mod error;
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod sys;
 
+/// Test fixtures bridging [`TestAlbum`][crate::test_fixtures::albums::TestAlbum] assets and the
+/// Windows `CDROM_TOC` ffi struct.
+///
+/// Compiled under the same conditions as [`sys::mocks`], which relies on
+/// `From<TestAlbum> for CDROM_TOC`.
+#[forbid(unsafe_code)]
+#[doc(hidden)]
+pub mod test_fixtures;
+
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///
 /// See https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
