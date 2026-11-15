@@ -321,6 +321,8 @@ pub mod error;
 #[forbid(unsafe_code)]
 pub mod ripped_track;
 
+pub mod sys;
+
 #[forbid(unsafe_code)]
 #[doc(hidden)]
 pub mod test_fixtures;
