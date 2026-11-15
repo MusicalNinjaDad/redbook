@@ -296,11 +296,13 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use error::{Error, Result};
 #[doc(inline)]
+pub use ripped_track::RippedTrack;
+#[doc(inline)]
 pub use toc::frame::{self, Frame};
 #[doc(inline)]
 pub use toc::{Point, TocEntries, TrackNo};
 #[doc(inline)]
-pub use track::{EncodingError, RippedTrack, Track};
+pub use track::{EncodingError, Track};
 
 use crate::{toc::frame::ByteSize, win::DriveHandle};
 
@@ -315,6 +317,9 @@ pub mod drive;
 
 #[forbid(unsafe_code)]
 pub mod error;
+
+#[forbid(unsafe_code)]
+pub mod ripped_track;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
