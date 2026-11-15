@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-use super::{
+use super::bindings::{
     BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
     DIGCF_PRESENT, DUPLICATE_SAME_ACCESS, DeviceIoControl, DuplicateHandle,
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,

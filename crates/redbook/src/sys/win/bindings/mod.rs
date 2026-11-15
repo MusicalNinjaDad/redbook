@@ -1,23 +1,23 @@
 #[cfg(all(windows, not(any(test, doc))))]
-use bindgen::{
+pub(super) use bindgen::{
     CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInterfaceDetailW,
 };
 
 #[cfg(any(test, doc, not(windows)))]
-use mocks::{
+pub(super) use mocks::{
     CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInterfaceDetailW,
 };
 
 #[cfg(any(test, doc, not(windows)))]
-use bindgen::{
+pub(super) use bindgen::{
     CREATEFILE2_EXTENDED_PARAMETERS, FILE_FLAG_OVERLAPPED, HWND, OVERLAPPED, SP_DEVINFO_DATA,
 };
 
-use bindgen::{
+pub(super) use bindgen::{
     BOOL, CDDA, CDROM_READ_TOC_EX, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, DUPLICATE_SAME_ACCESS,
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
     GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
