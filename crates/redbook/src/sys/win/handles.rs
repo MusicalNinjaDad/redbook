@@ -14,7 +14,7 @@ use crate::{
     drive::error::{DeviceError, InvalidBufferSize, OsError},
 };
 
-use super::bindings::{
+use super::{bindings::{
     BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CloseHandle, CreateFile2, DIGCF_DEVICEINTERFACE,
     DIGCF_PRESENT, DUPLICATE_SAME_ACCESS, DeviceIoControl, DuplicateHandle,
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
@@ -23,14 +23,8 @@ use super::bindings::{
     IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
     SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
     SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
-};
+}, convert::{Guid, MAX_PATH_CHARS, Sector, WinPath, WinString}, drive::DeviceInfoSetIter, error::WinError};
 
-use super::{
-    convert::MAX_PATH_CHARS,
-    convert::{Guid, Sector, WinPath, WinString},
-    drive::DeviceInfoSetIter,
-    error::WinError,
-};
 
 pub use safety::DriveHandle;
 #[doc(inline)]
