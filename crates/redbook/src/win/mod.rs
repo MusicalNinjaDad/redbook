@@ -4,10 +4,10 @@ pub use error::{CdaError, WinError};
 pub use sys::DriveHandle;
 
 #[forbid(unsafe_code)]
-pub mod convert;
+mod convert;
 
 #[forbid(unsafe_code)]
-pub mod drive;
+mod drive;
 
 pub mod error;
 
