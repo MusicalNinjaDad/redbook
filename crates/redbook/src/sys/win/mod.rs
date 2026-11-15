@@ -22,6 +22,7 @@ mod drive;
 #[forbid(unsafe_code)]
 mod error;
 
+#[expect(unsafe_code, reason = "low level device implementation via ffi")]
 mod handles;
 
 #[forbid(unsafe_code)]
