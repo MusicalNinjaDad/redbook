@@ -289,12 +289,22 @@
 
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
-
 #[doc(inline)]
-pub use error::{C_GOOD_ERROR, Error, RedbookError, Result};
-
+pub use disc::{Disc, tagging, track};
 #[doc(inline)]
-pub use ripped_track::{RippedTrack};
+pub use drive::{Device, Drive};
+#[doc(inline)]
+pub use error::{Error, Result};
+#[doc(inline)]
+pub use ripped_track::RippedTrack;
+#[doc(inline)]
+pub use toc::frame::{self, Frame};
+#[doc(inline)]
+pub use toc::{LEADIN, Point, TocEntries, TrackNo};
+#[doc(inline)]
+pub use track::{EncodingError, Track};
+
+use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -323,9 +333,9 @@ pub mod toc;
 /// Platform specific default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
-pub type CdDrive = drive::CdDrive<sys::win::DriveHandle>;
+pub type CdDrive = drive::CdDrive<DriveHandle>;
 
 /// Platform specific iterator over the default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
-pub type CdDrives = drive::CdDrives<sys::win::DriveHandle>;
+pub type CdDrives = drive::CdDrives<DriveHandle>;
