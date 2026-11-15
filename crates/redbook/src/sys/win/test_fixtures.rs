@@ -9,7 +9,7 @@ use crate::{
     test_fixtures::{albums::TestAlbum, load_hex_file},
 };
 
-use super::sys::CDROM_TOC;
+use super::CDROM_TOC;
 
 impl From<TestAlbum> for CDROM_TOC {
     fn from(album: TestAlbum) -> Self {
@@ -38,9 +38,9 @@ mod tests {
 
     use crate::{
         Device,
+        sys::win::DriveHandle,
         test_fixtures::albums::TestAlbum::{self, *},
         toc::TocError,
-        win::DriveHandle,
     };
 
     impl CDROM_TOC {

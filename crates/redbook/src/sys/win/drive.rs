@@ -3,11 +3,10 @@
 #[cfg(test)]
 use std::io;
 
-use crate::{
-    Device,
-    drive::error::DeviceError,
-    win::sys::{DeviceInfoSet, DriveHandle},
-};
+use crate::{Device, drive::error::DeviceError, sys::win::DriveHandle};
+
+use super::handles::DeviceInfoSet;
+
 #[cfg(test)]
 use crate::{Drive, drive::CdDrive, test_fixtures::albums::TestAlbum};
 

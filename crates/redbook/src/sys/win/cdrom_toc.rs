@@ -49,7 +49,7 @@ impl CDROM_TOC {
     ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    pub(in crate::win) fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
+    pub(super) fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
         // SAFETY: ffi spec has not changed
         assert_eq!(size_of::<CDROM_TOC>(), TOC_SIZE);
 

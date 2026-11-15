@@ -1,19 +1,18 @@
-// TODO: #79 switch from `target_family = "windows"` to simply `cfg(windows)`
-#[cfg(all(target_family = "windows", not(any(test, doc))))]
+#[cfg(all(windows, not(any(test, doc))))]
 use bindgen::{
     CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInterfaceDetailW,
 };
 
-#[cfg(any(test, doc, not(target_family = "windows")))]
+#[cfg(any(test, doc, not(windows)))]
 use mocks::{
     CloseHandle, CreateFile2, DeviceIoControl, DuplicateHandle, GetCurrentProcess,
     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInterfaceDetailW,
 };
 
-#[cfg(any(test, doc, not(target_family = "windows")))]
+#[cfg(any(test, doc, not(windows)))]
 use bindgen::{
     CREATEFILE2_EXTENDED_PARAMETERS, FILE_FLAG_OVERLAPPED, HWND, OVERLAPPED, SP_DEVINFO_DATA,
 };
@@ -23,12 +22,12 @@ use bindgen::{
     ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM, FILE_SHARE_READ,
     GENERIC_READ, HANDLE, HDEVINFO, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ,
     IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OPEN_EXISTING, RAW_READ_INFO,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, TRACK_DATA,
+    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER,
 };
 
-pub(super) use bindgen::{CDROM_TOC, ERROR_NOT_READY, GUID, GUID_DEVINTERFACE_CDROM, PCWSTR};
-
-pub use handles::{DeviceInfoSet, DriveHandle};
+pub(super) use bindgen::{
+    CDROM_TOC, ERROR_NOT_READY, GUID, GUID_DEVINTERFACE_CDROM, PCWSTR, TRACK_DATA,
+};
 
 #[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
 #[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
@@ -44,16 +43,6 @@ pub use handles::{DeviceInfoSet, DriveHandle};
     reason = "not win: functions mocked, win: some consts only needed for mocks & tests"
 )]
 mod bindgen;
-
-/// Additional functions on CDROM_TOC & TRACK_DATA to allow for interconversion without leaking
-/// windows-specific structs into the main API.
-///
-/// TODO: consider making some of this public
-#[expect(unsafe_code, reason = "conversion to & from raw bytes")]
-mod cdrom_toc;
-
-#[expect(unsafe_code, reason = "type safe wrappers around HANDLE & HDEVINFO")]
-mod handles;
 
 #[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
 #[allow(

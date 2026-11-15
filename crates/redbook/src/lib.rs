@@ -304,7 +304,7 @@ pub use toc::{LEADIN, Point, TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{EncodingError, Track};
 
-use crate::{toc::frame::ByteSize, win::DriveHandle};
+use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -329,9 +329,6 @@ pub mod test_fixtures;
 
 #[forbid(unsafe_code)]
 pub mod toc;
-
-// provides abstractions over direct hardware access
-pub mod win;
 
 /// Platform specific default CdDrive type
 ///

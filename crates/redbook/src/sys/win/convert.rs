@@ -7,7 +7,17 @@ use std::{
 
 use crate::Frame;
 
-use super::sys::{GUID, PCWSTR};
+use super::{GUID, PCWSTR};
+
+/// Max size of a windows dos-compatible path (260 ASCII chars).
+///
+/// See https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+///
+/// This has space for "\\.\{260 chars}\0"
+///
+/// # Note
+/// - This is the number of chars, not bytes!
+pub(super) const MAX_PATH_CHARS: usize = 265;
 
 /// A windows GUID - e.g. `53F56308-B6BF-11D0-94F2-00A0C91EFB8B`
 #[derive(Clone, Copy)]

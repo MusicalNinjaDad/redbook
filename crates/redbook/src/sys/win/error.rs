@@ -13,7 +13,7 @@ use std::{
 
 use crate::drive::error::{DeviceError, OsError};
 
-use super::sys::ERROR_NOT_READY;
+use super::ERROR_NOT_READY;
 
 /// Error returned by [`win`] APIs. This is an OS-coloured type-wrapper around `io::Error`
 /// to allow for OS-specific parsing of error codes such as [`ERROR_NOT_READY`]

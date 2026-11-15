@@ -352,7 +352,7 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
 mod miri {
     use cdtoc::Toc;
 
-    use crate::{Drive, test_fixtures::albums::TestAlbum::*, win::DriveHandle};
+    use crate::{Drive, sys::win::DriveHandle, test_fixtures::albums::TestAlbum::*};
 
     use super::*;
 
