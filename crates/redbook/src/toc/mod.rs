@@ -71,6 +71,14 @@ pub mod error;
 
 pub mod frame;
 
+/// Standard CD lead-in duration in frames.
+///
+/// According to the RedBook standard, CD audio has a 2-second lead-in area
+/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
+///
+/// This is used as an offset when calculating absolute frame positions on the disc.
+pub const LEADIN: Frame = Frame::strict_new(150);
+
 /// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
 /// read from the disc.
 ///

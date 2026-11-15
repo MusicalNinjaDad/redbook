@@ -300,7 +300,7 @@ pub use ripped_track::RippedTrack;
 #[doc(inline)]
 pub use toc::frame::{self, Frame};
 #[doc(inline)]
-pub use toc::{Point, TocEntries, TrackNo};
+pub use toc::{LEADIN, Point, TocEntries, TrackNo};
 #[doc(inline)]
 pub use track::{EncodingError, Track};
 
@@ -340,34 +340,3 @@ pub type CdDrive = drive::CdDrive<DriveHandle>;
 ///
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
 pub type CdDrives = drive::CdDrives<DriveHandle>;
-
-const KB: u32 = 1024;
-
-/// Standard CD lead-in duration in frames.
-///
-/// According to the RedBook standard, CD audio has a 2-second lead-in area
-/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
-///
-/// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::strict_new(150);
-
-/// Maximum number of bytes that can be read in a single chunk.
-///
-/// # Notes
-/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
-const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
-
-/// Maximum number of frames that can be read in a single chunk.
-///
-/// # Notes
-/// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
-///
-/// # TODOs
-/// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
-/// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
-    64_u32
-        .strict_mul(KB)
-        .strict_div(ByteSize::ONE_FRAME.strict_cast()),
-);
