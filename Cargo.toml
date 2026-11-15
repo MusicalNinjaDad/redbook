@@ -59,6 +59,7 @@ env = { "LD_LIBRARY_PATH" = false }
 # Tidy
 clippy.arbitrary_source_item_ordering = "warn"
 clippy.items_after_test_module = "deny"
+clippy.module_inception = "allow"
 
 # Explicitness
 clippy.allow_attributes = "deny" # use expect instead
