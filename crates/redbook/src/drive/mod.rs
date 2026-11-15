@@ -48,12 +48,12 @@ pub trait Device: Sized {
     ///
     /// This allows for OS-specific parsing of non-overlapping error codes
     /// (e.g. windows `ERROR_NOT_READY` == 21, vs linux `ENOMEDIUM` == 123)
-    /// 
+    ///
     /// # Note for implementors
     /// This Error type is never actually used in the trait methods. Implementors are recommended
     /// to keep the error type private and to implement `From<MyOsError> for DeviceError` as the
     /// only available conversion in order to ensure consistency.
-    /// 
+    ///
     /// See the docs for [`OsError`] for more details and an example.
     type OsError: OsError;
 
