@@ -4,7 +4,7 @@ use crate::{
     toc::{Control, Ctrl, Point, RawTocEntry, TocEntry, TocError},
 };
 
-use super::{CDROM_TOC, TRACK_DATA};
+use super::bindings::{CDROM_TOC, TRACK_DATA};
 
 /// size of ffi struct [`CDROM_TOC`]. TODO: think this is pointless as currently implemented.
 const TOC_SIZE: usize = size_of::<CDROM_TOC>();

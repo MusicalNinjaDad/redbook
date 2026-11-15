@@ -1,7 +1,5 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
-use bindings::{CDROM_TOC, ERROR_NOT_READY, GUID, GUID_DEVINTERFACE_CDROM, PCWSTR, TRACK_DATA};
-
 #[doc(inline)]
 pub use handles::DriveHandle;
 

@@ -7,7 +7,7 @@ use std::{
 
 use crate::Frame;
 
-use super::{GUID, PCWSTR};
+use super::bindings::{GUID, PCWSTR};
 
 /// Max size of a windows dos-compatible path (260 ASCII chars).
 ///

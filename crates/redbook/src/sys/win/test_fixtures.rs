@@ -9,7 +9,7 @@ use crate::{
     test_fixtures::{albums::TestAlbum, load_hex_file},
 };
 
-use super::CDROM_TOC;
+use super::bindings::CDROM_TOC;
 
 impl From<TestAlbum> for CDROM_TOC {
     fn from(album: TestAlbum) -> Self {
