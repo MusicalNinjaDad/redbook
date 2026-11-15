@@ -577,9 +577,7 @@ impl PartialOrd for TrackEntry {
 
 impl PartialEq<Track<'_>> for TrackEntry {
     fn eq(&self, track: &Track<'_>) -> bool {
-        self.is_audio_track()
-            && (self.track == track.track_number())
-            && (self.start == track.start())
+        self.is_audio_track() && (self.track == track.trackno()) && (self.start == track.start())
     }
 }
 

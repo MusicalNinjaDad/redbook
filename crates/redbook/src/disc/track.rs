@@ -66,7 +66,7 @@ impl Track<'static> {
 
 impl<'meta> Track<'meta> {
     /// Returns the 1-indexed track number.
-    pub fn track_number(&self) -> TrackNo {
+    pub fn trackno(&self) -> TrackNo {
         self.trackno
     }
 

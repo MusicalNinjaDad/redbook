@@ -174,7 +174,7 @@ fn main() -> Exit<()> {
 
             for track in cd.disc().tracks() {
                 let track_name = track.title().unwrap_or_else(|| "Unknown".to_string());
-                println!("{n}. {track_name}", n = track.toc_entry.trackno());
+                println!("{n}. {track_name}", n = track.trackno());
             }
             println!("a. All tracks");
 
@@ -202,7 +202,7 @@ fn main() -> Exit<()> {
                     let valid = cd
                         .disc()
                         .tracks()
-                        .any(|t| t.toc_entry.trackno().cast::<usize>() == choice);
+                        .any(|t| t.trackno().cast::<usize>() == choice);
                     valid.ok_or_else(|| {
                         println!("oops ... I can't find track number {choice}");
                     })?;

@@ -746,7 +746,7 @@ impl Disc {
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 
-        vorbis.set_track(track.track_number().cast());
+        vorbis.set_track(track.trackno().cast());
 
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);

@@ -237,7 +237,7 @@ mod tests {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
             assert_eq!(
                 TrackNo::checked_new(cda.track_number),
-                Some(track.track_number())
+                Some(track.trackno())
             );
             assert_eq!(cda.start, track.start());
             assert_eq!(cda.duration, track.duration());
