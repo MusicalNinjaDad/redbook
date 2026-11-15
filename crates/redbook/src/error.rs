@@ -36,7 +36,7 @@ use std::{
 use thread_safely::Context;
 
 use crate::{
-    EncodingError, RipProgress,
+    RipProgress,
     disc::{
         DiscError, TocMismatch,
         error::{IoError, TaggingError, UnknownMimeType},
@@ -47,8 +47,12 @@ use crate::{
     },
     frame::InvalidByteSize,
     toc::{TocError, error::InvalidOrder},
-    track::error::FlacError,
 };
+
+#[doc(inline)]
+pub use ripped_track::{EncodingError, FlacError};
+
+mod ripped_track;
 
 #[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
 /// Well behaved Errors, which support the full range of [`std::error::Error`] functionality,

@@ -9,10 +9,6 @@ use crate::{
     toc::{TrackEntry, TrackNo},
 };
 
-pub use error::EncodingError;
-
-pub mod error;
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
 ///

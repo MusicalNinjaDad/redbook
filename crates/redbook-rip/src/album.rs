@@ -1,7 +1,7 @@
 use std::io::{self, ErrorKind};
 
 use musicbrainz_rs::entity::release::Release;
-use redbook::{Disc, Track, tagging::ArtistCreditsExt};
+use redbook::{Disc, disc::Track, tagging::ArtistCreditsExt};
 use slint::{Image, ModelRc, ToSharedString};
 use tracing::debug_span;
 use tracing_result::Trace;

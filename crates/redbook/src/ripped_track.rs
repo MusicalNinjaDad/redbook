@@ -3,7 +3,7 @@
 use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, VorbisComment};
 
-use crate::EncodingError;
+use crate::error::EncodingError;
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
 /// (tags) and the cover art.

@@ -14,7 +14,7 @@ use std::{
 
 use thread_safely::Context;
 
-use crate::{Track, error::RedbookError};
+use crate::{disc::Track, error::RedbookError};
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.

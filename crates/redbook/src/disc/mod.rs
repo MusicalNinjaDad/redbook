@@ -5,8 +5,9 @@
 
 pub use disc::{Disc, Tracks};
 pub use error::{DiscError, TocMismatch};
+pub use track::Track;
 
 mod disc;
 pub mod error;
 pub mod tagging;
-pub mod track;
+mod track;

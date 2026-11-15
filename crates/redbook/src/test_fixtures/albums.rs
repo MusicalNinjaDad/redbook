@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries, Track, error::RedbookError, frame::Msf, tagging::PictureExt,
+    Frame, LEADIN, TocEntries, disc::Track, error::RedbookError, frame::Msf, tagging::PictureExt,
     test_fixtures::track_descriptor::RawTocDescriptors, toc::TrackNo,
 };
 

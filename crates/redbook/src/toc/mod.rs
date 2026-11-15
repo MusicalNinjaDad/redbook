@@ -21,7 +21,7 @@ use derive_more::Display;
 use itertools::Itertools;
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
+use crate::{Frame, disc::Track, frame::Msf, toc::error::InvalidOrder};
 
 pub use error::{InvalidTrackNo, TocError, TocResult};
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)

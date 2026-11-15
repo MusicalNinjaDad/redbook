@@ -5,7 +5,8 @@ use std::{fs, path::Path};
 use tracing_result::Trace;
 
 use crate::{
-    Frame, LEADIN, Track,
+    Frame, LEADIN,
+    disc::Track,
     frame::Msf,
     toc::{TrackNo, error::CdaError},
 };

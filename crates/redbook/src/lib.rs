@@ -290,7 +290,7 @@
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 #[doc(inline)]
-pub use disc::{Disc, tagging, track};
+pub use disc::{Disc, tagging};
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]
@@ -301,8 +301,6 @@ pub use ripped_track::RippedTrack;
 pub use toc::frame::{self, Frame};
 #[doc(inline)]
 pub use toc::{LEADIN, Point, TocEntries, TrackNo};
-#[doc(inline)]
-pub use track::{EncodingError, Track};
 
 use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
 
