@@ -16,7 +16,6 @@ use crate::{
         TocError, TrackNo,
         error::{InvalidOrder, InvalidTrackNo},
     },
-    win::WinError,
 };
 
 /// Error returned by [`Drive`][crate::Drive] APIs. Covers a possible wrapped [DeviceError] plus
@@ -113,12 +112,6 @@ impl From<InvalidBufferSize> for DriveError {
 
 impl From<InvalidByteSize> for DriveError {
     fn from(error: InvalidByteSize) -> Self {
-        DeviceError::from(error).into()
-    }
-}
-
-impl From<WinError> for DriveError {
-    fn from(error: WinError) -> Self {
         DeviceError::from(error).into()
     }
 }
@@ -365,5 +358,17 @@ pub trait OsError:
     /// Obtain the raw os error code related to this error.
     fn error_code(&self) -> RawOsError {
         self.as_io_error().raw_os_error().expect("Construction only possible from a raw os error")
+    }
+}
+
+impl<E: OsError> From<E> for crate::Error {
+    fn from(error: E) -> Self {
+        Into::<DeviceError>::into(error).into()
+    }
+}
+
+impl<E: OsError> From<E> for DriveError {
+    fn from(error: E) -> Self {
+        Into::<DeviceError>::into(error).into()
     }
 }

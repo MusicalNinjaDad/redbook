@@ -1,6 +1,5 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
-pub use error::WinError;
 pub use sys::DriveHandle;
 
 #[forbid(unsafe_code)]
@@ -9,7 +8,8 @@ mod convert;
 #[forbid(unsafe_code)]
 mod drive;
 
-pub mod error;
+#[forbid(unsafe_code)]
+mod error;
 
 /// Windows bindings generated & validated up-to-date via tests/win_bindings.rs
 mod sys;

@@ -13,9 +13,10 @@ use crate::{
     ByteSize, Device, Frame, TocEntries,
     drive::error::{DeviceError, InvalidBufferSize, OsError},
     win::{
-        MAX_PATH_CHARS, WinError,
+        MAX_PATH_CHARS,
         convert::{Guid, Sector, WinPath, WinString},
         drive::DeviceInfoSetIter,
+        error::WinError,
     },
 };
 

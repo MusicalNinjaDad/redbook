@@ -48,7 +48,6 @@ use crate::{
     frame::InvalidByteSize,
     toc::{TocError, error::InvalidOrder},
     track::error::FlacError,
-    win::WinError,
 };
 
 #[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
@@ -148,12 +147,6 @@ impl From<InvalidBufferSize> for Error {
 
 impl From<InvalidByteSize> for Error {
     fn from(error: InvalidByteSize) -> Self {
-        DeviceError::from(error).into()
-    }
-}
-
-impl From<WinError> for Error {
-    fn from(error: WinError) -> Self {
         DeviceError::from(error).into()
     }
 }
