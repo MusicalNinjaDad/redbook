@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::{io, slice};
 
+use crate::sys::win::bindings::{IOCTL_CDROM_RAW_READ, RAW_READ_INFO};
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
@@ -174,6 +175,14 @@ pub unsafe fn CreateFile2(
 /// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
 /// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
 /// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_RAW_READ`],
+///   (see also [MS learn][docs_IOCTL_CDROM_RAW_READ]):
+///     - `lpinbuffer`: points to a [`RAW_READ_INFO`] that specifies the starting disk offset,
+///       the sector count, and the track mode for the read (*only CDDA is supported in mocks*)
+///     - `lpoutbuffer`: points to an initialised buffer which will receive `noutbuffersize` raw
+///       bytes of data
+///     - The caller must ensure that **`noutbuffersize`** <= size of `lpoutbuffer` to avoid writing
+///       outside bounds
 /// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`],
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
 ///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
@@ -189,6 +198,7 @@ pub unsafe fn CreateFile2(
 ///
 /// # Notes
 /// - The mock version supports the following control codes:
+///     - [`IOCTL_CDROM_RAW_READ`]
 ///     - [`IOCTL_CDROM_READ_TOC_EX`]
 ///     - [`IOCTL_STORAGE_GET_DEVICE_NUMBER`]
 /// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
@@ -237,6 +247,7 @@ pub unsafe fn CreateFile2(
 /// # TODO: #117 Mock reading audio data
 ///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+/// [docs_IOCTL_CDROM_RAW_READ]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
 /// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
 /// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
@@ -272,6 +283,15 @@ pub unsafe fn DeviceIoControl(
                 noutbuffersize.strict_cast::<usize>(),
                 size_of::<STORAGE_DEVICE_NUMBER>()
             );
+        }
+        IOCTL_CDROM_RAW_READ => {
+            assert!(!lpinbuffer.is_null());
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<RAW_READ_INFO>()
+            );
+            assert!((lpinbuffer as *const RAW_READ_INFO).is_aligned());
+            assert!((lpoutbuffer as *const u8).is_aligned());
         }
         _ => unimplemented!("unsupported control code"),
     };
