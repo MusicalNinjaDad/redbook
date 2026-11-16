@@ -797,12 +797,13 @@ impl Disc {
                 ],
             );
 
-            release
+            if let Some(script) = release
                 .text_representation
                 .as_ref()
                 .and_then(|text_rep| text_rep.script.as_ref())
-                .unwrap()
-                .extend_vorbis(&mut vorbis);
+            {
+                script.extend_vorbis(&mut vorbis);
+            }
 
             if let Some(meta) = track.meta() {
                 vorbis.set_title(vec![track.title().clone().unwrap_or_default()]);
