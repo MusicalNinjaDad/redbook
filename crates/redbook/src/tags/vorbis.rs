@@ -5,7 +5,7 @@ use tracing_result::Trace;
 
 use crate::{disc::tagging::ImageMimeTypes, error::UnknownMimeType};
 
-use super::sanitise;
+use super::filenames::sanitise;
 
 /// File naming logic for the cover art [`Picture`] of a [`RippedTrack`].
 pub(crate) trait PictureExt {

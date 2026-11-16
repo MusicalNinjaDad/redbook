@@ -15,7 +15,7 @@ use tracing_result::Trace;
 use crate::{
     disc::tagging::picture_from_jpeg,
     error::{EncodingError, MetaDataError, UnknownMimeType},
-    tags::{sanitise, vorbis::PictureExt},
+    tags::{filenames::sanitise, vorbis::PictureExt},
 };
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
