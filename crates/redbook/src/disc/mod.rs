@@ -11,5 +11,5 @@ pub use track::Track;
 
 mod disc;
 pub mod error;
-pub(crate) mod musicbrainz;
+mod musicbrainz;
 mod track;
