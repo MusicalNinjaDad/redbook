@@ -419,6 +419,17 @@ impl Device for DriveHandle {
         // TODO why does this compile - check conversions are all still correct
         Ok(self.cdrom_toc()?.as_raw_bytes())
     }
+
+    fn max_chunk(&self) -> ByteSize {
+        const {
+            Frame::strict_new(
+                64_u32
+                    .strict_mul(1024)
+                    .strict_div(ByteSize::ONE_FRAME.strict_cast()),
+            )
+            .size()
+        }
+    }
 }
 
 trait IoControl {

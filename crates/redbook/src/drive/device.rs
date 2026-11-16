@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::{
     Frame, TocEntries,
     drive::error::{DeviceError, OsError},
+    frame::ByteSize,
 };
 
 /// The capabilites required of a low level device which can read CDs
@@ -61,4 +62,11 @@ pub trait Device: Sized {
     /// Unless you are providing low-level or debug functionality, you probably want to use
     /// [read_toc][Device::read_toc] instead which will provide a platform-independent [TocEntries]
     fn raw_toc(&self) -> Result<Vec<u8>, DeviceError>;
+
+    /// The maximum chunk size which can be read in a single call.
+    ///
+    /// # Note
+    /// - Linux has a hard-coded limit of 75 frames
+    /// - Windows has a variable limit depending on hardware type
+    fn max_chunk(&self) -> ByteSize;
 }
