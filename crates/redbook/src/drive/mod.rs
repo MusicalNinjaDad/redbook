@@ -154,8 +154,14 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
 #[cfg(test)]
 mod miri {
     use cdtoc::Toc;
+    use rstest::rstest;
 
-    use crate::{Drive, sys::win::DriveHandle, test_fixtures::albums::TestAlbum::*};
+    use crate::{
+        Drive, TrackNo,
+        disc::Track,
+        sys::win::DriveHandle,
+        test_fixtures::albums::TestAlbum::{self, *},
+    };
 
     use super::*;
 
@@ -171,5 +177,41 @@ mod miri {
             TheWallDisc2.expected_toc(),
         ];
         assert_eq!(albums, expected);
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn read_track2(#[case] album: TestAlbum) {
+        let drive = CdDrive::<DriveHandle>::open(&album.assets_path(), Default::default()).unwrap();
+        let track2 = drive.read_track(TrackNo::strict_new(2)).unwrap();
+
+        let (frames, rest) = track2.as_chunks::<{ ByteSize::ONE_FRAME.cast::<usize>() }>();
+
+        assert_eq!(rest.len(), 0);
+        assert_eq!(
+            frames
+                .first()
+                .map(|bytes| u32::from_le_bytes(bytes[..4].try_into().unwrap()))
+                .map(Frame::strict_new),
+            album
+                .expected_audio_tracks_minimal()
+                .get(1)
+                .map(Track::start)
+        );
+
+        assert_eq!(
+            frames
+                .last()
+                .map(|bytes| u32::from_le_bytes(bytes[..4].try_into().unwrap()))
+                .map(Frame::strict_new),
+            album.expected_audio_tracks_minimal().get(1).map(|trk| trk
+                .start()
+                .strict_add(trk.duration())
+                .strict_sub(Frame::strict_new(1)))
+        );
     }
 }
