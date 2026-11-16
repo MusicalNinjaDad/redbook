@@ -75,7 +75,7 @@ pub struct ReleaseMenu<'disc> {
 #[cfg(test)]
 mod tests {
     use redbook::{
-        Track,
+        disc::Track,
         test_fixtures::albums::TestAlbum::{self, *},
     };
     use rstest::rstest;

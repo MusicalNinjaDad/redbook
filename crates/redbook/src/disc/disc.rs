@@ -1,7 +1,3 @@
-//! Disc metadata and MusicBrainz integration
-//!
-//! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
-//! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 use std::{
     collections::HashMap,
     fs::File,
@@ -22,13 +18,10 @@ use tracing::{debug_span, field::Empty};
 use tracing_result::Trace;
 
 use crate::{
-    Track, TrackNo,
-    tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
+    TrackNo,
+    disc::{DiscError, Track, error::TocMismatch, musicbrainz::ArtistCreditsExt},
+    tags::{artwork::picture_from_jpeg, vorbis::ExtendVorbisTag},
 };
-
-pub use error::{DiscError, TocMismatch};
-
-pub mod error;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Represents a logical CD with additional metadata such as track names and cover art.
@@ -41,7 +34,7 @@ pub mod error;
 ///
 /// ```no_run
 /// use cdtoc::Toc;
-/// use redbook::{Disc, Frame, Track, TrackNo, Result};
+/// use redbook::{Disc, Frame, disc::Track, TrackNo, Result};
 ///
 /// # fn main() -> Result<()> {
 /// let toc = Toc::from_cdtoc("4+96+2D2B+6256+B327+D84A").unwrap();
@@ -110,7 +103,7 @@ impl Disc {
     /// # Examples
     ///
     /// ```
-    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
+    /// use redbook::{Disc, disc::Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
     ///
     /// # fn main() -> Result<()> {
@@ -185,7 +178,7 @@ impl Disc {
     /// # Example
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
+    /// use redbook::{Disc, disc::Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
     ///
     /// # fn main() -> Result<()> {
@@ -569,7 +562,7 @@ impl Disc {
     pub fn set_cover_art<B: AsRef<[u8]>>(&mut self, jpeg: B) -> &mut Self {
         let _debug = debug_span!("set_cover_art", size = jpeg.as_ref().len()).entered();
         tracing::debug!("setting cover art");
-        let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
+        let cover = picture_from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
         self.coverart = Some(cover);
         self
     }
@@ -646,7 +639,7 @@ impl Disc {
                 tracing::debug!("thumbnail retrieved");
                 self.add_thumbnail(
                     id,
-                    Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image),
+                    picture_from_jpeg(PictureType::CoverFront, "Front Cover", image),
                 );
                 retrieved += 1;
                 debug_span.record("retrieved", retrieved);
@@ -718,7 +711,7 @@ impl Disc {
     /// # Examples
     ///
     /// ```rust, no_run
-    /// use redbook::{Disc, Track, Frame, TrackNo, Result};
+    /// use redbook::{Disc, disc::Track, Frame, TrackNo, Result};
     /// use cdtoc::Toc;
     /// use metaflac::block::VorbisComment;
     ///
@@ -744,7 +737,7 @@ impl Disc {
         let mut vorbis = VorbisComment::new();
         let track = self.track(track_number)?;
 
-        vorbis.set_track(track.track_number().cast());
+        vorbis.set_track(track.trackno().cast());
 
         if let Some(release) = self.release() {
             vorbis.set_album(vec![release.title.clone()]);
@@ -874,6 +867,7 @@ impl<'m> ExactSizeIterator for Tracks<'m> {
     }
 }
 
+/// Helper trait to handle "enhanced Audio Cds"
 trait MediaType {
     fn has_data(&self) -> bool;
     fn has_audio_only(&self) -> bool;

@@ -4,13 +4,7 @@
 use std::path::PathBuf;
 use std::{io, slice};
 
-use crate::{
-    test_fixtures::albums::TestAlbum::{self, *},
-    win::{
-        MAX_PATH_CHARS,
-        convert::{Guid, WinString},
-    },
-};
+use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
     BOOL, CDROM_READ_TOC_EX, CDROM_TOC, CREATEFILE2_EXTENDED_PARAMETERS, DUPLICATE_SAME_ACCESS,
@@ -18,7 +12,12 @@ use super::{
     FILE_FLAG_OVERLAPPED, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, HWND,
     INVALID_HANDLE_VALUE, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OVERLAPPED,
     PCWSTR, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
-    STORAGE_DEVICE_NUMBER, handles::DeviceDetails,
+    STORAGE_DEVICE_NUMBER,
+};
+
+use super::super::{
+    convert::{Guid, MAX_PATH_CHARS, WinString},
+    handles::DeviceDetails,
 };
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;

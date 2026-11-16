@@ -60,8 +60,9 @@ const BINDINGS: [&str; 39] = [
 #[cfg_attr(miri, ignore)]
 fn gen_bindings() {
     let src = PathBuf::from("src")
-        .join("win")
         .join("sys")
+        .join("win")
+        .join("bindings")
         .join("bindgen.rs");
     let existing = fs::read_to_string(&src).unwrap();
 
@@ -138,8 +139,9 @@ fn mocks() {
     bindings_functions.sort_by_key(|sig| sig.ident.clone());
 
     let mocks_src = PathBuf::from("src")
-        .join("win")
         .join("sys")
+        .join("win")
+        .join("bindings")
         .join("mocks.rs");
     let mocks_contents = fs::read_to_string(&mocks_src).unwrap();
     let mocks = syn::parse_file(&mocks_contents).unwrap();

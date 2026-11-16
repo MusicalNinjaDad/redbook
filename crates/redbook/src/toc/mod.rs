@@ -9,7 +9,6 @@ use std::{
     cmp::Ordering,
     convert::{BoundedCastFromInt, CheckedCastFromInt},
     fmt::Display,
-    hint::cold_path,
     marker::StructuralPartialEq,
     num::{NonZeroU8, NonZeroUsize},
     ops::{Deref, DerefMut},
@@ -19,13 +18,12 @@ use std::{
 use bitflags::bitflags;
 use cdtoc::Toc;
 use derive_more::Display;
-use itertools::{EitherOrBoth, Itertools};
+use itertools::Itertools;
 use try_partialord::TrySort;
 
-use crate::{Frame, Track, frame::Msf, toc::error::InvalidOrder};
+use crate::{Frame, disc::Track, frame::Msf, toc::error::InvalidOrder};
 
 pub use error::{InvalidTrackNo, TocError, TocResult};
-
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub mod b0000 {
     use super::Point;
@@ -67,7 +65,19 @@ pub mod b0010 {
     pub const LEADOUT_TRACK_ID: Point = Point(0xA2);
 }
 
+pub mod cda;
+
 pub mod error;
+
+pub mod frame;
+
+/// Standard CD lead-in duration in frames.
+///
+/// According to the RedBook standard, CD audio has a 2-second lead-in area
+/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
+///
+/// This is used as an offset when calculating absolute frame positions on the disc.
+pub const LEADIN: Frame = Frame::strict_new(150);
 
 /// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
 /// read from the disc.
@@ -570,6 +580,12 @@ impl PartialOrd for TrackEntry {
             }
             _ => None,
         }
+    }
+}
+
+impl PartialEq<Track<'_>> for TrackEntry {
+    fn eq(&self, track: &Track<'_>) -> bool {
+        self.is_audio_track() && (self.track == track.trackno()) && (self.start == track.start())
     }
 }
 
@@ -1182,6 +1198,19 @@ impl TocEntry {
     }
 }
 
+// TODO add PartialEq for other entry types
+impl PartialEq<TrackEntry> for TocEntry {
+    fn eq(&self, track_entry: &TrackEntry) -> bool {
+        matches!(self, TocEntry::Track(entry) if entry == track_entry)
+    }
+}
+
+impl PartialEq<TocEntry> for TrackEntry {
+    fn eq(&self, tocentry: &TocEntry) -> bool {
+        matches!(tocentry, TocEntry::Track(entry) if entry == self)
+    }
+}
+
 impl Display for TrackEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -1442,24 +1471,6 @@ impl<'entries> IntoIterator for &'entries TocEntries {
 
     fn into_iter(self) -> Self::IntoIter {
         self.entries.iter()
-    }
-}
-
-impl<'meta, V> PartialEq<V> for TocEntries
-where
-    for<'v> &'v V: IntoIterator<Item = &'v Track<'meta>>,
-{
-    fn eq(&self, tracks: &V) -> bool {
-        for pair in self.iter().zip_longest(tracks) {
-            match pair {
-                EitherOrBoth::Both(TocEntry::Track(entry), track) if entry == &track.toc_entry => {}
-                _ => {
-                    cold_path();
-                    return false;
-                }
-            }
-        }
-        true
     }
 }
 

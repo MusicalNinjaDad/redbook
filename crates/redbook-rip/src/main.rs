@@ -20,15 +20,8 @@ use crossbeam::{
     channel::{Sender, unbounded},
     select,
 };
-use metaflac::{
-    Block, Tag,
-    block::{Picture, PictureType},
-};
-use redbook::{
-    AudioCd, Disc, RipProgress, RippedTrack, TrackNo,
-    disc::DiscError,
-    tagging::{PictureExt, VorbisTagExt},
-};
+use metaflac::{Block, Tag};
+use redbook::{AudioCd, Disc, RipProgress, RippedTrack, TrackNo, disc::DiscError};
 use thread_safely::Controller;
 use tracing_result::Trace;
 
@@ -135,7 +128,7 @@ fn main() -> redbook::Result<()> {
                     .or_warn("providing encoding status update");
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
-                let track_name = tag.full_title();
+                let track_name = ripped.full_title();
                 let _debug_span =
                     tracing::debug_span!("encode", track = track_number, name = %track_name)
                         .entered();
@@ -143,7 +136,7 @@ fn main() -> redbook::Result<()> {
 
                 let start = std::time::Instant::now();
 
-                let output_dir = music_dir.join(tag.directory());
+                let output_dir = music_dir.join(ripped.directory());
                 tracing::debug!(output_dir = %output_dir.display());
                 fs::create_dir_all(&output_dir)?;
 
@@ -152,14 +145,15 @@ fn main() -> redbook::Result<()> {
                 if let Some(ref cover) = ripped.coverart {
                     let _dont_fail_on_error = try bikeshed Result<_, DiscError> {
                         tracing::debug!("saving cover art");
-                        let filename = cover.filename()?;
-                        let coverart_path = output_dir.join(filename);
-                        tracing::debug!(path = %coverart_path.display());
-                        fs::write(coverart_path, &cover.data).or_warn("")?;
+                        if let Some(filename) = ripped.coverart_filename() {
+                            let coverart_path = output_dir.join(filename?);
+                            tracing::debug!(path = %coverart_path.display());
+                            fs::write(coverart_path, &cover.data).or_warn("")?;
+                        }
                     };
                 };
 
-                let flac_path = output_dir.join(tag.filename()).with_extension("flac");
+                let flac_path = output_dir.join(ripped.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
                 let flac = ripped.to_flac()?;
@@ -174,19 +168,15 @@ fn main() -> redbook::Result<()> {
                 );
 
                 // TODO #121 update redbook-rip based on redbook lib docs & new functions
-                let RippedTrack { tags, coverart, .. } = ripped;
                 let mut file_tag = Tag::read_from_path(&flac_path)
                     // TODO #67 error handling reading empty tag from file during encoding
                     .unwrap();
                 file_tag
                     .vorbis_comments_mut()
                     .comments
-                    .extend(tags.comments);
+                    .extend(ripped.tags.comments.clone());
 
-                if let Some(cover) = coverart.or(fs::read(output_dir.join("front.jpeg"))
-                    .ok()
-                    .map(|data| Picture::from_jpeg(PictureType::CoverFront, "Front Cover", data)))
-                {
+                if let Some(cover) = ripped.coverart_or_from_file(output_dir.join("front.jpeg")) {
                     file_tag.push_block(Block::Picture(cover));
                 }
 

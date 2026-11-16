@@ -1,11 +1,10 @@
 use crate::{
     Frame, LEADIN, TocEntries,
     frame::Msf,
-    test_fixtures::{albums::TestAlbum, load_hex_file},
     toc::{Control, Ctrl, Point, RawTocEntry, TocEntry, TocError},
 };
 
-use super::{CDROM_TOC, TRACK_DATA};
+use super::bindings::{CDROM_TOC, TRACK_DATA};
 
 /// size of ffi struct [`CDROM_TOC`]. TODO: think this is pointless as currently implemented.
 const TOC_SIZE: usize = size_of::<CDROM_TOC>();
@@ -45,9 +44,12 @@ impl CDROM_TOC {
     /// Parse raw bytes as a [`CDROM_TOC`] structure. This expects either only the relevant bytes
     /// and will pad with `\0`, or a full set of bytes to fill a `CDROM_TOC`.
     ///
+    /// Visible to `mod win` so that [`win::test_fixtures`][crate::win::test_fixtures] can build a
+    /// `CDROM_TOC` from the test asset dumps.
+    ///
     /// # Panics
     /// Will panic if `bytes` are not of correct size or alignment for a [`CDROM_TOC`]
-    fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
+    pub(super) fn from_raw_bytes(mut bytes: Vec<u8>) -> CDROM_TOC {
         // SAFETY: ffi spec has not changed
         assert_eq!(size_of::<CDROM_TOC>(), TOC_SIZE);
 
@@ -123,14 +125,6 @@ impl CDROM_TOC {
     }
 }
 
-impl From<TestAlbum> for CDROM_TOC {
-    fn from(album: TestAlbum) -> Self {
-        let path = album.cdrom_toc_path();
-        let toc_dump = load_hex_file(&path);
-        Self::from_raw_bytes(toc_dump)
-    }
-}
-
 impl TryFrom<CDROM_TOC> for TocEntries {
     type Error = TocError;
 
@@ -192,21 +186,11 @@ impl From<TRACK_DATA> for RawTocEntry {
 mod tests {
     use super::*;
 
-    use cdtoc::Toc;
     use rstest::rstest;
-    use tracing_test::traced_test;
 
-    use crate::{
-        test_fixtures::albums::TestAlbum::{self, *},
-        toc::{TocEntry, TocEntryFilter},
-    };
+    use crate::test_fixtures::albums::TestAlbum::{self, *};
 
     impl CDROM_TOC {
-        fn to_toc(self) -> Result<Toc, TocError> {
-            let tocentries = &TocEntries::try_from(self)?;
-            tocentries.try_into()
-        }
-
         /// Only takes the claimed number of tracks, thus avoiding the leadouts.
         ///
         /// TODO: TRACK_DATA::is_leadout()
@@ -247,57 +231,6 @@ mod tests {
         assert_eq!(
             toc.last_audio_track().unwrap(),
             album.expected_last_audio_track().strict_cast::<usize>()
-        );
-    }
-
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn leadout(#[case] album: TestAlbum) {
-        let toc = CDROM_TOC::from(album);
-        let leadout = toc.to_toc().unwrap().leadout();
-        assert_eq!(leadout, album.expected_leadout().cast::<u32>());
-    }
-
-    #[traced_test] // TODO: #181 use tracing_test to assert output
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn compare_toc(#[case] album: TestAlbum) {
-        let cdrom_toc = CDROM_TOC::from(album);
-        let toc = album.expected_toc();
-
-        assert_eq!(toc, cdrom_toc.to_toc().unwrap());
-    }
-
-    #[traced_test] // TODO: #181 use tracing_test to assert output
-    #[rstest]
-    #[case(DefinitelyMaybe)]
-    #[case(TheWallDisc1)]
-    #[case(TheWallDisc2)]
-    #[case(BatOutOfHellRevamped)]
-    #[case(TheBoyWhoKnewTooMuch)]
-    fn toc_entries_from_cdrom_toc(#[case] album: TestAlbum) {
-        let wintoc = CDROM_TOC::from(album);
-        let entries = TocEntries::try_from(wintoc).unwrap();
-        assert_eq!(
-            entries
-                .iter()
-                .filter_audio()
-                .filter_map(TocEntry::trackentry)
-                .cloned()
-                .collect::<Vec<_>>(),
-            album.expected_audio_toc_entries()
-        );
-        assert_eq!(
-            entries.audio_tracks().collect::<Vec<_>>(),
-            album.expected_audio_tracks_minimal()
         );
     }
 }

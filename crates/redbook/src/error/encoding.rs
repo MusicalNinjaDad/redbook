@@ -1,10 +1,3 @@
-#![expect(missing_docs, reason = "TODO")]
-//! Level-2 error for track encoding: the [`EncodingError`] enum.
-//!
-//! Follows the crate-wide conventions documented in [`crate::error`]: hand-rolled
-//! `Error`/`Display`/`source`. Conversion to [`io::Error`] is explicit via
-//! [`RedbookError::into_io_error`][crate::error::RedbookError::into_io_error], never via
-//! `From<_> for io::Error`.
 use std::{
     error::Error,
     fmt::{self, Display},

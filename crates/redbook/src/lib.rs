@@ -72,7 +72,7 @@
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::Write};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, drive::DriveError, tagging::{PictureExt, VorbisTagExt}};
+//! use redbook::{AudioCd, CdDrives, RipProgress, TrackNo, Result, drive::DriveError};
 //! use thread_safely::Controller;
 //! # fn main() -> Result<()> {
 //! // Allow for status updates & cancellation mid-rip
@@ -94,25 +94,21 @@
 //! // Encode to flac
 //! let flac = track_1.to_flac()?;
 //!
-//! // Get associated data
-//! let RippedTrack {tags, coverart, ..} = track_1;
-//!
 //! // Decide where to store the music
-//! let album_directory = tags.directory();
+//! let album_directory = track_1.directory();
 //! fs::create_dir_all(&album_directory)?;
 //!
 //! // Save the flac file
-//! let flac_path = album_directory.join(tags.filename()).with_extension("flac");
+//! let flac_path = album_directory.join(track_1.filename()).with_extension("flac");
 //! let mut flac_file = File::create_new(&flac_path)?;
 //! flac_file.write_all(flac.as_slice())?;
 //!
 //! // Add tags to the file
-//! tags.add_to(&flac_path)?;
+//! track_1.add_tags_to(&flac_path)?;
 //!
 //! // Save the coverart as cover.jpg
-//! if let Some(artwork) = coverart {
-//!     let path = album_directory.join(artwork.filename()?);
-//!     fs::write(path, artwork.data)?;
+//! if let (Some(filename), Some(artwork)) = (track_1.coverart_filename(), track_1.coverart.as_ref()) {
+//!     fs::write(album_directory.join(filename?), &artwork.data)?;
 //! }
 //! # Result::Ok(())
 //! # }
@@ -296,13 +292,13 @@ pub use drive::{Device, Drive};
 #[doc(inline)]
 pub use error::{Error, Result};
 #[doc(inline)]
-pub use frame::Frame;
+pub use ripped_track::RippedTrack;
 #[doc(inline)]
-pub use toc::{Point, TocEntries, TrackNo};
+pub use toc::frame::{self, Frame};
 #[doc(inline)]
-pub use track::{EncodingError, RippedTrack, Track};
+pub use toc::{LEADIN, Point, TocEntries, TrackNo};
 
-use crate::{frame::ByteSize, win::DriveHandle};
+use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -317,14 +313,12 @@ pub mod drive;
 pub mod error;
 
 #[forbid(unsafe_code)]
-pub mod frame;
+pub mod ripped_track;
+
+pub mod sys;
 
 #[forbid(unsafe_code)]
-#[doc(hidden)]
-pub mod hex;
-
-#[forbid(unsafe_code)]
-pub mod tagging;
+pub(crate) mod tags;
 
 #[forbid(unsafe_code)]
 #[doc(hidden)]
@@ -332,12 +326,6 @@ pub mod test_fixtures;
 
 #[forbid(unsafe_code)]
 pub mod toc;
-
-#[forbid(unsafe_code)]
-mod track;
-
-// provides abstractions over direct hardware access
-pub mod win;
 
 /// Platform specific default CdDrive type
 ///
@@ -348,34 +336,3 @@ pub type CdDrive = drive::CdDrive<DriveHandle>;
 ///
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
 pub type CdDrives = drive::CdDrives<DriveHandle>;
-
-const KB: u32 = 1024;
-
-/// Standard CD lead-in duration in frames.
-///
-/// According to the RedBook standard, CD audio has a 2-second lead-in area
-/// at the beginning of the disc. At 75 frames per second, this equals 150 frames.
-///
-/// This is used as an offset when calculating absolute frame positions on the disc.
-pub const LEADIN: Frame = Frame::strict_new(150);
-
-/// Maximum number of bytes that can be read in a single chunk.
-///
-/// # Notes
-/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
-const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
-
-/// Maximum number of frames that can be read in a single chunk.
-///
-/// # Notes
-/// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
-///
-/// # TODOs
-/// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
-/// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
-    64_u32
-        .strict_mul(KB)
-        .strict_div(ByteSize::ONE_FRAME.strict_cast()),
-);

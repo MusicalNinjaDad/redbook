@@ -4,7 +4,12 @@ use std::{fs, path::Path};
 
 use tracing_result::Trace;
 
-use crate::{Frame, LEADIN, Track, frame::Msf, toc::TrackNo, win::error::CdaError};
+use crate::{
+    Frame, LEADIN,
+    disc::Track,
+    frame::Msf,
+    toc::{TrackNo, error::CdaError},
+};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;
@@ -214,8 +219,6 @@ mod tests {
 
     use std::assert_matches;
 
-    use crate::win::error::CdaError;
-
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
     use rstest::rstest;
@@ -237,10 +240,10 @@ mod tests {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
             assert_eq!(
                 TrackNo::checked_new(cda.track_number),
-                Some(track.track_number())
+                Some(track.trackno())
             );
-            assert_eq!(cda.start, track.toc_entry.start());
-            assert_eq!(cda.duration, track.duration);
+            assert_eq!(cda.start, track.start());
+            assert_eq!(cda.duration, track.duration());
             assert_matches!(Track::try_from(cda), Ok(_));
             // Cannot check windows_identifier without making _minimal more than minimal
             // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);

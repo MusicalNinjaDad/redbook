@@ -10,10 +10,9 @@ use std::{
     num::ParseIntError,
 };
 
-use crate::{
-    error::RedbookError,
-    hex::HexErrorKind::{InvalidValue, NotPairs},
-};
+use crate::error::RedbookError;
+
+use HexErrorKind::{InvalidValue, NotPairs};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseHexError {
