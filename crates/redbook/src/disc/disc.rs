@@ -11,7 +11,7 @@ use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::{
     Fetch,
     chrono::NaiveDate,
-    entity::{discid::Discid, release::Release},
+    entity::{discid::Discid, release::Release, release_scripts::ReleaseScript},
 };
 use thread_safely::Context;
 use tracing::{debug_span, field::Empty};
@@ -801,7 +801,7 @@ impl Disc {
                 .text_representation
                 .as_ref()
                 .and_then(|text_rep| text_rep.script.as_ref())
-                .unwrap()
+                .unwrap_or(&ReleaseScript::Latn)
                 .extend_vorbis(&mut vorbis);
 
             if let Some(meta) = track.meta() {
