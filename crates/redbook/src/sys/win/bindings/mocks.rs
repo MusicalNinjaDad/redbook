@@ -326,22 +326,25 @@ pub unsafe fn DeviceIoControl(
             unsafe { *lpbytesreturned = size_of_val(&info).strict_cast() };
         }
         IOCTL_CDROM_RAW_READ => {
-            let read_info: RAW_READ_INFO = unsafe { ptr::read(lpinbuffer as *const _) };
+            let read_info = unsafe { ptr::read(lpinbuffer as *const RAW_READ_INFO) };
+
             assert_eq!(read_info.TrackMode, CDDA);
-            let buf = unsafe {
-                slice::from_raw_parts_mut(lpoutbuffer as *mut u8, noutbuffersize.strict_cast())
-            };
-            let frames_to_return = ByteSize::strict_new(noutbuffersize).frames();
-            assert_eq!(read_info.SectorCount, frames_to_return.cast::<u32>());
 
             let start = Sector::from_offset(read_info.DiskOffset).frame();
 
-            let (frames, rest) = buf.as_chunks_mut::<{ ByteSize::ONE_FRAME.cast() }>();
+            let frames_to_return = read_info.SectorCount;
+            let buf_size = ByteSize::strict_new(noutbuffersize);
+            assert_eq!(buf_size.frames().cast::<u32>(), frames_to_return);
+
+            let buf = unsafe {
+                slice::from_raw_parts_mut(lpoutbuffer as *mut u8, noutbuffersize.strict_cast())
+            };
+            let (frame_bufs, rest) = buf.as_chunks_mut::<{ ByteSize::ONE_FRAME.cast() }>();
             assert_eq!(0, rest.len());
 
-            // The mock write the frame number to the first 4 bytes of the buffer chunk for each
-            // frame of "data returned"
-            for (i, frame_buf) in frames.iter_mut().enumerate() {
+            // The mock writes the frame number to the first 4 bytes of the buffer chunk for each
+            // frame of "data returned" leaving the remainder of the chunk untouched
+            for (i, frame_buf) in frame_bufs.iter_mut().enumerate() {
                 frame_buf[..4].copy_from_slice(&u32::to_le_bytes(
                     start.cast::<u32>().strict_add(i.strict_cast()),
                 ));
