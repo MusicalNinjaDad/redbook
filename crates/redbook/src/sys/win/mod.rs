@@ -43,7 +43,6 @@ mod miri {
     #[case(TheWallDisc2)]
     #[case(BatOutOfHellRevamped)]
     #[case(TheBoyWhoKnewTooMuch)]
-    #[should_panic(expected = "mock DeviceIoControl for additional control codes")]
     fn read_chunk(#[case] album: TestAlbum) {
         let device = DriveHandle::open(&album.assets_path()).unwrap();
         let mut buf = [0_u8; const { Frame::strict_new(10).size().cast::<usize>() }];

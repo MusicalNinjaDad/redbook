@@ -2,9 +2,11 @@
 //! on any host
 
 use std::path::PathBuf;
-use std::{io, slice};
+use std::{io, ptr, slice};
 
-use crate::sys::win::bindings::{IOCTL_CDROM_RAW_READ, RAW_READ_INFO};
+use crate::frame::ByteSize;
+use crate::sys::win::bindings::{CDDA, IOCTL_CDROM_RAW_READ, RAW_READ_INFO};
+use crate::sys::win::convert::Sector;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
@@ -291,7 +293,8 @@ pub unsafe fn DeviceIoControl(
                 size_of::<RAW_READ_INFO>()
             );
             assert!((lpinbuffer as *const RAW_READ_INFO).is_aligned());
-            assert!((lpoutbuffer as *const u8).is_aligned());
+            let _exact_number_of_frames = ByteSize::strict_new(noutbuffersize);
+            assert!((lpoutbuffer as *mut u8).is_aligned());
         }
         _ => unimplemented!("unsupported control code"),
     };
@@ -321,6 +324,30 @@ pub unsafe fn DeviceIoControl(
             assert_eq!(noutbuffersize.strict_cast::<usize>(), size_of_val(&info));
             unsafe { *(lpoutbuffer as *mut STORAGE_DEVICE_NUMBER) = info };
             unsafe { *lpbytesreturned = size_of_val(&info).strict_cast() };
+        }
+        IOCTL_CDROM_RAW_READ => {
+            let read_info: RAW_READ_INFO = unsafe { ptr::read(lpinbuffer as *const _) };
+            assert_eq!(read_info.TrackMode, CDDA);
+            let buf = unsafe {
+                slice::from_raw_parts_mut(lpoutbuffer as *mut u8, noutbuffersize.strict_cast())
+            };
+            let frames_to_return = ByteSize::strict_new(noutbuffersize).frames();
+            assert_eq!(read_info.SectorCount, frames_to_return.cast::<u32>());
+
+            let start = Sector::from_offset(read_info.DiskOffset).frame();
+
+            let (frames, rest) = buf.as_chunks_mut::<{ ByteSize::ONE_FRAME.cast() }>();
+            assert_eq!(0, rest.len());
+
+            // The mock write the frame number to the first 4 bytes of the buffer chunk for each
+            // frame of "data returned"
+            for (i, frame_buf) in frames.iter_mut().enumerate() {
+                frame_buf[..4].copy_from_slice(&u32::to_le_bytes(
+                    start.cast::<u32>().strict_add(i.strict_cast()),
+                ));
+            }
+
+            unsafe { lpbytesreturned.write(noutbuffersize) };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
     }
