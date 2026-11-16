@@ -1,7 +1,8 @@
-//! Disc metadata and MusicBrainz integration
+//! A logical CD, represented by [`Disc`] with the details you would expect on the printed case.
 //!
-//! Provides the [`Disc`] struct for representing a physical CD, including its table of contents,
-//! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
+//! This module uses [musicbrainz](https://musicbrainz.org/) as the source of metadata.
+//! 
+//! See [Disc], the main entry point, for examples
 
 #[doc(inline)]
 pub use disc::{Disc, Tracks};

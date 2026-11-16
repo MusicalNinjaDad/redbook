@@ -1,5 +1,4 @@
 #![expect(missing_docs, reason = "TODO")]
-//! Provides [`Track`] & associated types
 
 use std::fmt::Display;
 
@@ -12,7 +11,7 @@ use crate::{
 #[derive(Debug, Copy, Clone, PartialEq)]
 /// A track on a CD with associated metadata.
 ///
-/// This struct represents a single track on an audio CD, combining low-level
+/// This struct represents a single track on an audio CD, combining basic
 /// TOC (Table of Contents) information with optional metadata from MusicBrainz.
 ///
 /// # Notes
