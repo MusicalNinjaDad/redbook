@@ -4,7 +4,7 @@ use thread_safely::Context;
 
 use crate::{
     Error, RipProgress,
-    disc::{DiscError, TocMismatch, error::IoError},
+    disc::error::{DiscError, IoError, TocMismatch},
     drive::{
         DriveError,
         error::{DeviceError, InvalidBufferSize},

@@ -4,7 +4,7 @@
 //! tracks, and metadata retrieved from MusicBrainz and CoverArtArchive.
 
 pub use disc::{Disc, Tracks};
-pub use error::{DiscError, TocMismatch};
+pub use error::DiscError;
 pub use track::Track;
 
 mod disc;

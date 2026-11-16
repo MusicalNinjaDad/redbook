@@ -19,7 +19,7 @@ use tracing_result::Trace;
 
 use crate::{
     TrackNo,
-    disc::{DiscError, TocMismatch, Track, musicbrainz::ArtistCreditsExt},
+    disc::{DiscError, Track, error::TocMismatch, musicbrainz::ArtistCreditsExt},
     tags::{artwork::picture_from_jpeg, vorbis::ExtendVorbisTag},
 };
 
