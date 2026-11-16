@@ -1,16 +1,13 @@
-#![expect(missing_docs, reason = "needs update")]
-//! Tagging utilities for FLAC metadata
+//! Tagging helpers for FLAC metadata, shared by [`Disc`][crate::Disc] tag generation and
+//! [`RippedTrack`][crate::RippedTrack] construction.
+//!
+//! This module is crate-internal: nothing here is part of the public API. File-naming logic
+//! used when saving a [`RippedTrack`][crate::RippedTrack] lives in
+//! [`ripped_track`][crate::ripped_track] instead.
 
-use std::{
-    fmt::{Debug, Display},
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{fmt::Display, str::FromStr};
 
-use metaflac::{
-    Tag,
-    block::{Picture, PictureType, VorbisComment},
-};
+use metaflac::block::{Picture, PictureType, VorbisComment};
 use musicbrainz_rs::entity::{
     artist_credit::ArtistCredit,
     release::{Release, ReleaseStatus, Track},
@@ -19,11 +16,15 @@ use musicbrainz_rs::entity::{
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
-use crate::disc::error::{TaggingError, UnknownMimeType};
+use crate::disc::error::UnknownMimeType;
 
-pub trait ArtistCreditsExt {
+/// Access to the artist names & MusicBrainz ids contained in an artist credit.
+pub(super) trait ArtistCreditsExt {
+    /// The names of all artists in the credit, in order.
     fn artist_names(&self) -> impl Iterator<Item = String>;
+    /// The MusicBrainz ids of all artists in the credit, in order.
     fn artist_ids(&self) -> impl Iterator<Item = String>;
+    /// The name of the first (main) artist in the credit, if any.
     fn main_artist(&self) -> Option<String> {
         self.artist_names().nth(0)
     }
@@ -85,188 +86,11 @@ impl<T: ArtistCreditsExt> ArtistCreditsExt for Option<T> {
     }
 }
 
-pub trait PictureExt {
-    fn from_jpeg<B: AsRef<[u8]>, S: ToString>(
-        picture_type: PictureType,
-        description: S,
-        data: B,
-    ) -> Self;
-
-    fn filename(&self) -> Result<PathBuf, UnknownMimeType>;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ImageMimeTypes {
-    Jpeg,
-}
-
-impl Display for ImageMimeTypes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "image/")?;
-        match self {
-            ImageMimeTypes::Jpeg => write!(f, "jpeg"),
-        }
-    }
-}
-
-impl FromStr for ImageMimeTypes {
-    type Err = UnknownMimeType;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mimetype = match s {
-            "image/jpeg" => ImageMimeTypes::Jpeg,
-            _ => Err(UnknownMimeType::from(s)).or_warn("parsing artwork mime type")?,
-        };
-        Ok(mimetype)
-    }
-}
-
-impl PictureExt for Picture {
-    fn from_jpeg<B: AsRef<[u8]>, S: ToString>(
-        picture_type: PictureType,
-        description: S,
-        data: B,
-    ) -> Self {
-        let mut jpg_info = JpegDecoder::new(ZCursor::from(&data));
-
-        #[expect(unused_must_use, reason = "TODO: change to try_from_jpeg")]
-        jpg_info.decode_headers();
-
-        let width = jpg_info.info().unwrap().width as u32;
-        let height = jpg_info.info().unwrap().height as u32;
-
-        Picture {
-            picture_type,
-            mime_type: ImageMimeTypes::Jpeg.to_string(),
-            description: description.to_string(),
-            width,
-            height,
-            depth: 24,
-            num_colors: 0,
-            data: data.as_ref().to_vec(),
-        }
-    }
-
-    fn filename(&self) -> Result<PathBuf, UnknownMimeType> {
-        let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
-        let filename = match self.picture_type {
-            PictureType::CoverFront => "cover",
-            _ => todo!("TODO #100: handle other picture types"),
-        };
-        let extension = match self
-            .mime_type
-            .parse::<ImageMimeTypes>()
-            .or_warn("identifying image mime type")?
-        {
-            ImageMimeTypes::Jpeg => "jpg",
-        };
-        let path = PathBuf::from(sanitise(filename)).with_extension(sanitise(extension));
-        tracing::debug!(path = %path.display());
-        Ok(path)
-    }
-}
-
-pub trait VorbisTagExt {
-    /// 0n Full - title
-    fn filename(&self) -> PathBuf;
-
-    /// Album - Artists/Album title [Disc n]
-    fn directory(&self) -> PathBuf;
-
-    /// Title one - Title two
-    fn full_title(&self) -> String;
-
-    /// Write tags to the given file
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError>;
-
-    fn discno(&self) -> Option<String>;
-
-    fn total_discs(&self) -> Option<String>;
-
-    fn set_discno(&mut self, discno: usize);
-
-    fn set_total_discs(&mut self, discs: usize);
-
-    /// Album 1 - Album 2 [Disc 2]
-    fn full_album(&self) -> Option<String>;
-}
-
-impl VorbisTagExt for VorbisComment {
-    fn filename(&self) -> PathBuf {
-        let track_number = format!("{:02}", self.track().unwrap_or_default());
-        let title = self.full_title();
-        PathBuf::from(sanitise(&[track_number, title].join(" ")))
-    }
-
-    fn directory(&self) -> PathBuf {
-        let artist = self
-            .album_artist()
-            .map(|artists| artists.join(" "))
-            .unwrap_or_else(|| "Unknown artist".to_string());
-        let title = self
-            .full_album()
-            .unwrap_or_else(|| "Unknown album".to_string());
-        PathBuf::from(sanitise(&artist)).join(sanitise(&title))
-    }
-
-    fn full_title(&self) -> String {
-        self.title()
-            .map(|titles| titles.join(" - "))
-            .unwrap_or_default()
-    }
-
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError> {
-        let mut file_tag = Tag::read_from_path(path.as_ref()).or_warn("reading tags from file")?;
-        file_tag
-            .vorbis_comments_mut()
-            .comments
-            .extend(self.comments);
-        file_tag
-            .write_to_path(path.as_ref())
-            .or_warn("saving tags to file")?;
-        Ok(())
-    }
-
-    fn discno(&self) -> Option<String> {
-        self.get("DISCNUMBER").map(|n| n.join("-"))
-    }
-
-    fn total_discs(&self) -> Option<String> {
-        self.get("TOTALDISCS")
-            .or_else(|| self.get("DISCTOTAL"))
-            .map(|n| n.join("-"))
-    }
-
-    fn full_album(&self) -> Option<String> {
-        self.album().map(|titles| {
-            let discno = self
-                .discno()
-                .and_then(|n| n.parse::<usize>().ok())
-                .unwrap_or_default();
-            let discs = self
-                .total_discs()
-                .and_then(|n| n.parse::<usize>().ok())
-                .unwrap_or_default();
-            let title = titles.join(" - ");
-            match (discno, discs) {
-                (2.., _) | (_, 2..) => format!("{title} [Disc {discno}]"),
-                _ => title,
-            }
-        })
-    }
-
-    fn set_discno(&mut self, discno: usize) {
-        self.set("DISCNUMBER", vec![discno.to_string()]);
-    }
-
-    fn set_total_discs(&mut self, discs: usize) {
-        self.set("TOTALDISCS", vec![discs.to_string()]);
-        self.set("DISCTOTAL", vec![discs.to_string()]);
-    }
-}
-
-pub trait ExtendVorbisTag {
+/// Update an existing [`VorbisComment`] based upon the value of `Self`.
+pub(super) trait ExtendVorbisTag {
+    /// The vorbis comment key the value is written to.
     const KEY: &'static str;
+    /// Set the tag identified by [`KEY`][Self::KEY] on `vorbis`.
     fn extend_vorbis(&self, vorbis: &mut VorbisComment);
 }
 
@@ -294,112 +118,57 @@ impl ExtendVorbisTag for ReleaseScript {
     }
 }
 
-/// Returns a sanitised version of the string suitable for use as a filename.
-///
-/// We strip out invalid / dangerous characters, based on the target, and additionally remove any
-/// leading / trailing whitespace and leading `-`
-fn sanitise(pathsegment: &str) -> String {
-    #[cfg(windows)]
-    /// Returns `true` if the character is valid for a filename on Windows.
-    ///
-    /// A character is considered valid if:
-    /// - It is an ASCII character (`char::is_ascii()` returns `true`)
-    /// - Its Unicode code point is between 32 and 126 inclusive
-    /// - It is not one of the reserved filename characters: `< > : " / \ | ? *`
-    fn is_valid(c: &char) -> bool {
-        let reserved = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-        c.is_ascii() && *c >= ' ' && *c <= '~' && !reserved.contains(c)
-    }
-
-    #[cfg(unix)]
-    /// Returns `true` if the character is valid for a (sane) filename on Posix.
-    ///
-    /// While technically, any character except `\0` and `/` is valid for a filename,
-    /// a range of characters can cause practical and security issues, so we restrict them here.
-    ///
-    /// A character is considered valid if:
-    /// - It is not an ASCII control code
-    /// - It is not one of the reserved filename characters `\0` or `/`
-    /// - It is not a character which is expanded in bash within `"` double quotes: `$ ` \ !`
-    /// - .. a valid bash quote: `' "`
-    /// - .. or otherwise particularly dangerous in inadvertent shell expansions: `< > | ? *`
-    /// - Note that we allow all forms of parentheses so filename expansions will still need to
-    ///   be quoted as per good practice
-    fn is_valid(c: &char) -> bool {
-        let reserved = ['\0', '/'];
-        let expanded = ['$', '`', '\\', '!'];
-        let quotes = ['\'', '"'];
-        let dangerous = ['<', '>', '|', '?', '*'];
-
-        !c.is_ascii_control()
-            && !reserved.contains(c)
-            && !expanded.contains(c)
-            && !quotes.contains(c)
-            && !dangerous.contains(c)
-    }
-
-    fn invalid_at_start(c: &char) -> bool {
-        c.is_whitespace() || *c == '-'
-    }
-
-    pathsegment
-        .chars()
-        .filter(is_valid)
-        .skip_while(invalid_at_start)
-        .collect()
+/// The image mime types supported for cover art.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ImageMimeTypes {
+    /// jpeg image data
+    Jpeg,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod full_album {
-        use super::*;
-
-        #[test]
-        fn one_title() {
-            let mut vorbis = VorbisComment::new();
-            vorbis.set_album(vec!["an album"]);
-            assert_eq!(vorbis.full_album().unwrap(), "an album");
-        }
-
-        #[test]
-        fn two_titles() {
-            let mut vorbis = VorbisComment::new();
-            vorbis.set_album(vec!["an album", "with a subtitle"]);
-            assert_eq!(vorbis.full_album().unwrap(), "an album - with a subtitle");
-        }
-
-        #[test]
-        fn disc1_of_1() {
-            let mut vorbis = VorbisComment::new();
-            vorbis.set_album(vec!["an album"]);
-            vorbis.set_discno(1);
-            vorbis.set_total_discs(1);
-            assert_eq!(vorbis.full_album().unwrap(), "an album");
-        }
-
-        #[test]
-        fn disc1_of_2() {
-            let mut vorbis = VorbisComment::new();
-            vorbis.set_album(vec!["an album"]);
-            vorbis.set_discno(1);
-            vorbis.set_total_discs(2);
-            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 1]");
-        }
-
-        #[test]
-        fn disc2() {
-            let mut vorbis = VorbisComment::new();
-            vorbis.set_album(vec!["an album"]);
-            vorbis.set_discno(2);
-            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 2]");
+impl Display for ImageMimeTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "image/")?;
+        match self {
+            ImageMimeTypes::Jpeg => write!(f, "jpeg"),
         }
     }
+}
 
-    #[test]
-    fn sanitise_paths() {
-        assert_eq!(sanitise("file?name*.txt"), "filename.txt");
-        assert_eq!(sanitise(" -v | nasty > /dev/null"), "v  nasty  devnull");
+impl FromStr for ImageMimeTypes {
+    type Err = UnknownMimeType;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mimetype = match s {
+            "image/jpeg" => ImageMimeTypes::Jpeg,
+            _ => Err(UnknownMimeType::from(s)).or_warn("parsing artwork mime type")?,
+        };
+        Ok(mimetype)
+    }
+}
+
+/// Construct a [`Picture`] block of `picture_type` from jpeg `data`, reading the image
+/// dimensions from the jpeg headers.
+pub(crate) fn picture_from_jpeg<B: AsRef<[u8]>, S: ToString>(
+    picture_type: PictureType,
+    description: S,
+    data: B,
+) -> Picture {
+    let mut jpg_info = JpegDecoder::new(ZCursor::from(&data));
+
+    #[expect(unused_must_use, reason = "TODO: change to try_from_jpeg")]
+    jpg_info.decode_headers();
+
+    let width = jpg_info.info().unwrap().width as u32;
+    let height = jpg_info.info().unwrap().height as u32;
+
+    Picture {
+        picture_type,
+        mime_type: ImageMimeTypes::Jpeg.to_string(),
+        description: description.to_string(),
+        width,
+        height,
+        depth: 24,
+        num_colors: 0,
+        data: data.as_ref().to_vec(),
     }
 }

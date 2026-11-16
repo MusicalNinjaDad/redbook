@@ -26,16 +26,12 @@ use std::{
 use clap::Parser;
 use exit_safely::Termination;
 use humanize_duration::{Truncate, prelude::DurationExt};
-use metaflac::{
-    Block, Tag,
-    block::{Picture, PictureType},
-};
+use metaflac::{Block, Tag};
 use redbook::error::RedbookError;
 #[cfg(target_family = "windows")]
 use redbook::{
     AudioCd, RippedTrack, TrackNo,
     drive::{CdDrives, DriveError},
-    tagging::{PictureExt, VorbisTagExt},
 };
 #[cfg(target_family = "windows")]
 use tracing_result::Trace;
@@ -275,7 +271,7 @@ fn main() -> Exit<()> {
             try bikeshed redbook::Result<_> {
                 let tag = &ripped.tags;
                 let track_number = tag.track().unwrap_or_default();
-                let track_name = tag.full_title();
+                let track_name = ripped.full_title();
                 let _debug_span =
                     tracing::debug_span!("encode", track = track_number, name = %track_name)
                         .entered();
@@ -283,7 +279,7 @@ fn main() -> Exit<()> {
 
                 let start = std::time::Instant::now();
 
-                let flac_path = output_dir.join(tag.filename()).with_extension("flac");
+                let flac_path = output_dir.join(ripped.filename()).with_extension("flac");
                 let mut flac_file = File::create_new(&flac_path).or_warn("creating flac file")?;
 
                 let flac = ripped.to_flac()?;
@@ -297,19 +293,15 @@ fn main() -> Exit<()> {
                     size = flac.as_slice().len()
                 );
 
-                let RippedTrack { tags, coverart, .. } = ripped;
                 let mut file_tag = Tag::read_from_path(&flac_path)
                     // TODO #67 error handling reading empty tag from file during encoding
                     .unwrap();
                 file_tag
                     .vorbis_comments_mut()
                     .comments
-                    .extend(tags.comments);
+                    .extend(ripped.tags.comments.clone());
 
-                if let Some(cover) = coverart.or(fs::read(output_dir.join("front.jpeg"))
-                    .ok()
-                    .map(|data| Picture::from_jpeg(PictureType::CoverFront, "Front Cover", data)))
-                {
+                if let Some(cover) = ripped.coverart_or_from_file(output_dir.join("front.jpeg")) {
                     file_tag.push_block(Block::Picture(cover));
                 }
 

@@ -1,9 +1,24 @@
 //! A ripped audio track containing raw CD data and metadata.
 
-use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
-use metaflac::block::{Picture, VorbisComment};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
-use crate::error::EncodingError;
+use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
+use metaflac::{
+    Tag,
+    block::{Picture, PictureType, VorbisComment},
+};
+use tracing_result::Trace;
+
+use crate::{
+    disc::{
+        error::{TaggingError, UnknownMimeType},
+        tagging::{ImageMimeTypes, picture_from_jpeg},
+    },
+    error::EncodingError,
+};
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
 /// (tags) and the cover art.
@@ -24,6 +39,34 @@ pub struct RippedTrack {
 }
 
 impl RippedTrack {
+    /// The full title of the track: multiple `TITLE` tags joined with `" - "`
+    /// (e.g. "Title one - Title two").
+    pub fn full_title(&self) -> String {
+        self.tags.full_title()
+    }
+
+    /// The base filename for the track's audio file: `"0n Full - title"`, without extension.
+    pub fn filename(&self) -> PathBuf {
+        self.tags.filename()
+    }
+
+    /// The directory for the album: `Artist/Album title [Disc n]`.
+    pub fn directory(&self) -> PathBuf {
+        self.tags.directory()
+    }
+
+    /// The filename for the cover art (e.g. `cover.jpg`), if cover art is present.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnknownMimeType`] if the cover art's mime type is not recognised.
+    pub fn coverart_filename(&self) -> Result<Option<PathBuf>, UnknownMimeType> {
+        self.coverart
+            .as_ref()
+            .map(|cover| cover.filename())
+            .transpose()
+    }
+
     /// Encodes the raw CD audio data to FLAC format.
     ///
     /// # Errors
@@ -85,5 +128,269 @@ impl RippedTrack {
 
         wav.extend(pcm);
         wav
+    }
+
+    /// Adds the track's tags to the vorbis comments of the given (flac) file, extending any
+    /// comments already present.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaggingError`] if the file's tags cannot be read or written.
+    pub fn add_tags_to<P: AsRef<Path>>(&self, path: &P) -> Result<(), TaggingError> {
+        self.tags.clone().add_to(path)
+    }
+
+    /// The cover art for the track: the cached art if present, otherwise a front cover
+    /// constructed from the jpeg file at `fallback`.
+    pub fn coverart_or_from_file<P: AsRef<Path>>(&self, fallback: P) -> Option<Picture> {
+        self.coverart.clone().or_else(|| {
+            fs::read(fallback)
+                .ok()
+                .map(|data| picture_from_jpeg(PictureType::CoverFront, "Front Cover", data))
+        })
+    }
+}
+
+/// File & directory naming logic for the [`VorbisComment`] tags of a [`RippedTrack`].
+trait VorbisTagExt {
+    /// 0n Full - title
+    fn filename(&self) -> PathBuf;
+
+    /// Album - Artists/Album title [Disc n]
+    fn directory(&self) -> PathBuf;
+
+    /// Title one - Title two
+    fn full_title(&self) -> String;
+
+    /// Write tags to the given file
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError>;
+
+    /// The `DISCNUMBER` tag, if present
+    fn discno(&self) -> Option<String>;
+
+    /// The `TOTALDISCS`/`DISCTOTAL` tag, if present
+    fn total_discs(&self) -> Option<String>;
+
+    /// Set the `DISCNUMBER` tag
+    #[cfg(test)]
+    fn set_discno(&mut self, discno: usize);
+
+    /// Set the `TOTALDISCS` & `DISCTOTAL` tags
+    #[cfg(test)]
+    fn set_total_discs(&mut self, discs: usize);
+
+    /// Album 1 - Album 2 [Disc 2]
+    fn full_album(&self) -> Option<String>;
+}
+
+impl VorbisTagExt for VorbisComment {
+    fn filename(&self) -> PathBuf {
+        let track_number = format!("{:02}", self.track().unwrap_or_default());
+        let title = self.full_title();
+        PathBuf::from(sanitise(&[track_number, title].join(" ")))
+    }
+
+    fn directory(&self) -> PathBuf {
+        let artist = self
+            .album_artist()
+            .map(|artists| artists.join(" "))
+            .unwrap_or_else(|| "Unknown artist".to_string());
+        let title = self
+            .full_album()
+            .unwrap_or_else(|| "Unknown album".to_string());
+        PathBuf::from(sanitise(&artist)).join(sanitise(&title))
+    }
+
+    fn full_title(&self) -> String {
+        self.title()
+            .map(|titles| titles.join(" - "))
+            .unwrap_or_default()
+    }
+
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError> {
+        let mut file_tag = Tag::read_from_path(path.as_ref()).or_warn("reading tags from file")?;
+        file_tag
+            .vorbis_comments_mut()
+            .comments
+            .extend(self.comments);
+        file_tag
+            .write_to_path(path.as_ref())
+            .or_warn("saving tags to file")?;
+        Ok(())
+    }
+
+    fn discno(&self) -> Option<String> {
+        self.get("DISCNUMBER").map(|n| n.join("-"))
+    }
+
+    fn total_discs(&self) -> Option<String> {
+        self.get("TOTALDISCS")
+            .or_else(|| self.get("DISCTOTAL"))
+            .map(|n| n.join("-"))
+    }
+
+    fn full_album(&self) -> Option<String> {
+        self.album().map(|titles| {
+            let discno = self
+                .discno()
+                .and_then(|n| n.parse::<usize>().ok())
+                .unwrap_or_default();
+            let discs = self
+                .total_discs()
+                .and_then(|n| n.parse::<usize>().ok())
+                .unwrap_or_default();
+            let title = titles.join(" - ");
+            match (discno, discs) {
+                (2.., _) | (_, 2..) => format!("{title} [Disc {discno}]"),
+                _ => title,
+            }
+        })
+    }
+
+    #[cfg(test)]
+    fn set_discno(&mut self, discno: usize) {
+        self.set("DISCNUMBER", vec![discno.to_string()]);
+    }
+
+    #[cfg(test)]
+    fn set_total_discs(&mut self, discs: usize) {
+        self.set("TOTALDISCS", vec![discs.to_string()]);
+        self.set("DISCTOTAL", vec![discs.to_string()]);
+    }
+}
+
+/// File naming logic for the cover art [`Picture`] of a [`RippedTrack`].
+trait PictureExt {
+    /// The filename for the picture, based on its picture type & mime type (e.g. `cover.jpg`)
+    fn filename(&self) -> Result<PathBuf, UnknownMimeType>;
+}
+
+impl PictureExt for Picture {
+    fn filename(&self) -> Result<PathBuf, UnknownMimeType> {
+        let _debug_span = tracing::debug_span!("PictureExt::filename").entered();
+        let filename = match self.picture_type {
+            PictureType::CoverFront => "cover",
+            _ => todo!("TODO #100: handle other picture types"),
+        };
+        let extension = match self
+            .mime_type
+            .parse::<ImageMimeTypes>()
+            .or_warn("identifying image mime type")?
+        {
+            ImageMimeTypes::Jpeg => "jpg",
+        };
+        let path = PathBuf::from(sanitise(filename)).with_extension(sanitise(extension));
+        tracing::debug!(path = %path.display());
+        Ok(path)
+    }
+}
+
+/// Returns a sanitised version of the string suitable for use as a filename.
+///
+/// We strip out invalid / dangerous characters, based on the target, and additionally remove any
+/// leading / trailing whitespace and leading `-`
+fn sanitise(pathsegment: &str) -> String {
+    #[cfg(windows)]
+    /// Returns `true` if the character is valid for a filename on Windows.
+    ///
+    /// A character is considered valid if:
+    /// - It is an ASCII character (`char::is_ascii()` returns `true`)
+    /// - Its Unicode code point is between 32 and 126 inclusive
+    /// - It is not one of the reserved filename characters: `< > : " / \ | ? *`
+    fn is_valid(c: &char) -> bool {
+        let reserved = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+        c.is_ascii() && *c >= ' ' && *c <= '~' && !reserved.contains(c)
+    }
+
+    #[cfg(unix)]
+    /// Returns `true` if the character is valid for a (sane) filename on Posix.
+    ///
+    /// While technically, any character except `\0` and `/` is valid for a filename,
+    /// a range of characters can cause practical and security issues, so we restrict them here.
+    ///
+    /// A character is considered valid if:
+    /// - It is not an ASCII control code
+    /// - It is not one of the reserved filename characters `\0` or `/`
+    /// - It is not a character which is expanded in bash within `"` double quotes: `$ ` \ !`
+    /// - .. a valid bash quote: `' "`
+    /// - .. or otherwise particularly dangerous in inadvertent shell expansions: `< > | ? *`
+    /// - Note that we allow all forms of parentheses so filename expansions will still need to
+    ///   be quoted as per good practice
+    fn is_valid(c: &char) -> bool {
+        let reserved = ['\0', '/'];
+        let expanded = ['$', '`', '\\', '!'];
+        let quotes = ['\'', '"'];
+        let dangerous = ['<', '>', '|', '?', '*'];
+
+        !c.is_ascii_control()
+            && !reserved.contains(c)
+            && !expanded.contains(c)
+            && !quotes.contains(c)
+            && !dangerous.contains(c)
+    }
+
+    fn invalid_at_start(c: &char) -> bool {
+        c.is_whitespace() || *c == '-'
+    }
+
+    pathsegment
+        .chars()
+        .filter(is_valid)
+        .skip_while(invalid_at_start)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod full_album {
+        use super::*;
+
+        #[test]
+        fn one_title() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            assert_eq!(vorbis.full_album().unwrap(), "an album");
+        }
+
+        #[test]
+        fn two_titles() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album", "with a subtitle"]);
+            assert_eq!(vorbis.full_album().unwrap(), "an album - with a subtitle");
+        }
+
+        #[test]
+        fn disc1_of_1() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(1);
+            vorbis.set_total_discs(1);
+            assert_eq!(vorbis.full_album().unwrap(), "an album");
+        }
+
+        #[test]
+        fn disc1_of_2() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(1);
+            vorbis.set_total_discs(2);
+            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 1]");
+        }
+
+        #[test]
+        fn disc2() {
+            let mut vorbis = VorbisComment::new();
+            vorbis.set_album(vec!["an album"]);
+            vorbis.set_discno(2);
+            assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 2]");
+        }
+    }
+
+    #[test]
+    fn sanitise_paths() {
+        assert_eq!(sanitise("file?name*.txt"), "filename.txt");
+        assert_eq!(sanitise(" -v | nasty > /dev/null"), "v  nasty  devnull");
     }
 }

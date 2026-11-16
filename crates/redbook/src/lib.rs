@@ -72,7 +72,7 @@
 //!
 //! ```no_run
 //! use std::{fs::{self, File}, io::Write};
-//! use redbook::{AudioCd, CdDrives, RippedTrack, RipProgress, TrackNo, Result, drive::DriveError, tagging::{PictureExt, VorbisTagExt}};
+//! use redbook::{AudioCd, CdDrives, RipProgress, TrackNo, Result, drive::DriveError};
 //! use thread_safely::Controller;
 //! # fn main() -> Result<()> {
 //! // Allow for status updates & cancellation mid-rip
@@ -94,25 +94,21 @@
 //! // Encode to flac
 //! let flac = track_1.to_flac()?;
 //!
-//! // Get associated data
-//! let RippedTrack {tags, coverart, ..} = track_1;
-//!
 //! // Decide where to store the music
-//! let album_directory = tags.directory();
+//! let album_directory = track_1.directory();
 //! fs::create_dir_all(&album_directory)?;
 //!
 //! // Save the flac file
-//! let flac_path = album_directory.join(tags.filename()).with_extension("flac");
+//! let flac_path = album_directory.join(track_1.filename()).with_extension("flac");
 //! let mut flac_file = File::create_new(&flac_path)?;
 //! flac_file.write_all(flac.as_slice())?;
 //!
 //! // Add tags to the file
-//! tags.add_to(&flac_path)?;
+//! track_1.add_tags_to(&flac_path)?;
 //!
 //! // Save the coverart as cover.jpg
-//! if let Some(artwork) = coverart {
-//!     let path = album_directory.join(artwork.filename()?);
-//!     fs::write(path, artwork.data)?;
+//! if let (Some(filename), Some(artwork)) = (track_1.coverart_filename().ok(), track_1.coverart.as_ref()) {
+//!     fs::write(album_directory.join(filename), &artwork.data)?;
 //! }
 //! # Result::Ok(())
 //! # }
@@ -290,7 +286,7 @@
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 #[doc(inline)]
-pub use disc::{Disc, tagging};
+pub use disc::Disc;
 #[doc(inline)]
 pub use drive::{Device, Drive};
 #[doc(inline)]

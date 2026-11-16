@@ -5,8 +5,12 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries, disc::Track, error::RedbookError, frame::Msf, tagging::PictureExt,
-    test_fixtures::track_descriptor::RawTocDescriptors, toc::TrackNo,
+    Frame, LEADIN, TocEntries,
+    disc::{Track, tagging::picture_from_jpeg},
+    error::RedbookError,
+    frame::Msf,
+    test_fixtures::track_descriptor::RawTocDescriptors,
+    toc::TrackNo,
 };
 
 /// Test album identifier for parameterized tests
@@ -335,6 +339,12 @@ impl TestAlbum {
         self.assets_path().join("thumbnail.jpeg")
     }
 
+    /// The cover art as a [`Picture`], read from the album's thumbnail
+    pub fn expected_coverart(&self) -> Picture {
+        let thumb = fs::read(self.thumbnail_path()).unwrap();
+        picture_from_jpeg(PictureType::CoverFront, "Front Cover", thumb)
+    }
+
     /// The cover thumbnails
     pub fn expected_thumbnails(&self) -> HashMap<String, Picture> {
         fs::read_dir(self.assets_path().join("thumbs"))
@@ -342,7 +352,7 @@ impl TestAlbum {
             .map(|file| {
                 let pic = file.unwrap().path();
                 let thumb = fs::read(&pic).unwrap();
-                let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
+                let image = picture_from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
                 (
                     pic.file_stem().unwrap().to_string_lossy().into_owned(),
                     image,

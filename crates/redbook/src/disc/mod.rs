@@ -9,5 +9,5 @@ pub use track::Track;
 
 mod disc;
 pub mod error;
-pub mod tagging;
+pub(crate) mod tagging;
 mod track;

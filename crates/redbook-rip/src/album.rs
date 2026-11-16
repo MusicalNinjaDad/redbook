@@ -1,16 +1,25 @@
 use std::io::{self, ErrorKind};
 
 use musicbrainz_rs::entity::release::Release;
-use redbook::{Disc, disc::Track, tagging::ArtistCreditsExt};
+use redbook::{Disc, disc::Track};
 use slint::{Image, ModelRc, ToSharedString};
 use tracing::debug_span;
 use tracing_result::Trace;
 
 use crate::{ReleaseDetails, TrackDetails};
 
+/// The name of the first (main) artist in the release's artist credit, if any.
+fn main_artist(release: &Release) -> Option<String> {
+    release
+        .artist_credit
+        .as_ref()?
+        .first()
+        .map(|credit| credit.name.clone())
+}
+
 impl From<&Release> for ReleaseDetails {
     fn from(release: &Release) -> Self {
-        let artist = release.main_artist().clone().unwrap_or_default();
+        let artist = main_artist(release).unwrap_or_default();
         let title = release.title.clone();
         let album = [artist, title].join(": ").to_shared_string();
         let comment = release
@@ -107,12 +116,8 @@ impl From<Track<'_>> for TrackDetails {
 #[cfg(test)]
 mod tests {
 
-    use std::fs;
-
-    use metaflac::block::{Picture, PictureType};
     use redbook::{
         Disc,
-        tagging::PictureExt,
         test_fixtures::albums::TestAlbum::{self, *},
     };
     use slint::{Image, Model};
@@ -162,9 +167,7 @@ mod tests {
         disc.set_musicbrainz(musicbrainz);
         disc.set_release_by_id(album.release_id());
         let release_id = disc.release().unwrap().id.clone();
-        let thumb = fs::read(album.thumbnail_path()).unwrap();
-        let image = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", thumb);
-        disc.add_thumbnail(release_id, image);
+        disc.add_thumbnail(release_id, album.expected_coverart());
 
         let details = ReleaseDetails::try_from(&disc).unwrap();
 
@@ -221,7 +224,7 @@ mod tests {
                 .iter()
                 .find(|release| *release.id == *details.id)
                 .unwrap();
-            let album = [release.main_artist().unwrap(), release.title.clone()].join(": ");
+            let album = [main_artist(release).unwrap(), release.title.clone()].join(": ");
             assert_eq!(details.album, album);
             assert_eq!(
                 details.location,

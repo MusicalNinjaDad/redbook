@@ -19,8 +19,10 @@ use tracing_result::Trace;
 
 use crate::{
     TrackNo,
-    disc::{DiscError, TocMismatch, Track},
-    tagging::{ArtistCreditsExt, ExtendVorbisTag, PictureExt},
+    disc::{
+        DiscError, TocMismatch, Track,
+        tagging::{ArtistCreditsExt, ExtendVorbisTag, picture_from_jpeg},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -562,7 +564,7 @@ impl Disc {
     pub fn set_cover_art<B: AsRef<[u8]>>(&mut self, jpeg: B) -> &mut Self {
         let _debug = debug_span!("set_cover_art", size = jpeg.as_ref().len()).entered();
         tracing::debug!("setting cover art");
-        let cover = Picture::from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
+        let cover = picture_from_jpeg(PictureType::CoverFront, "Front Cover", jpeg);
         self.coverart = Some(cover);
         self
     }
@@ -639,7 +641,7 @@ impl Disc {
                 tracing::debug!("thumbnail retrieved");
                 self.add_thumbnail(
                     id,
-                    Picture::from_jpeg(PictureType::CoverFront, "Front Cover", image),
+                    picture_from_jpeg(PictureType::CoverFront, "Front Cover", image),
                 );
                 retrieved += 1;
                 debug_span.record("retrieved", retrieved);
