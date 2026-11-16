@@ -301,10 +301,4 @@ mod tests {
             assert_eq!(vorbis.full_album().unwrap(), "an album [Disc 2]");
         }
     }
-
-    #[test]
-    fn sanitise_paths() {
-        assert_eq!(sanitise("file?name*.txt"), "filename.txt");
-        assert_eq!(sanitise(" -v | nasty > /dev/null"), "v  nasty  devnull");
-    }
 }

@@ -52,3 +52,15 @@ pub(crate) fn sanitise(pathsegment: &str) -> String {
         .skip_while(invalid_at_start)
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn sanitise_paths() {
+        assert_eq!(sanitise("file?name*.txt"), "filename.txt");
+        assert_eq!(sanitise(" -v | nasty > /dev/null"), "v  nasty  devnull");
+    }
+}
