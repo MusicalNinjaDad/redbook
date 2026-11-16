@@ -10,6 +10,14 @@ use crate::error::{MetaDataError, UnknownMimeType};
 
 use super::{artwork::ImageMimeTypes, filenames::sanitise};
 
+/// Update an existing [`VorbisComment`] based upon the value of `Self`.
+pub(crate) trait ExtendVorbisTag {
+    /// The vorbis comment key the value is written to.
+    const KEY: &'static str;
+    /// Set the tag identified by [`KEY`][Self::KEY] on `vorbis`.
+    fn extend_vorbis(&self, vorbis: &mut VorbisComment);
+}
+
 /// File naming logic for the cover art [`Picture`] of a [`RippedTrack`].
 pub(crate) trait PictureExt {
     /// The filename for the picture, based on its picture type & mime type (e.g. `cover.jpg`)

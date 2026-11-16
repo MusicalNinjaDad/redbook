@@ -12,6 +12,8 @@ use musicbrainz_rs::entity::{
     release_scripts::ReleaseScript,
 };
 
+use crate::tags::vorbis::ExtendVorbisTag;
+
 /// Access to the artist names & MusicBrainz ids contained in an artist credit.
 pub(super) trait ArtistCreditsExt {
     /// The names of all artists in the credit, in order.
@@ -78,14 +80,6 @@ impl<T: ArtistCreditsExt> ArtistCreditsExt for Option<T> {
             .unwrap_or_default()
             .into_iter()
     }
-}
-
-/// Update an existing [`VorbisComment`] based upon the value of `Self`.
-pub(super) trait ExtendVorbisTag {
-    /// The vorbis comment key the value is written to.
-    const KEY: &'static str;
-    /// Set the tag identified by [`KEY`][Self::KEY] on `vorbis`.
-    fn extend_vorbis(&self, vorbis: &mut VorbisComment);
 }
 
 impl ExtendVorbisTag for ReleaseStatus {

@@ -19,11 +19,8 @@ use tracing_result::Trace;
 
 use crate::{
     TrackNo,
-    disc::{
-        DiscError, TocMismatch, Track,
-        tagging::{ArtistCreditsExt, ExtendVorbisTag},
-    },
-    tags::artwork::picture_from_jpeg,
+    disc::{DiscError, TocMismatch, Track, tagging::ArtistCreditsExt},
+    tags::{artwork::picture_from_jpeg, vorbis::ExtendVorbisTag},
 };
 
 #[derive(Debug, Clone, PartialEq)]
