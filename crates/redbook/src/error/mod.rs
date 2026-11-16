@@ -44,13 +44,14 @@ use crate::{
 };
 
 #[doc(inline)]
-pub use metadata::{MetaDataError, UnknownMimeType};
+pub use encoding::{EncodingError, FlacError};
 #[doc(inline)]
-pub use ripped_track::{EncodingError, FlacError};
+pub use metadata::{MetaDataError, UnknownMimeType};
 
 mod conversions;
+mod encoding;
 mod metadata;
-mod ripped_track;
+
 #[cfg(test)]
 mod tests;
 
