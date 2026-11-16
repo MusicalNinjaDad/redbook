@@ -16,7 +16,7 @@ use musicbrainz_rs::entity::{
 use tracing_result::Trace;
 use zune_jpeg::{JpegDecoder, zune_core::bytestream::ZCursor};
 
-use crate::disc::error::UnknownMimeType;
+use crate::error::UnknownMimeType;
 
 /// Access to the artist names & MusicBrainz ids contained in an artist credit.
 pub(super) trait ArtistCreditsExt {

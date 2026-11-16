@@ -8,6 +8,85 @@ use flacenc::bitsink::ByteSink;
 
 use crate::error::RedbookError;
 
+#[derive(Debug)]
+pub enum TaggingError {
+    UnknownMimeType(UnknownMimeType),
+    MetaflacError(metaflac::Error),
+}
+
+impl Error for TaggingError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            TaggingError::UnknownMimeType(error) => Some(error),
+            TaggingError::MetaflacError(error) => Some(error),
+        }
+    }
+
+    fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
+        match self {
+            TaggingError::UnknownMimeType(_) => {
+                request.provide_value(io::ErrorKind::InvalidData);
+            }
+            TaggingError::MetaflacError(error) => match &error.kind {
+                metaflac::ErrorKind::Io(error) => {
+                    request.provide_value(error.kind());
+                }
+                metaflac::ErrorKind::StringDecoding(_) => {
+                    request.provide_value(io::ErrorKind::InvalidData);
+                }
+                metaflac::ErrorKind::InvalidInput => {
+                    request.provide_value(io::ErrorKind::InvalidInput);
+                }
+            },
+        }
+    }
+}
+
+impl Display for TaggingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TaggingError::UnknownMimeType(_) => write!(f, "unknown MIME type"),
+            TaggingError::MetaflacError(_) => write!(f, "metaflac error"),
+        }
+    }
+}
+
+impl From<UnknownMimeType> for TaggingError {
+    fn from(error: UnknownMimeType) -> Self {
+        Self::UnknownMimeType(error)
+    }
+}
+
+impl From<metaflac::Error> for TaggingError {
+    fn from(error: metaflac::Error) -> Self {
+        Self::MetaflacError(error)
+    }
+}
+
+impl RedbookError for TaggingError {}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnknownMimeType(Box<str>);
+
+impl Error for UnknownMimeType {
+    // no provide - this could be InvalidData or InvalidInput
+}
+
+impl RedbookError for UnknownMimeType {}
+
+impl Display for UnknownMimeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<&str> for UnknownMimeType {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
+
 /// Error returned by [`RippedTrack::to_flac`][crate::RippedTrack::to_flac].
 ///
 /// Wrapped foreign errors convert via `From` / `?`.

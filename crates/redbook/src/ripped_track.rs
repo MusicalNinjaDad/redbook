@@ -13,11 +13,7 @@ use metaflac::{
 use tracing_result::Trace;
 
 use crate::{
-    disc::{
-        error::{TaggingError, UnknownMimeType},
-        tagging::{ImageMimeTypes, picture_from_jpeg},
-    },
-    error::EncodingError,
+    disc::tagging::{ImageMimeTypes, picture_from_jpeg}, error::{EncodingError, TaggingError, UnknownMimeType},
 };
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments

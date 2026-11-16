@@ -37,10 +37,7 @@ use thread_safely::Context;
 
 use crate::{
     RipProgress,
-    disc::{
-        DiscError, TocMismatch,
-        error::{IoError, TaggingError, UnknownMimeType},
-    },
+    disc::{DiscError, TocMismatch, error::IoError},
     drive::{
         DriveError,
         error::{DeviceError, InvalidBufferSize},
@@ -50,7 +47,7 @@ use crate::{
 };
 
 #[doc(inline)]
-pub use ripped_track::{EncodingError, FlacError};
+pub use ripped_track::{EncodingError, FlacError, TaggingError, UnknownMimeType};
 
 mod ripped_track;
 
