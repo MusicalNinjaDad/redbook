@@ -13,7 +13,8 @@ use metaflac::{
 use tracing_result::Trace;
 
 use crate::{
-    disc::tagging::{ImageMimeTypes, picture_from_jpeg}, error::{EncodingError, TaggingError, UnknownMimeType},
+    disc::tagging::{ImageMimeTypes, picture_from_jpeg},
+    error::{EncodingError, MetaDataError, UnknownMimeType},
 };
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments
@@ -56,11 +57,8 @@ impl RippedTrack {
     /// # Errors
     ///
     /// Returns [`UnknownMimeType`] if the cover art's mime type is not recognised.
-    pub fn coverart_filename(&self) -> Result<Option<PathBuf>, UnknownMimeType> {
-        self.coverart
-            .as_ref()
-            .map(|cover| cover.filename())
-            .transpose()
+    pub fn coverart_filename(&self) -> Option<Result<PathBuf, UnknownMimeType>> {
+        self.coverart.as_ref().map(|cover| cover.filename())
     }
 
     /// Encodes the raw CD audio data to FLAC format.
@@ -132,7 +130,7 @@ impl RippedTrack {
     /// # Errors
     ///
     /// Returns [`TaggingError`] if the file's tags cannot be read or written.
-    pub fn add_tags_to<P: AsRef<Path>>(&self, path: &P) -> Result<(), TaggingError> {
+    pub fn add_tags_to<P: AsRef<Path>>(&self, path: &P) -> Result<(), MetaDataError> {
         self.tags.clone().add_to(path)
     }
 
@@ -159,7 +157,7 @@ trait VorbisTagExt {
     fn full_title(&self) -> String;
 
     /// Write tags to the given file
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError>;
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), MetaDataError>;
 
     /// The `DISCNUMBER` tag, if present
     fn discno(&self) -> Option<String>;
@@ -203,7 +201,7 @@ impl VorbisTagExt for VorbisComment {
             .unwrap_or_default()
     }
 
-    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), TaggingError> {
+    fn add_to<P: AsRef<Path>>(self, path: &P) -> Result<(), MetaDataError> {
         let mut file_tag = Tag::read_from_path(path.as_ref()).or_warn("reading tags from file")?;
         file_tag
             .vorbis_comments_mut()

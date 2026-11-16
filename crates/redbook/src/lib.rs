@@ -107,8 +107,8 @@
 //! track_1.add_tags_to(&flac_path)?;
 //!
 //! // Save the coverart as cover.jpg
-//! if let (Some(filename), Some(artwork)) = (track_1.coverart_filename().ok(), track_1.coverart.as_ref()) {
-//!     fs::write(album_directory.join(filename), &artwork.data)?;
+//! if let (Some(filename), Some(artwork)) = (track_1.coverart_filename(), track_1.coverart.as_ref()) {
+//!     fs::write(album_directory.join(filename?), &artwork.data)?;
 //! }
 //! # Result::Ok(())
 //! # }

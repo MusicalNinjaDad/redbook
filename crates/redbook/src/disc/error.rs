@@ -14,7 +14,10 @@ use std::{
 
 use thread_safely::Context;
 
-use crate::{disc::Track, error::{RedbookError, TaggingError, UnknownMimeType}};
+use crate::{
+    disc::Track,
+    error::{MetaDataError, RedbookError, UnknownMimeType},
+};
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
 /// failures.
@@ -22,7 +25,7 @@ use crate::{disc::Track, error::{RedbookError, TaggingError, UnknownMimeType}};
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
     TocMismatch(TocMismatch),
-    TaggingError(TaggingError),
+    TaggingError(MetaDataError),
     /// No MusicBrainz release was found / selected.
     NoReleases,
     /// A thread cancellation request was received via the [`Context`]
@@ -81,21 +84,21 @@ impl From<TocMismatch> for DiscError {
     }
 }
 
-impl From<TaggingError> for DiscError {
-    fn from(error: TaggingError) -> Self {
+impl From<MetaDataError> for DiscError {
+    fn from(error: MetaDataError) -> Self {
         Self::TaggingError(error)
     }
 }
 
 impl From<UnknownMimeType> for DiscError {
     fn from(error: UnknownMimeType) -> Self {
-        TaggingError::from(error).into()
+        MetaDataError::from(error).into()
     }
 }
 
 impl From<metaflac::Error> for DiscError {
     fn from(error: metaflac::Error) -> Self {
-        TaggingError::from(error).into()
+        MetaDataError::from(error).into()
     }
 }
 
@@ -128,8 +131,6 @@ impl From<io::Error> for DiscError {
         IoError::from(error).into()
     }
 }
-
-
 
 /// Leaf error: the provided tracks do not match the TOC (see [`Disc::new`][crate::Disc::new]).
 #[derive(Debug, Clone, PartialEq)]

@@ -23,6 +23,10 @@
 //!    - From [`toc::error::InvalidTrackNo`][crate::toc::error::InvalidTrackNo] for [`TocError`]
 //!      returns `TocError::InvalidTrackNo(error)`
 //!    - From [`io::Error`] for [`Error`] boxes the error into `Error::Other`
+//! 1. As an exception to the above: All top-level errors (and their sibling trees) provide
+//!    `From<_> for Error` - this means that [`DeviceError`] & [`MetaDataError`] convert directly to
+//!    their top-level counterpart-variants, even though they can also be stored nested within other
+//!    error types.
 //! 1. All errors provide [`into_io_error`][RedbookError::into_io_error] but *not* `From<_> for io::Error`
 //!    to ensure that  callsites can make an explicit decision regarding `ErrorKind`, whether to
 //!    wrap self as a source, and how to handle errors which originate from an io::Error further
@@ -47,8 +51,11 @@ use crate::{
 };
 
 #[doc(inline)]
-pub use ripped_track::{EncodingError, FlacError, TaggingError, UnknownMimeType};
+pub use metadata::{MetaDataError, UnknownMimeType};
+#[doc(inline)]
+pub use ripped_track::{EncodingError, FlacError};
 
+mod metadata;
 mod ripped_track;
 
 #[expect(non_camel_case_types, reason = "shadowing API Guideline naming")]
@@ -76,6 +83,8 @@ pub enum Error {
     DiscError(DiscError),
     /// A track-encoding domain error.
     EncodingError(EncodingError),
+    /// An error identifying and/or parsing metadata.
+    MetaDataError(MetaDataError),
     /// Any other error, boxed so the concrete type stays reachable via downcast and
     /// [`StdError::source`]
     Other(Box<dyn C_GOOD_ERROR>),
@@ -102,6 +111,7 @@ impl Display for Error {
             Error::EncodingError(_) => write!(f, "track encoding error"),
             Error::DriveError(_) => write!(f, "drive error"),
             Error::DeviceError(_) => write!(f, "device error"),
+            Error::MetaDataError(_) => write!(f, "metadata error"),
             Error::Other(_) => write!(f, "other error"),
             Error::ThreadCancellation => write!(f, "thread cancelled"),
         }
@@ -116,6 +126,7 @@ impl StdError for Error {
             Error::EncodingError(error) => Some(error),
             Error::DriveError(error) => Some(error),
             Error::DeviceError(error) => Some(error),
+            Error::MetaDataError(error) => Some(error),
             Error::Other(error) => Some(&**error),
             Error::ThreadCancellation => None,
         }
@@ -194,18 +205,6 @@ impl From<TocMismatch> for Error {
     }
 }
 
-impl From<TaggingError> for Error {
-    fn from(error: TaggingError) -> Self {
-        DiscError::from(error).into()
-    }
-}
-
-impl From<UnknownMimeType> for Error {
-    fn from(error: UnknownMimeType) -> Self {
-        DiscError::from(error).into()
-    }
-}
-
 impl From<metaflac::Error> for Error {
     fn from(error: metaflac::Error) -> Self {
         DiscError::from(error).into()
@@ -269,6 +268,18 @@ impl From<flacenc::error::SourceError> for Error {
 impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
     fn from(error: flacenc::error::OutputError<flacenc::bitsink::ByteSink>) -> Self {
         EncodingError::from(error).into()
+    }
+}
+
+impl From<MetaDataError> for Error {
+    fn from(error: MetaDataError) -> Self {
+        Self::MetaDataError(error)
+    }
+}
+
+impl From<UnknownMimeType> for Error {
+    fn from(error: UnknownMimeType) -> Self {
+        MetaDataError::from(error).into()
     }
 }
 

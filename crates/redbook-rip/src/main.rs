@@ -145,8 +145,8 @@ fn main() -> redbook::Result<()> {
                 if let Some(ref cover) = ripped.coverart {
                     let _dont_fail_on_error = try bikeshed Result<_, DiscError> {
                         tracing::debug!("saving cover art");
-                        if let Some(filename) = ripped.coverart_filename()? {
-                            let coverart_path = output_dir.join(filename);
+                        if let Some(filename) = ripped.coverart_filename() {
+                            let coverart_path = output_dir.join(filename?);
                             tracing::debug!(path = %coverart_path.display());
                             fs::write(coverart_path, &cover.data).or_warn("")?;
                         }
