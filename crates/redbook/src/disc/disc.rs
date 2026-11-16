@@ -21,8 +21,9 @@ use crate::{
     TrackNo,
     disc::{
         DiscError, TocMismatch, Track,
-        tagging::{ArtistCreditsExt, ExtendVorbisTag, picture_from_jpeg},
+        tagging::{ArtistCreditsExt, ExtendVorbisTag},
     },
+    tags::artwork::picture_from_jpeg,
 };
 
 #[derive(Debug, Clone, PartialEq)]

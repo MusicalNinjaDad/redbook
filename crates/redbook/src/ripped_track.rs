@@ -9,9 +9,11 @@ use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, PictureType, VorbisComment};
 
 use crate::{
-    disc::tagging::picture_from_jpeg,
     error::{EncodingError, MetaDataError, UnknownMimeType},
-    tags::vorbis::{PictureExt, VorbisTagExt},
+    tags::{
+        artwork::picture_from_jpeg,
+        vorbis::{PictureExt, VorbisTagExt},
+    },
 };
 
 /// This struct wraps the raw audio data from a CD track along with a full set of vorbis comments

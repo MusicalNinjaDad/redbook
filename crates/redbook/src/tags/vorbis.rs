@@ -6,12 +6,9 @@ use metaflac::{
 };
 use tracing_result::Trace;
 
-use crate::{
-    disc::tagging::ImageMimeTypes,
-    error::{MetaDataError, UnknownMimeType},
-};
+use crate::error::{MetaDataError, UnknownMimeType};
 
-use super::filenames::sanitise;
+use super::{artwork::ImageMimeTypes, filenames::sanitise};
 
 /// File naming logic for the cover art [`Picture`] of a [`RippedTrack`].
 pub(crate) trait PictureExt {
