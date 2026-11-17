@@ -2,8 +2,14 @@
 //! on any host
 
 use std::path::PathBuf;
-use std::{io, slice};
+use std::{io, ptr, slice};
 
+use crate::frame::ByteSize;
+use crate::sys::win::bindings::{
+    CDDA, IOCTL_CDROM_RAW_READ, IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, RAW_READ_INFO,
+    STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
+};
+use crate::sys::win::convert::Sector;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
@@ -174,6 +180,14 @@ pub unsafe fn CreateFile2(
 /// - `ninbuffersize` must be `size_of::<LPINBUFFERTYPE>()`
 /// - `noutbuffersize` must be `size_of::<LPOUTBUFFERTYPE>()`
 /// - `lpinbuffer` & `lpoutbuffer` must be correct for the requested `dwiocontrolcode`.
+/// - For `dwiocontrolcode` [`IOCTL_CDROM_RAW_READ`],
+///   (see also [MS learn][docs_IOCTL_CDROM_RAW_READ]):
+///     - `lpinbuffer`: points to a [`RAW_READ_INFO`] that specifies the starting disk offset,
+///       the sector count, and the track mode for the read (*only CDDA is supported in mocks*)
+///     - `lpoutbuffer`: points to an initialised buffer which will receive `noutbuffersize` raw
+///       bytes of data
+///     - The caller must ensure that **`noutbuffersize`** <= size of `lpoutbuffer` to avoid writing
+///       outside bounds
 /// - For `dwiocontrolcode` [`IOCTL_CDROM_READ_TOC_EX`],
 ///   (see also [MS learn][docs_IOCTL_CDROM_READ_TOC_EX]):
 ///     - `lpinbuffer`: points to a buffer of type [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX]
@@ -184,11 +198,23 @@ pub unsafe fn CreateFile2(
 ///     - `lpinbuffer` is NULL
 ///     - `ninbuffersize` is 0
 ///     - `lpoutbuffer`: points to a [`STORAGE_DEVICE_NUMBER`]
+/// - For `dwiocontrolcode` [`IOCTL_STORAGE_QUERY_PROPERTY`]
+///   (see also [MS learn][docs_IOCTL_STORAGE_QUERY_PROPERTY]):
+///     - `lpinbuffer`: points to a [`STORAGE_PROPERTY_QUERY`] that specifies whether to query the
+///       device or the adapter, the type of query to perform, and any additional parameters required
+///       for the query, such as the page code for a particular SCSI mode sense page. Device properties
+///       must be retrieved only from a device; attempting to retrieve device properties from an adapter
+///       will cause an error.
+///     - `noutbuffersize` can be 0 to determine whether a property exists without retrieving its data.
+///       This must match the `QueryType` field of the `STORAGE_PROPERTY_QUERY`
+///     - `lpoutbuffer`: points to the correct type based upon the `PropertyId` field of the provided
+///       `STORAGE_PROPERTY_QUERY`. For `StorageAdapterProperty` this is `STORAGE_ADAPTER_DESCRIPTOR`
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///
 /// # Notes
 /// - The mock version supports the following control codes:
+///     - [`IOCTL_CDROM_RAW_READ`]
 ///     - [`IOCTL_CDROM_READ_TOC_EX`]
 ///     - [`IOCTL_STORAGE_GET_DEVICE_NUMBER`]
 /// - The current win_bindgen generated [`CDROM_READ_TOC_EX`][super::CDROM_READ_TOC_EX] does not
@@ -237,8 +263,10 @@ pub unsafe fn CreateFile2(
 /// # TODO: #117 Mock reading audio data
 ///
 /// [docs_DeviceIoControl]: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol
+/// [docs_IOCTL_CDROM_RAW_READ]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
 /// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
+/// [docs_IOCTL_STORAGE_QUERY_PROPERTY]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddstor/ni-ntddstor-ioctl_storage_query_property
 /// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
@@ -273,6 +301,32 @@ pub unsafe fn DeviceIoControl(
                 size_of::<STORAGE_DEVICE_NUMBER>()
             );
         }
+        IOCTL_CDROM_RAW_READ => {
+            assert!(!lpinbuffer.is_null());
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<RAW_READ_INFO>()
+            );
+            assert!((lpinbuffer as *const RAW_READ_INFO).is_aligned());
+            let _exact_number_of_frames = ByteSize::strict_new(noutbuffersize);
+            assert!((lpoutbuffer as *mut u8).is_aligned());
+        }
+        IOCTL_STORAGE_QUERY_PROPERTY => {
+            // SAFETY: Input buffer is non-null & aligned; requested size is correct
+            assert!(!lpinbuffer.is_null());
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_PROPERTY_QUERY>()
+            );
+            assert!((lpinbuffer as *const STORAGE_PROPERTY_QUERY).is_aligned());
+            // SAFETY: Output buffer is non-null & aligned; requested size is correct
+            assert!(!lpoutbuffer.is_null());
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_ADAPTER_DESCRIPTOR>()
+            );
+            assert!((lpoutbuffer as *mut STORAGE_ADAPTER_DESCRIPTOR).is_aligned());
+        }
         _ => unimplemented!("unsupported control code"),
     };
     assert!(!lpbytesreturned.is_null());
@@ -301,6 +355,53 @@ pub unsafe fn DeviceIoControl(
             assert_eq!(noutbuffersize.strict_cast::<usize>(), size_of_val(&info));
             unsafe { *(lpoutbuffer as *mut STORAGE_DEVICE_NUMBER) = info };
             unsafe { *lpbytesreturned = size_of_val(&info).strict_cast() };
+        }
+        IOCTL_CDROM_RAW_READ => {
+            let read_info = unsafe { ptr::read(lpinbuffer as *const RAW_READ_INFO) };
+
+            assert_eq!(read_info.TrackMode, CDDA);
+
+            let start = Sector::from_offset(read_info.DiskOffset).frame();
+
+            let frames_to_return = read_info.SectorCount;
+            let buf_size = ByteSize::strict_new(noutbuffersize);
+            assert_eq!(buf_size.frames().cast::<u32>(), frames_to_return);
+
+            let buf = unsafe {
+                slice::from_raw_parts_mut(lpoutbuffer as *mut u8, noutbuffersize.strict_cast())
+            };
+            let (frame_bufs, rest) = buf.as_chunks_mut::<{ ByteSize::ONE_FRAME.cast() }>();
+            assert_eq!(0, rest.len());
+
+            // The mock writes the frame number to the first 4 bytes of the buffer chunk for each
+            // frame of "data returned" leaving the remainder of the chunk untouched
+            for (i, frame_buf) in frame_bufs.iter_mut().enumerate() {
+                frame_buf[..4].copy_from_slice(&u32::to_le_bytes(
+                    start.cast::<u32>().strict_add(i.strict_cast()),
+                ));
+            }
+
+            unsafe { lpbytesreturned.write(noutbuffersize) };
+        }
+        IOCTL_STORAGE_QUERY_PROPERTY => {
+            let query = unsafe { ptr::read(lpinbuffer as *const STORAGE_PROPERTY_QUERY) };
+            assert_eq!(query.QueryType, PropertyStandardQuery);
+            assert_eq!(query.PropertyId, StorageAdapterProperty);
+
+            let album = TestAlbum::try_from(hdevice).unwrap();
+
+            let details = STORAGE_ADAPTER_DESCRIPTOR {
+                Version: Default::default(),
+                Size: const { size_of::<STORAGE_ADAPTER_DESCRIPTOR>().strict_cast() },
+                MaximumTransferLength: album.max_chunk().strict_cast(),
+                ..Default::default()
+            };
+
+            unsafe {
+                lpbytesreturned.write(size_of_val(&details).strict_cast());
+            };
+
+            unsafe { (lpoutbuffer as *mut STORAGE_ADAPTER_DESCRIPTOR).write(details) };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
     }

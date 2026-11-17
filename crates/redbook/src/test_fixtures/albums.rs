@@ -5,8 +5,12 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries, disc::Track, error::RedbookError, frame::Msf,
-    tags::artwork::picture_from_jpeg, test_fixtures::track_descriptor::RawTocDescriptors,
+    Frame, LEADIN, TocEntries,
+    disc::Track,
+    error::RedbookError,
+    frame::{ByteSize, Msf},
+    tags::artwork::picture_from_jpeg,
+    test_fixtures::track_descriptor::RawTocDescriptors,
     toc::TrackNo,
 };
 
@@ -415,5 +419,36 @@ impl TestAlbum {
             TestAlbum::BatOutOfHellRevamped => Some(0),
             TestAlbum::TheBoyWhoKnewTooMuch => Some(0),
         }
+    }
+
+    /// The fake OS-provided value for max_chunk() on any device
+    ///
+    /// Note this is deliberately *NOT* always a valid `ByteSize` to represent more realistic
+    /// responses
+    pub fn max_chunk(&self) -> usize {
+        const KB: usize = 1024;
+        match self {
+            TestAlbum::DefinitelyMaybe => 64_usize.strict_mul(KB), // win USB, aligned
+            TestAlbum::TheWallDisc1 => Frame::strict_new(75).size().strict_cast(), // linux
+            TestAlbum::TheWallDisc2 => 63_usize.strict_mul(KB),    // win USB, unaligned
+            TestAlbum::BatOutOfHellRevamped => 128_usize.strict_mul(KB), // win ATAPI/SCSI
+            TestAlbum::TheBoyWhoKnewTooMuch => 102400_usize.strict_mul(KB), // huge: 100MB,
+        }
+    }
+
+    /// The correct fake value for max_chunk() on any device
+    ///
+    /// Note this is deliberately *NOT* always a valid `ByteSize` to represent more realistic
+    /// responses
+    pub fn expected_max_chunk(&self) -> ByteSize {
+        const KB: usize = 1024;
+        let raw = match self {
+            TestAlbum::DefinitelyMaybe => 64_usize.strict_mul(KB), // win USB, aligned
+            TestAlbum::TheWallDisc1 => Frame::strict_new(75).size().strict_cast(), // linux
+            TestAlbum::TheWallDisc2 => 63_usize.strict_mul(KB),    // win USB, unaligned
+            TestAlbum::BatOutOfHellRevamped => 128_usize.strict_mul(KB), // win ATAPI/SCSI
+            TestAlbum::TheBoyWhoKnewTooMuch => 102400_usize.strict_mul(KB), // huge: 100MB,
+        };
+        ByteSize::rounded_new(raw)
     }
 }

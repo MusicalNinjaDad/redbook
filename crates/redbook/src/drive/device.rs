@@ -61,4 +61,17 @@ pub trait Device: Sized {
     /// Unless you are providing low-level or debug functionality, you probably want to use
     /// [read_toc][Device::read_toc] instead which will provide a platform-independent [TocEntries]
     fn raw_toc(&self) -> Result<Vec<u8>, DeviceError>;
+
+    /// The maximum chunk size, in bytes, which can be read in a single call.
+    ///
+    /// # Note
+    /// - This value will most likely *not* be a correct multiple of frames. Use the provided
+    ///   [`max_chunk`][Device::max_chunk] out of preference
+    /// - Linux has a hard-coded limit of 75 frames
+    /// - Windows has a variable limit depending on hardware type
+    /// - See #224 for more details / research
+    ///
+    /// # Errors
+    /// This may error if the value needs to be obtained at runtime and doing so fails
+    fn raw_max_chunk(&self) -> Result<usize, DeviceError>;
 }

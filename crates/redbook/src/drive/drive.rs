@@ -6,7 +6,7 @@ use tracing_result::Trace;
 
 use crate::{
     Device, Frame, RipProgress, TocEntries, TrackNo,
-    drive::{DriveError, MAX_CHUNK_BYTES, MAX_CHUNK_FRAMES, error::DeviceError},
+    drive::{DriveError, error::DeviceError},
     frame::ByteSize,
 };
 
@@ -65,11 +65,16 @@ pub trait Drive: Sized {
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size.cast::<usize>()];
 
-        let (bufs, last_buf) = data.as_chunks_mut::<{ MAX_CHUNK_BYTES.strict_cast() }>();
+        let chunk_size = self.max_chunk();
+        let frames_per_chunk = chunk_size.frames();
+
+        let bufs = data.chunks_mut(chunk_size.strict_cast());
+        let last_chunk_index = bufs.len() - 1;
+
         let mut frames_read_so_far = Frame::default();
         trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
 
-        for buf in bufs.iter_mut() {
+        for (i, buf) in bufs.enumerate() {
             self.cx().cancelled()?;
             self.cx()
                 .reply(RipProgress {
@@ -86,35 +91,12 @@ pub trait Drive: Sized {
 
             let frames_read = self.device().read_cdda(start, buf)?;
 
-            (frames_read == MAX_CHUNK_FRAMES)
+            ((i == last_chunk_index) || (frames_read == frames_per_chunk))
                 .ok_or_else(|| DeviceError::UnexpectedEndOfRead {
-                    expected: MAX_CHUNK_FRAMES.cast(),
+                    expected: frames_per_chunk.cast(),
                     received: frames_read.cast(),
                 })
                 .or_error("wrong number of frames read")?;
-
-            frames_read_so_far = frames_read_so_far
-                .try_add(frames_read)
-                .or_error("accumulating frames read")?;
-            trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
-        }
-
-        if !last_buf.is_empty() {
-            self.cx().cancelled()?;
-            self.cx()
-                .reply(RipProgress {
-                    track_number,
-                    processed: frames_read_so_far,
-                    total: track.duration(),
-                })
-                .or_error("sending progress update")?;
-
-            let start = track
-                .start()
-                .try_add(frames_read_so_far)
-                .or_error("calculating starting from for last chunk")?;
-
-            let frames_read = self.device().read_cdda(start, last_buf)?;
 
             frames_read_so_far = frames_read_so_far
                 .try_add(frames_read)
@@ -147,6 +129,14 @@ pub trait Drive: Sized {
     /// The Table of Contents. If you don't need an owned value then, unlike
     /// [`read_toc`][Device::read_toc], this will avoid a heap allocation and will never error.
     fn toc(&self) -> &TocEntries;
+
+    /// The maximum chunk size which can be read in a single call.
+    ///
+    /// # Note
+    /// - Linux has a hard-coded limit of 75 frames
+    /// - Windows has a variable limit depending on hardware type
+    /// - See #224 for more details / research
+    fn max_chunk(&self) -> ByteSize;
 
     /// The underlying device
     fn device(&self) -> &Self::Device;

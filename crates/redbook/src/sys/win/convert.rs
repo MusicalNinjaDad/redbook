@@ -6,6 +6,8 @@ use std::{
 };
 
 use crate::Frame;
+#[cfg(any(test, doc, not(target_family = "windows")))]
+use crate::LEADIN;
 
 use super::bindings::{GUID, PCWSTR};
 
@@ -84,6 +86,20 @@ impl Sector {
     /// - Returned offset is relative to start of audio data
     pub fn offset(&self) -> i64 {
         self.0 * 2048
+    }
+
+    /// Construct from an offset as passed to `DeviceIoControl(..,IOCTL_CDROM_RAW_READ,..)`
+    ///
+    /// See [offset][Self::offset] for more details
+    #[cfg(any(test, doc, not(target_family = "windows")))]
+    pub fn from_offset(offset: i64) -> Self {
+        Self(offset.checked_div_exact(2048).expect("invalid offset"))
+    }
+
+    /// The absolute frame which this sector refers to
+    #[cfg(any(test, doc, not(target_family = "windows")))]
+    pub fn frame(&self) -> Frame {
+        Frame::strict_new(self.0).strict_add(LEADIN)
     }
 }
 

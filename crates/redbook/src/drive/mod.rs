@@ -9,7 +9,7 @@ use thread_safely::Context;
 
 pub use error::DriveError;
 
-use crate::{Error, Frame, RipProgress, TocEntries, frame::ByteSize};
+use crate::{Error, RipProgress, TocEntries, frame::ByteSize};
 
 #[doc(inline)]
 pub use device::Device;
@@ -20,35 +20,13 @@ mod device;
 mod drive;
 pub mod error;
 
-const KB: u32 = 1024;
-
-/// Maximum number of bytes that can be read in a single chunk.
-///
-/// # Notes
-/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
-const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
-
-/// Maximum number of frames that can be read in a single chunk.
-///
-/// # Notes
-/// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
-///
-/// # TODOs
-/// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
-/// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
-    64_u32
-        .strict_mul(KB)
-        .strict_div(ByteSize::ONE_FRAME.strict_cast()),
-);
-
 #[derive(Debug, Clone)]
 /// TODO: Docs
 pub struct CdDrive<DEV: Device> {
     path: PathBuf,
     device: DEV,
     tocentries: TocEntries,
+    chunk_size: ByteSize,
     cx: Context<RipProgress>,
 }
 
@@ -59,12 +37,14 @@ impl<DEV: Device> CdDrive<DEV> {
         path: PathBuf,
         device: DEV,
         tocentries: TocEntries,
+        chunk_size: ByteSize,
         cx: Context<RipProgress>,
     ) -> Self {
         Self {
             path,
             device,
             tocentries,
+            chunk_size,
             cx,
         }
     }
@@ -85,10 +65,13 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
         let device = DEV::open(&path)?;
         let path = PathBuf::from(path.as_ref());
         let tocentries = device.read_toc()?;
+        let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
+
         Ok(Self {
             path,
             device,
             tocentries,
+            chunk_size,
             cx,
         })
     }
@@ -103,6 +86,10 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
 
     fn toc(&self) -> &TocEntries {
         &self.tocentries
+    }
+
+    fn max_chunk(&self) -> ByteSize {
+        self.chunk_size
     }
 
     fn device(&self) -> &Self::Device {
@@ -139,10 +126,12 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
             let device = device?;
             let path = device.fs_path()?;
             let tocentries = device.read_toc()?;
+            let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
             CdDrive {
                 path,
                 device,
                 tocentries,
+                chunk_size,
                 cx,
             }
         };
@@ -154,8 +143,14 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
 #[cfg(test)]
 mod miri {
     use cdtoc::Toc;
+    use rstest::rstest;
 
-    use crate::{Drive, sys::win::DriveHandle, test_fixtures::albums::TestAlbum::*};
+    use crate::{
+        ByteSize, Drive, Frame, TrackNo,
+        disc::Track,
+        sys::win::DriveHandle,
+        test_fixtures::albums::TestAlbum::{self, *},
+    };
 
     use super::*;
 
@@ -171,5 +166,57 @@ mod miri {
             TheWallDisc2.expected_toc(),
         ];
         assert_eq!(albums, expected);
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn max_chunk(#[case] album: TestAlbum) {
+        let drive = CdDrive::<DriveHandle>::open(&album.assets_path(), Default::default()).unwrap();
+        let frame_based = drive.max_chunk();
+        assert_eq!(frame_based, album.expected_max_chunk());
+
+        let raw = drive.device().raw_max_chunk().unwrap();
+
+        assert!(frame_based.cast::<usize>() <= raw);
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn read_track2(#[case] album: TestAlbum) {
+        let drive = CdDrive::<DriveHandle>::open(&album.assets_path(), Default::default()).unwrap();
+        let track2 = drive.read_track(TrackNo::strict_new(2)).unwrap();
+
+        let (frames, rest) = track2.as_chunks::<{ ByteSize::ONE_FRAME.cast::<usize>() }>();
+
+        assert_eq!(rest.len(), 0);
+        assert_eq!(
+            frames
+                .first()
+                .map(|bytes| u32::from_le_bytes(bytes[..4].try_into().unwrap()))
+                .map(Frame::strict_new),
+            album
+                .expected_audio_tracks_minimal()
+                .get(1)
+                .map(Track::start)
+        );
+
+        assert_eq!(
+            frames
+                .last()
+                .map(|bytes| u32::from_le_bytes(bytes[..4].try_into().unwrap()))
+                .map(Frame::strict_new),
+            album.expected_audio_tracks_minimal().get(1).map(|trk| trk
+                .start()
+                .strict_add(trk.duration())
+                .strict_sub(Frame::strict_new(1)))
+        );
     }
 }

@@ -73,6 +73,7 @@ pub const INVALID_HANDLE_VALUE: HANDLE = -1 as _;
 pub const IOCTL_CDROM_RAW_READ: i32 = 147518;
 pub const IOCTL_CDROM_READ_TOC_EX: i32 = 147540;
 pub const IOCTL_STORAGE_GET_DEVICE_NUMBER: i32 = 2953344;
+pub const IOCTL_STORAGE_QUERY_PROPERTY: i32 = 2954240;
 pub type LPSECURITY_ATTRIBUTES = *mut SECURITY_ATTRIBUTES;
 pub const OPEN_EXISTING: i32 = 3;
 #[repr(C)]
@@ -106,6 +107,10 @@ pub struct OVERLAPPED_0_0 {
     pub OffsetHigh: u32,
 }
 pub type PCWSTR = *const u16;
+pub const PropertyExistsQuery: STORAGE_QUERY_TYPE = 1;
+pub const PropertyMaskQuery: STORAGE_QUERY_TYPE = 2;
+pub const PropertyQueryMaxDefined: STORAGE_QUERY_TYPE = 3;
+pub const PropertyStandardQuery: STORAGE_QUERY_TYPE = 0;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RAW_READ_INFO {
@@ -203,11 +208,83 @@ pub struct SP_DEVINFO_DATA {
 }
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
+pub struct STORAGE_ADAPTER_DESCRIPTOR {
+    pub Version: u32,
+    pub Size: u32,
+    pub MaximumTransferLength: u32,
+    pub MaximumPhysicalPages: u32,
+    pub AlignmentMask: u32,
+    pub AdapterUsesPio: bool,
+    pub AdapterScansDown: bool,
+    pub CommandQueueing: bool,
+    pub AcceleratedTransfer: bool,
+    pub BusType: u8,
+    pub BusMajorVersion: u16,
+    pub BusMinorVersion: u16,
+    pub SrbType: u8,
+    pub AddressType: u8,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
 pub struct STORAGE_DEVICE_NUMBER {
     pub DeviceType: u32,
     pub DeviceNumber: u32,
     pub PartitionNumber: u32,
 }
+pub type STORAGE_PROPERTY_ID = i32;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct STORAGE_PROPERTY_QUERY {
+    pub PropertyId: STORAGE_PROPERTY_ID,
+    pub QueryType: STORAGE_QUERY_TYPE,
+    pub AdditionalParameters: [u8; 1],
+}
+impl Default for STORAGE_PROPERTY_QUERY {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+pub type STORAGE_QUERY_TYPE = i32;
+pub const StorageAccessAlignmentProperty: STORAGE_PROPERTY_ID = 6;
+pub const StorageAdapterCryptoProperty: STORAGE_PROPERTY_ID = 17;
+pub const StorageAdapterPhysicalTopologyProperty: STORAGE_PROPERTY_ID = 53;
+pub const StorageAdapterProperty: STORAGE_PROPERTY_ID = 1;
+pub const StorageAdapterProtocolSpecificProperty: STORAGE_PROPERTY_ID = 49;
+pub const StorageAdapterProtocolSpecificPropertyEx: STORAGE_PROPERTY_ID = 67;
+pub const StorageAdapterRpmbProperty: STORAGE_PROPERTY_ID = 16;
+pub const StorageAdapterSerialNumberProperty: STORAGE_PROPERTY_ID = 57;
+pub const StorageAdapterTemperatureProperty: STORAGE_PROPERTY_ID = 51;
+pub const StorageDeviceAttributesProperty: STORAGE_PROPERTY_ID = 55;
+pub const StorageDeviceCopyOffloadProperty: STORAGE_PROPERTY_ID = 13;
+pub const StorageDeviceDeviceTelemetryProperty: STORAGE_PROPERTY_ID = 10;
+pub const StorageDeviceEnduranceProperty: STORAGE_PROPERTY_ID = 62;
+pub const StorageDeviceIdProperty: STORAGE_PROPERTY_ID = 2;
+pub const StorageDeviceIoCapabilityProperty: STORAGE_PROPERTY_ID = 48;
+pub const StorageDeviceLBProvisioningProperty: STORAGE_PROPERTY_ID = 11;
+pub const StorageDeviceLedStateProperty: STORAGE_PROPERTY_ID = 63;
+pub const StorageDeviceLocationProperty: STORAGE_PROPERTY_ID = 58;
+pub const StorageDeviceManagementStatus: STORAGE_PROPERTY_ID = 56;
+pub const StorageDeviceMediumProductType: STORAGE_PROPERTY_ID = 15;
+pub const StorageDeviceNumaProperty: STORAGE_PROPERTY_ID = 59;
+pub const StorageDevicePhysicalTopologyProperty: STORAGE_PROPERTY_ID = 54;
+pub const StorageDevicePowerProperty: STORAGE_PROPERTY_ID = 12;
+pub const StorageDeviceProperty: STORAGE_PROPERTY_ID = 0;
+pub const StorageDeviceProtocolSpecificProperty: STORAGE_PROPERTY_ID = 50;
+pub const StorageDeviceProtocolSpecificPropertyEx: STORAGE_PROPERTY_ID = 68;
+pub const StorageDeviceResiliencyProperty: STORAGE_PROPERTY_ID = 14;
+pub const StorageDeviceSeekPenaltyProperty: STORAGE_PROPERTY_ID = 7;
+pub const StorageDeviceSelfEncryptionProperty: STORAGE_PROPERTY_ID = 64;
+pub const StorageDeviceTemperatureProperty: STORAGE_PROPERTY_ID = 52;
+pub const StorageDeviceTrimProperty: STORAGE_PROPERTY_ID = 8;
+pub const StorageDeviceUniqueIdProperty: STORAGE_PROPERTY_ID = 3;
+pub const StorageDeviceUnsafeShutdownCount: STORAGE_PROPERTY_ID = 61;
+pub const StorageDeviceWriteAggregationProperty: STORAGE_PROPERTY_ID = 9;
+pub const StorageDeviceWriteCacheProperty: STORAGE_PROPERTY_ID = 4;
+pub const StorageDeviceZonedDeviceProperty: STORAGE_PROPERTY_ID = 60;
+pub const StorageFruIdProperty: STORAGE_PROPERTY_ID = 65;
+pub const StorageHwCryptoProperty: STORAGE_PROPERTY_ID = 69;
+pub const StorageMiniportProperty: STORAGE_PROPERTY_ID = 5;
+pub const StorageStackProperty: STORAGE_PROPERTY_ID = 66;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TRACK_DATA {
