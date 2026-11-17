@@ -11,7 +11,7 @@ use std::fs;
 #[cfg(target_family = "windows")]
 use cdtoc::Toc;
 #[cfg(target_family = "windows")]
-use redbook::{CdDrive, Drive, drive::CdDrives};
+use redbook::{CdDrive, Device, Drive, drive::CdDrives};
 use tracing::level_filters::LevelFilter;
 #[cfg(target_family = "windows")]
 use tracing_result::Trace;
@@ -32,7 +32,14 @@ fn main() -> redbook::Result<()> {
     for cd in drives {
         let path = cd.path();
         let toc = Toc::try_from(cd.toc()).or_warn("")?;
+        let raw_max_chunk = cd.device().raw_max_chunk()?;
+        let max_chunk = cd.device().max_chunk()?;
         tracing::info!(path = %path.display(), %toc, "found");
+        tracing::info!(
+            ?raw_max_chunk,
+            ?max_chunk,
+            max_frames = ?max_chunk.frames(),
+        );
     }
 
     let drive0 = fs::read_dir(r"\\.\CDROM0");
