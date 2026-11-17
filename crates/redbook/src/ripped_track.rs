@@ -9,7 +9,9 @@ use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, PictureType, VorbisComment};
 
 use crate::{
-    error::{EncodingError, MetaDataError, UnknownMimeType}, raw_data::RawData, tags::{
+    error::{EncodingError, MetaDataError, UnknownMimeType},
+    raw_data::RawData,
+    tags::{
         artwork::picture_from_jpeg,
         vorbis::{PictureExt, VorbisTagExt},
     },

@@ -1,6 +1,9 @@
 //! TODO
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    slice, vec,
+};
 
 use crate::Frame;
 
@@ -20,6 +23,36 @@ impl Deref for RawData {
 impl DerefMut for RawData {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl IntoIterator for RawData {
+    type Item = u8;
+
+    type IntoIter = vec::IntoIter<u8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a RawData {
+    type Item = &'a u8;
+
+    type IntoIter = slice::Iter<'a, u8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut RawData {
+    type Item = &'a mut u8;
+
+    type IntoIter = slice::IterMut<'a, u8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
     }
 }
 
