@@ -62,4 +62,18 @@ mod miri {
         assert_eq!(frames.first(), Some(&Frame::strict_new(150)));
         assert_eq!(frames.last(), Some(&Frame::strict_new(159)));
     }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn max_chunk(#[case] album: TestAlbum) {
+        let device = DriveHandle::open(&album.assets_path()).unwrap();
+        assert_eq!(
+            device.max_chunk(),
+            Frame::strict_new(album.expected_last_audio_track().strict_mul(4)).size()
+        );
+    }
 }
