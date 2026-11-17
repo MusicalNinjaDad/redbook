@@ -312,6 +312,9 @@ pub mod drive;
 #[forbid(unsafe_code)]
 pub mod error;
 
+#[expect(unsafe_code, reason = "RawData makes use of a non-resizable Box<[u8]>")]
+pub mod raw_data;
+
 #[forbid(unsafe_code)]
 pub mod ripped_track;
 
