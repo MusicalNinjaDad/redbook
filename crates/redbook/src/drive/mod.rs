@@ -20,29 +20,6 @@ mod device;
 mod drive;
 pub mod error;
 
-const KB: u32 = 1024;
-
-/// Maximum number of bytes that can be read in a single chunk.
-///
-/// # Notes
-/// - Calculation is via [`MAX_CHUNK_FRAMES`] to ensure sizing for exact number of [`Frame`]s
-const MAX_CHUNK_BYTES: ByteSize = MAX_CHUNK_FRAMES.size();
-
-/// Maximum number of frames that can be read in a single chunk.
-///
-/// # Notes
-/// - The Windows API's `IOCTL_CDROM_RAW_READ` has an undocumented maximum chunk size
-/// - This value is chosen to stay under a safe buffer size (currently just below 64KB)
-///
-/// # TODOs
-/// - Research the actual maximum chunk size for `IOCTL_CDROM_RAW_READ`
-/// - Replace the guessed value (64KB) with a documented reference
-const MAX_CHUNK_FRAMES: Frame = Frame::strict_new(
-    64_u32
-        .strict_mul(KB)
-        .strict_div(ByteSize::ONE_FRAME.strict_cast()),
-);
-
 #[derive(Debug, Clone)]
 /// TODO: Docs
 pub struct CdDrive<DEV: Device> {
@@ -157,6 +134,7 @@ mod miri {
     use rstest::rstest;
 
     use crate::{
+        Frame,
         Drive, TrackNo,
         disc::Track,
         sys::win::DriveHandle,
