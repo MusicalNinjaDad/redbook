@@ -33,7 +33,7 @@ fn main() -> redbook::Result<()> {
         let path = cd.path();
         let toc = Toc::try_from(cd.toc()).or_warn("")?;
         let raw_max_chunk = cd.device().raw_max_chunk()?;
-        let max_chunk = cd.device().max_chunk()?;
+        let max_chunk = cd.max_chunk();
         tracing::info!(path = %path.display(), %toc, "found");
         tracing::info!(
             ?raw_max_chunk,

@@ -9,7 +9,7 @@ use thread_safely::Context;
 
 pub use error::DriveError;
 
-use crate::{Error, RipProgress, TocEntries};
+use crate::{Error, RipProgress, TocEntries, frame::ByteSize};
 
 #[doc(inline)]
 pub use device::Device;
@@ -26,6 +26,7 @@ pub struct CdDrive<DEV: Device> {
     path: PathBuf,
     device: DEV,
     tocentries: TocEntries,
+    chunk_size: ByteSize,
     cx: Context<RipProgress>,
 }
 
@@ -36,12 +37,14 @@ impl<DEV: Device> CdDrive<DEV> {
         path: PathBuf,
         device: DEV,
         tocentries: TocEntries,
+        chunk_size: ByteSize,
         cx: Context<RipProgress>,
     ) -> Self {
         Self {
             path,
             device,
             tocentries,
+            chunk_size,
             cx,
         }
     }
@@ -62,10 +65,13 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
         let device = DEV::open(&path)?;
         let path = PathBuf::from(path.as_ref());
         let tocentries = device.read_toc()?;
+        let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
+
         Ok(Self {
             path,
             device,
             tocentries,
+            chunk_size,
             cx,
         })
     }
@@ -80,6 +86,10 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
 
     fn toc(&self) -> &TocEntries {
         &self.tocentries
+    }
+
+    fn max_chunk(&self) -> ByteSize {
+        self.chunk_size
     }
 
     fn device(&self) -> &Self::Device {
@@ -116,10 +126,12 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
             let device = device?;
             let path = device.fs_path()?;
             let tocentries = device.read_toc()?;
+            let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
             CdDrive {
                 path,
                 device,
                 tocentries,
+                chunk_size,
                 cx,
             }
         };
@@ -154,6 +166,22 @@ mod miri {
             TheWallDisc2.expected_toc(),
         ];
         assert_eq!(albums, expected);
+    }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn max_chunk(#[case] album: TestAlbum) {
+        let drive = CdDrive::<DriveHandle>::open(&album.assets_path(), Default::default()).unwrap();
+        let frame_based = drive.max_chunk();
+        assert_eq!(frame_based, album.expected_max_chunk());
+
+        let raw = drive.device().raw_max_chunk().unwrap();
+
+        assert!(frame_based.cast::<usize>() <= raw);
     }
 
     #[rstest]

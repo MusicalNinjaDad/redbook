@@ -73,10 +73,5 @@ mod miri {
         let device = DriveHandle::open(&album.assets_path()).unwrap();
         let raw = device.raw_max_chunk().unwrap();
         assert_eq!(raw, album.max_chunk());
-
-        let frame_based = device.max_chunk().unwrap();
-        assert_eq!(frame_based, album.expected_max_chunk());
-
-        assert!(frame_based.cast::<usize>() <= raw);
     }
 }

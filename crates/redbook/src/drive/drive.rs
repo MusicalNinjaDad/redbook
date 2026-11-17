@@ -65,7 +65,7 @@ pub trait Drive: Sized {
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size.cast::<usize>()];
 
-        let chunk_size = self.device().max_chunk()?;
+        let chunk_size = self.max_chunk();
         let frames_per_chunk = chunk_size.frames();
 
         let bufs = data.chunks_mut(chunk_size.strict_cast());
@@ -129,6 +129,14 @@ pub trait Drive: Sized {
     /// The Table of Contents. If you don't need an owned value then, unlike
     /// [`read_toc`][Device::read_toc], this will avoid a heap allocation and will never error.
     fn toc(&self) -> &TocEntries;
+
+    /// The maximum chunk size which can be read in a single call.
+    ///
+    /// # Note
+    /// - Linux has a hard-coded limit of 75 frames
+    /// - Windows has a variable limit depending on hardware type
+    /// - See #224 for more details / research
+    fn max_chunk(&self) -> ByteSize;
 
     /// The underlying device
     fn device(&self) -> &Self::Device;
