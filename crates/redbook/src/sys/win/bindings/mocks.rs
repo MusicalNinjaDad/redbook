@@ -5,7 +5,10 @@ use std::path::PathBuf;
 use std::{io, ptr, slice};
 
 use crate::frame::ByteSize;
-use crate::sys::win::bindings::{CDDA, IOCTL_CDROM_RAW_READ, RAW_READ_INFO};
+use crate::sys::win::bindings::{
+    CDDA, IOCTL_CDROM_RAW_READ, IOCTL_STORAGE_QUERY_PROPERTY, RAW_READ_INFO,
+    STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY,
+};
 use crate::sys::win::convert::Sector;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
@@ -307,6 +310,22 @@ pub unsafe fn DeviceIoControl(
             assert!((lpinbuffer as *const RAW_READ_INFO).is_aligned());
             let _exact_number_of_frames = ByteSize::strict_new(noutbuffersize);
             assert!((lpoutbuffer as *mut u8).is_aligned());
+        }
+        IOCTL_STORAGE_QUERY_PROPERTY => {
+            // SAFETY: Input buffer is non-null & aligned; requested size is correct
+            assert!(!lpinbuffer.is_null());
+            assert_eq!(
+                ninbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_PROPERTY_QUERY>()
+            );
+            assert!((lpinbuffer as *const STORAGE_PROPERTY_QUERY).is_aligned());
+            // SAFETY: Output buffer is non-null & aligned; requested size is correct
+            assert!(!lpoutbuffer.is_null());
+            assert_eq!(
+                noutbuffersize.strict_cast::<usize>(),
+                size_of::<STORAGE_ADAPTER_DESCRIPTOR>()
+            );
+            assert!((lpoutbuffer as *mut STORAGE_ADAPTER_DESCRIPTOR).is_aligned());
         }
         _ => unimplemented!("unsupported control code"),
     };
