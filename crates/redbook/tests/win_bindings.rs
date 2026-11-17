@@ -14,7 +14,7 @@ use windows_bindgen::Bindgen;
 
 // Cannot include auto-generated types `GUID`, `PCWSTR`, `TRACKDATA`
 // as these are not visible for import.
-const BINDINGS: [&str; 46] = [
+const BINDINGS: [&str; 44] = [
     "CloseHandle",
     "CreateFile2",
     "DeviceIoControl",
@@ -59,8 +59,6 @@ const BINDINGS: [&str; 46] = [
     "RAW_READ_INFO",
     "TRACK_MODE_TYPE",
     "VOLUME_NAME_DOS",
-    "StorageAdapterProperty",
-    "PropertyStandardQuery",
 ];
 
 #[test]
