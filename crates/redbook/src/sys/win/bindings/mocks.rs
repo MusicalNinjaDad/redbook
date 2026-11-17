@@ -195,6 +195,16 @@ pub unsafe fn CreateFile2(
 ///     - `lpinbuffer` is NULL
 ///     - `ninbuffersize` is 0
 ///     - `lpoutbuffer`: points to a [`STORAGE_DEVICE_NUMBER`]
+/// - For `dwiocontrolcode` [`IOCTL_STORAGE_QUERY_PROPERTY`]
+///   (see also [MS learn][docs_IOCTL_STORAGE_QUERY_PROPERTY]):
+///     - `lpinbuffer`: points to a [`STORAGE_PROPERTY_QUERY`] that specifies whether to query the
+///       device or the adapter, the type of query to perform, and any additional parameters required
+///       for the query, such as the page code for a particular SCSI mode sense page. Device properties
+///       must be retrieved only from a device; attempting to retrieve device properties from an adapter
+///       will cause an error.
+///     - `noutbuffersize` can be 0 to determine whether a property exists without retrieving its data.
+///     - `lpoutbuffer`: points to the correct type based upon the `PropertyType` field of the provided
+///       `STORAGE_PROPERTY_QUERY`. For `StorageAdapterProperty` this is `STORAGE_DEVICE_ID_DESCRIPTOR`
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///
@@ -252,6 +262,7 @@ pub unsafe fn CreateFile2(
 /// [docs_IOCTL_CDROM_RAW_READ]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_raw_read
 /// [docs_IOCTL_CDROM_READ_TOC_EX]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ni-ntddcdrm-ioctl_cdrom_read_toc_ex
 /// [docs_IOCTL_STORAGE_GET_DEVICE_NUMBER]: https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-ioctl_storage_get_device_number
+/// [docs_IOCTL_STORAGE_QUERY_PROPERTY]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddstor/ni-ntddstor-ioctl_storage_query_property
 /// [docs_CDROM_TOC]: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddcdrm/ns-ntddcdrm-_cdrom_read_toc_ex
 pub unsafe fn DeviceIoControl(
     hdevice: HANDLE,
