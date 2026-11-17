@@ -57,6 +57,20 @@ impl<'a> IntoIterator for &'a mut RawData {
 }
 
 impl RawData {
+    /// We expect all CD audio to be 2 channel
+    ///
+    /// # Note
+    /// The ISO version of redbook (IEC 60908 1998) defines the MSB of the [`CONTROL`][crate::toc::Control]
+    /// as specifying "broadcasting use" when set (para 17.5 note 2). The MMC spec simply states
+    /// "audio channels" when set vs "2 audio channels" when unset. Philips/Sony apparently published
+    /// proprietary standards where 4-channel audio was possible but such CDs were never commerically
+    /// produced.
+    const CHANNELS: usize = 2;
+    /// The redbook standard defined 16-bits per sample
+    const BITRATE: usize = 16;
+    /// The redbook standard defined rate of 44100 Hz (samples per second)
+    const SAMPLERATE: usize = 44100;
+
     /// Create a new raw data for the given number of frames
     pub fn new(size: Frame) -> Self {
         let zeroes = Box::<[u8]>::new_zeroed_slice(size.size().strict_cast());
