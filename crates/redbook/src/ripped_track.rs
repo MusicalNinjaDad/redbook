@@ -9,8 +9,7 @@ use flacenc::{bitsink::MemSink, component::BitRepr, error::Verify};
 use metaflac::block::{Picture, PictureType, VorbisComment};
 
 use crate::{
-    error::{EncodingError, MetaDataError, UnknownMimeType},
-    tags::{
+    error::{EncodingError, MetaDataError, UnknownMimeType}, raw_data::RawData, tags::{
         artwork::picture_from_jpeg,
         vorbis::{PictureExt, VorbisTagExt},
     },
@@ -31,7 +30,7 @@ pub struct RippedTrack {
     /// Cover art
     pub coverart: Option<Picture>,
     /// Raw CD audio data (2352 bytes per frame).
-    pub raw_data: Vec<u8>,
+    pub raw_data: RawData,
 }
 
 impl RippedTrack {

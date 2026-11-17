@@ -1,10 +1,27 @@
 //! TODO
 
+use std::ops::{Deref, DerefMut};
+
 use crate::Frame;
 
 /// Raw data for CDDA audio. Guaranteed to be sized to a multiple of Frames, provides simple interconversion
 /// to flacenc, always properly initialised for use as a buffer in unsafe code.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RawData(Box<[u8]>);
+
+impl Deref for RawData {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for RawData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl RawData {
     /// Create a new raw data for the given number of frames
