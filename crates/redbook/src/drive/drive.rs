@@ -65,11 +65,11 @@ pub trait Drive: Sized {
         // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
         let mut data = vec![0_u8; track_size.cast::<usize>()];
 
-        let max_chunk = self.device().max_chunk()?;
-        let frames_chunk = max_chunk.frames();
+        let chunk_size = self.device().max_chunk()?;
+        let frames_per_chunk = chunk_size.frames();
 
-        let bufs = data.chunks_mut(max_chunk.strict_cast());
-        let chunks_to_read = bufs.len();
+        let bufs = data.chunks_mut(chunk_size.strict_cast());
+        let last_chunk_index = bufs.len() - 1;
 
         let mut frames_read_so_far = Frame::default();
         trace_span.record("frames_read", format_args!("{frames_read_so_far}"));
@@ -91,14 +91,12 @@ pub trait Drive: Sized {
 
             let frames_read = self.device().read_cdda(start, buf)?;
 
-            if i < chunks_to_read - 1 {
-                (frames_read == frames_chunk)
-                    .ok_or_else(|| DeviceError::UnexpectedEndOfRead {
-                        expected: frames_chunk.cast(),
-                        received: frames_read.cast(),
-                    })
-                    .or_error("wrong number of frames read")?;
-            }
+            ((i == last_chunk_index) || (frames_read == frames_per_chunk))
+                .ok_or_else(|| DeviceError::UnexpectedEndOfRead {
+                    expected: frames_per_chunk.cast(),
+                    received: frames_read.cast(),
+                })
+                .or_error("wrong number of frames read")?;
 
             frames_read_so_far = frames_read_so_far
                 .try_add(frames_read)
