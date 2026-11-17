@@ -1224,6 +1224,19 @@ impl ByteSize {
         Self(inner).assert_valid()
     }
 
+    /// Creates a new `ByteSize` from any integer type, rounding down to the nearest valid value.
+    ///
+    /// This will saturate if the value is above [`Self::MAX`]
+    pub const fn rounded_new<N>(value: N) -> Self
+    where
+        usize: [const] CheckedCastFromInt<N>,
+    {
+        let inner = usize::strict_cast_from(value)
+            .strict_div(ByteSize::ONE_FRAME.0)
+            .strict_mul(ByteSize::ONE_FRAME.0);
+        Self(inner).assert_valid()
+    }
+
     /// Casts to any integer type which the inner representation allows without risk.
     pub const fn cast<N>(self) -> N
     where

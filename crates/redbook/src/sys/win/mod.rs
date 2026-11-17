@@ -73,7 +73,7 @@ mod miri {
         let device = DriveHandle::open(&album.assets_path()).unwrap();
         assert_eq!(
             device.max_chunk(),
-            Frame::strict_new(album.expected_last_audio_track().strict_mul(4)).size()
+            album.expected_max_chunk().assert_valid()
         );
     }
 }
