@@ -6,8 +6,8 @@ use std::{io, ptr, slice};
 
 use crate::frame::ByteSize;
 use crate::sys::win::bindings::{
-    CDDA, IOCTL_CDROM_RAW_READ, IOCTL_STORAGE_QUERY_PROPERTY, RAW_READ_INFO,
-    STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY,
+    CDDA, IOCTL_CDROM_RAW_READ, IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, RAW_READ_INFO,
+    STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
 };
 use crate::sys::win::convert::Sector;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
@@ -382,6 +382,26 @@ pub unsafe fn DeviceIoControl(
             }
 
             unsafe { lpbytesreturned.write(noutbuffersize) };
+        }
+        IOCTL_STORAGE_QUERY_PROPERTY => {
+            let query = unsafe { ptr::read(lpinbuffer as *const STORAGE_PROPERTY_QUERY) };
+            assert_eq!(query.QueryType, PropertyStandardQuery);
+            assert_eq!(query.PropertyId, StorageAdapterProperty);
+
+            let album = TestAlbum::try_from(hdevice).unwrap();
+
+            let details = STORAGE_ADAPTER_DESCRIPTOR {
+                Version: Default::default(),
+                Size: const { size_of::<STORAGE_ADAPTER_DESCRIPTOR>().strict_cast() },
+                MaximumTransferLength: album.max_chunk().strict_cast(),
+                ..Default::default()
+            };
+
+            unsafe {
+                lpbytesreturned.write(size_of_val(&details).strict_cast());
+            };
+
+            unsafe { (lpoutbuffer as *mut STORAGE_ADAPTER_DESCRIPTOR).write(details) };
         }
         _ => todo!("mock DeviceIoControl for additional control codes"),
     }
