@@ -424,7 +424,7 @@ impl Device for DriveHandle {
         Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 
-    fn max_chunk(&self) -> Result<ByteSize, DeviceError> {
+    fn raw_max_chunk(&self) -> Result<usize, DeviceError> {
         let query = STORAGE_PROPERTY_QUERY {
             PropertyId: StorageAdapterProperty,
             QueryType: PropertyStandardQuery,
@@ -470,11 +470,7 @@ impl Device for DriveHandle {
         )
         .or_error("identifying maximum readable chunk size failed")?;
 
-        let raw_max_chunk_size = details.MaximumTransferLength;
-
-        let max_frame_based_chunk_size = ByteSize::rounded_new(raw_max_chunk_size);
-
-        Ok(max_frame_based_chunk_size)
+        Ok(details.MaximumTransferLength.strict_cast())
     }
 }
 

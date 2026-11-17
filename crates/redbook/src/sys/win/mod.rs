@@ -71,9 +71,12 @@ mod miri {
     #[case(TheBoyWhoKnewTooMuch)]
     fn max_chunk(#[case] album: TestAlbum) {
         let device = DriveHandle::open(&album.assets_path()).unwrap();
-        assert_eq!(
-            device.max_chunk().unwrap(),
-            album.expected_max_chunk().assert_valid()
-        );
+        let raw = device.raw_max_chunk().unwrap();
+        assert_eq!(raw, album.max_chunk());
+
+        let frame_based = device.max_chunk().unwrap();
+        assert_eq!(frame_based, album.expected_max_chunk());
+
+        assert!(frame_based.cast::<usize>() <= raw);
     }
 }

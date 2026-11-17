@@ -68,5 +68,22 @@ pub trait Device: Sized {
     /// # Note
     /// - Linux has a hard-coded limit of 75 frames
     /// - Windows has a variable limit depending on hardware type
-    fn max_chunk(&self) -> Result<ByteSize, DeviceError>;
+    ///
+    /// # Errors
+    /// This may error if the value needs to be obtained at runtime and doing so fails
+    fn max_chunk(&self) -> Result<ByteSize, DeviceError> {
+        self.raw_max_chunk().map(ByteSize::rounded_new)
+    }
+
+    /// The maximum chunk size, in bytes, which can be read in a single call.
+    ///
+    /// # Note
+    /// - This value will most likely *not* be a correct multiple of frames. Use the provided
+    ///   [`max_chunk`][Device::max_chunk] out of preference
+    /// - Linux has a hard-coded limit of 75 frames
+    /// - Windows has a variable limit depending on hardware type
+    ///
+    /// # Errors
+    /// This may error if the value needs to be obtained at runtime and doing so fails
+    fn raw_max_chunk(&self) -> Result<usize, DeviceError>;
 }
