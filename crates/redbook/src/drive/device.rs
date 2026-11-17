@@ -68,6 +68,7 @@ pub trait Device: Sized {
     /// # Note
     /// - Linux has a hard-coded limit of 75 frames
     /// - Windows has a variable limit depending on hardware type
+    /// - See #224 for more details / research
     ///
     /// # Errors
     /// This may error if the value needs to be obtained at runtime and doing so fails
@@ -82,6 +83,7 @@ pub trait Device: Sized {
     ///   [`max_chunk`][Device::max_chunk] out of preference
     /// - Linux has a hard-coded limit of 75 frames
     /// - Windows has a variable limit depending on hardware type
+    /// - See #224 for more details / research
     ///
     /// # Errors
     /// This may error if the value needs to be obtained at runtime and doing so fails
