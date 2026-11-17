@@ -12,6 +12,10 @@ use tracing_result::Trace;
 use crate::{
     ByteSize, Device, Frame, TocEntries,
     drive::error::{DeviceError, InvalidBufferSize, OsError},
+    sys::win::bindings::{
+        IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ADAPTER_DESCRIPTOR,
+        STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
+    },
 };
 
 use super::{
@@ -420,15 +424,57 @@ impl Device for DriveHandle {
         Ok(self.cdrom_toc()?.as_raw_bytes())
     }
 
-    fn max_chunk(&self) -> ByteSize {
-        const {
-            Frame::strict_new(
-                64_u32
-                    .strict_mul(1024)
-                    .strict_div(ByteSize::ONE_FRAME.strict_cast()),
+    fn max_chunk(&self) -> Result<ByteSize, DeviceError> {
+        let query = STORAGE_PROPERTY_QUERY {
+            PropertyId: StorageAdapterProperty,
+            QueryType: PropertyStandardQuery,
+            // SAFETY: Use default() to ensure all memory is initialised
+            // SAFETY: No additional parameters required for this query type
+            // see https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddstor/ne-ntddstor-storage_property_id
+            AdditionalParameters: Default::default(),
+        };
+
+        // SAFETY: Use default() to ensure all memory is initialised
+        let mut details = STORAGE_ADAPTER_DESCRIPTOR::default();
+        let mut bytes_returned: u32 = 0;
+
+        #[expect(
+            clippy::multiple_unsafe_ops_per_block,
+            reason = "inline call to get handle"
+        )]
+        // SAFETY: inline (see mock docstring for link to spec & consolidated requirements)
+        unsafe {
+            DeviceIoControl(
+                // handle known valid thanks to type wrapper
+                *self.handle(),
+                // valid constant from win_bindgen. const stict_cast ensures no overflows
+                const { IOCTL_STORAGE_QUERY_PROPERTY.strict_cast() },
+                // points to a valid STORAGE_PROPERTY_QUERY, constructed above, fully initialised
+                // named type cast adds extra type-safety
+                &query as *const STORAGE_PROPERTY_QUERY as *const _,
+                // lpinbuffer is a STORAGE_PROPERTY_QUERY. const stict_cast ensures no overflows
+                const { size_of::<STORAGE_PROPERTY_QUERY>().strict_cast() },
+                // For query type PropertyStandardQuery / StorageAdapterProperty -> STORAGE_ADAPTER_DESCRIPTOR,
+                // constructed above, fully initialised named type cast adds extra type-safety
+                &mut details as *mut STORAGE_ADAPTER_DESCRIPTOR as *mut _,
+                // QueryType: PropertyStandardQuery -> must be > 0 and correct size for output.
+                // const stict_cast ensures no overflows
+                const { size_of::<STORAGE_ADAPTER_DESCRIPTOR>().strict_cast() },
+                &mut bytes_returned as *mut _,
+                null_mut(),
             )
-            .size()
         }
+        .validate(
+            Some(const { size_of::<STORAGE_ADAPTER_DESCRIPTOR>().strict_cast() }),
+            bytes_returned,
+        )
+        .or_error("identifying maximum readable chunk size failed")?;
+
+        let raw_max_chunk_size = details.MaximumTransferLength;
+
+        let max_frame_based_chunk_size = ByteSize::rounded_new(raw_max_chunk_size);
+
+        Ok(max_frame_based_chunk_size)
     }
 }
 

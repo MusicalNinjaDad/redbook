@@ -68,5 +68,5 @@ pub trait Device: Sized {
     /// # Note
     /// - Linux has a hard-coded limit of 75 frames
     /// - Windows has a variable limit depending on hardware type
-    fn max_chunk(&self) -> ByteSize;
+    fn max_chunk(&self) -> Result<ByteSize, DeviceError>;
 }

@@ -203,8 +203,9 @@ pub unsafe fn CreateFile2(
 ///       must be retrieved only from a device; attempting to retrieve device properties from an adapter
 ///       will cause an error.
 ///     - `noutbuffersize` can be 0 to determine whether a property exists without retrieving its data.
-///     - `lpoutbuffer`: points to the correct type based upon the `PropertyType` field of the provided
-///       `STORAGE_PROPERTY_QUERY`. For `StorageAdapterProperty` this is `STORAGE_DEVICE_ID_DESCRIPTOR`
+///       This must match the `QueryType` field of the `STORAGE_PROPERTY_QUERY`
+///     - `lpoutbuffer`: points to the correct type based upon the `PropertyId` field of the provided
+///       `STORAGE_PROPERTY_QUERY`. For `StorageAdapterProperty` this is `STORAGE_ADAPTER_DESCRIPTOR`
 /// - `lpbytesreturned` cannot be NULL. See Notes for reason.
 /// - `lpoverlapped` MUST be NULL. See Notes for reason.
 ///

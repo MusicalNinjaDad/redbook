@@ -72,7 +72,7 @@ mod miri {
     fn max_chunk(#[case] album: TestAlbum) {
         let device = DriveHandle::open(&album.assets_path()).unwrap();
         assert_eq!(
-            device.max_chunk(),
+            device.max_chunk().unwrap(),
             album.expected_max_chunk().assert_valid()
         );
     }
