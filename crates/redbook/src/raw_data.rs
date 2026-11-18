@@ -15,6 +15,7 @@ use crate::{Frame, frame::ByteSize};
 /// - guaranteed to be sized to a multiple of [`Frame`]s
 /// - provides clone-free usage in [`flacenc`]
 /// - always properly initialised for use as a buffer in unsafe code
+/// - the underlying data is pinned in place help ensure the validity of raw pointers
 /// - de-references to [`&[u8]`][slice]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RawData(Pin<Box<[u8]>>);
