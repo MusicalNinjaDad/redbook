@@ -75,9 +75,7 @@ impl RawData {
     ///
     /// Once created `RawData` is not resizable
     pub fn new(size: Frame) -> Self {
-        let zeroes = Box::<[u8]>::new_zeroed_slice(size.size().strict_cast());
-        // SAFETY: \0 is valid for u8. Zeroed is therefore safe to assume_init
-        let inner = unsafe { zeroes.assume_init() };
+        let inner = vec![0; size.size().strict_cast()].into_boxed_slice();
 
         Self(Box::into_pin(inner))
     }
