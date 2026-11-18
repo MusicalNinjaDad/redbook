@@ -68,22 +68,8 @@ impl RippedTrack {
     /// - [`TrackError::Encode`] / [`TrackError::Output`] wrapping the underlying
     ///   [`flacenc`] errors if encoding fails
     pub fn to_flac(&self) -> Result<MemSink<u8>, EncodingError> {
-        let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default().into_verified()?;
-        (self.raw_data.len() % 2 == 0).ok_or(EncodingError::InvalidData(self.raw_data.len()))?;
-        let samples: Vec<_> = self
-            .raw_data
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]) as i32)
-            .collect();
-        let source = flacenc::source::MemSource::from_samples(
-            &samples,
-            channels,
-            bits_per_sample,
-            sample_rate,
-        );
+        let source = self.raw_data.as_source();
         let flac_stream =
             flacenc::encode_with_fixed_block_size(&config, source, config.block_size)?;
         let mut sink = flacenc::bitsink::ByteSink::new();

@@ -1,6 +1,7 @@
 //! TODO
 
 use std::{
+    cmp::min,
     ops::{Deref, DerefMut},
     slice, vec,
 };
@@ -78,5 +79,101 @@ impl RawData {
         let inner = unsafe { zeroes.assume_init() };
 
         Self(inner)
+    }
+
+    /// Provide a [`RawDataSource`] suitable for use with [`flacenc::encode_with_fixed_block_size`]
+    ///
+    /// This avoids excessive the cloning required to work via a [`flacenc::source::MemSource`] by
+    /// simply providing a cursor over borrowed `RawData`
+    pub fn as_source<'data>(&'data self) -> RawDataSource<'data> {
+        RawDataSource {
+            data: self,
+            current_index: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A view of a [`RawData`] suitable for use with [`flacenc::encode_with_fixed_block_size`]
+///
+/// This avoids excessive the cloning required to work via a [`flacenc::source::MemSource`] by
+/// simply providing a cursor over borrowed `RawData`
+pub struct RawDataSource<'data> {
+    data: &'data RawData,
+    current_index: usize = 0,
+}
+
+impl<'data> flacenc::source::Source for RawDataSource<'data> {
+    /// Fixed 2 channels - see [`RawData::CHANNELS`] for explanation
+    fn channels(&self) -> usize {
+        RawData::CHANNELS
+    }
+
+    /// Fixed 16bits - see [`RawData::BITRATE`] for explanation
+    fn bits_per_sample(&self) -> usize {
+        RawData::BITRATE
+    }
+
+    /// Fixed 44100 - see [`RawData::SAMPLERATE`] for explanation
+    fn sample_rate(&self) -> usize {
+        RawData::SAMPLERATE
+    }
+
+    /// Reads `block_size` *samples per channel* into `dest` as interleaved, le-encoded u16 values
+    ///
+    /// The tests for RawDataSource include a worked example if you need to understand exaclty how
+    /// the data is interpreted.
+    fn read_samples<F: flacenc::source::Fill>(
+        &mut self,
+        // The implementation for MemSource shows that this is in "samples per channel"
+        block_size: usize,
+        dest: &mut F,
+    ) -> Result<usize, flacenc::error::SourceError> {
+        let bytes_per_sample = 2; // 2 x u8 gives 1 x u16 sample
+        let bytes_to_read = block_size.strict_mul(self.channels().strict_mul(bytes_per_sample));
+
+        let start = self.current_index;
+        let end = min(start.strict_add(bytes_to_read), self.data.len());
+        let block = &self.data[start..end];
+
+        dest.fill_le_bytes(block, bytes_per_sample)?;
+
+        let sample_count_per_channel = block
+            .len()
+            .strict_div(bytes_per_sample)
+            .strict_div(self.channels());
+
+        self.current_index = end;
+        Ok(sample_count_per_channel)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use flacenc::source::{Context, Source};
+    use md5::Digest;
+
+    use super::*;
+
+    #[test]
+    fn read_samples() {
+        let data = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+        ];
+
+        // The data will be interpreted as interleaved, le-encoded 16bit samples:
+        let _samples_left = [0x0201, 0x0605, 0x0A09];
+        let _samples_right = [0x0403, 0x0807, 0x0C0B];
+
+        let rawdata = RawData(Box::new(data));
+
+        // Reading into a Context for the example as this allows verification of contents via MD5 digest
+        let mut dest = Context::new(16, 2);
+        let samples_read = rawdata.as_source().read_samples(3, &mut dest).unwrap();
+
+        assert_eq!(samples_read, 3);
+        assert_eq!(dest.total_samples(), 3);
+        let md5_digest = md5::Md5::new_with_prefix(data).finalize();
+        assert_eq!(dest.md5_digest(), md5_digest);
     }
 }
