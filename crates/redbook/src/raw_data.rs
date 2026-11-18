@@ -1,4 +1,5 @@
-//! TODO
+//! Provides [`RawData`] - a typesafe representation of the audio data pulled from a CD that upholds
+//! additional variants for usage in unsafe code
 
 use std::{
     cmp::min,
@@ -6,10 +7,14 @@ use std::{
     slice, vec,
 };
 
-use crate::Frame;
+use crate::{Frame, frame::ByteSize};
 
-/// Raw data for CDDA audio. Guaranteed to be sized to a multiple of Frames, provides simple interconversion
-/// to flacenc, always properly initialised for use as a buffer in unsafe code.
+/// Raw data for CDDA audio.
+/// 
+/// - guaranteed to be sized to a multiple of [`Frame`]s
+/// - provides clone-free usage in [`flacenc`]
+/// - always properly initialised for use as a buffer in unsafe code
+/// - de-references to [`&[u8]`][slice]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RawData(Box<[u8]>);
 
@@ -72,13 +77,25 @@ impl RawData {
     /// The redbook standard defined rate of 44100 Hz (samples per second)
     const SAMPLERATE: usize = 44100;
 
-    /// Create a new raw data for the given number of frames
+    /// Create a new raw data for the given number of frames.
+    /// 
+    /// Once created `RawData` is not resizable
     pub fn new(size: Frame) -> Self {
         let zeroes = Box::<[u8]>::new_zeroed_slice(size.size().strict_cast());
         // SAFETY: \0 is valid for u8. Zeroed is therefore safe to assume_init
         let inner = unsafe { zeroes.assume_init() };
 
         Self(inner)
+    }
+
+    /// The size of the underlying buffer
+    pub fn size(&self) -> ByteSize {
+        ByteSize::strict_new(self.0.len())
+    }
+
+    /// The number of [`Frame`]s that can be held in the underlying buffer
+    pub fn frames(&self) -> Frame {
+        self.size().frames()
     }
 
     /// Provide a [`RawDataSource`] suitable for use with [`flacenc::encode_with_fixed_block_size`]
