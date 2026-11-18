@@ -4,19 +4,22 @@
 use std::{
     cmp::min,
     ops::{Deref, DerefMut},
-    slice, vec,
+    pin::Pin,
+    slice,
 };
 
 use crate::{Frame, frame::ByteSize};
 
 /// Raw data for CDDA audio.
-/// 
+///
 /// - guaranteed to be sized to a multiple of [`Frame`]s
 /// - provides clone-free usage in [`flacenc`]
 /// - always properly initialised for use as a buffer in unsafe code
 /// - de-references to [`&[u8]`][slice]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RawData(Box<[u8]>);
+pub struct RawData(Pin<Box<[u8]>>);
+
+impl !Unpin for RawData {}
 
 impl Deref for RawData {
     type Target = [u8];
@@ -29,16 +32,6 @@ impl Deref for RawData {
 impl DerefMut for RawData {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl IntoIterator for RawData {
-    type Item = u8;
-
-    type IntoIter = vec::IntoIter<u8>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
@@ -78,14 +71,14 @@ impl RawData {
     const SAMPLERATE: usize = 44100;
 
     /// Create a new raw data for the given number of frames.
-    /// 
+    ///
     /// Once created `RawData` is not resizable
     pub fn new(size: Frame) -> Self {
         let zeroes = Box::<[u8]>::new_zeroed_slice(size.size().strict_cast());
         // SAFETY: \0 is valid for u8. Zeroed is therefore safe to assume_init
         let inner = unsafe { zeroes.assume_init() };
 
-        Self(inner)
+        Self(Box::into_pin(inner))
     }
 
     /// The size of the underlying buffer
@@ -182,7 +175,7 @@ mod tests {
         let _samples_left = [0x0201, 0x0605, 0x0A09];
         let _samples_right = [0x0403, 0x0807, 0x0C0B];
 
-        let rawdata = RawData(Box::new(data));
+        let rawdata = RawData(Box::pin(data));
 
         // Reading into a Context for the example as this allows verification of contents via MD5 digest
         let mut dest = Context::new(16, 2);
