@@ -76,6 +76,9 @@ impl RawData {
     ///
     /// Once created `RawData` is not resizable
     pub fn new(size: Frame) -> Self {
+        // This compiles to the same as `unsafe { Box::new_zeroed_slice(n).assume_init()}`
+        // so no risk of re-allocations. Thanks rustc & Morgane55440!!
+        // https://users.rust-lang.org/t/when-is-the-memory-location-of-box-u8-guaranteed-to-remain-stable/143745/7
         let inner = vec![0; size.size().strict_cast()].into_boxed_slice();
 
         Self(Box::into_pin(inner))
