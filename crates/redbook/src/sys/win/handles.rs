@@ -1,3 +1,4 @@
+use core::slice;
 use std::{
     fmt::Display,
     io,
@@ -602,8 +603,6 @@ impl DeviceInfoSet {
             None => return Ok(None),
         };
 
-        self.check_required_buffer_size(&interface_data)?;
-
         #[expect(unsafe_code, reason = "data must fit in a `DeviceDetails`")]
         // SAFETY: We just called check_required_buffer_size
         let member = unsafe { self.get_member_details(&interface_data)? };
@@ -675,10 +674,10 @@ impl DeviceInfoSet {
     }
 
     /// Validates that a [`DeviceDetails`] struct is large enough to house the details for `member`
-    fn check_required_buffer_size(
+    fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<(), DeviceError> {
+    ) -> Result<DeviceDetails, WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -713,8 +712,8 @@ impl DeviceInfoSet {
             .or_error("reading required buffer size")?;
 
         tracing::debug!(requiredsize);
-        DeviceDetails::check_size(requiredsize).or_error("device path too long")?;
-        Ok(())
+
+        Ok(DeviceDetails::new(requiredsize.strict_cast()))
     }
 
     #[expect(
@@ -741,8 +740,12 @@ impl DeviceInfoSet {
         //    not a size reflecting the variable-length string at the end.
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
-        let mut deviceinterfacedetaildata = DeviceDetails::default();
+        let mut deviceinterfacedetaildata = self.allocate_device_details(member)?;
+        let size = deviceinterfacedetaildata.0.len();
 
+        // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
+        let devicedetailsptr = Box::as_mut_ptr(&mut deviceinterfacedetaildata.0);
+        
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         let get_details = unsafe {
@@ -768,8 +771,7 @@ impl DeviceInfoSet {
                 // 2. buffer size validated by caller
                 // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
                 //    with identical fields, layout & alignment
-                &mut deviceinterfacedetaildata as *mut DeviceDetails
-                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
                 // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
                 // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
                 // to contain the fixed part of the structure and a single NULL to terminate an
@@ -777,7 +779,7 @@ impl DeviceInfoSet {
                 //
                 // Therefore this size must be the total size of the DeviceDetails struct, which
                 // is known to have sufficient buffer for the fixed part, path + termination
-                const { size_of::<DeviceDetails>() as u32 },
+                size.strict_cast(),
                 null_mut(),
                 null_mut(),
             )
@@ -789,7 +791,12 @@ impl DeviceInfoSet {
                 tracing::error!(get_details, %err);
                 Err(WinError::from(err))
             }
-            _ => Ok(deviceinterfacedetaildata),
+            _ => {
+                // SAFETY: HMMM TODO!!!!!
+                let inner = unsafe { Box::from_raw(devicedetailsptr) };
+                let details = DeviceDetails(inner);
+                Ok(details)
+            }
         }
     }
 }
@@ -822,6 +829,11 @@ pub(super) struct DeviceDetails {
 }
 
 impl DeviceDetails {
+    /// TODO
+    pub fn new(size: usize) -> Self {
+        Self(vec![0; size].into_boxed_slice())
+    }
+
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
@@ -876,7 +888,7 @@ impl DeviceDetails {
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.path().display(),f)
+        Display::fmt(&self.path().display(), f)
     }
 }
 
