@@ -834,7 +834,7 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Self {
         let mut bag_in_a_box = vec![0; size].into_boxed_slice();
         #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
-        let cbSize = size.saturating_cast::<u32>().to_be_bytes();
+        let cbSize = size.saturating_cast::<u32>().to_ne_bytes();
         bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
         Self(bag_in_a_box)
     }
@@ -860,7 +860,7 @@ impl DeviceDetails {
     pub fn path(&self) -> PathBuf {
         let device_path = &self.0[offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)..];
         let (pairs, _) = device_path.as_chunks::<2>();
-        let utf16_bytes: Vec<_> = pairs.iter().copied().map(u16::from_be_bytes).collect();
+        let utf16_bytes: Vec<_> = pairs.iter().copied().map(u16::from_ne_bytes).collect();
         let path = WinString::from(utf16_bytes.as_slice());
         PathBuf::from(path.to_string())
     }
@@ -885,7 +885,7 @@ impl DeviceDetails {
                 .as_words()
                 .iter()
                 .copied()
-                .flat_map(u16::to_be_bytes)
+                .flat_map(u16::to_ne_bytes)
                 .collect::<Vec<_>>(),
         );
         len
