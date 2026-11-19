@@ -740,12 +740,12 @@ impl DeviceInfoSet {
         //    not a size reflecting the variable-length string at the end.
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
-        let mut deviceinterfacedetaildata = self.allocate_device_details(member)?;
+        let deviceinterfacedetaildata = self.allocate_device_details(member)?;
         let size = deviceinterfacedetaildata.0.len();
         dbg!(size);
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
-        let devicedetailsptr = Box::as_mut_ptr(&mut deviceinterfacedetaildata.0);
+        let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata.0);
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -795,6 +795,7 @@ impl DeviceInfoSet {
             _ => {
                 // SAFETY: HMMM TODO!!!!!
                 let inner = unsafe { Box::from_raw(devicedetailsptr) };
+                dbg!(&inner);
                 let details = DeviceDetails(inner);
                 Ok(details)
             }

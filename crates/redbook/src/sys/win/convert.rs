@@ -170,6 +170,15 @@ impl WinString {
     pub fn as_words(&self) -> &[u16] {
         &self.words
     }
+
+    /// Just a bag of bytes
+    pub fn to_ne_bytes(&self) -> Vec<u8> {
+        self.words
+            .iter()
+            .copied()
+            .flat_map(|word| word.to_ne_bytes())
+            .collect()
+    }
 }
 
 /// A Windows path either in [traditional] format as a [PathBuf], or [Dos Device Path][dosdevicepath]

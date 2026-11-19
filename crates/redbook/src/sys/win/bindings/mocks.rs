@@ -703,20 +703,20 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
 
             let device_path = unsafe {
                 ptr::slice_from_raw_parts_mut(
-                    (deviceinterfacedetaildata as *mut u16).byte_offset(path_offset.strict_cast()),
+                    (deviceinterfacedetaildata as *mut u8).byte_offset(path_offset.strict_cast()),
                     deviceinterfacedetaildatasize
                         .strict_sub(path_offset.strict_cast())
                         .strict_cast(),
                 )
             };
 
-            let words = album_path.as_words();
+            let words = album_path.to_ne_bytes();
             dbg!(words.len());
 
             for (i, word) in words.iter().enumerate() {
                 dbg!(i);
                 unsafe { (*device_path)[i] = *word };
-            }
+            }            
 
             success!()
         }
