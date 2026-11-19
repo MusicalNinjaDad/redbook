@@ -29,7 +29,7 @@ use super::{
         SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
         SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
-    convert::{Guid, MAX_PATH_CHARS, Sector, WinPath, WinString},
+    convert::{Guid, Sector, WinPath, WinString},
     drive::DeviceInfoSetIter,
     error::WinError,
 };
@@ -800,7 +800,6 @@ impl DeviceInfoSet {
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
-#[expect(nonstandard_style, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
 ///
@@ -842,7 +841,7 @@ impl DeviceDetails {
     pub fn path(&self) -> PathBuf {
         let device_path = &self.0[offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)..];
         let (pairs, _) = device_path.as_chunks::<2>();
-        let utf16_bytes: Vec<_> = pairs.into_iter().copied().map(u16::from_be_bytes).collect();
+        let utf16_bytes: Vec<_> = pairs.iter().copied().map(u16::from_be_bytes).collect();
         let path = WinString::from(utf16_bytes.as_slice());
         PathBuf::from(path.to_string())
     }
@@ -865,10 +864,9 @@ impl DeviceDetails {
         self.0[..len].copy_from_slice(
             &path
                 .as_words()
-                .into_iter()
+                .iter()
                 .copied()
-                .map(u16::to_be_bytes)
-                .flatten()
+                .flat_map(u16::to_be_bytes)
                 .collect::<Vec<_>>(),
         );
         len
@@ -878,12 +876,7 @@ impl DeviceDetails {
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let len = self
-            .DevicePath
-            .iter()
-            .position(|c| *c == 0)
-            .unwrap_or(self.DevicePath.len());
-        Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
+        Display::fmt(&self.path().display(),f)
     }
 }
 
