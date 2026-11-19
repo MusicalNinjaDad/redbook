@@ -83,7 +83,7 @@ impl RippedTrack {
 
         // based on https://github.com/Bloomca/rust-cd-da-reader/blob/fd71208262c199dc44d8a012731be298a848ea79/src/lib.rs#L226
         // & https://github.com/Bloomca/rust-cd-da-reader/blob/main/src/utils.rs#L49
-        let pcm_data_size = pcm.len();
+        let pcm_data_size = pcm.len().cast::<usize>();
         let mut wav = Vec::with_capacity(44 + pcm_data_size);
         let pcm_data_size = pcm_data_size as u32;
 

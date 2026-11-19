@@ -82,13 +82,13 @@ impl RawData {
     }
 
     /// The size of the underlying buffer
-    pub fn size(&self) -> ByteSize {
+    pub fn len(&self) -> ByteSize {
         ByteSize::strict_new(self.0.len())
     }
 
     /// The number of [`Frame`]s that can be held in the underlying buffer
     pub fn frames(&self) -> Frame {
-        self.size().frames()
+        self.len().frames()
     }
 
     /// Provide a [`RawDataSource`] suitable for use with [`flacenc::encode_with_fixed_block_size`]
@@ -143,7 +143,7 @@ impl<'data> flacenc::source::Source for RawDataSource<'data> {
         let bytes_to_read = block_size.strict_mul(self.channels().strict_mul(bytes_per_sample));
 
         let start = self.current_index;
-        let end = min(start.strict_add(bytes_to_read), self.data.len());
+        let end = min(start.strict_add(bytes_to_read), self.data.deref().len());
         let block = &self.data[start..end];
 
         dest.fill_le_bytes(block, bytes_per_sample)?;
