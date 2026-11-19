@@ -839,23 +839,6 @@ impl DeviceDetails {
         Self(bag_in_a_box)
     }
 
-    /// Validate that the buffer provided by `DeviceDetails` is sufficient.
-    ///
-    /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
-    /// get the required size, then to call `check_size` before using DeviceDetails to store the
-    /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
-    ///
-    /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
-    /// paths?
-    pub fn check_size(&self, requiredsize: u32) -> Result<(), InvalidBufferSize> {
-        (requiredsize == self.0.len().strict_cast::<u32>()).ok_or_else(|| {
-            InvalidBufferSize::TooSmall {
-                provided: self.0.len(),
-                required: requiredsize.into(),
-            }
-        })
-    }
-
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> PathBuf {
         let device_path = &self.0[offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)..];
