@@ -742,10 +742,11 @@ impl DeviceInfoSet {
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
         let mut deviceinterfacedetaildata = self.allocate_device_details(member)?;
         let size = deviceinterfacedetaildata.0.len();
+        dbg!(size);
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::as_mut_ptr(&mut deviceinterfacedetaildata.0);
-        
+
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         let get_details = unsafe {
@@ -831,7 +832,11 @@ pub(super) struct DeviceDetails {
 impl DeviceDetails {
     /// TODO
     pub fn new(size: usize) -> Self {
-        Self(vec![0; size].into_boxed_slice())
+        let mut bag_in_a_box = vec![0; size].into_boxed_slice();
+        #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
+        let cbSize = size.saturating_cast::<u32>().to_be_bytes();
+        bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
+        Self(bag_in_a_box)
     }
 
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
@@ -842,10 +847,12 @@ impl DeviceDetails {
     ///
     /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
     /// paths?
-    pub fn check_size(requiredsize: u32) -> Result<(), InvalidBufferSize> {
-        (requiredsize <= size_of::<Self>() as u32).ok_or_else(|| InvalidBufferSize::TooSmall {
-            provided: size_of::<Self>(),
-            required: requiredsize.into(),
+    pub fn check_size(&self, requiredsize: u32) -> Result<(), InvalidBufferSize> {
+        (requiredsize == self.0.len().strict_cast::<u32>()).ok_or_else(|| {
+            InvalidBufferSize::TooSmall {
+                provided: self.0.len(),
+                required: requiredsize.into(),
+            }
         })
     }
 
