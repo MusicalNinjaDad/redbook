@@ -22,9 +22,7 @@ use super::{
     STORAGE_DEVICE_NUMBER,
 };
 
-use super::super::{
-    convert::{Guid, MAX_PATH_CHARS, WinString},
-};
+use super::super::convert::{Guid, MAX_PATH_CHARS, WinString};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -698,28 +696,59 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         (false, _, true) => {
             // SAFETY: first field is cbSize which is a u32;
             let cbsize = deviceinterfacedetaildata as *mut u32;
-            assert_eq!(unsafe { cbsize.read() }, unsafe { requiredsize.read() });
+
+            assert_eq!(
+                unsafe { cbsize.read_unaligned() },
+                deviceinterfacedetaildatasize
+            );
+
+            dbg!(deviceinterfacedetaildatasize);
 
             let path_offset = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath);
 
-            #[expect(clippy::multiple_unsafe_ops_per_block, reason = "pointer arithmetic")]
             let device_path = unsafe {
                 ptr::slice_from_raw_parts_mut(
                     (deviceinterfacedetaildata as *mut u16).byte_offset(path_offset.strict_cast()),
-                    requiredsize
-                        .read()
+                    deviceinterfacedetaildatasize
                         .strict_sub(path_offset.strict_cast())
                         .strict_cast(),
                 )
             };
+            dbg!(device_path.len());
 
             let path = WinString::from(album_path);
             let words = path.as_words();
+            dbg!(words.len());
             // This will panic if we did the size math wrong
             unsafe { (*device_path).copy_from_slice(words) };
 
             success!()
         }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aligns() {
+        dbg!(align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
+        dbg!(align_of::<u32>());
+        dbg!(align_of::<Box<[u8]>>());
+        let size = 76_usize;
+        let mut bag_in_a_box = vec![0; size].into_boxed_slice();
+        dbg!(align_of_val(&bag_in_a_box));
+        #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
+        let cbSize = size.saturating_cast::<u32>().to_ne_bytes();
+        bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
+        dbg!(align_of_val(&bag_in_a_box));
+        let devicedetailsptr = Box::as_mut_ptr(&mut bag_in_a_box);
+        dbg!(align_of_val(&devicedetailsptr));
+        let casted = devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W;
+        dbg!(align_of_val(&casted));
+        let cbsize = casted as *mut u32;
+        dbg!(align_of_val(&cbsize));
     }
 }
