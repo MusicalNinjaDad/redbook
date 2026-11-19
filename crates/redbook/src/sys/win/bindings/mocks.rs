@@ -697,8 +697,6 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                 deviceinterfacedetaildatasize
             );
 
-            dbg!(deviceinterfacedetaildatasize);
-
             let path_offset = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath);
 
             let device_path = unsafe {
@@ -711,12 +709,8 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             };
 
             let words = album_path.to_ne_bytes();
-            dbg!(words.len());
 
-            for (i, word) in words.iter().enumerate() {
-                dbg!(i);
-                unsafe { (*device_path)[i] = *word };
-            }            
+            unsafe { (*device_path).copy_from_slice(&words) };
 
             success!()
         }

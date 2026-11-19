@@ -742,7 +742,6 @@ impl DeviceInfoSet {
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
         let deviceinterfacedetaildata = self.allocate_device_details(member)?;
         let size = deviceinterfacedetaildata.0.len();
-        dbg!(size);
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata.0);
@@ -795,7 +794,6 @@ impl DeviceInfoSet {
             _ => {
                 // SAFETY: HMMM TODO!!!!!
                 let inner = unsafe { Box::from_raw(devicedetailsptr) };
-                dbg!(&inner);
                 let details = DeviceDetails(inner);
                 Ok(details)
             }
