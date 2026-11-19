@@ -2,6 +2,7 @@
 //! on any host
 
 use std::mem::offset_of;
+use std::ops::Range;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
 
@@ -675,22 +676,16 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         (ALL_ALBUMS, id) if id == TheWallDisc2 as u32 => TheWallDisc2,
         _ => panic!("unrecognised call to SetupDiGetDeviceInterfaceDetailW"),
     };
-    let album_path = format!(r"\\.\{}", album.assets_path().display());
-    let path_len = album_path.len();
+    let album_path = WinString::from(format!(r"\\.\{}", album.assets_path().display()));
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            // This potentially slightly oversizes the requirement. This is acceptable for
-            // testing purposes to avoid the complexity of calculating the size required when
-            // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
-            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
-            // SAFETY:
-            // - validated pointer is not NULL (in match arm)
-            // - mock runs on debug build so as u32 will panic on overflow.
-            unsafe { *requiredsize = size as u32 };
+            let size = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
+                + size_of_val(album_path.as_words());
+            unsafe { requiredsize.write(size.strict_cast()) };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
@@ -714,13 +709,14 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                         .strict_cast(),
                 )
             };
-            dbg!(device_path.len());
 
-            let path = WinString::from(album_path);
-            let words = path.as_words();
+            let words = album_path.as_words();
             dbg!(words.len());
-            // This will panic if we did the size math wrong
-            unsafe { (*device_path).copy_from_slice(words) };
+
+            for (i, word) in words.iter().enumerate() {
+                dbg!(i);
+                unsafe { (*device_path)[i] = *word };
+            }
 
             success!()
         }
