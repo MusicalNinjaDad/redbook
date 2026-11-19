@@ -66,7 +66,7 @@ pub trait Drive: Sized {
         let chunk_size = self.max_chunk();
         let frames_per_chunk = chunk_size.frames();
 
-        let bufs = data.chunks_mut(chunk_size.strict_cast());
+        let bufs = data.chunks_mut(chunk_size.cast());
         let last_chunk_index = bufs.len() - 1;
 
         let mut frames_read_so_far = Frame::default();
