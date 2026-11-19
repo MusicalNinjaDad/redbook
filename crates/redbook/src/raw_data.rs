@@ -20,18 +20,24 @@ use crate::{Frame, frame::ByteSize};
 /// - de-references to [`&[u8]`][slice]
 ///
 /// # Example
-/// ```ignore
-/// let data = RawData::new(track.duration());
-/// let bufs = data.chunks_mut(device.max_chunk());
+/// ```
+/// # use redbook::{CdDrive, Device, Drive, Frame, disc::Track, raw_data::RawData, sys::win::DriveHandle, toc::TrackNo};
+/// # fn main() -> redbook::Result<()> {
+/// # let track = Track::new(TrackNo::strict_new(1), Frame::strict_new(150), Frame::strict_new(7500));
+/// # let drive = CdDrive::open(&redbook::test_fixtures::albums::TestAlbum::DefinitelyMaybe.assets_path(), Default::default())?;
+/// # let device = drive.device();
+/// let mut data = RawData::new(track.duration());
+/// let bufs = data.chunks_mut(drive.max_chunk().cast());
 /// let mut start = track.start();
 /// for buf in bufs {
-///     let frames_read = device.read_cdda(start, buf).unwrap();
-///     start = start + frames_read;
+///     let frames_read = device.read_cdda(start, buf)?;
+///     start = start.strict_add(frames_read);
 /// }
+/// # redbook::Result::Ok(()) }
 /// ```
 ///
 /// # SAFETY & raw pointers
-/// Whatever you do, **DO NOT** attempt to directly cast a RawData into a raw pointer to a
+/// Whatever you do, **DO NOT** attempt to directly cast a `RawData` into a raw pointer to a
 /// bag-of-bytes. The unsafe methods [`into_raw_ptr`][Self::into_raw_ptr] and
 /// [`into_raw_mut_ptr`][Self::into_raw_mut_ptr] provide a somewhat safer way to do this but also
 /// explain why it is a *really bad idea* and *most likely not what you need anyway*
