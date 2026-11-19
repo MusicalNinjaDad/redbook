@@ -18,6 +18,29 @@ use crate::{Frame, frame::ByteSize};
 /// - the underlying data is pinned in place, therefore may be used for non-blocking IO (e.g.
 ///   "overlapped IO" on Windows), subject the the usual aliasing rules
 /// - de-references to [`&[u8]`][slice]
+///
+/// # Example
+/// ```
+/// # use redbook::{CdDrive, Device, Drive, Frame, disc::Track, raw_data::RawData, sys::win::DriveHandle, toc::TrackNo};
+/// # fn main() -> redbook::Result<()> {
+/// # let track = Track::new(TrackNo::strict_new(1), Frame::strict_new(150), Frame::strict_new(7500));
+/// # let drive = CdDrive::open(&redbook::test_fixtures::albums::TestAlbum::DefinitelyMaybe.assets_path(), Default::default())?;
+/// # let device = drive.device();
+/// let mut data = RawData::new(track.duration());
+/// let bufs = data.chunks_mut(drive.max_chunk().cast());
+/// let mut start = track.start();
+/// for buf in bufs {
+///     let frames_read = device.read_cdda(start, buf)?;
+///     start = start.strict_add(frames_read);
+/// }
+/// # redbook::Result::Ok(()) }
+/// ```
+///
+/// # SAFETY & raw pointers
+/// Whatever you do, **DO NOT** attempt to directly cast a `RawData` into a raw pointer to a
+/// bag-of-bytes. The unsafe methods [`into_raw_ptr`][Self::into_raw_ptr] and
+/// [`into_raw_mut_ptr`][Self::into_raw_mut_ptr] provide a somewhat safer way to do this but also
+/// explain why it is a *really bad idea* and *most likely not what you need anyway*
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RawData(Pin<Box<[u8]>>);
 
@@ -103,6 +126,74 @@ impl RawData {
             data: self,
             current_index: Default::default(),
         }
+    }
+
+    /// You almost certainly do not want to do this. Converts a `RawData` into a raw pointer to
+    /// the underlying bag-of-bytes.
+    ///
+    /// This is only offered to stop you doing something *even worse* (see below)
+    ///
+    /// # Why you don't want to do this
+    /// - This puts you in charge of the memory previously managed by the `RawData` - see
+    ///   [`Box::into_raw`] for considerations
+    /// - There is *no way back* - `RawData` does not provide a `from_raw` constructor or similar
+    ///
+    /// # What you probably need instead
+    /// - `RawData` is designed to hold a large bag of bytes representing CDDA Audio.
+    /// - There are no known IoCtls which are able to read more than 1-2s of audio in one call
+    ///   (See [Device::raw_max_chunk][crate::Device::raw_max_chunk]) - so passing a larger `RawData`
+    ///   makes little sense
+    /// - [`chunks`][core::slice::chunks] is directly available via deref to `&[u8]` and
+    ///   allows for `rawdata.chunks(drive.max_chunk().cast())` which respects rust's aliasing
+    ///   rules and provdes an iterable set of chunks which *can* be directly dereferenced for IoCtl
+    ///
+    /// # What's even worse
+    /// - Whatever you do, **do not** attempt to directly dereference and recast the `RawData` via
+    ///   `unsafe { &*rawdata as *const [u8] } `. The [module docs for Box][std::boxed] include
+    ///   details on why this most likely leads to UB when such a pointer is passed across ffi
+    ///
+    /// # SAFETY
+    /// - See "Why you don't want to do this"
+    /// - You must correctly destroy and deallocate the memory, taking into account the unpublished
+    ///   and not-guaranteed internal layout of a `RawData`, which may change in the future.
+    pub unsafe fn into_raw_ptr(self) -> *const [u8] {
+        Box::into_raw(Pin::into_inner(self.0))
+    }
+
+    /// You almost certainly do not want to do this. Converts a `RawData` into a raw pointer to
+    /// the underlying bag-of-bytes.
+    ///
+    /// This is only offered to stop you doing something *even worse* (see below)
+    ///
+    /// # Why you don't want to do this
+    /// - This removes all pinning guarantees - see [`Pin::into_inner_unchecked`] for everything you
+    ///   must uphold
+    /// - This puts you in charge of the memory previously managed by the `RawData` - see
+    ///   [`Box::into_raw`] for considerations
+    /// - There is *no way back* - `RawData` does not provide a `from_raw` constructor or similar
+    ///
+    /// # What you probably need instead
+    /// - `RawData` is designed to hold a large bag of bytes representing CDDA Audio.
+    /// - There are no known IoCtls which are able to read more than 1-2s of audio in one call
+    ///   (See [Device::raw_max_chunk][crate::Device::raw_max_chunk]) - so passing a larger `RawData`
+    ///   makes little sense
+    /// - [`chunks`][core::slice::chunks] is directly available via deref to `&[u8]` and
+    ///   allows for `rawdata.chunks(drive.max_chunk().cast())` which respects rust's aliasing
+    ///   rules and provdes an iterable set of chunks which *can* be directly dereferenced for IoCtl
+    ///
+    /// # What's even worse
+    /// - Whatever you do, **do not** attempt to directly dereference and recast the `RawData` via
+    ///   `unsafe { &mut *rawdata as *mut [u8] } `. The [module docs for Box][std::boxed] include
+    ///   details on why this most likely leads to UB when such a pointer is passed across ffi
+    ///
+    /// # SAFETY
+    /// - See "Why you don't want to do this"
+    /// - You must uphold all pinning guarantees
+    /// - You must correctly destroy and deallocate the memory, taking into account the unpublished
+    ///   and not-guaranteed internal layout of a `RawData`, which may change in the future.
+    pub unsafe fn into_raw_mut_ptr(self) -> *mut [u8] {
+        // SAFETY: The caller has been warned to uphold pinning guarantees
+        unsafe { Box::into_raw(Pin::into_inner_unchecked(self.0)) }
     }
 }
 

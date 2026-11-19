@@ -66,7 +66,7 @@ pub trait Device: Sized {
     ///
     /// # Note
     /// - This value will most likely *not* be a correct multiple of frames. Use the provided
-    ///   [`max_chunk`][Device::max_chunk] out of preference
+    ///   [`max_chunk`][crate::Drive::max_chunk] out of preference
     /// - Linux has a hard-coded limit of 75 frames
     /// - Windows has a variable limit depending on hardware type
     /// - See #224 for more details / research

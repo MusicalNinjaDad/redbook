@@ -313,7 +313,10 @@ pub mod drive;
 #[forbid(unsafe_code)]
 pub mod error;
 
-#[forbid(unsafe_code)]
+#[expect(
+    unsafe_code,
+    reason = "provides unsafe methods to convert to raw pointer"
+)]
 pub mod raw_data;
 
 #[forbid(unsafe_code)]
