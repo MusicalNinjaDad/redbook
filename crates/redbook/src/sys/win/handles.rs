@@ -1,6 +1,7 @@
 use std::{
     fmt::Display,
     io,
+    mem::offset_of,
     path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
@@ -592,7 +593,7 @@ impl DeviceInfoSet {
     ///
     /// Returns Ok(None) if the member does not exist
     /// TODO - make this a simple -> Result<DeviceDetails, DeviceError>
-    pub fn get_member(&self, index: usize) -> Result<Option<Box<DeviceDetails>>, DeviceError> {
+    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, DeviceError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
@@ -729,7 +730,7 @@ impl DeviceInfoSet {
     unsafe fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<Box<DeviceDetails>, WinError> {
+    ) -> Result<DeviceDetails, WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
@@ -740,8 +741,7 @@ impl DeviceInfoSet {
         //    not a size reflecting the variable-length string at the end.
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
-        let mut deviceinterfacedetaildata = DeviceDetails::new(MAX_PATH_CHARS); // TODO!
-        let p = Box::as_mut_ptr(&mut deviceinterfacedetaildata);
+        let mut deviceinterfacedetaildata = DeviceDetails::default();
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -768,7 +768,8 @@ impl DeviceInfoSet {
                 // 2. buffer size validated by caller
                 // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
                 //    with identical fields, layout & alignment
-                p as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                &mut deviceinterfacedetaildata as *mut DeviceDetails
+                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
                 // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
                 // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
                 // to contain the fixed part of the structure and a single NULL to terminate an
@@ -776,7 +777,7 @@ impl DeviceInfoSet {
                 //
                 // Therefore this size must be the total size of the DeviceDetails struct, which
                 // is known to have sufficient buffer for the fixed part, path + termination
-                MAX_PATH_CHARS.strict_cast(), // TODO!
+                const { size_of::<DeviceDetails>() as u32 },
                 null_mut(),
                 null_mut(),
             )
@@ -807,10 +808,10 @@ impl DeviceInfoSet {
 ///
 /// A real example of such a path is:
 /// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct DeviceDetails {
-    cbSize: u32,
-    DevicePath: [u16],
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
 
 #[repr(C, packed(1))]
@@ -824,12 +825,15 @@ pub(super) struct DeviceDetails {
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
 
-impl DeviceDetails {
-    /// TODO
-    pub fn new(_size: usize) -> Box<Self> {
-        todo!()
-    }
+const _: () = {
+    assert!(align_of::<DeviceDetails>() == align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
+    assert!(
+        offset_of!(DeviceDetails, DevicePath)
+            == offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
+    );
+};
 
+impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
     ///
     /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
@@ -838,13 +842,16 @@ impl DeviceDetails {
     ///
     /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
     /// paths?
-    pub fn check_size(_requiredsize: u32) -> Result<(), InvalidBufferSize> {
-        todo!("REMOVE")
+    pub fn check_size(requiredsize: u32) -> Result<(), InvalidBufferSize> {
+        (requiredsize <= size_of::<Self>() as u32).ok_or_else(|| InvalidBufferSize::TooSmall {
+            provided: size_of::<Self>(),
+            required: requiredsize.into(),
+        })
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> PathBuf {
-        let path = WinString::from(&self.DevicePath);
+        let path = WinString::from(self.DevicePath.as_slice());
         PathBuf::from(path.to_string())
     }
 

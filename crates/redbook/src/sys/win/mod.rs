@@ -1,4 +1,3 @@
-#![expect(dead_code, reason = "TODO WIP refactoring")]
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
 #[doc(inline)]

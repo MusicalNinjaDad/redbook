@@ -699,19 +699,18 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             // SAFETY check
             DeviceDetails::check_size(path_len as u32)
                 .expect("DeviceDetails has space for MAX_PATH_CHARS, we should be below that");
-            todo!();
-            // let mut data = DeviceDetails::default();
-            // match data.set_path(&WinString::from(album_path)) {
-            //     words if words == path_len + 1 => {
-            //         // SAFETY:
-            //         // - validated pointer is not NULL (in match arm)
-            //         // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
-            //         // - DeviceDetails has space for MAX_PATH_CHARS
-            //         unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
-            //         success!()
-            //     }
-            //     _ => panic!("setting path failed"),
-            // };
+            let mut data = DeviceDetails::default();
+            match data.set_path(&WinString::from(album_path)) {
+                words if words == path_len + 1 => {
+                    // SAFETY:
+                    // - validated pointer is not NULL (in match arm)
+                    // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                    // - DeviceDetails has space for MAX_PATH_CHARS
+                    unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
+                    success!()
+                }
+                _ => panic!("setting path failed"),
+            };
         }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
     }
