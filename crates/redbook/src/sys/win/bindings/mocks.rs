@@ -1,6 +1,7 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
+use std::mem::offset_of;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
 
@@ -23,7 +24,6 @@ use super::{
 
 use super::super::{
     convert::{Guid, MAX_PATH_CHARS, WinString},
-    handles::DeviceDetails,
 };
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
@@ -696,21 +696,29 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
-            // SAFETY check
-            DeviceDetails::check_size(path_len as u32)
-                .expect("DeviceDetails has space for MAX_PATH_CHARS, we should be below that");
-            let mut data = DeviceDetails::default();
-            match data.set_path(&WinString::from(album_path)) {
-                words if words == path_len + 1 => {
-                    // SAFETY:
-                    // - validated pointer is not NULL (in match arm)
-                    // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
-                    // - DeviceDetails has space for MAX_PATH_CHARS
-                    unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
-                    success!()
-                }
-                _ => panic!("setting path failed"),
+            // SAFETY: first field is cbSize which is a u32;
+            let cbsize = deviceinterfacedetaildata as *mut u32;
+            assert_eq!(unsafe { cbsize.read() }, unsafe { requiredsize.read() });
+
+            let path_offset = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath);
+
+            #[expect(clippy::multiple_unsafe_ops_per_block, reason = "pointer arithmetic")]
+            let device_path = unsafe {
+                ptr::slice_from_raw_parts_mut(
+                    (deviceinterfacedetaildata as *mut u16).byte_offset(path_offset.strict_cast()),
+                    requiredsize
+                        .read()
+                        .strict_sub(path_offset.strict_cast())
+                        .strict_cast(),
+                )
             };
+
+            let path = WinString::from(album_path);
+            let words = path.as_words();
+            // This will panic if we did the size math wrong
+            unsafe { (*device_path).copy_from_slice(words) };
+
+            success!()
         }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
     }
