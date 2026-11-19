@@ -128,12 +128,6 @@ impl From<flacenc::error::EncodeError> for Error {
     }
 }
 
-impl From<flacenc::error::SourceError> for Error {
-    fn from(error: flacenc::error::SourceError) -> Self {
-        EncodingError::from(error).into()
-    }
-}
-
 impl From<flacenc::error::OutputError<flacenc::bitsink::ByteSink>> for Error {
     fn from(error: flacenc::error::OutputError<flacenc::bitsink::ByteSink>) -> Self {
         EncodingError::from(error).into()

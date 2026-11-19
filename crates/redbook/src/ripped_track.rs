@@ -10,6 +10,7 @@ use metaflac::block::{Picture, PictureType, VorbisComment};
 
 use crate::{
     error::{EncodingError, MetaDataError, UnknownMimeType},
+    raw_data::RawData,
     tags::{
         artwork::picture_from_jpeg,
         vorbis::{PictureExt, VorbisTagExt},
@@ -31,7 +32,7 @@ pub struct RippedTrack {
     /// Cover art
     pub coverart: Option<Picture>,
     /// Raw CD audio data (2352 bytes per frame).
-    pub raw_data: Vec<u8>,
+    pub raw_data: RawData,
 }
 
 impl RippedTrack {
@@ -67,22 +68,8 @@ impl RippedTrack {
     /// - [`TrackError::Encode`] / [`TrackError::Output`] wrapping the underlying
     ///   [`flacenc`] errors if encoding fails
     pub fn to_flac(&self) -> Result<MemSink<u8>, EncodingError> {
-        let (channels, bits_per_sample, sample_rate) = (2, 16, 44100);
         let config = flacenc::config::Encoder::default().into_verified()?;
-        (self.raw_data.len() % 2 == 0).ok_or(EncodingError::InvalidData(self.raw_data.len()))?;
-        let samples: Vec<_> = self
-            .raw_data
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]) as i32)
-            .collect();
-        let source = flacenc::source::MemSource::from_samples(
-            &samples,
-            channels,
-            bits_per_sample,
-            sample_rate,
-        );
+        let source = self.raw_data.as_source();
         let flac_stream =
             flacenc::encode_with_fixed_block_size(&config, source, config.block_size)?;
         let mut sink = flacenc::bitsink::ByteSink::new();
@@ -96,7 +83,7 @@ impl RippedTrack {
 
         // based on https://github.com/Bloomca/rust-cd-da-reader/blob/fd71208262c199dc44d8a012731be298a848ea79/src/lib.rs#L226
         // & https://github.com/Bloomca/rust-cd-da-reader/blob/main/src/utils.rs#L49
-        let pcm_data_size = pcm.len();
+        let pcm_data_size = pcm.len().cast::<usize>();
         let mut wav = Vec::with_capacity(44 + pcm_data_size);
         let pcm_data_size = pcm_data_size as u32;
 

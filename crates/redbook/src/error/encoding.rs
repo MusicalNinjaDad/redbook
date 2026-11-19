@@ -76,12 +76,6 @@ impl From<flacenc::error::EncodeError> for EncodingError {
     }
 }
 
-impl From<flacenc::error::SourceError> for EncodingError {
-    fn from(error: flacenc::error::SourceError) -> Self {
-        FlacError::from(error).into()
-    }
-}
-
 impl From<flacenc::error::OutputError<ByteSink>> for EncodingError {
     fn from(error: flacenc::error::OutputError<ByteSink>) -> Self {
         FlacError::from(error).into()
@@ -91,12 +85,6 @@ impl From<flacenc::error::OutputError<ByteSink>> for EncodingError {
 #[derive(Debug, Clone)]
 pub enum FlacError {
     InvalidEncoder(flacenc::error::VerifyError),
-    /// A [`flacenc`] encode failure. flacenc's `SourceErrorKind` is `!Send` (it can hold an
-    /// `Rc<dyn Error>`), so only its message is retained (C-GOOD-ERR requires error types to be
-    /// `Send + Sync`).
-    ///
-    /// TODO: #214 Revamp flacenc::SourceErrorKind handling when we improve typesafety around encoding
-    InvalidData(String),
     OutputError(flacenc::error::OutputError<ByteSink>),
 }
 
@@ -105,9 +93,6 @@ impl Error for FlacError {
         match self {
             FlacError::InvalidEncoder(error) => Some(error),
             FlacError::OutputError(error) => Some(error),
-            // documented exception to the tree rule: flacenc's SourceErrorKind is !Send, so only
-            // its message is retained and there is no source to return
-            FlacError::InvalidData(_) => None,
         }
     }
 
@@ -115,9 +100,6 @@ impl Error for FlacError {
         match self {
             FlacError::InvalidEncoder(_) => {
                 request.provide_value(io::ErrorKind::Other);
-            }
-            FlacError::InvalidData(_) => {
-                request.provide_value(io::ErrorKind::InvalidData);
             }
             FlacError::OutputError(output_error) => match &output_error {
                 flacenc::error::OutputError::Range(_) => {
@@ -136,7 +118,6 @@ impl Display for FlacError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FlacError::InvalidEncoder(_) => write!(f, "invalid encoder configuration"),
-            FlacError::InvalidData(message) => write!(f, "invalid source data: {message}"),
             FlacError::OutputError(_) => write!(f, "FLAC output error"),
         }
     }
@@ -157,16 +138,9 @@ impl From<(flacenc::config::Encoder, flacenc::error::VerifyError)> for FlacError
 impl From<flacenc::error::EncodeError> for FlacError {
     fn from(error: flacenc::error::EncodeError) -> Self {
         match error {
-            flacenc::error::EncodeError::Source(source_error) => source_error.into(),
             flacenc::error::EncodeError::Config(verify_error) => verify_error.into(),
             _ => todo!(),
         }
-    }
-}
-
-impl From<flacenc::error::SourceError> for FlacError {
-    fn from(error: flacenc::error::SourceError) -> Self {
-        Self::InvalidData(error.to_string())
     }
 }
 

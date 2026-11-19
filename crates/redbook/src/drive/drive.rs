@@ -8,6 +8,7 @@ use crate::{
     Device, Frame, RipProgress, TocEntries, TrackNo,
     drive::{DriveError, error::DeviceError},
     frame::ByteSize,
+    raw_data::RawData,
 };
 
 /// High-level capabilities for CD-drives.
@@ -41,7 +42,7 @@ pub trait Drive: Sized {
     /// # Errors
     /// - [`DriveError::NotFound`] if `track_number` does not identify an audio track on the disc
     /// - [`DriveError::ZeroLengthTrack`] if the track has zero duration
-    fn read_track(&self, track_number: TrackNo) -> Result<Vec<u8>, DriveError> {
+    fn read_track(&self, track_number: TrackNo) -> Result<RawData, DriveError> {
         let _err_span = tracing::error_span!("", %track_number).entered();
         let dbg_span = tracing::debug_span!("CdDrive::read_track", track_details = Empty).entered();
         let trace_span = tracing::trace_span!("", frames_read = Empty).entered();
@@ -56,14 +57,11 @@ pub trait Drive: Sized {
 
         dbg_span.record("track_details", format_args!("{track}"));
 
-        let track_size = track.duration().size();
-
-        (track_size > ByteSize::ZERO)
+        (track.duration() > Frame::ZERO)
             .ok_or(DriveError::ZeroLengthTrack)
             .or_error("zero length track")?;
 
-        // Vec needs to be initialised to split into chunks. Performance cost insignificant vs IO.
-        let mut data = vec![0_u8; track_size.cast::<usize>()];
+        let mut data = RawData::new(track.duration());
 
         let chunk_size = self.max_chunk();
         let frames_per_chunk = chunk_size.frames();

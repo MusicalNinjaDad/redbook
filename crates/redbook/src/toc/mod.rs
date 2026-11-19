@@ -1256,6 +1256,7 @@ bitflags! {
         /// data track
         const DATA_TRACK = 0b0100;
         /// non-stereo audio
+        /// (never used commerically, ignored as a likely candidate for "copy-protection" breakage)
         const NON_STEREO_AUDIO = 0b1000;
     }
 }

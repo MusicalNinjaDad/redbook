@@ -33,6 +33,7 @@
 #![feature(error_iter)]
 #![feature(error_reporter)]
 #![cfg_attr(test, feature(fn_traits))]
+#![feature(negative_impls)]
 #![feature(raw_os_error_ty)]
 #![feature(structural_match)]
 #![feature(trait_alias)]
@@ -311,6 +312,9 @@ pub mod drive;
 
 #[forbid(unsafe_code)]
 pub mod error;
+
+#[forbid(unsafe_code)]
+pub mod raw_data;
 
 #[forbid(unsafe_code)]
 pub mod ripped_track;
