@@ -2,7 +2,6 @@
 //! on any host
 
 use std::mem::offset_of;
-use std::ops::Range;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
 

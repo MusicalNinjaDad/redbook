@@ -1,4 +1,3 @@
-use core::slice;
 use std::{
     fmt::Display,
     io,
@@ -12,7 +11,7 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame, TocEntries,
-    drive::error::{DeviceError, InvalidBufferSize, OsError},
+    drive::error::{DeviceError, OsError},
     sys::win::bindings::{
         IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ADAPTER_DESCRIPTOR,
         STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
@@ -845,32 +844,6 @@ impl DeviceDetails {
         let utf16_bytes: Vec<_> = pairs.iter().copied().map(u16::from_ne_bytes).collect();
         let path = WinString::from(utf16_bytes.as_slice());
         PathBuf::from(path.to_string())
-    }
-
-    /// Set the path. Returns the number of u16 "words" stored on success, panics if the provided
-    /// path is too large.
-    #[cfg_attr(
-        all(windows, not(any(test, doc))),
-        expect(
-            dead_code,
-            reason = "only used in mock for SetupDiGetDeviceInterfaceDetailW"
-        )
-    )]
-    pub(super) fn set_path(&mut self, path: &WinString) -> usize {
-        let len = path.as_words().len();
-        assert_eq!(
-            len,
-            self.0.len() - offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
-        );
-        self.0[..len].copy_from_slice(
-            &path
-                .as_words()
-                .iter()
-                .copied()
-                .flat_map(u16::to_ne_bytes)
-                .collect::<Vec<_>>(),
-        );
-        len
     }
 }
 
