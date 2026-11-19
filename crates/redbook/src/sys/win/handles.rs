@@ -826,16 +826,8 @@ pub(super) struct DeviceDetails {
 
 impl DeviceDetails {
     /// TODO
-    pub fn new(size: usize) -> Box<Self> {
-        let bag = vec![0_u8; size].into_boxed_slice();
-        let raw = Box::into_raw(bag);
-        // UB?? Does this have the right metadata - probably not, the nomicon suggests that
-        // the metadata for the tail is stored for a dst, currently we have for the full [u8],
-        // we need for the tail [u16] wihtout the cbSize field ...??
-        let nasty = raw as *mut DeviceDetails;
-        // SAFETY: Memory was allocated in accordance with Box memory model, this is the re-cast
-        // insides of a box-of-bytes
-        unsafe { Box::from_raw(nasty) }
+    pub fn new(_size: usize) -> Box<Self> {
+        todo!()
     }
 
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
