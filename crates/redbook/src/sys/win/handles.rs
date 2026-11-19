@@ -808,11 +808,8 @@ impl DeviceInfoSet {
 ///
 /// A real example of such a path is:
 /// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct DeviceDetails {
-    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
-}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DeviceDetails(Box<[u8]>);
 
 #[repr(C, packed(1))]
 #[cfg(target_arch = "x86")]
@@ -824,14 +821,6 @@ pub(super) struct DeviceDetails {
     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
 }
-
-const _: () = {
-    assert!(align_of::<DeviceDetails>() == align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
-    assert!(
-        offset_of!(DeviceDetails, DevicePath)
-            == offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
-    );
-};
 
 impl DeviceDetails {
     /// Validate that the buffer provided by `DeviceDetails` is sufficient.
@@ -851,7 +840,10 @@ impl DeviceDetails {
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> PathBuf {
-        let path = WinString::from(self.DevicePath.as_slice());
+        let device_path = &self.0[offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)..];
+        let (pairs, _) = device_path.as_chunks::<2>();
+        let utf16_bytes: Vec<_> = pairs.into_iter().copied().map(u16::from_be_bytes).collect();
+        let path = WinString::from(utf16_bytes.as_slice());
         PathBuf::from(path.to_string())
     }
 
@@ -866,8 +858,19 @@ impl DeviceDetails {
     )]
     pub(super) fn set_path(&mut self, path: &WinString) -> usize {
         let len = path.as_words().len();
-        assert!(len < self.DevicePath.len());
-        self.DevicePath[..len].copy_from_slice(path.as_words());
+        assert_eq!(
+            len,
+            self.0.len() - offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
+        );
+        self.0[..len].copy_from_slice(
+            &path
+                .as_words()
+                .into_iter()
+                .copied()
+                .map(u16::to_be_bytes)
+                .flatten()
+                .collect::<Vec<_>>(),
+        );
         len
     }
 }
