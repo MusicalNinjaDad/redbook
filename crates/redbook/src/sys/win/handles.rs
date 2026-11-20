@@ -853,7 +853,7 @@ impl DeviceDetails {
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
         let tail_size = size
-            .strict_sub(offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath).strict_cast());
+            .strict_sub(72);
         dbg!(&tail_size);
 
         let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size);
