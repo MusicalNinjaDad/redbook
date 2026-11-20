@@ -806,6 +806,7 @@ impl DeviceInfoSet {
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
+#[expect(non_snake_case, reason = "mimic C++ struct")]
 /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
 /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
 ///
@@ -813,8 +814,11 @@ impl DeviceInfoSet {
 ///
 /// A real example of such a path is:
 /// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct DeviceDetails(Box<[u8]>);
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct DeviceDetails{
+    cbSize: u32,
+    DevicePath: [u16],
+}
 
 #[repr(C, packed(1))]
 #[cfg(target_arch = "x86")]
