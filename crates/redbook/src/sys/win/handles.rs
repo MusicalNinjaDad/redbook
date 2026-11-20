@@ -2,8 +2,7 @@ use std::{
     alloc::{Allocator, Global, Layout, handle_alloc_error},
     fmt::Display,
     io,
-    mem::{Alignment, offset_of},
-    os::raw,
+    mem::Alignment,
     path::{Path, PathBuf},
     ptr::{self, null, null_mut},
 };
@@ -789,7 +788,9 @@ impl DeviceInfoSet {
         match get_details {
             0 => {
                 let err = io::Error::last_os_error();
-                let _errspan = tracing::error_span!("DeviceInfoSet::get_member_details", %get_details, %err).entered();
+                let _errspan =
+                    tracing::error_span!("DeviceInfoSet::get_member_details", %get_details, %err)
+                        .entered();
                 Err(WinError::from(err)).or_error("getting device details")?
             }
             _ => {
@@ -845,6 +846,7 @@ impl DeviceDetails {
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
         let typed = ptr::from_raw_parts_mut::<Self>(opaque, size);
+        // SAFETY: TODO
         let boxed = unsafe { Box::from_raw(typed) };
 
         Ok(boxed)

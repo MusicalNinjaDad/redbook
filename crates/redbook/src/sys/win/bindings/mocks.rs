@@ -655,9 +655,9 @@ pub unsafe fn SetupDiGetClassDevsW(
 ///   buffer. This size includes the size of the fixed part of the structure plus the number of
 ///   bytes required for the variable-length device path string. This parameter is optional and
 ///   can be NULL.
-/// 
+///
 /// For more information see [MsLearn]
-/// 
+///
 /// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,
