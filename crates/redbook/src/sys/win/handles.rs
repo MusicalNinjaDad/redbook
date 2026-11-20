@@ -671,12 +671,12 @@ impl DeviceInfoSet {
         }
     }
 
-    /// Validates that a [`DeviceDetails`] struct is large enough to house the details for `member`
+    /// Identifies the required size for a DeviceDetails buffer, allocates and returns it.
     fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
     ) -> Result<(Box<DeviceDetails>, u32), DeviceError> {
-        let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
+        let _span = tracing::error_span!("DeviceInfoSet::allocate_device_details").entered();
         let mut requiredsize: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
