@@ -839,11 +839,16 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
 
-        let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
-        dbg!(&alignment);
+        let cbsize = size.strict_cast::<u32>();
+        dbg!(&cbsize);
 
-        let layout =
-            Layout::from_size_alignment(size.next_multiple_of(alignment.as_usize()), alignment)?;
+        let layout_cbsize = Layout::for_value(&cbsize);
+        dbg!(&layout_cbsize);
+        let (layout_extended, offset_devicepath) =
+            layout_cbsize.extend(Layout::array::<u16>(size)?)?;
+        dbg!(&layout_extended);
+        dbg!(&offset_devicepath);
+        let layout = layout_extended.pad_to_align();
         dbg!(&layout);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
@@ -852,8 +857,7 @@ impl DeviceDetails {
         };
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
-        let tail_size = size
-            .strict_sub(72);
+        let tail_size = layout.size().strict_sub(offset_devicepath);
         dbg!(&tail_size);
 
         let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size);
