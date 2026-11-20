@@ -12,6 +12,7 @@ use crate::sys::win::bindings::{
     STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
 };
 use crate::sys::win::convert::Sector;
+use crate::sys::win::handles::DeviceDetails;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
@@ -700,28 +701,16 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
-            // SAFETY: first field is cbSize which is a u32;
-            let cbsize = deviceinterfacedetaildata as *mut u32;
+            let (_layout, path_offset, num_words) =
+                DeviceDetails::layout_for(deviceinterfacedetaildatasize.strict_cast())
+                    .expect("valid size");
 
-            assert_eq!(
-                unsafe { cbsize.read_unaligned() },
-                deviceinterfacedetaildatasize
-            );
+            let data_pointer = deviceinterfacedetaildata as *mut ();
+            let devicedetails = ptr::from_raw_parts_mut::<DeviceDetails>(data_pointer, num_words);
 
-            let path_offset = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath);
-
-            let device_path = unsafe {
-                ptr::slice_from_raw_parts_mut(
-                    (deviceinterfacedetaildata as *mut u8).byte_offset(path_offset.strict_cast()),
-                    deviceinterfacedetaildatasize
-                        .strict_sub(path_offset.strict_cast())
-                        .strict_cast(),
-                )
-            };
-
-            let words = album_path.to_ne_bytes();
-
-            unsafe { (*device_path).copy_from_slice(&words) };
+            let path = album_path.as_words();
+            let path_ptr = unsafe { devicedetails.byte_add(path_offset) as *mut [u16] };
+            unsafe { (*path_ptr).copy_from_slice(path) };
 
             success!()
         }
