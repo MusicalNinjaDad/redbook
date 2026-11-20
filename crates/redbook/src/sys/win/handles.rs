@@ -845,7 +845,7 @@ impl DeviceDetails {
         let layout_cbsize = Layout::for_value(&cbsize);
         dbg!(&layout_cbsize);
         let (layout_extended, offset_devicepath) =
-            layout_cbsize.extend(Layout::array::<u16>(size)?)?;
+            layout_cbsize.extend(Layout::array::<u16>(size.strict_div(size_of::<u16>()))?)?;
         dbg!(&layout_extended);
         dbg!(&offset_devicepath);
         let layout = layout_extended.pad_to_align();
