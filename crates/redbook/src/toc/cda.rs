@@ -2,6 +2,7 @@
 
 use std::{fs, path::Path};
 
+use bytes::Buf;
 use tracing_result::Trace;
 
 use crate::{
@@ -17,11 +18,12 @@ pub const CDA_LEN: usize = 0x2c;
 /// A windows .cda file detailling CD TOC info for a given track.
 ///
 /// See [specification](https://en.wikipedia.org/wiki/.cda_file)
+#[derive(Debug, Clone, Copy)]
 pub struct CdaFile {
     /// The first track has the number 1
-    track_number: u16,
+    track_number: TrackNo,
     /// Identifier calculated by Windows for cdplayer.exe
-    _windows_identifier: u32,
+    windows_identifier: u32,
     /// *Absolute* start position: minutes, seconds, frames. Including
     /// the 2s lead-in. (Track 1 is usually at 0,2,0)
     ///
@@ -44,37 +46,20 @@ pub struct CdaFile {
 }
 
 impl CdaFile {
-    /// Read the `.cda` file at `path`
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CdaError> {
-        let path = path.as_ref();
-        let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
-
-        let raw = fs::read(path)?;
-        Self::new(raw)
-    }
-
     /// Create a new `CdaFile`
     ///
     /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
-    pub fn new(contents: Vec<u8>) -> Result<Self, CdaError> {
-        let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
+    pub fn new<BYTES: AsRef<[u8]>>(contents: BYTES) -> Result<Self, CdaError> {
+        let mut data = contents.as_ref();
+        let input_len = data.len();
+        let _trace = tracing::trace_span!("CdaFile::new", ?data).entered();
 
-        let mut data = contents.iter().copied();
-
-        // After this check it's OK to call `unwrap` on `next_chunk`
-        (data.len() == CDA_LEN)
-            .ok_or(CdaError::InvalidLength {
-                expected: CDA_LEN,
-                actual: contents.len(),
-            })
-            .or_warn("")?;
-
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"RIFF")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
+        let chunk_size = data.try_get_u32_le()?;
         (chunk_size == 36)
             .ok_or(CdaError::InvalidChunkSize {
                 expected: 36,
@@ -82,17 +67,17 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"CDDA")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"fmt ")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
+        let chunk_size = data.try_get_u32_le()?;
         (chunk_size == 24)
             .ok_or(CdaError::InvalidChunkSize {
                 expected: 24,
@@ -100,24 +85,24 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        let version = u16::from_le_bytes(data.next_chunk().unwrap());
+        let version = data.try_get_u16_le()?;
         (version == 1)
             .ok_or(CdaError::InvalidVersion(version))
             .or_warn("")?;
 
-        let track_number = u16::from_le_bytes(data.next_chunk().unwrap());
-        let windows_identifier = u32::from_le_bytes(data.next_chunk().unwrap());
+        let track_number = TrackNo::new(data.try_get_u16_le()?)
+            .or_warn("cda file does not describe a normal audio track")?;
+        let windows_identifier = data.try_get_u32_le()?;
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
         // files (0x1c) alongside the absolute MSF (0x24). Normally they agree:
         // relative frame + lead-in == absolute MSF, and we cross-check them below.
-        let relative_frame = u32::from_le_bytes(data.next_chunk().unwrap());
-        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
-            .or_warn("parsing duration")?;
+        let relative_frame = data.try_get_u32_le()?;
+        let duration_frames = Frame::new(data.try_get_u32_le()?).or_warn("parsing duration")?;
 
-        let start_frame = data.next().unwrap();
-        let start_sec = data.next().unwrap();
-        let start_min = data.next().unwrap();
+        let start_frame = data.try_get_u8()?;
+        let start_sec = data.try_get_u8()?;
+        let start_min = data.try_get_u8()?;
         let start = Msf::new(start_min, start_sec, start_frame);
 
         let msf_frames = Frame::from(start);
@@ -145,13 +130,13 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        (data.next().unwrap() == 0)
+        (data.try_get_u8()? == 0)
             .ok_or(CdaError::MissingNullByte)
             .or_warn("")?;
 
-        let frame = data.next().unwrap();
-        let sec = data.next().unwrap();
-        let min = data.next().unwrap();
+        let frame = data.try_get_u8()?;
+        let sec = data.try_get_u8()?;
+        let min = data.try_get_u8()?;
         let duration = Msf::new(min, sec, frame);
 
         (duration == duration_frames)
@@ -161,26 +146,65 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        (data.next().unwrap() == 0)
+        (data.try_get_u8()? == 0)
             .ok_or(CdaError::MissingNullByte)
+            .or_warn("")?;
+
+        // Short files already failed above via `From<TryGetError>`; this catches trailing
+        // bytes in over-long files so the length must be exactly CDA_LEN
+        (data.remaining() == 0)
+            .ok_or(CdaError::InvalidLength {
+                expected: CDA_LEN,
+                actual: input_len,
+            })
             .or_warn("")?;
 
         Ok(Self {
             track_number,
-            _windows_identifier: windows_identifier,
+            windows_identifier,
             start,
             duration,
         })
     }
+
+    /// Read the `.cda` file at `path`
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CdaError> {
+        let path = path.as_ref();
+        let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
+
+        let raw = fs::read(path)?;
+        Self::new(raw)
+    }
+
+    /// The track number: the first track has the number 1 (always within 1..=[`TrackNo::MAX`])
+    pub fn track_number(&self) -> TrackNo {
+        self.track_number
+    }
+
+    /// Identifier calculated by Windows for cdplayer.exe
+    pub fn windows_identifier(&self) -> u32 {
+        self.windows_identifier
+    }
+
+    /// *Absolute* start position: minutes, seconds, frames. Including
+    /// the 2s lead-in. (Track 1 is usually at 0,2,0)
+    pub fn start(&self) -> Msf {
+        self.start
+    }
+
+    /// Duration of the track: minutes, seconds, frames
+    pub fn duration(&self) -> Msf {
+        self.duration
+    }
 }
 
-impl TryFrom<CdaFile> for Track<'static> {
-    type Error = CdaError;
-
-    fn try_from(cda: CdaFile) -> Result<Self, Self::Error> {
-        let track = TrackNo::new(cda.track_number)
-            .or_warn("cda file does not describe a normal audio track")?;
-        Ok(Track::new(track, cda.start.into(), cda.duration.into()))
+impl From<CdaFile> for Track<'static> {
+    fn from(cda: CdaFile) -> Self {
+        Track::new(
+            cda.track_number(),
+            cda.start().into(),
+            cda.duration().into(),
+        )
     }
 }
 
@@ -189,9 +213,9 @@ impl TryFrom<CdaFile> for Track<'static> {
 /// These are guaranteed to be sorted as glob yields paths in alphabetical order
 ///
 /// # Notes
-/// - Only fatal errors are returned, e.g. for an invalid path. `.cda` files which fail to parse,
-///   or which do not describe a normal audio track, are skipped with a warning rather than failing
-///   the whole read.
+/// - Only fatal errors are returned, e.g. for an invalid path. `.cda` files which fail to parse
+///   (including those which do not describe a normal audio track) are skipped with a warning
+///   rather than failing the whole read.
 pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, CdaError> {
     let glob_path = path.as_ref().join("*.cda");
     let glob_pattern = glob_path
@@ -204,11 +228,7 @@ pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, CdaError> {
     let valid_paths = paths.filter_map(|cda| cda.or_error("unable to access globbed file").ok());
     let cda_files =
         valid_paths.filter_map(|path| CdaFile::from_path(path).or_warn("invalid cda file").ok());
-    let tracks = cda_files.filter_map(|cda| {
-        Track::try_from(cda)
-            .or_warn("cda file does not describe a normal audio track")
-            .ok()
-    });
+    let tracks = cda_files.map(Track::from);
     Ok(tracks.collect())
 }
 
@@ -216,8 +236,6 @@ pub fn tracks<P: AsRef<Path>>(path: &P) -> Result<Vec<Track<'_>>, CdaError> {
 #[forbid(unsafe_code)]
 mod tests {
     use super::*;
-
-    use std::assert_matches;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};
     use glob::glob;
@@ -238,15 +256,12 @@ mod tests {
 
         for (cda_file, track) in cdas.into_iter().zip(expected_tracks) {
             let cda = CdaFile::from_path(cda_file.unwrap()).unwrap();
-            assert_eq!(
-                TrackNo::checked_new(cda.track_number),
-                Some(track.trackno())
-            );
-            assert_eq!(cda.start, track.start());
-            assert_eq!(cda.duration, track.duration());
-            assert_matches!(Track::try_from(cda), Ok(_));
+            assert_eq!(cda.track_number(), track.trackno());
+            assert_eq!(cda.start(), track.start());
+            assert_eq!(cda.duration(), track.duration());
+            assert_eq!(Track::from(cda), track);
             // Cannot check windows_identifier without making _minimal more than minimal
-            // assert_eq!(Some(cda.windows_identifier), track.windows_identifier);
+            // assert_eq!(cda.windows_identifier(), track.windows_identifier);
         }
     }
 
@@ -269,7 +284,7 @@ mod tests {
         // Windows either clamps to 0 or wraps -1 to u32::MAX; both must parse, keeping the MSF
         contents[0x1c..0x20].copy_from_slice(&relative_frame.to_le_bytes());
         let cda = CdaFile::new(contents.clone()).unwrap();
-        assert_eq!(cda.start, Msf::new(0x00, 0x01, 0x4A));
+        assert_eq!(cda.start(), Msf::new(0x00, 0x01, 0x4A));
 
         // the escape hatch warns instead of failing; the warning's text is the event name,
         // which the fmt layer doesn't print, so assert on the level & fields instead
@@ -288,7 +303,7 @@ mod tests {
     #[case(crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>())]
     #[case(0)]
     #[case(TrackNo::MAX.cast::<u16>() + 1)]
-    fn try_from_rejects_special_track_numbers(#[case] track_number: u16) {
+    fn new_rejects_special_track_numbers(#[case] track_number: u16) {
         let album = DefinitelyMaybe;
         let cdas = album.assets_path().join("*.cda");
         let cda_file = glob(&cdas.to_string_lossy())
@@ -297,9 +312,26 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let mut cda = CdaFile::from_path(&cda_file).unwrap();
-        cda.track_number = track_number;
-        let err = Track::try_from(cda).unwrap_err();
+        let mut contents = std::fs::read(&cda_file).unwrap();
+        // the track number is stored as a u16 LE at offset 0x16
+        contents[0x16..0x18].copy_from_slice(&track_number.to_le_bytes());
+        let err = CdaFile::new(contents).unwrap_err();
         assert!(matches!(err, CdaError::InvalidTrackNo(_)));
+    }
+
+    #[rstest]
+    fn trailing_bytes_report_full_input_length() {
+        let cda_file = DefinitelyMaybe.assets_path().join("Track01.cda");
+        let mut contents = std::fs::read(&cda_file).unwrap();
+        contents.extend_from_slice(&[0xFF; 4]);
+
+        let err = CdaFile::new(contents.clone()).unwrap_err();
+        assert!(matches!(
+            err,
+            CdaError::InvalidLength {
+                expected: CDA_LEN,
+                actual
+            } if actual == contents.len()
+        ));
     }
 }

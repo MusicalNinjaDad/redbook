@@ -13,6 +13,7 @@ use std::{
     path::PathBuf,
 };
 
+use bytes::TryGetError;
 use glob::GlobError;
 
 use crate::{
@@ -236,6 +237,9 @@ pub enum CdaError {
         /// The actual length in bytes.
         actual: usize,
     },
+    /// A read ran past the end of the file: the `.cda` file is shorter than
+    /// [`super::cda::CDA_LEN`]. Wraps [`TryGetError`] with the requested & available byte counts.
+    Truncated(TryGetError),
     /// A magic header (RIFF / CDDA / fmt ) is missing or invalid; carries the bytes read.
     InvalidHeader([u8; 4]),
     /// A chunk size field has an unexpected value.
@@ -283,6 +287,7 @@ impl Display for CdaError {
                     "invalid CDA file: expected {expected} bytes, got {actual}"
                 )
             }
+            CdaError::Truncated(error) => write!(f, "truncated cda file ({error})"),
             CdaError::InvalidHeader(magic) => {
                 write!(f, "missing or invalid CDA header: {magic:?}")
             }
@@ -311,6 +316,7 @@ impl Error for CdaError {
         match self {
             CdaError::InvalidTrackNo(error) => Some(error),
             CdaError::InvalidFrame(error) => Some(error),
+            CdaError::Truncated(error) => Some(error),
             CdaError::IoError(error) => Some(error),
             CdaError::InvalidLength { .. }
             | CdaError::InvalidHeader(_)
@@ -328,6 +334,7 @@ impl Error for CdaError {
             CdaError::InvalidTrackNo(_)
             | CdaError::InvalidFrame(_)
             | CdaError::InvalidLength { .. }
+            | CdaError::Truncated(_)
             | CdaError::InvalidHeader(_)
             | CdaError::InvalidChunkSize { .. }
             | CdaError::InvalidVersion(_)
@@ -355,6 +362,12 @@ impl From<InvalidTrackNo> for CdaError {
 impl From<InvalidFrame> for CdaError {
     fn from(error: InvalidFrame) -> Self {
         CdaError::InvalidFrame(error)
+    }
+}
+
+impl From<TryGetError> for CdaError {
+    fn from(error: TryGetError) -> Self {
+        CdaError::Truncated(error)
     }
 }
 

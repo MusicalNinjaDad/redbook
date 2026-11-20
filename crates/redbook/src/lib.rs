@@ -17,7 +17,6 @@
 #![cfg_attr(unstable_integer_cast_extras, feature(integer_cast_extras))]
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
 #![cfg_attr(unstable_iter_map_windows, feature(iter_map_windows))]
-#![cfg_attr(unstable_iter_next_chunk, feature(iter_next_chunk))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
 #![cfg_attr(unstable_os_str_split_at, feature(os_str_split_at))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
