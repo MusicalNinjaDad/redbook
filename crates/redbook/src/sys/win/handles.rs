@@ -860,8 +860,7 @@ impl DeviceDetails {
         let tail_size = layout.size().strict_sub(offset_devicepath);
         dbg!(&tail_size);
 
-        let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size);
-
+        let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size.strict_div(size_of::<u16>()));
         dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
         dbg!(TypeId::of::<usize>());
         // SAFETY: DBG
