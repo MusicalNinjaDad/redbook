@@ -479,6 +479,7 @@ trait IoControl {
     -> Result<(), DeviceError>;
 }
 
+/// TODO #244 Document and fix tracing semantics of IoControl::validate whcih is now also used for other ffi calls
 impl IoControl for BOOL {
     fn validate(
         &self,
@@ -740,7 +741,7 @@ impl DeviceInfoSet {
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
 
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
-        let get_details = unsafe {
+        unsafe {
             SetupDiGetDeviceInterfaceDetailW(
                 // Guaranteed valid, non-null handle during construction of Self
                 self.handle,
@@ -765,31 +766,24 @@ impl DeviceInfoSet {
                 null_mut(),
                 null_mut(),
             )
-        };
-
-        match get_details {
-            0 => {
-                let err = io::Error::last_os_error();
-                let _errspan =
-                    tracing::error_span!("DeviceInfoSet::get_member_details", %get_details, %err)
-                        .entered();
-                // SAFETY:
-                // This is the same pointer which we previously unboxed before passing to
-                // SetupDiGetDeviceInterfaceDetailW
-                // reboxing here so that it is properly dropped on error
-                let details = unsafe { Box::from_raw(devicedetailsptr) };
-                drop(details);
-                Err(WinError::from(err)).or_error("getting device details")?
-            }
-            _ => {
-                // SAFETY:
-                // This is the same pointer which we previously unboxed before passing to
-                // SetupDiGetDeviceInterfaceDetailW. It was valid when we took it out of the box
-                // and is therefore still valid now.
-                let details = unsafe { Box::from_raw(devicedetailsptr) };
-                Ok(details)
-            }
         }
+        .validate(None, 0)
+        .inspect_err(|_| {
+            // SAFETY:
+            // This is the same pointer which we previously unboxed before passing to
+            // SetupDiGetDeviceInterfaceDetailW
+            // reboxing here so that it is properly dropped on error
+            let details = unsafe { Box::from_raw(devicedetailsptr) };
+            drop(details);
+        })
+        .or_error("getting device details")?;
+
+        // SAFETY:
+        // This is the same pointer which we previously unboxed before passing to
+        // SetupDiGetDeviceInterfaceDetailW. It was valid when we took it out of the box
+        // and is therefore still valid now.
+        let details = unsafe { Box::from_raw(devicedetailsptr) };
+        Ok(details)
     }
 }
 
