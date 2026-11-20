@@ -79,10 +79,9 @@ impl CdaFile {
     /// Create a new `CdaFile`
     ///
     /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
-    pub fn new(contents: Vec<u8>) -> Result<Self, CdaError> {
-        let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
-
-        let mut data = &contents[..];
+    pub fn new<BYTES: AsRef<[u8]>>(contents: BYTES) -> Result<Self, CdaError> {
+        let mut data = contents.as_ref();
+        let _trace = tracing::trace_span!("CdaFile::new", ?data).entered();
 
         let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"RIFF")
@@ -185,7 +184,7 @@ impl CdaFile {
         (data.remaining() == 0)
             .ok_or(CdaError::InvalidLength {
                 expected: CDA_LEN,
-                actual: contents.len(),
+                actual: data.len(),
             })
             .or_warn("")?;
 
