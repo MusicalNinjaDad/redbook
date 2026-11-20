@@ -1,6 +1,5 @@
 use std::{
     alloc::{Allocator, Global, Layout, handle_alloc_error},
-    any::TypeId,
     fmt::Display,
     io,
     path::{Path, PathBuf},
@@ -850,7 +849,7 @@ impl DeviceDetails {
     ///   additional padding. It appears that [`SetupDiGetDeviceInterfaceDetailW`] provides the
     ///   full padded size (although this is not specifically documented). For the purpose of our
     ///   mocks however, we find it advantageous to allow for the addition of padding without error.
-    /// 
+    ///
     /// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw#parameters
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         tracing::debug!("new Device Details");
