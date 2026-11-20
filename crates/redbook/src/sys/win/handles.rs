@@ -841,7 +841,7 @@ impl DeviceDetails {
         dbg!(&size);
 
         // The cbSize member always contains the size of the fixed part of the data structure, not a size reflecting the variable-length string at the end
-        let cbsize = size_of::<u32>();
+        let cbsize = size_of::<u32>().strict_cast::<u32>();
         dbg!(&cbsize);
 
         let layout_cbsize = Layout::for_value(&cbsize);
@@ -878,7 +878,7 @@ impl DeviceDetails {
 
         // SAFETY: TODO
         let mut boxed = unsafe { Box::from_raw(typed) };
-        boxed.cbSize = cbsize.strict_cast();
+        boxed.cbSize = cbsize;
 
         Ok(boxed)
     }
