@@ -838,7 +838,7 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
         let layout = Layout::from_size_alignment(size, alignment)?;
-        
+
         let rawu8 = match Global.allocate_zeroed(layout) {
             Ok(pointer) => pointer,
             Err(_) => handle_alloc_error(layout),
@@ -853,10 +853,7 @@ impl DeviceDetails {
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> PathBuf {
-        let device_path = &self.0[offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)..];
-        let (pairs, _) = device_path.as_chunks::<2>();
-        let utf16_bytes: Vec<_> = pairs.iter().copied().map(u16::from_ne_bytes).collect();
-        let path = WinString::from(utf16_bytes.as_slice());
+        let path = WinString::from(&self.DevicePath);
         PathBuf::from(path.to_string())
     }
 }
