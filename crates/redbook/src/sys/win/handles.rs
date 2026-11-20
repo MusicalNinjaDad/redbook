@@ -7,7 +7,7 @@ use std::{
     ptr::{self, Pointee, null, null_mut},
 };
 
-use tracing::field::Empty;
+use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
 use crate::{
@@ -836,32 +836,52 @@ pub(super) struct DeviceDetails {
 }
 
 impl DeviceDetails {
-    /// TODO
+    #[instrument(level = "error", fields(layout, offset, num_words))]
+    /// Construct a new [`DeviceDetails`] of the given size and return it in a `Box`.
+    ///
+    /// # Note
+    /// - The field cbSize will be correctly set to the size of a DeviceDetails with a single
+    ///   `0_u16` terminator in the DevicePath. The [docs][MsLearn] claim "The cbSize member always
+    ///   contains the size of the fixed part of the data structure, not a size reflecting the
+    ///   variable-length string at the end." However trial and (lots of) error have shown that
+    ///   the buffer will be refused with OsError 1784 `ERROR_INVALID_USER_BUFFER` for any other
+    ///   value of cbSize.
+    /// - The actual size of the returned `DeviceDetails` may be larger than requested size due to
+    ///   additional padding. It appears that [`SetupDiGetDeviceInterfaceDetailW`] provides the
+    ///   full padded size (although this is not specifically documented). For the purpose of our
+    ///   mocks however, we find it advantageous to allow for the addition of padding without error.
+    /// 
+    /// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw#parameters
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
-        dbg!(&size);
+        tracing::debug!("new Device Details");
 
         let (layout, offset, num_words) = Self::layout_for(size)?;
-        dbg!(&layout);
-        dbg!(&offset);
-        dbg!(&num_words);
+        tracing::Span::current().record("layout", format_args!("{layout:?}"));
+        tracing::Span::current().record("offset", offset);
+        tracing::Span::current().record("num_words", num_words);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
             Ok(pointer) => pointer,
-            Err(_) => handle_alloc_error(layout),
+            Err(error) => {
+                tracing::error!(%error, "Allocation failure!");
+                handle_alloc_error(layout)
+            }
         };
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
+        let raw = ptr::from_raw_parts_mut::<Self>(opaque, num_words);
 
-        let typed = ptr::from_raw_parts_mut::<Self>(opaque, num_words);
-        dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
-        dbg!(TypeId::of::<usize>());
-        // SAFETY: DBG
-        unsafe { dbg!(size_of_val(&*typed)) };
-        // SAFETY: DBG
-        unsafe { dbg!(align_of_val(&*typed)) };
-
-        // SAFETY: TODO
-        let mut boxed = unsafe { Box::from_raw(typed) };
+        // SAFETY:
+        // **No double-free risk**
+        // - this pointer will not be added to a second box, or used in any other way after this
+        // **Memory layout**
+        // - Pointer was allocated in a single allocation above by Global
+        // - Memory is initialised via allocate_zeroed
+        // - Zero values are valid for both u32 & u16 (the only contents of this struct)
+        // - Layout is correct for a DeviceDetails (see DeviceDetils::layout_for)
+        // - Metadata is correct - numwords is count of elements in unsized tail [u16]. The value
+        //   used to generate the layout is provided by layout_for and used in from_raw_parts_mut
+        let mut boxed = unsafe { Box::from_raw(raw) };
         boxed.cbSize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 };
 
         Ok(boxed)
