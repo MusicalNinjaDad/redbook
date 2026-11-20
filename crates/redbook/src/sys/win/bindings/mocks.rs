@@ -1,6 +1,7 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
+use std::alloc::Layout;
 use std::mem::offset_of;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
@@ -686,14 +687,19 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            let size = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
-                + size_of_val(album_path.as_words());
+            let layout = Layout::for_value(&size_of::<u32>());
+            let (layout, _) = layout
+                .extend(
+                    Layout::array::<u16>(album_path.as_words().len())
+                        .expect("valid layout for path"),
+                )
+                .expect("valid layout for struct");
+            let layout = layout.pad_to_align();
+            let size = layout.size();
             unsafe { requiredsize.write(size.strict_cast()) };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
-            
-            
             // SAFETY: first field is cbSize which is a u32;
             let cbsize = deviceinterfacedetaildata as *mut u32;
 
