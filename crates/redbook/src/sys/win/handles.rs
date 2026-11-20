@@ -1,5 +1,11 @@
 use std::{
-    alloc::{Allocator, Global, Layout, handle_alloc_error}, any::TypeId, fmt::Display, io, mem::Alignment, path::{Path, PathBuf}, ptr::{self, Pointee, null, null_mut},
+    alloc::{Allocator, Global, Layout, handle_alloc_error},
+    any::TypeId,
+    fmt::Display,
+    io,
+    mem::{Alignment, offset_of},
+    path::{Path, PathBuf},
+    ptr::{self, Pointee, null, null_mut},
 };
 
 use tracing::field::Empty;
@@ -835,8 +841,9 @@ impl DeviceDetails {
 
         let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
         dbg!(&alignment);
-        
-        let layout = Layout::from_size_alignment(size, alignment)?;
+
+        let layout =
+            Layout::from_size_alignment(size.next_multiple_of(alignment.as_usize()), alignment)?;
         dbg!(&layout);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
@@ -845,12 +852,18 @@ impl DeviceDetails {
         };
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
-        let typed = ptr::from_raw_parts_mut::<Self>(opaque, size);
+        let tail_size = size
+            .strict_sub(offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath).strict_cast());
+        dbg!(&tail_size);
+
+        let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size);
 
         dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
         dbg!(TypeId::of::<usize>());
-        dbg!(size_of_val(&typed));
-        dbg!(align_of_val(&typed));
+        // SAFETY: DBG
+        unsafe { dbg!(size_of_val(&*typed)) };
+        // SAFETY: DBG
+        unsafe { dbg!(align_of_val(&*typed)) };
 
         // SAFETY: TODO
         let boxed = unsafe { Box::from_raw(typed) };
