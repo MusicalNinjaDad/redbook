@@ -864,7 +864,7 @@ impl DeviceDetails {
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
 
-        let typed = ptr::from_raw_parts_mut::<Self>(opaque, layout_devicepath.size());
+        let typed = ptr::from_raw_parts_mut::<Self>(opaque, num_words);
         dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
         dbg!(TypeId::of::<usize>());
         // SAFETY: DBG
