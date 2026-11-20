@@ -886,29 +886,53 @@ impl DeviceDetails {
         Ok(boxed)
     }
 
+    #[instrument(
+        level = "error",
+        fields(
+            cbsize,
+            layout_cbsize,
+            num_words,
+            layout_devicepath,
+            layout_extended,
+            offset,
+            layout
+        )
+    )]
+    /// Calculates the (layout, offset for `DevicePath`, num_words in `DevicePath`) for a
+    /// [`DeviceDetails`] of the given size.
+    ///
+    /// # Note
+    /// The returned layout will be padded, and therefore may be larger than the requested size.
+    /// See [new][Self::new] for more details.
+    /// 
+    /// # SAFETY
+    /// The correctness of this layout and the additional data is relied upon by unsafe code.
     pub fn layout_for(
         size: usize,
     ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
         let cbsize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>().strict_cast::<u32>() };
-        dbg!(cbsize);
+        tracing::Span::current().record("cbsize", cbsize);
 
         let layout_cbsize = Layout::for_value(&cbsize);
-        dbg!(layout_cbsize);
+        tracing::Span::current().record("layout_cbsize", format_args!("{layout_cbsize:?}"));
 
         let num_words = size
             .strict_sub(layout_cbsize.size())
             .strict_div(size_of::<u16>());
-        dbg!(num_words);
+        tracing::Span::current().record("num_words", num_words);
 
-        let layout_devicepath = Layout::array::<u16>(num_words)?;
-        dbg!(layout_devicepath);
+        let layout_devicepath =
+            Layout::array::<u16>(num_words).or_error("invalid device path length")?;
+        tracing::Span::current().record("layout_devicepath", format_args!("{layout_devicepath:?}"));
 
         let (layout_extended, offset) = layout_cbsize.extend(layout_devicepath)?;
-        dbg!(layout_extended);
-        dbg!(offset);
+        tracing::Span::current().record("layout_extended", format_args!("{layout_extended:?}"));
+        tracing::Span::current().record("offset", offset);
 
         let layout = layout_extended.pad_to_align();
-        dbg!(layout);
+        tracing::Span::current().record("layout", format_args!("{layout:?}"));
+
+        tracing::debug!("layout calculated");
 
         Ok((layout, offset, num_words))
     }
