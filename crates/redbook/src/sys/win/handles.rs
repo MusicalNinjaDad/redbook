@@ -741,7 +741,7 @@ impl DeviceInfoSet {
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
         let deviceinterfacedetaildata = self.allocate_device_details(member)?;
-        let size = deviceinterfacedetaildata.cbSize;
+        let size = size_of_val(&*deviceinterfacedetaildata);
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
@@ -871,13 +871,26 @@ impl DeviceDetails {
         size: usize,
     ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
         let cbsize = size_of::<u32>().strict_cast::<u32>();
+        dbg!(cbsize);
+
         let layout_cbsize = Layout::for_value(&cbsize);
+        dbg!(layout_cbsize);
+
         let num_words = size
             .strict_sub(layout_cbsize.size())
             .strict_div(size_of::<u16>());
+        dbg!(num_words);
+
         let layout_devicepath = Layout::array::<u16>(num_words)?;
+        dbg!(layout_devicepath);
+
         let (layout_extended, offset) = layout_cbsize.extend(layout_devicepath)?;
+        dbg!(layout_extended);
+        dbg!(offset);
+
         let layout = layout_extended.pad_to_align();
+        dbg!(layout);
+        
         Ok((layout, offset, num_words))
     }
 

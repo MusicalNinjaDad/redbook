@@ -688,29 +688,42 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            let layout = Layout::for_value(&size_of::<u32>());
-            let (layout, _) = layout
-                .extend(
-                    Layout::array::<u16>(album_path.as_words().len())
-                        .expect("valid layout for path"),
-                )
+            let layout_cbsize = Layout::for_value(&size_of::<u32>().strict_cast::<u32>());
+            dbg!(layout_cbsize);
+
+            let num_words = album_path.as_words().len();
+            dbg!(num_words);
+
+            let layout_path = Layout::array::<u16>(num_words).expect("valid layout for path");
+            dbg!(layout_path);
+
+            let (layout, _) = layout_cbsize
+                .extend(layout_path)
                 .expect("valid layout for struct");
+            dbg!(layout);
+            
             let layout = layout.pad_to_align();
+            dbg!(layout);
+
             let size = layout.size();
             unsafe { requiredsize.write(size.strict_cast()) };
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
-            let (_layout, path_offset, num_words) =
+            let path = album_path.as_words();
+
+            let (layout, path_offset, num_words) =
                 DeviceDetails::layout_for(deviceinterfacedetaildatasize.strict_cast())
                     .expect("valid size");
+            dbg!(layout);
+            dbg!(path_offset);
+            dbg!(&num_words);
 
             let data_pointer = deviceinterfacedetaildata as *mut ();
-            let devicedetails = ptr::from_raw_parts_mut::<DeviceDetails>(data_pointer, num_words);
+            let path_addr = unsafe { data_pointer.byte_add(path_offset) as *mut u16 };
+            let devicepath_field = ptr::slice_from_raw_parts_mut::<u16>(path_addr, num_words);
 
-            let path = album_path.as_words();
-            let path_ptr = unsafe { devicedetails.byte_add(path_offset) as *mut [u16] };
-            unsafe { (*path_ptr).copy_from_slice(path) };
+            unsafe { (*devicepath_field).copy_from_slice(path) };
 
             success!()
         }
