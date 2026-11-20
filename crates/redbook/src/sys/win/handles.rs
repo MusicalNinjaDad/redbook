@@ -794,13 +794,10 @@ impl DeviceInfoSet {
     target_arch = "x86_64"
 ))]
 #[expect(non_snake_case, reason = "mimic C++ struct")]
-/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
-///
-/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
-///
-/// A real example of such a path is:
-/// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
+/// A layout-identical version of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] as a DST.
+/// 
+/// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
+/// allocates memory for a for a given sized `DeviceDetails` and returns is boxed and ready to go.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DeviceDetails {
     cbSize: u32,
