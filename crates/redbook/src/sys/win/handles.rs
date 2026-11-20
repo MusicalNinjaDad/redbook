@@ -1,10 +1,5 @@
 use std::{
-    alloc::{Allocator, Global, Layout, handle_alloc_error},
-    fmt::Display,
-    io,
-    mem::Alignment,
-    path::{Path, PathBuf},
-    ptr::{self, null, null_mut},
+    alloc::{Allocator, Global, Layout, handle_alloc_error}, any::TypeId, fmt::Display, io, mem::Alignment, path::{Path, PathBuf}, ptr::{self, Pointee, null, null_mut},
 };
 
 use tracing::field::Empty;
@@ -836,8 +831,13 @@ pub(super) struct DeviceDetails {
 impl DeviceDetails {
     /// TODO
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
+        dbg!(&size);
+
         let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+        dbg!(&alignment);
+        
         let layout = Layout::from_size_alignment(size, alignment)?;
+        dbg!(&layout);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
             Ok(pointer) => pointer,
@@ -846,6 +846,12 @@ impl DeviceDetails {
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
         let typed = ptr::from_raw_parts_mut::<Self>(opaque, size);
+
+        dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
+        dbg!(TypeId::of::<usize>());
+        dbg!(size_of_val(&typed));
+        dbg!(align_of_val(&typed));
+
         // SAFETY: TODO
         let boxed = unsafe { Box::from_raw(typed) };
 
