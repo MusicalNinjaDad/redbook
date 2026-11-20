@@ -602,9 +602,7 @@ impl DeviceInfoSet {
             None => return Ok(None),
         };
 
-        #[expect(unsafe_code, reason = "data must fit in a `DeviceDetails`")]
-        // SAFETY: We just called check_required_buffer_size
-        let member = unsafe { self.get_member_details(&interface_data)? };
+        let member = self.get_member_details(&interface_data)?;
 
         Ok(Some(member))
     }
@@ -723,12 +721,7 @@ impl DeviceInfoSet {
         reason = "must validate that details will fit in a DeviceDetails"
     )]
     /// Get detail data for a given `member`.
-    ///
-    /// # SAFETY
-    ///
-    /// Caller must guarantee that the data will fit in a DeviceDetails struct. It is recommended
-    /// to call [Self::check_required_buffer_size] in order to validate this requirement.
-    unsafe fn get_member_details(
+    fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
     ) -> Result<Box<DeviceDetails>, DeviceError> {
