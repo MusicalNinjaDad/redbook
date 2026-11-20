@@ -840,26 +840,10 @@ impl DeviceDetails {
         let size = size.next_multiple_of(align_of::<u32>());
         dbg!(&size);
 
-        // The cbSize member always contains the size of the fixed part of the data structure, not a size reflecting the variable-length string at the end
-        let cbsize = size_of::<u32>().strict_cast::<u32>();
-        dbg!(&cbsize);
-
-        let layout_cbsize = Layout::for_value(&cbsize);
-        dbg!(&layout_cbsize);
-
-        let num_words = size
-            .strict_sub(layout_cbsize.size())
-            .strict_div(size_of::<u16>());
-        dbg!(&num_words);
-        let layout_devicepath = Layout::array::<u16>(num_words)?;
-        dbg!(&layout_devicepath);
-
-        let (layout_extended, offset_devicepath) = layout_cbsize.extend(layout_devicepath)?;
-        dbg!(&layout_extended);
-        dbg!(&offset_devicepath);
-
-        let layout = layout_extended.pad_to_align();
+        let (layout, cbsize, num_words) = Self::layout_for(size)?;
         dbg!(&layout);
+        dbg!(&cbsize);
+        dbg!(&num_words);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
             Ok(pointer) => pointer,
@@ -878,9 +862,23 @@ impl DeviceDetails {
 
         // SAFETY: TODO
         let mut boxed = unsafe { Box::from_raw(typed) };
-        boxed.cbSize = cbsize;
+        boxed.cbSize = cbsize.strict_cast();
 
         Ok(boxed)
+    }
+
+    pub fn layout_for(
+        size: usize,
+    ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
+        let cbsize = size_of::<u32>().strict_cast::<u32>();
+        let layout_cbsize = Layout::for_value(&cbsize);
+        let num_words = size
+            .strict_sub(layout_cbsize.size())
+            .strict_div(size_of::<u16>());
+        let layout_devicepath = Layout::array::<u16>(num_words)?;
+        let (layout_extended, offset) = layout_cbsize.extend(layout_devicepath)?;
+        let layout = layout_extended.pad_to_align();
+        Ok((layout, offset, num_words))
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
