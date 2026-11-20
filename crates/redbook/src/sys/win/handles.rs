@@ -839,15 +839,21 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
 
-        let cbsize = size.strict_cast::<u32>();
+        let cbsize = size_of::<u32>();
         dbg!(&cbsize);
 
         let layout_cbsize = Layout::for_value(&cbsize);
         dbg!(&layout_cbsize);
-        let (layout_extended, offset_devicepath) =
-            layout_cbsize.extend(Layout::array::<u16>(size.strict_div(size_of::<u16>()))?)?;
+
+        let num_words = size.strict_div(size_of::<u16>());
+        dbg!(&num_words);
+        let layout_devicepath = Layout::array::<u16>(num_words)?;
+        dbg!(&layout_devicepath);
+
+        let (layout_extended, offset_devicepath) = layout_cbsize.extend(layout_devicepath)?;
         dbg!(&layout_extended);
         dbg!(&offset_devicepath);
+
         let layout = layout_extended.pad_to_align();
         dbg!(&layout);
 
@@ -857,10 +863,8 @@ impl DeviceDetails {
         };
 
         let opaque = rawu8.as_mut_ptr() as *mut ();
-        let tail_size = layout.size().strict_sub(offset_devicepath);
-        dbg!(&tail_size);
 
-        let typed = ptr::from_raw_parts_mut::<Self>(opaque, tail_size.strict_div(size_of::<u16>()));
+        let typed = ptr::from_raw_parts_mut::<Self>(opaque, layout_devicepath.size());
         dbg!(TypeId::of::<<DeviceDetails as Pointee>::Metadata>());
         dbg!(TypeId::of::<usize>());
         // SAFETY: DBG
@@ -869,7 +873,8 @@ impl DeviceDetails {
         unsafe { dbg!(align_of_val(&*typed)) };
 
         // SAFETY: TODO
-        let boxed = unsafe { Box::from_raw(typed) };
+        let mut boxed = unsafe { Box::from_raw(typed) };
+        boxed.cbSize = cbsize.strict_cast();
 
         Ok(boxed)
     }
