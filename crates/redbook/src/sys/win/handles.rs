@@ -929,6 +929,8 @@ impl Display for DeviceDetails {
 
 #[cfg(test)]
 mod miri {
+    use std::mem::offset_of;
+
     use super::*;
 
     use crate::test_fixtures::albums::TestAlbum;
@@ -948,5 +950,23 @@ mod miri {
     #[test]
     fn invalid() {
         assert!(INVALID_HANDLE_VALUE.into_drive_handle().is_err());
+    }
+
+    #[test]
+    fn device_details_layout() {
+        let original = SP_DEVICE_INTERFACE_DETAIL_DATA_W::default();
+        let size = size_of_val(&original);
+
+        let custom = DeviceDetails::new(size).unwrap();
+
+        assert_eq!(Layout::for_value(&original), Layout::for_value(&*custom));
+        assert_eq!(
+            offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, cbSize),
+            offset_of!(DeviceDetails, cbSize)
+        );
+        assert_eq!(
+            offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath),
+            offset_of!(DeviceDetails, DevicePath)
+        );
     }
 }
