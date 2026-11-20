@@ -2,7 +2,9 @@
 //! additional variants for usage in unsafe code
 
 use std::{
+    borrow::{Borrow, BorrowMut},
     cmp::min,
+    convert::{AsMut, AsRef},
     ops::{Deref, DerefMut},
     pin::Pin,
     slice,
@@ -45,6 +47,30 @@ use crate::{Frame, frame::ByteSize};
 pub struct RawData(Pin<Box<[u8]>>);
 
 impl !Unpin for RawData {}
+
+impl AsMut<[u8]> for RawData {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self
+    }
+}
+
+impl AsRef<[u8]> for RawData {
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+
+impl Borrow<[u8]> for RawData {
+    fn borrow(&self) -> &[u8] {
+        self
+    }
+}
+
+impl BorrowMut<[u8]> for RawData {
+    fn borrow_mut(&mut self) -> &mut [u8] {
+        self
+    }
+}
 
 impl Deref for RawData {
     type Target = [u8];
@@ -279,5 +305,30 @@ mod tests {
         assert_eq!(dest.total_samples(), 3);
         let md5_digest = md5::Md5::new_with_prefix(data).finalize();
         assert_eq!(dest.md5_digest(), md5_digest);
+    }
+
+    #[test]
+    fn as_ref_and_borrow() {
+        let data = [0x01, 0x02, 0x03, 0x04];
+        let rawdata = RawData(Box::pin(data));
+
+        let as_ref: &[u8] = rawdata.as_ref();
+        let borrowed: &[u8] = rawdata.borrow();
+
+        assert_eq!(as_ref, &data);
+        assert_eq!(borrowed, &data);
+    }
+
+    #[test]
+    fn as_mut_and_borrow_mut() {
+        let data = [0x01, 0x02, 0x03, 0x04];
+        let mut rawdata = RawData(Box::pin(data));
+
+        let as_mut: &mut [u8] = rawdata.as_mut();
+        as_mut[0] = 0x0A;
+        let borrow_mut: &mut [u8] = rawdata.borrow_mut();
+        borrow_mut[1] = 0x0B;
+
+        assert_eq!(&rawdata[..], &[0x0A, 0x0B, 0x03, 0x04]);
     }
 }
