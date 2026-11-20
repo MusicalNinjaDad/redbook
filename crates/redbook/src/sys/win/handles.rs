@@ -747,6 +747,8 @@ impl DeviceInfoSet {
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
+        let mut toosmall = SP_DEVICE_INTERFACE_DETAIL_DATA_W::default();
+        toosmall.cbSize = 4_u32;
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -773,7 +775,7 @@ impl DeviceInfoSet {
                 // 2. buffer size validated by caller
                 // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
                 //    with identical fields, layout & alignment
-                devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                &mut toosmall as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
                 // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
                 // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
                 // to contain the fixed part of the structure and a single NULL to terminate an
@@ -870,6 +872,8 @@ impl DeviceDetails {
     pub fn layout_for(
         size: usize,
     ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
+        dbg!(Layout::for_value(&SP_DEVICE_INTERFACE_DETAIL_DATA_W::default()));
+
         let cbsize = size_of::<u32>().strict_cast::<u32>();
         dbg!(cbsize);
 

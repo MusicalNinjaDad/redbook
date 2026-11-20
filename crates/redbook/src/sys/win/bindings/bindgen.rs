@@ -172,7 +172,7 @@ impl Default for SP_DEVICE_INTERFACE_DETAIL_DATA_W {
 #[derive(Clone, Copy)]
 pub struct SP_DEVICE_INTERFACE_DETAIL_DATA_W {
     pub cbSize: u32,
-    pub DevicePath: [u16; 1],
+    pub DevicePath: [u16; 256],
 }
 #[cfg(any(
     target_arch = "aarch64",
