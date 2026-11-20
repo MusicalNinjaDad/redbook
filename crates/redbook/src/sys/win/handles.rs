@@ -595,7 +595,7 @@ impl DeviceInfoSet {
     ///
     /// Returns Ok(None) if the member does not exist
     /// TODO - make this a simple -> Result<DeviceDetails, DeviceError>
-    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, DeviceError> {
+    pub fn get_member(&self, index: usize) -> Result<Option<Box<DeviceDetails>>, DeviceError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
@@ -678,7 +678,7 @@ impl DeviceInfoSet {
     fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<DeviceDetails, WinError> {
+    ) -> Result<Box<DeviceDetails>, WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -730,7 +730,7 @@ impl DeviceInfoSet {
     unsafe fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<DeviceDetails, WinError> {
+    ) -> Result<Box<DeviceDetails>, WinError> {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
