@@ -730,7 +730,7 @@ impl DeviceInfoSet {
     unsafe fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<Box<DeviceDetails>, WinError> {
+    ) -> Result<Box<DeviceDetails>, DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
@@ -742,10 +742,10 @@ impl DeviceInfoSet {
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
         let deviceinterfacedetaildata = self.allocate_device_details(member)?;
-        let size = deviceinterfacedetaildata.0.len();
+        let size = deviceinterfacedetaildata.cbSize;
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
-        let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata.0);
+        let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -789,13 +789,12 @@ impl DeviceInfoSet {
         match get_details {
             0 => {
                 let err = io::Error::last_os_error();
-                tracing::error!(get_details, %err);
-                Err(WinError::from(err))
+                let _errspan = tracing::error_span!("DeviceInfoSet::get_member_details", %get_details, %err).entered();
+                Err(WinError::from(err)).or_error("getting device details")?
             }
             _ => {
                 // SAFETY: HMMM TODO!!!!!
-                let inner = unsafe { Box::from_raw(devicedetailsptr) };
-                let details = DeviceDetails(inner);
+                let details = unsafe { Box::from_raw(devicedetailsptr) };
                 Ok(details)
             }
         }
