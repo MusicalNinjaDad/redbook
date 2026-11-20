@@ -797,7 +797,7 @@ impl DeviceInfoSet {
 /// A layout-identical version of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] as a DST.
 ///
 /// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
-/// allocates memory for a for a given sized `DeviceDetails` and returns is boxed and ready to go.
+/// allocates memory for a for a given sized `DeviceDetails` and returns it boxed and ready to go.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DeviceDetails {
     cbSize: u32,
