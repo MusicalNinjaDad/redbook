@@ -1,7 +1,8 @@
 use std::{
+    alloc::Layout,
     fmt::Display,
     io,
-    mem::offset_of,
+    mem::{Alignment, offset_of},
     path::{Path, PathBuf},
     ptr::{null, null_mut},
 };
@@ -11,7 +12,7 @@ use tracing_result::Trace;
 
 use crate::{
     ByteSize, Device, Frame, TocEntries,
-    drive::error::{DeviceError, OsError},
+    drive::error::{DeviceError, InvalidBufferSize, OsError},
     sys::win::bindings::{
         IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ADAPTER_DESCRIPTOR,
         STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
@@ -815,7 +816,7 @@ impl DeviceInfoSet {
 /// A real example of such a path is:
 /// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct DeviceDetails{
+pub(crate) struct DeviceDetails {
     cbSize: u32,
     DevicePath: [u16],
 }
@@ -833,12 +834,15 @@ pub(super) struct DeviceDetails {
 
 impl DeviceDetails {
     /// TODO
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
+        let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+        let layout = Layout::from_size_alignment(size, alignment)?;
+
         let mut bag_in_a_box = vec![0; size].into_boxed_slice();
         #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
         let cbSize = size.saturating_cast::<u32>().to_ne_bytes();
         bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
-        Self(bag_in_a_box)
+        todo!()
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
