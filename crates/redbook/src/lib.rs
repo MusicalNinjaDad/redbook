@@ -34,7 +34,10 @@
 #![feature(error_reporter)]
 #![cfg_attr(test, feature(fn_traits))]
 #![feature(negative_impls)]
+#![cfg_attr(test, feature(offset_of_slice))]
+#![feature(ptr_metadata)]
 #![feature(raw_os_error_ty)]
+#![feature(slice_ptr_get)]
 #![feature(structural_match)]
 #![feature(trait_alias)]
 

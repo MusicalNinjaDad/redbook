@@ -1,6 +1,7 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
+use std::alloc::Layout;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
 
@@ -10,6 +11,7 @@ use crate::sys::win::bindings::{
     STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
 };
 use crate::sys::win::convert::Sector;
+use crate::sys::win::handles::DeviceDetails;
 use crate::test_fixtures::albums::TestAlbum::{self, *};
 
 use super::{
@@ -21,10 +23,7 @@ use super::{
     STORAGE_DEVICE_NUMBER,
 };
 
-use super::super::{
-    convert::{Guid, MAX_PATH_CHARS, WinString},
-    handles::DeviceDetails,
-};
+use super::super::convert::{Guid, MAX_PATH_CHARS, WinString};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;
@@ -657,6 +656,10 @@ pub unsafe fn SetupDiGetClassDevsW(
 ///   buffer. This size includes the size of the fixed part of the structure plus the number of
 ///   bytes required for the variable-length device path string. This parameter is optional and
 ///   can be NULL.
+///
+/// For more information see [MsLearn]
+///
+/// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
 pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     deviceinfoset: HDEVINFO,
     deviceinterfacedata: *const SP_DEVICE_INTERFACE_DATA,
@@ -677,41 +680,74 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
         (ALL_ALBUMS, id) if id == TheWallDisc2 as u32 => TheWallDisc2,
         _ => panic!("unrecognised call to SetupDiGetDeviceInterfaceDetailW"),
     };
-    let album_path = format!(r"\\.\{}", album.assets_path().display());
-    let path_len = album_path.len();
+    let album_path = WinString::from(format!(r"\\.\{}", album.assets_path().display()));
     match (
         deviceinterfacedetaildata.is_null(),
         deviceinterfacedetaildatasize,
         requiredsize.is_null(),
     ) {
         (true, 0, false) => {
-            // This potentially slightly oversizes the requirement. This is acceptable for
-            // testing purposes to avoid the complexity of calculating the size required when
-            // *replacing* the default buffer of [u16; 1] with a sufficiently large buffer.
-            let size = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() + path_len;
-            // SAFETY:
-            // - validated pointer is not NULL (in match arm)
-            // - mock runs on debug build so as u32 will panic on overflow.
-            unsafe { *requiredsize = size as u32 };
+            let layout_cbsize = Layout::for_value(&size_of::<u32>().strict_cast::<u32>());
+
+            let num_words = album_path.as_words().len();
+
+            let layout_path = Layout::array::<u16>(num_words).expect("valid layout for path");
+
+            let (layout, _) = layout_cbsize
+                .extend(layout_path)
+                .expect("valid layout for struct");
+            let layout = layout.pad_to_align();
+            let size = layout.size();
+
+            unsafe { requiredsize.write(size.strict_cast()) };
+
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
-            // SAFETY check
-            DeviceDetails::check_size(path_len as u32)
-                .expect("DeviceDetails has space for MAX_PATH_CHARS, we should be below that");
-            let mut data = DeviceDetails::default();
-            match data.set_path(&WinString::from(album_path)) {
-                words if words == path_len + 1 => {
-                    // SAFETY:
-                    // - validated pointer is not NULL (in match arm)
-                    // - DeviceDetails is directly compatible with SP_DEVICE_INTERFACE_DETAIL_DATA_W
-                    // - DeviceDetails has space for MAX_PATH_CHARS
-                    unsafe { *(deviceinterfacedetaildata as *mut DeviceDetails) = data };
-                    success!()
-                }
-                _ => panic!("setting path failed"),
-            };
+            let path = album_path.as_words();
+
+            let (_layout, path_offset, num_words) =
+                DeviceDetails::layout_for(deviceinterfacedetaildatasize.strict_cast())
+                    .expect("valid size");
+
+            let data_pointer = deviceinterfacedetaildata as *mut ();
+            let path_addr = unsafe { data_pointer.byte_add(path_offset) as *mut u16 };
+            let devicepath_field = ptr::slice_from_raw_parts_mut::<u16>(path_addr, path.len());
+
+            assert!(num_words >= path.len());
+            // SAFETY:
+            // - length of DevicePath slice is >= length of path (assertion above)
+            // - the data from address of deviceinterfacedetaildata + path_offset is a [u16] based
+            //   on struct definition
+            unsafe { (*devicepath_field).copy_from_slice(path) };
+
+            success!()
         }
         _ => panic!("invalid call to SetupDiGetDeviceInterfaceDetailW"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aligns() {
+        dbg!(align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
+        dbg!(align_of::<u32>());
+        dbg!(align_of::<Box<[u8]>>());
+        let size = 76_usize;
+        let mut bag_in_a_box = vec![0; size].into_boxed_slice();
+        dbg!(align_of_val(&bag_in_a_box));
+        #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
+        let cbSize = size.saturating_cast::<u32>().to_ne_bytes();
+        bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
+        dbg!(align_of_val(&bag_in_a_box));
+        let devicedetailsptr = Box::as_mut_ptr(&mut bag_in_a_box);
+        dbg!(align_of_val(&devicedetailsptr));
+        let casted = devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W;
+        dbg!(align_of_val(&casted));
+        let cbsize = casted as *mut u32;
+        dbg!(align_of_val(&cbsize));
     }
 }

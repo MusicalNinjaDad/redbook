@@ -19,6 +19,10 @@ use super::bindings::{GUID, PCWSTR};
 ///
 /// # Note
 /// - This is the number of chars, not bytes!
+#[cfg_attr(
+    all(windows, not(any(test, doc))),
+    expect(dead_code, reason = "only used in mocks")
+)]
 pub(super) const MAX_PATH_CHARS: usize = 265;
 
 /// A windows GUID - e.g. `53F56308-B6BF-11D0-94F2-00A0C91EFB8B`
@@ -167,6 +171,10 @@ impl WinString {
 
     /// A slice of `u16` "words" representing the stored characters.
     /// Including the final `\0` termination.
+    #[cfg_attr(
+        all(windows, not(any(test, doc))),
+        expect(dead_code, reason = "only used in mocks")
+    )]
     pub fn as_words(&self) -> &[u16] {
         &self.words
     }

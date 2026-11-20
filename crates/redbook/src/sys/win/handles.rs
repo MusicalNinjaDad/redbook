@@ -1,12 +1,12 @@
 use std::{
+    alloc::{Allocator, Global, Layout, handle_alloc_error},
     fmt::Display,
     io,
-    mem::offset_of,
     path::{Path, PathBuf},
-    ptr::{null, null_mut},
+    ptr::{self, Pointee, null, null_mut},
 };
 
-use tracing::field::Empty;
+use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
 use crate::{
@@ -29,7 +29,7 @@ use super::{
         SP_DEVICE_INTERFACE_DETAIL_DATA_W, STORAGE_DEVICE_NUMBER, SetupDiDestroyDeviceInfoList,
         SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     },
-    convert::{Guid, MAX_PATH_CHARS, Sector, WinPath, WinString},
+    convert::{Guid, Sector, WinPath, WinString},
     drive::DeviceInfoSetIter,
     error::WinError,
 };
@@ -479,6 +479,7 @@ trait IoControl {
     -> Result<(), DeviceError>;
 }
 
+/// TODO #244 Document and fix tracing semantics of IoControl::validate whcih is now also used for other ffi calls
 impl IoControl for BOOL {
     fn validate(
         &self,
@@ -592,8 +593,7 @@ impl DeviceInfoSet {
     /// Get the detail data for a given member of the device information set
     ///
     /// Returns Ok(None) if the member does not exist
-    /// TODO - make this a simple -> Result<DeviceDetails, DeviceError>
-    pub fn get_member(&self, index: usize) -> Result<Option<DeviceDetails>, DeviceError> {
+    pub fn get_member(&self, index: usize) -> Result<Option<Box<DeviceDetails>>, DeviceError> {
         // This is an wonderful, 3-step process in the C++ API so we expose it as a single pub fn
         // and wrap each step in a private function to try and preserve our, and your, sanity.
 
@@ -602,11 +602,7 @@ impl DeviceInfoSet {
             None => return Ok(None),
         };
 
-        self.check_required_buffer_size(&interface_data)?;
-
-        #[expect(unsafe_code, reason = "data must fit in a `DeviceDetails`")]
-        // SAFETY: We just called check_required_buffer_size
-        let member = unsafe { self.get_member_details(&interface_data)? };
+        let member = self.get_member_details(&interface_data)?;
 
         Ok(Some(member))
     }
@@ -674,12 +670,12 @@ impl DeviceInfoSet {
         }
     }
 
-    /// Validates that a [`DeviceDetails`] struct is large enough to house the details for `member`
-    fn check_required_buffer_size(
+    /// Identifies the required size for a DeviceDetails buffer, allocates and returns it.
+    fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<(), DeviceError> {
-        let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
+    ) -> Result<Box<DeviceDetails>, DeviceError> {
+        let _span = tracing::error_span!("DeviceInfoSet::allocate_device_details").entered();
         let mut requiredsize: u32 = 0;
 
         #[expect(unsafe_code, reason = "ffi call")]
@@ -713,86 +709,83 @@ impl DeviceInfoSet {
             .or_error("reading required buffer size")?;
 
         tracing::debug!(requiredsize);
-        DeviceDetails::check_size(requiredsize).or_error("device path too long")?;
-        Ok(())
+
+        Ok(DeviceDetails::new(requiredsize.strict_cast())?)
     }
 
-    #[expect(
-        unsafe_code,
-        reason = "must validate that details will fit in a DeviceDetails"
-    )]
     /// Get detail data for a given `member`.
-    ///
-    /// # SAFETY
-    ///
-    /// Caller must guarantee that the data will fit in a DeviceDetails struct. It is recommended
-    /// to call [Self::check_required_buffer_size] in order to validate this requirement.
-    unsafe fn get_member_details(
+    fn get_member_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<DeviceDetails, WinError> {
+    ) -> Result<Box<DeviceDetails>, DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
-        // 1. cbSize is fixed to correct value via construction:
-        //    the caller must set DeviceInterfaceDetailData.cbSize to
-        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
-        //    The cbSize member always contains the size of the fixed part of the data structure,
-        //    not a size reflecting the variable-length string at the end.
-        //
-        // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
-        let mut deviceinterfacedetaildata = DeviceDetails::default();
+        // Caller must guarantee that the buffer struct is correctly sized and initialised
+        // before calling SetupDiGetDeviceInterfaceDetailW
+        let deviceinterfacedetaildata = self.allocate_device_details(member)?;
+        let size = size_of_val(&*deviceinterfacedetaildata);
 
-        #[expect(unsafe_code, reason = "ffi call")]
+        // SAFETY:
+        // We will rebox the value after calling devicedetailsptr, whether or not an error occurs.
+        // This ensures that the value is correctly dropped.
+        let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
+
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
-        let get_details = unsafe {
+        unsafe {
             SetupDiGetDeviceInterfaceDetailW(
-                // A pointer to a device information set that contains the device
-                // interfaces for which to return information.
+                // Guaranteed valid, non-null handle during construction of Self
                 self.handle,
-                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
-                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
-                // typically returned by SetupDiEnumDeviceInterfaces.
+                // Reference to a &SP_DEVICE_INTERFACE_DATA must point to a valid value of that type
                 member,
-                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
-                // about the specified interface.
+                // allocate_device_details (above) calls SetupDiGetDeviceInterfaceDetailW to request
+                // the required size of this buffer struct. It then allocated and returns a valid,
+                // correctly sized Box<DeviceDetails>.
                 //
-                // ** If this parameter is specified, the caller must set
-                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
-                // before calling this function. The cbSize member always contains the size of the
-                // fixed part of the data structure, not a size reflecting the variable-length
-                // string at the end.**
+                // The Box which contained this has just been converted and is under our management
+                // until we rebox it after this call
                 //
-                // SAFETY:
-                // 1. cbSize set upon construction
-                // 2. buffer size validated by caller
-                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
-                //    with identical fields, layout & alignment
-                &mut deviceinterfacedetaildata as *mut DeviceDetails
-                    as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
-                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
-                // to contain the fixed part of the structure and a single NULL to terminate an
-                // empty MULTI_SZ string.
-                //
-                // Therefore this size must be the total size of the DeviceDetails struct, which
-                // is known to have sufficient buffer for the fixed part, path + termination
-                const { size_of::<DeviceDetails>() as u32 },
+                // *mut DeviceDetails can be safely cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                // as it shares an identical layout.
+                devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                // This is calculated as the size of the backing buffer above - therefore no read
+                // out of bounds risk.
+                size.strict_cast(),
                 null_mut(),
                 null_mut(),
             )
-        };
-
-        match get_details {
-            0 => {
-                let err = io::Error::last_os_error();
-                tracing::error!(get_details, %err);
-                Err(WinError::from(err))
-            }
-            _ => Ok(deviceinterfacedetaildata),
         }
+        .validate(None, 0)
+        .inspect_err(|_| {
+            // SAFETY:
+            // This is the same pointer which we previously unboxed before passing to
+            // SetupDiGetDeviceInterfaceDetailW
+            // reboxing here so that it is properly dropped on error
+            let details = unsafe { Box::from_raw(devicedetailsptr) };
+            drop(details);
+        })
+        .or_error("getting device details")?;
+
+        // SAFETY:
+        // This is the same pointer which we previously unboxed before passing to
+        // SetupDiGetDeviceInterfaceDetailW. It was valid when we took it out of the box
+        // and is therefore still valid now.
+        let details = unsafe { Box::from_raw(devicedetailsptr) };
+        Ok(details)
     }
 }
+
+// TODO: #243 support x86 (32-bit)??
+// #[repr(C, packed(1))]
+// #[cfg(target_arch = "x86")]
+// #[expect(nonstandard_style, reason = "mimic C++ struct")]
+// /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+// /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+// #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// pub(super) struct DeviceDetails {
+//     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+//     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
+// }
 
 #[repr(C)]
 #[cfg(any(
@@ -800,92 +793,144 @@ impl DeviceInfoSet {
     target_arch = "arm64ec",
     target_arch = "x86_64"
 ))]
-#[expect(nonstandard_style, reason = "mimic C++ struct")]
-/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+#[expect(non_snake_case, reason = "mimic C++ struct")]
+/// A layout-identical version of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] as a DST.
 ///
-/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
-///
-/// A real example of such a path is:
-/// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
+/// allocates memory for a for a given sized `DeviceDetails` and returns it boxed and ready to go.
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DeviceDetails {
-    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
+    cbSize: u32,
+    DevicePath: [u16],
 }
-
-#[repr(C, packed(1))]
-#[cfg(target_arch = "x86")]
-#[expect(nonstandard_style, reason = "mimic C++ struct")]
-/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct DeviceDetails {
-    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-    DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
-}
-
-const _: () = {
-    assert!(align_of::<DeviceDetails>() == align_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>());
-    assert!(
-        offset_of!(DeviceDetails, DevicePath)
-            == offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath)
-    );
-};
 
 impl DeviceDetails {
-    /// Validate that the buffer provided by `DeviceDetails` is sufficient.
+    #[instrument(level = "error", fields(layout, offset, num_words))]
+    /// Construct a new [`DeviceDetails`] of the given size and return it in a `Box`.
     ///
-    /// It is recommended to first call `SetupDiGetDeviceInterfaceDetailW` as per C++ docs to
-    /// get the required size, then to call `check_size` before using DeviceDetails to store the
-    /// information provided by a second call to `SetupDiGetDeviceInterfaceDetailW`
+    /// # Note
+    /// - The field cbSize will be correctly set to the size of a DeviceDetails *with a single
+    ///   `0_u16` terminator in the DevicePath*. The [docs][MsLearn] claim "The cbSize member always
+    ///   contains the size of the fixed part of the data structure, not a size reflecting the
+    ///   variable-length string at the end." However trial and (lots of) error have shown that
+    ///   the buffer will be refused with OsError 1784 `ERROR_INVALID_USER_BUFFER` for any other
+    ///   value of cbSize.
+    /// - This will error if it is not possible to layout a valid DeviceDetails at the requested
+    ///   size. [`SetupDiGetDeviceInterfaceDetailW`] provides the full padded size, e.g. for a
+    ///   path length of 122 chars a size of 252 is requested to cover cbSize, null-terminator &
+    ///   padding.
     ///
-    /// TODO #202 Is there any way to dynamically size a DeviceDetails and avoid panicking on very long
-    /// paths?
-    pub fn check_size(requiredsize: u32) -> Result<(), InvalidBufferSize> {
-        (requiredsize <= size_of::<Self>() as u32).ok_or_else(|| InvalidBufferSize::TooSmall {
-            provided: size_of::<Self>(),
-            required: requiredsize.into(),
-        })
+    /// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw#parameters
+    pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
+        tracing::debug!("new Device Details");
+
+        let (layout, offset, num_words) = Self::layout_for(size)?;
+        tracing::Span::current().record("layout", format_args!("{layout:?}"));
+        tracing::Span::current().record("offset", offset);
+        tracing::Span::current().record("num_words", num_words);
+
+        let rawu8 = match Global.allocate_zeroed(layout) {
+            Ok(pointer) => pointer,
+            Err(error) => {
+                tracing::error!(%error, "Allocation failure!");
+                handle_alloc_error(layout)
+            }
+        };
+
+        let opaque = rawu8.as_mut_ptr() as *mut ();
+        let raw = ptr::from_raw_parts_mut::<Self>(opaque, num_words);
+
+        // SAFETY:
+        // **No double-free risk**
+        // - this pointer will not be added to a second box, or used in any other way after this
+        // **Memory layout**
+        // - Pointer was allocated in a single allocation above by Global
+        // - Memory is initialised via allocate_zeroed
+        // - Zero values are valid for both u32 & u16 (the only contents of this struct)
+        // - Layout is correct for a DeviceDetails (see DeviceDetils::layout_for)
+        // - Metadata is correct - numwords is count of elements in unsized tail [u16]. The value
+        //   used to generate the layout is provided by layout_for and used in from_raw_parts_mut
+        let mut boxed = unsafe { Box::from_raw(raw) };
+        boxed.cbSize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 };
+
+        Ok(boxed)
+    }
+
+    #[instrument(
+        level = "error",
+        fields(
+            cbsize,
+            layout_cbsize,
+            num_words,
+            layout_devicepath,
+            layout_extended,
+            offset,
+            layout
+        )
+    )]
+    /// Calculates the (layout, offset for `DevicePath`, num_words in `DevicePath`) for a
+    /// [`DeviceDetails`] of the given size.
+    ///
+    /// # Errors
+    /// This will error if the required layout for `DevicePath: [u16]` is not valid or if the
+    /// requested size does not match the size of the correctly aligned and padded layout.
+    ///
+    /// # SAFETY
+    /// The correctness of this layout and the additional data is relied upon by unsafe code.
+    pub fn layout_for(
+        size: usize,
+    ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
+        let cbsize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>().strict_cast::<u32>() };
+        tracing::Span::current().record("cbsize", cbsize);
+
+        let layout_cbsize = Layout::for_value(&cbsize);
+        tracing::Span::current().record("layout_cbsize", format_args!("{layout_cbsize:?}"));
+
+        let num_words = size
+            .strict_sub(layout_cbsize.size())
+            .strict_div(size_of::<u16>());
+        tracing::Span::current().record("num_words", num_words);
+
+        let layout_devicepath =
+            Layout::array::<u16>(num_words).or_error("invalid device path length")?;
+        tracing::Span::current().record("layout_devicepath", format_args!("{layout_devicepath:?}"));
+
+        let (layout_extended, offset) = layout_cbsize.extend(layout_devicepath)?;
+        tracing::Span::current().record("layout_extended", format_args!("{layout_extended:?}"));
+        tracing::Span::current().record("offset", offset);
+
+        let layout = layout_extended.pad_to_align();
+        tracing::Span::current().record("layout", format_args!("{layout:?}"));
+
+        (layout.size() == size)
+            .ok_or_else(|| InvalidBufferSize::InvalidSize {
+                requested: size,
+                valid: layout.size(),
+            })
+            .and_debug("layout calculated")
+            .or_warn("invalid size")?;
+
+        Ok((layout, offset, num_words))
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
     pub fn path(&self) -> PathBuf {
-        let path = WinString::from(self.DevicePath.as_slice());
+        let path = WinString::from(&self.DevicePath);
         PathBuf::from(path.to_string())
-    }
-
-    /// Set the path. Returns the number of u16 "words" stored on success, panics if the provided
-    /// path is too large.
-    #[cfg_attr(
-        all(windows, not(any(test, doc))),
-        expect(
-            dead_code,
-            reason = "only used in mock for SetupDiGetDeviceInterfaceDetailW"
-        )
-    )]
-    pub(super) fn set_path(&mut self, path: &WinString) -> usize {
-        let len = path.as_words().len();
-        assert!(len < self.DevicePath.len());
-        self.DevicePath[..len].copy_from_slice(path.as_words());
-        len
     }
 }
 
 impl Display for DeviceDetails {
     /// Output the path, parsing correctly as null-terminated utf16
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let len = self
-            .DevicePath
-            .iter()
-            .position(|c| *c == 0)
-            .unwrap_or(self.DevicePath.len());
-        Display::fmt(&String::from_utf16_lossy(&self.DevicePath[..len]), f)
+        Display::fmt(&self.path().display(), f)
     }
 }
 
 #[cfg(test)]
 mod miri {
+    use std::mem::offset_of;
+
     use super::*;
 
     use crate::test_fixtures::albums::TestAlbum;
@@ -905,5 +950,23 @@ mod miri {
     #[test]
     fn invalid() {
         assert!(INVALID_HANDLE_VALUE.into_drive_handle().is_err());
+    }
+
+    #[test]
+    fn device_details_layout() {
+        let original = SP_DEVICE_INTERFACE_DETAIL_DATA_W::default();
+        let size = size_of_val(&original);
+
+        let custom = DeviceDetails::new(size).unwrap();
+
+        assert_eq!(Layout::for_value(&original), Layout::for_value(&*custom));
+        assert_eq!(
+            offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, cbSize),
+            offset_of!(DeviceDetails, cbSize)
+        );
+        assert_eq!(
+            offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath),
+            offset_of!(DeviceDetails, DevicePath)
+        );
     }
 }

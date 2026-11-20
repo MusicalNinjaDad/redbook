@@ -1,6 +1,7 @@
 #![expect(missing_docs, reason = "TODO")]
 //! Errors for the Drive domain: [DriveError], [DeviceError]
 use std::{
+    alloc::LayoutError,
     error::Error,
     fmt::{self, Display},
     io::{self, RawOsError},
@@ -245,6 +246,12 @@ impl From<InvalidByteSize> for DeviceError {
     }
 }
 
+impl From<LayoutError> for DeviceError {
+    fn from(error: LayoutError) -> Self {
+        InvalidBufferSize::from(error).into()
+    }
+}
+
 impl From<TocError> for DeviceError {
     fn from(error: TocError) -> Self {
         Self::TocError(error)
@@ -269,10 +276,12 @@ impl From<InvalidOrder> for DeviceError {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvalidBufferSize {
     TooSmall { provided: usize, required: u128 },
     InvalidByteSize(InvalidByteSize),
+    InvalidLayout(LayoutError),
+    InvalidSize { requested: usize, valid: usize },
 }
 
 impl Error for InvalidBufferSize {
@@ -280,6 +289,8 @@ impl Error for InvalidBufferSize {
         match self {
             InvalidBufferSize::InvalidByteSize(error) => Some(error),
             InvalidBufferSize::TooSmall { .. } => None,
+            InvalidBufferSize::InvalidLayout(error) => Some(error),
+            InvalidBufferSize::InvalidSize { .. } => None,
         }
     }
 
@@ -298,6 +309,15 @@ impl Display for InvalidBufferSize {
                     "buffer size {provided} is too small; {required} required"
                 )
             }
+            InvalidBufferSize::InvalidLayout(_) => {
+                write!(f, "invalid layout requested for a buffer")
+            }
+            InvalidBufferSize::InvalidSize { requested, valid } => {
+                write!(
+                    f,
+                    "{requested} is not valid as a size for this type; when correctly aligned and padded the next valid size is {valid}"
+                )
+            }
         }
     }
 }
@@ -305,6 +325,12 @@ impl Display for InvalidBufferSize {
 impl From<InvalidByteSize> for InvalidBufferSize {
     fn from(error: InvalidByteSize) -> Self {
         Self::InvalidByteSize(error)
+    }
+}
+
+impl From<LayoutError> for InvalidBufferSize {
+    fn from(error: LayoutError) -> Self {
+        Self::InvalidLayout(error)
     }
 }
 
