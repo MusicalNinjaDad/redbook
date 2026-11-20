@@ -747,6 +747,7 @@ impl DeviceInfoSet {
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
+        let mut dd = DeviceDetails2::default();
 
         #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
@@ -773,7 +774,7 @@ impl DeviceInfoSet {
                 // 2. buffer size validated by caller
                 // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
                 //    with identical fields, layout & alignment
-                devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                &mut dd as *mut _ as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
                 // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
                 // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
                 // to contain the fixed part of the structure and a single NULL to terminate an
@@ -796,8 +797,10 @@ impl DeviceInfoSet {
                 Err(WinError::from(err)).or_error("getting device details")?
             }
             _ => {
+                tracing::debug!(dd.cbSize, path = %WinString::from(dd.DevicePath.as_slice()));
                 // SAFETY: HMMM TODO!!!!!
                 let details = unsafe { Box::from_raw(devicedetailsptr) };
+                dbg!(details.cbSize);
                 Ok(details)
             }
         }
@@ -822,6 +825,26 @@ impl DeviceInfoSet {
 pub(crate) struct DeviceDetails {
     cbSize: u32,
     DevicePath: [u16],
+}
+
+#[repr(C)]
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+#[expect(nonstandard_style, reason = "mimic C++ struct")]
+/// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+/// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+///
+/// [check_size][Self::check_size] is provided to allow for validation to avoid buffer overruns.
+///
+/// A real example of such a path is:
+/// `\\?\usbstor#cdrom&ven_hl-dt-st&prod_dvdram_gue1n&rev_as00#4b4d444642414d3130353920&0#{53f56308-b6bf-11d0-94f2-00a0c91efb8b}\0`
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DeviceDetails2 {
+    cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+    DevicePath: [u16; 265] = [0; _],
 }
 
 #[repr(C, packed(1))]
@@ -870,6 +893,11 @@ impl DeviceDetails {
     pub fn layout_for(
         size: usize,
     ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
+        dbg!(Layout::for_value(&DeviceDetails2::default()));
+        dbg!(Layout::for_value(
+            &SP_DEVICE_INTERFACE_DETAIL_DATA_W::default()
+        ));
+
         let cbsize = size_of::<u32>().strict_cast::<u32>();
         dbg!(cbsize);
 
