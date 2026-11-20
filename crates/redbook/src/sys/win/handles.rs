@@ -716,10 +716,6 @@ impl DeviceInfoSet {
         ))
     }
 
-    #[expect(
-        unsafe_code,
-        reason = "must validate that details will fit in a DeviceDetails"
-    )]
     /// Get detail data for a given `member`.
     fn get_member_details(
         &self,
@@ -728,51 +724,43 @@ impl DeviceInfoSet {
         let _span = tracing::error_span!("DeviceInfoSet::get_member_details").entered();
 
         // SAFETY:
-        // 1. cbSize is fixed to correct value via construction:
-        //    the caller must set DeviceInterfaceDetailData.cbSize to
-        //    sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) before calling SetupDiGetDeviceInterfaceDetailW.
-        //    The cbSize member always contains the size of the fixed part of the data structure,
-        //    not a size reflecting the variable-length string at the end.
-        //
-        // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
+        // Caller must guarantee that the buffer struct is correctly sized and initialised
+        // before calling SetupDiGetDeviceInterfaceDetailW
         let (deviceinterfacedetaildata, size) = self.allocate_device_details(member)?;
+        (size_of_val(&*deviceinterfacedetaildata) >= size.strict_cast())
+            .ok_or_else(|| InvalidBufferSize::TooSmall {
+                provided: size_of_val(&*deviceinterfacedetaildata),
+                required: size.into(),
+            })
+            .or_error("invalid buffer for device detail data")?;
 
-        // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
+        // SAFETY:
+        // We will rebox the value after calling devicedetailsptr, whether or not an error occurs.
+        // This ensures that the value is correctly dropped.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
 
-        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         let get_details = unsafe {
             SetupDiGetDeviceInterfaceDetailW(
-                // A pointer to a device information set that contains the device
-                // interfaces for which to return information.
+                // Guaranteed valid, non-null handle during construction of Self
                 self.handle,
-                // A pointer to an SP_DEVICE_INTERFACE_DATA structure that specifies the interface
-                // in DeviceInfoSet for which to retrieve details. A pointer of this type is
-                // typically returned by SetupDiEnumDeviceInterfaces.
+                // Reference to a &SP_DEVICE_INTERFACE_DATA must point to a valid value of that type
                 member,
-                // A pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA structure to receive information
-                // about the specified interface.
+                // allocate_device_details (above) calls SetupDiGetDeviceInterfaceDetailW to request
+                // the required size of this buffer struct. It then allocated and returns a valid,
+                // correctly sized Box<DeviceDetails>.
                 //
-                // ** If this parameter is specified, the caller must set
-                // DeviceInterfaceDetailData.cbSize to sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA)
-                // before calling this function. The cbSize member always contains the size of the
-                // fixed part of the data structure, not a size reflecting the variable-length
-                // string at the end.**
+                // The Box which contained this has just been converted and is under our management
+                // until we rebox it after this call
                 //
-                // SAFETY:
-                // 1. cbSize set upon construction
-                // 2. buffer size validated by caller
-                // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
-                //    with identical fields, layout & alignment
+                // *mut DeviceDetails can be safely cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W
+                // as it shares an identical layout.
                 devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-                // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
-                // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
-                // to contain the fixed part of the structure and a single NULL to terminate an
-                // empty MULTI_SZ string.
-                //
-                // Therefore this size must be the total size of the DeviceDetails struct, which
-                // is known to have sufficient buffer for the fixed part, path + termination
+                // The `DeviceDetails` provided above is at least the required size. This is verified
+                // above and we error if it is not the case. We are informing windows of the
+                // availability of a buffer of the required size so there is no risk of writing
+                // out-of-bounds. The remaining buffer (if any) is zeroed and therefore valid if
+                // unchanged.
                 size.strict_cast(),
                 null_mut(),
                 null_mut(),
@@ -785,10 +773,19 @@ impl DeviceInfoSet {
                 let _errspan =
                     tracing::error_span!("DeviceInfoSet::get_member_details", %get_details, %err)
                         .entered();
+                // SAFETY:
+                // This is the same pointer which we previously unboxed before passing to
+                // SetupDiGetDeviceInterfaceDetailW
+                // reboxing here so that it is properly dropped on error
+                let details = unsafe { Box::from_raw(devicedetailsptr) };
+                drop(details);
                 Err(WinError::from(err)).or_error("getting device details")?
             }
             _ => {
-                // SAFETY: HMMM TODO!!!!!
+                // SAFETY:
+                // This is the same pointer which we previously unboxed before passing to
+                // SetupDiGetDeviceInterfaceDetailW. It was valid when we took it out of the box
+                // and is therefore still valid now.
                 let details = unsafe { Box::from_raw(devicedetailsptr) };
                 Ok(details)
             }
@@ -898,7 +895,7 @@ impl DeviceDetails {
     /// # Note
     /// The returned layout will be padded, and therefore may be larger than the requested size.
     /// See [new][Self::new] for more details.
-    /// 
+    ///
     /// # SAFETY
     /// The correctness of this layout and the additional data is relied upon by unsafe code.
     pub fn layout_for(
