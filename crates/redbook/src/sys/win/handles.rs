@@ -675,7 +675,7 @@ impl DeviceInfoSet {
     fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<(Box<DeviceDetails>, u32), DeviceError> {
+    ) -> Result<Box<DeviceDetails>, DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::allocate_device_details").entered();
         let mut requiredsize: u32 = 0;
 
@@ -711,10 +711,7 @@ impl DeviceInfoSet {
 
         tracing::debug!(requiredsize);
 
-        Ok((
-            DeviceDetails::new(requiredsize.strict_cast())?,
-            requiredsize,
-        ))
+        Ok(DeviceDetails::new(requiredsize.strict_cast())?)
     }
 
     /// Get detail data for a given `member`.
@@ -727,13 +724,8 @@ impl DeviceInfoSet {
         // SAFETY:
         // Caller must guarantee that the buffer struct is correctly sized and initialised
         // before calling SetupDiGetDeviceInterfaceDetailW
-        let (deviceinterfacedetaildata, size) = self.allocate_device_details(member)?;
-        (size_of_val(&*deviceinterfacedetaildata) >= size.strict_cast())
-            .ok_or_else(|| InvalidBufferSize::TooSmall {
-                provided: size_of_val(&*deviceinterfacedetaildata),
-                required: size.into(),
-            })
-            .or_error("invalid buffer for device detail data")?;
+        let deviceinterfacedetaildata = self.allocate_device_details(member)?;
+        let size = size_of_val(&*deviceinterfacedetaildata);
 
         // SAFETY:
         // We will rebox the value after calling devicedetailsptr, whether or not an error occurs.
@@ -757,11 +749,8 @@ impl DeviceInfoSet {
                 // *mut DeviceDetails can be safely cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W
                 // as it shares an identical layout.
                 devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-                // The `DeviceDetails` provided above is at least the required size. This is verified
-                // above and we error if it is not the case. We are informing windows of the
-                // availability of a buffer of the required size so there is no risk of writing
-                // out-of-bounds. The remaining buffer (if any) is zeroed and therefore valid if
-                // unchanged.
+                // This is calculated as the size of the backing buffer above - therefore no read
+                // out of bounds risk.
                 size.strict_cast(),
                 null_mut(),
                 null_mut(),
