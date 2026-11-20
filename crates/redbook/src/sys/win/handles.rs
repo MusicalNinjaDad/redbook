@@ -678,7 +678,7 @@ impl DeviceInfoSet {
     fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<Box<DeviceDetails>, WinError> {
+    ) -> Result<Box<DeviceDetails>, DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -714,7 +714,7 @@ impl DeviceInfoSet {
 
         tracing::debug!(requiredsize);
 
-        Ok(DeviceDetails::new(requiredsize.strict_cast()))
+        Ok(DeviceDetails::new(requiredsize.strict_cast())?)
     }
 
     #[expect(
