@@ -688,40 +688,37 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
     ) {
         (true, 0, false) => {
             let layout_cbsize = Layout::for_value(&size_of::<u32>().strict_cast::<u32>());
-            dbg!(layout_cbsize);
 
             let num_words = album_path.as_words().len();
-            dbg!(num_words);
 
             let layout_path = Layout::array::<u16>(num_words).expect("valid layout for path");
-            dbg!(layout_path);
 
             let (layout, _) = layout_cbsize
                 .extend(layout_path)
                 .expect("valid layout for struct");
-            dbg!(layout);
-
-            // let layout = layout.pad_to_align();
-            // dbg!(layout);
-
+            let layout = layout.pad_to_align();
             let size = layout.size();
+
             unsafe { requiredsize.write(size.strict_cast()) };
+            
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
             let path = album_path.as_words();
 
-            let (layout, path_offset, num_words) =
+            let (_layout, path_offset, num_words) =
                 DeviceDetails::layout_for(deviceinterfacedetaildatasize.strict_cast())
                     .expect("valid size");
-            dbg!(layout);
-            dbg!(path_offset);
-            dbg!(&num_words);
 
             let data_pointer = deviceinterfacedetaildata as *mut ();
             let path_addr = unsafe { data_pointer.byte_add(path_offset) as *mut u16 };
-            let devicepath_field = ptr::slice_from_raw_parts_mut::<u16>(path_addr, num_words);
+            let devicepath_field = ptr::slice_from_raw_parts_mut::<u16>(path_addr, path.len());
 
+            assert!(num_words >= path.len());
+            // SAFETY:
+            // - length of DevicePath slice is >= length of path (assertion above)
+            // - the data from address of deviceinterfacedetaildata + path_offset is a [u16] based
+            //   on struct definition
             unsafe { (*devicepath_field).copy_from_slice(path) };
 
             success!()
