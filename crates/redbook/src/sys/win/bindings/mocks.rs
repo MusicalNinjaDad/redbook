@@ -692,6 +692,8 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {
+            
+            
             // SAFETY: first field is cbSize which is a u32;
             let cbsize = deviceinterfacedetaildata as *mut u32;
 

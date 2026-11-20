@@ -838,6 +838,7 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
 
+        // The cbSize member always contains the size of the fixed part of the data structure, not a size reflecting the variable-length string at the end
         let cbsize = size_of::<u32>();
         dbg!(&cbsize);
 
