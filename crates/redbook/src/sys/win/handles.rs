@@ -787,6 +787,18 @@ impl DeviceInfoSet {
     }
 }
 
+// TODO: #243 support x86 (32-bit)??
+// #[repr(C, packed(1))]
+// #[cfg(target_arch = "x86")]
+// #[expect(nonstandard_style, reason = "mimic C++ struct")]
+// /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
+// /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
+// #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+// pub(super) struct DeviceDetails {
+//     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
+//     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
+// }
+
 #[repr(C)]
 #[cfg(any(
     target_arch = "aarch64",
@@ -803,18 +815,6 @@ pub(crate) struct DeviceDetails {
     cbSize: u32,
     DevicePath: [u16],
 }
-
-// TODO: #243 support x86 (32-bit)??
-// #[repr(C, packed(1))]
-// #[cfg(target_arch = "x86")]
-// #[expect(nonstandard_style, reason = "mimic C++ struct")]
-// /// A custom variant of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] with a pre-allocated buffer
-// /// large enough for any valid drive path (win32 MAX_PATH = 260 char)
-// #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-// pub(super) struct DeviceDetails {
-//     cbSize: u32 = const {size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32},
-//     DevicePath: [u16; MAX_PATH_CHARS] = [0; _],
-// }
 
 impl DeviceDetails {
     #[instrument(level = "error", fields(layout, offset, num_words))]
