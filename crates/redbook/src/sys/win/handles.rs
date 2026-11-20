@@ -840,9 +840,9 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
 
-        let (layout, cbsize, num_words) = Self::layout_for(size)?;
+        let (layout, offset, num_words) = Self::layout_for(size)?;
         dbg!(&layout);
-        dbg!(&cbsize);
+        dbg!(&offset);
         dbg!(&num_words);
 
         let rawu8 = match Global.allocate_zeroed(layout) {
