@@ -700,7 +700,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             let size = layout.size();
 
             unsafe { requiredsize.write(size.strict_cast()) };
-            
+
             failure!(ERROR_INSUFFICIENT_BUFFER)
         }
         (false, _, true) => {

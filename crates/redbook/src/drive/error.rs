@@ -281,6 +281,7 @@ pub enum InvalidBufferSize {
     TooSmall { provided: usize, required: u128 },
     InvalidByteSize(InvalidByteSize),
     InvalidLayout(LayoutError),
+    InvalidSize { requested: usize, valid: usize },
 }
 
 impl Error for InvalidBufferSize {
@@ -289,6 +290,7 @@ impl Error for InvalidBufferSize {
             InvalidBufferSize::InvalidByteSize(error) => Some(error),
             InvalidBufferSize::TooSmall { .. } => None,
             InvalidBufferSize::InvalidLayout(error) => Some(error),
+            InvalidBufferSize::InvalidSize { .. } => None,
         }
     }
 
@@ -309,6 +311,12 @@ impl Display for InvalidBufferSize {
             }
             InvalidBufferSize::InvalidLayout(_) => {
                 write!(f, "invalid layout requested for a buffer")
+            }
+            InvalidBufferSize::InvalidSize { requested, valid } => {
+                write!(
+                    f,
+                    "{requested} is not valid as a size for this type; when correctly aligned and padded the next valid size is {valid}"
+                )
             }
         }
     }

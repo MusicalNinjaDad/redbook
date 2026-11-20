@@ -795,7 +795,7 @@ impl DeviceInfoSet {
 ))]
 #[expect(non_snake_case, reason = "mimic C++ struct")]
 /// A layout-identical version of [SP_DEVICE_INTERFACE_DETAIL_DATA_W] as a DST.
-/// 
+///
 /// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
 /// allocates memory for a for a given sized `DeviceDetails` and returns is boxed and ready to go.
 #[derive(Debug, PartialEq, Eq)]
@@ -821,16 +821,16 @@ impl DeviceDetails {
     /// Construct a new [`DeviceDetails`] of the given size and return it in a `Box`.
     ///
     /// # Note
-    /// - The field cbSize will be correctly set to the size of a DeviceDetails with a single
-    ///   `0_u16` terminator in the DevicePath. The [docs][MsLearn] claim "The cbSize member always
+    /// - The field cbSize will be correctly set to the size of a DeviceDetails *with a single
+    ///   `0_u16` terminator in the DevicePath*. The [docs][MsLearn] claim "The cbSize member always
     ///   contains the size of the fixed part of the data structure, not a size reflecting the
     ///   variable-length string at the end." However trial and (lots of) error have shown that
     ///   the buffer will be refused with OsError 1784 `ERROR_INVALID_USER_BUFFER` for any other
     ///   value of cbSize.
-    /// - The actual size of the returned `DeviceDetails` may be larger than requested size due to
-    ///   additional padding. It appears that [`SetupDiGetDeviceInterfaceDetailW`] provides the
-    ///   full padded size (although this is not specifically documented). For the purpose of our
-    ///   mocks however, we find it advantageous to allow for the addition of padding without error.
+    /// - This will error if it is not possible to layout a valid DeviceDetails at the requested
+    ///   size. [`SetupDiGetDeviceInterfaceDetailW`] provides the full padded size, e.g. for a
+    ///   path length of 122 chars a size of 252 is requested to cover cbSize, null-terminator &
+    ///   padding.
     ///
     /// [MsLearn]: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw#parameters
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
@@ -883,9 +883,9 @@ impl DeviceDetails {
     /// Calculates the (layout, offset for `DevicePath`, num_words in `DevicePath`) for a
     /// [`DeviceDetails`] of the given size.
     ///
-    /// # Note
-    /// The returned layout will be padded, and therefore may be larger than the requested size.
-    /// See [new][Self::new] for more details.
+    /// # Errors
+    /// This will error if the required layout for `DevicePath: [u16]` is not valid or if the
+    /// requested size does not match the size of the correctly aligned and padded layout.
     ///
     /// # SAFETY
     /// The correctness of this layout and the additional data is relied upon by unsafe code.
@@ -914,7 +914,13 @@ impl DeviceDetails {
         let layout = layout_extended.pad_to_align();
         tracing::Span::current().record("layout", format_args!("{layout:?}"));
 
-        tracing::debug!("layout calculated");
+        (layout.size() == size)
+            .ok_or_else(|| InvalidBufferSize::InvalidSize {
+                requested: size,
+                valid: layout.size(),
+            })
+            .and_debug("layout calculated")
+            .or_warn("invalid size")?;
 
         Ok((layout, offset, num_words))
     }
