@@ -837,6 +837,8 @@ impl DeviceDetails {
     /// TODO
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
+        let size = size.next_multiple_of(align_of::<u32>());
+        dbg!(&size);
 
         // The cbSize member always contains the size of the fixed part of the data structure, not a size reflecting the variable-length string at the end
         let cbsize = size_of::<u32>();
@@ -845,7 +847,9 @@ impl DeviceDetails {
         let layout_cbsize = Layout::for_value(&cbsize);
         dbg!(&layout_cbsize);
 
-        let num_words = size.strict_div(size_of::<u16>());
+        let num_words = size
+            .strict_sub(layout_cbsize.size())
+            .strict_div(size_of::<u16>());
         dbg!(&num_words);
         let layout_devicepath = Layout::array::<u16>(num_words)?;
         dbg!(&layout_devicepath);
