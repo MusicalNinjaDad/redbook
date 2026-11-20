@@ -46,41 +46,12 @@ pub struct CdaFile {
 }
 
 impl CdaFile {
-    /// The track number: the first track has the number 1 (always within 1..=[`TrackNo::MAX`])
-    pub fn track_number(&self) -> TrackNo {
-        self.track_number
-    }
-
-    /// Identifier calculated by Windows for cdplayer.exe
-    pub fn windows_identifier(&self) -> u32 {
-        self.windows_identifier
-    }
-
-    /// *Absolute* start position: minutes, seconds, frames. Including
-    /// the 2s lead-in. (Track 1 is usually at 0,2,0)
-    pub fn start(&self) -> Msf {
-        self.start
-    }
-
-    /// Duration of the track: minutes, seconds, frames
-    pub fn duration(&self) -> Msf {
-        self.duration
-    }
-
-    /// Read the `.cda` file at `path`
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CdaError> {
-        let path = path.as_ref();
-        let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
-
-        let raw = fs::read(path)?;
-        Self::new(raw)
-    }
-
     /// Create a new `CdaFile`
     ///
     /// Contents are validated based on [specification](https://en.wikipedia.org/wiki/.cda_file)
     pub fn new<BYTES: AsRef<[u8]>>(contents: BYTES) -> Result<Self, CdaError> {
         let mut data = contents.as_ref();
+        let input_len = data.len();
         let _trace = tracing::trace_span!("CdaFile::new", ?data).entered();
 
         let magic = data.try_get_u32_le()?.to_le_bytes();
@@ -184,7 +155,7 @@ impl CdaFile {
         (data.remaining() == 0)
             .ok_or(CdaError::InvalidLength {
                 expected: CDA_LEN,
-                actual: data.len(),
+                actual: input_len,
             })
             .or_warn("")?;
 
@@ -194,6 +165,36 @@ impl CdaFile {
             start,
             duration,
         })
+    }
+
+    /// Read the `.cda` file at `path`
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CdaError> {
+        let path = path.as_ref();
+        let _warn = tracing::warn_span!("reading Cda from path", path = %path.display()).entered();
+
+        let raw = fs::read(path)?;
+        Self::new(raw)
+    }
+
+    /// The track number: the first track has the number 1 (always within 1..=[`TrackNo::MAX`])
+    pub fn track_number(&self) -> TrackNo {
+        self.track_number
+    }
+
+    /// Identifier calculated by Windows for cdplayer.exe
+    pub fn windows_identifier(&self) -> u32 {
+        self.windows_identifier
+    }
+
+    /// *Absolute* start position: minutes, seconds, frames. Including
+    /// the 2s lead-in. (Track 1 is usually at 0,2,0)
+    pub fn start(&self) -> Msf {
+        self.start
+    }
+
+    /// Duration of the track: minutes, seconds, frames
+    pub fn duration(&self) -> Msf {
+        self.duration
     }
 }
 
@@ -316,5 +317,21 @@ mod tests {
         contents[0x16..0x18].copy_from_slice(&track_number.to_le_bytes());
         let err = CdaFile::new(contents).unwrap_err();
         assert!(matches!(err, CdaError::InvalidTrackNo(_)));
+    }
+
+    #[rstest]
+    fn trailing_bytes_report_full_input_length() {
+        let cda_file = DefinitelyMaybe.assets_path().join("Track01.cda");
+        let mut contents = std::fs::read(&cda_file).unwrap();
+        contents.extend_from_slice(&[0xFF; 4]);
+
+        let err = CdaFile::new(contents.clone()).unwrap_err();
+        assert!(matches!(
+            err,
+            CdaError::InvalidLength {
+                expected: CDA_LEN,
+                actual
+            } if actual == contents.len()
+        ));
     }
 }
