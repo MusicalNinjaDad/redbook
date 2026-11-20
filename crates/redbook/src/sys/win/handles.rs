@@ -677,7 +677,7 @@ impl DeviceInfoSet {
     fn allocate_device_details(
         &self,
         member: &SP_DEVICE_INTERFACE_DATA,
-    ) -> Result<Box<DeviceDetails>, DeviceError> {
+    ) -> Result<(Box<DeviceDetails>, u32), DeviceError> {
         let _span = tracing::error_span!("DeviceInfoSet::check_required_buffer_size").entered();
         let mut requiredsize: u32 = 0;
 
@@ -713,7 +713,10 @@ impl DeviceInfoSet {
 
         tracing::debug!(requiredsize);
 
-        Ok(DeviceDetails::new(requiredsize.strict_cast())?)
+        Ok((
+            DeviceDetails::new(requiredsize.strict_cast())?,
+            requiredsize,
+        ))
     }
 
     #[expect(
@@ -740,8 +743,7 @@ impl DeviceInfoSet {
         //    not a size reflecting the variable-length string at the end.
         //
         // 2. Caller must guarantee that struct large enough via call to DeviceDetails::check_size
-        let deviceinterfacedetaildata = self.allocate_device_details(member)?;
-        let size = size_of_val(&*deviceinterfacedetaildata);
+        let (deviceinterfacedetaildata, size) = self.allocate_device_details(member)?;
 
         // From now on the Box is not to be used - we have a raw ptr to the inner bag of bytes.
         let devicedetailsptr = Box::into_raw(deviceinterfacedetaildata);
@@ -837,8 +839,6 @@ impl DeviceDetails {
     /// TODO
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         dbg!(&size);
-        let size = size.next_multiple_of(align_of::<u32>());
-        dbg!(&size);
 
         let (layout, cbsize, num_words) = Self::layout_for(size)?;
         dbg!(&layout);
@@ -890,7 +890,7 @@ impl DeviceDetails {
 
         let layout = layout_extended.pad_to_align();
         dbg!(layout);
-        
+
         Ok((layout, offset, num_words))
     }
 

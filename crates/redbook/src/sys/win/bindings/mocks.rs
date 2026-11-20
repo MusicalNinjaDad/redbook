@@ -702,8 +702,8 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                 .expect("valid layout for struct");
             dbg!(layout);
             
-            let layout = layout.pad_to_align();
-            dbg!(layout);
+            // let layout = layout.pad_to_align();
+            // dbg!(layout);
 
             let size = layout.size();
             unsafe { requiredsize.write(size.strict_cast()) };
