@@ -17,6 +17,7 @@ simd-nightly = [
 [dependencies]
 bitflags.workspace = true
 build_safely.workspace = true                              # for doc link
+bytes.workspace = true
 cdtoc.workspace = true
 clap.workspace = true
 crossbeam.workspace = true
