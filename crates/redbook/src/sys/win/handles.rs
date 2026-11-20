@@ -3,7 +3,6 @@ use std::{
     any::TypeId,
     fmt::Display,
     io,
-    mem::{Alignment, offset_of},
     path::{Path, PathBuf},
     ptr::{self, Pointee, null, null_mut},
 };
