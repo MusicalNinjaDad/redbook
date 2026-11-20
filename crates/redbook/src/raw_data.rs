@@ -48,6 +48,20 @@ pub struct RawData(Pin<Box<[u8]>>);
 
 impl !Unpin for RawData {}
 
+impl Deref for RawData {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for RawData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl AsMut<[u8]> for RawData {
     fn as_mut(&mut self) -> &mut [u8] {
         self
@@ -69,20 +83,6 @@ impl Borrow<[u8]> for RawData {
 impl BorrowMut<[u8]> for RawData {
     fn borrow_mut(&mut self) -> &mut [u8] {
         self
-    }
-}
-
-impl Deref for RawData {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for RawData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 
