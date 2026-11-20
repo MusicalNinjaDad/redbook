@@ -1,10 +1,11 @@
 use std::{
-    alloc::Layout,
+    alloc::{Allocator, Global, Layout, handle_alloc_error},
     fmt::Display,
     io,
     mem::{Alignment, offset_of},
+    os::raw,
     path::{Path, PathBuf},
-    ptr::{null, null_mut},
+    ptr::{self, null, null_mut},
 };
 
 use tracing::field::Empty;
@@ -837,12 +838,17 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         let alignment = Alignment::of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
         let layout = Layout::from_size_alignment(size, alignment)?;
+        
+        let rawu8 = match Global.allocate_zeroed(layout) {
+            Ok(pointer) => pointer,
+            Err(_) => handle_alloc_error(layout),
+        };
 
-        let mut bag_in_a_box = vec![0; size].into_boxed_slice();
-        #[expect(non_snake_case, reason = "mirroring C++ struct field name")]
-        let cbSize = size.saturating_cast::<u32>().to_ne_bytes();
-        bag_in_a_box[0..size_of::<u32>()].copy_from_slice(&cbSize);
-        todo!()
+        let opaque = rawu8.as_mut_ptr() as *mut ();
+        let typed = ptr::from_raw_parts_mut::<Self>(opaque, size);
+        let boxed = unsafe { Box::from_raw(typed) };
+
+        Ok(boxed)
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]

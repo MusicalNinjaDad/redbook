@@ -35,7 +35,9 @@
 #![cfg_attr(test, feature(fn_traits))]
 #![feature(negative_impls)]
 #![feature(ptr_alignment_type)]
+#![feature(ptr_metadata)]
 #![feature(raw_os_error_ty)]
+#![feature(slice_ptr_get)]
 #![feature(structural_match)]
 #![feature(trait_alias)]
 
