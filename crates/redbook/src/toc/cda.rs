@@ -2,6 +2,7 @@
 
 use std::{fs, path::Path};
 
+use bytes::Buf;
 use tracing_result::Trace;
 
 use crate::{
@@ -59,22 +60,14 @@ impl CdaFile {
     pub fn new(contents: Vec<u8>) -> Result<Self, CdaError> {
         let _trace = tracing::trace_span!("CdaFile::new", ?contents).entered();
 
-        let mut data = contents.iter().copied();
+        let mut data = &contents[..];
 
-        // After this check it's OK to call `unwrap` on `next_chunk`
-        (data.len() == CDA_LEN)
-            .ok_or(CdaError::InvalidLength {
-                expected: CDA_LEN,
-                actual: contents.len(),
-            })
-            .or_warn("")?;
-
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"RIFF")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
+        let chunk_size = data.try_get_u32_le()?;
         (chunk_size == 36)
             .ok_or(CdaError::InvalidChunkSize {
                 expected: 36,
@@ -82,17 +75,17 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"CDDA")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let magic = data.next_chunk().unwrap();
+        let magic = data.try_get_u32_le()?.to_le_bytes();
         (magic == *b"fmt ")
             .ok_or(CdaError::InvalidHeader(magic))
             .or_warn("")?;
 
-        let chunk_size = u32::from_le_bytes(data.next_chunk().unwrap());
+        let chunk_size = data.try_get_u32_le()?;
         (chunk_size == 24)
             .ok_or(CdaError::InvalidChunkSize {
                 expected: 24,
@@ -100,24 +93,24 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        let version = u16::from_le_bytes(data.next_chunk().unwrap());
+        let version = data.try_get_u16_le()?;
         (version == 1)
             .ok_or(CdaError::InvalidVersion(version))
             .or_warn("")?;
 
-        let track_number = u16::from_le_bytes(data.next_chunk().unwrap());
-        let windows_identifier = u32::from_le_bytes(data.next_chunk().unwrap());
+        let track_number = data.try_get_u16_le()?;
+        let windows_identifier = data.try_get_u32_le()?;
 
         // For inexplicable, probably historical, reasons Windows stores the relative frame in cda
         // files (0x1c) alongside the absolute MSF (0x24). Normally they agree:
         // relative frame + lead-in == absolute MSF, and we cross-check them below.
-        let relative_frame = u32::from_le_bytes(data.next_chunk().unwrap());
-        let duration_frames = Frame::new(u32::from_le_bytes(data.next_chunk().unwrap()))
-            .or_warn("parsing duration")?;
+        let relative_frame = data.try_get_u32_le()?;
+        let duration_frames =
+            Frame::new(data.try_get_u32_le()?).or_warn("parsing duration")?;
 
-        let start_frame = data.next().unwrap();
-        let start_sec = data.next().unwrap();
-        let start_min = data.next().unwrap();
+        let start_frame = data.try_get_u8()?;
+        let start_sec = data.try_get_u8()?;
+        let start_min = data.try_get_u8()?;
         let start = Msf::new(start_min, start_sec, start_frame);
 
         let msf_frames = Frame::from(start);
@@ -145,13 +138,13 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        (data.next().unwrap() == 0)
+        (data.try_get_u8()? == 0)
             .ok_or(CdaError::MissingNullByte)
             .or_warn("")?;
 
-        let frame = data.next().unwrap();
-        let sec = data.next().unwrap();
-        let min = data.next().unwrap();
+        let frame = data.try_get_u8()?;
+        let sec = data.try_get_u8()?;
+        let min = data.try_get_u8()?;
         let duration = Msf::new(min, sec, frame);
 
         (duration == duration_frames)
@@ -161,8 +154,17 @@ impl CdaFile {
             })
             .or_warn("")?;
 
-        (data.next().unwrap() == 0)
+        (data.try_get_u8()? == 0)
             .ok_or(CdaError::MissingNullByte)
+            .or_warn("")?;
+
+        // Short files already failed above via `From<TryGetError>`; this catches trailing
+        // bytes in over-long files so the length must be exactly CDA_LEN
+        (data.remaining() == 0)
+            .ok_or(CdaError::InvalidLength {
+                expected: CDA_LEN,
+                actual: contents.len(),
+            })
             .or_warn("")?;
 
         Ok(Self {
