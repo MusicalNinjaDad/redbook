@@ -178,19 +178,6 @@ impl WinString {
     pub fn as_words(&self) -> &[u16] {
         &self.words
     }
-
-    /// Just a bag of bytes
-    #[cfg_attr(
-        all(windows, not(any(test, doc))),
-        expect(dead_code, reason = "only used in mocks")
-    )]
-    pub fn to_ne_bytes(&self) -> Vec<u8> {
-        self.words
-            .iter()
-            .copied()
-            .flat_map(|word| word.to_ne_bytes())
-            .collect()
-    }
 }
 
 /// A Windows path either in [traditional] format as a [PathBuf], or [Dos Device Path][dosdevicepath]

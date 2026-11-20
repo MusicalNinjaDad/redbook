@@ -2,7 +2,6 @@
 //! on any host
 
 use std::alloc::Layout;
-use std::mem::offset_of;
 use std::path::PathBuf;
 use std::{io, ptr, slice};
 
@@ -701,7 +700,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
                 .extend(layout_path)
                 .expect("valid layout for struct");
             dbg!(layout);
-            
+
             // let layout = layout.pad_to_align();
             // dbg!(layout);
 
