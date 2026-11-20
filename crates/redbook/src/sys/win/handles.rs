@@ -774,7 +774,7 @@ impl DeviceInfoSet {
                 // 2. buffer size validated by caller
                 // 3. safe to cast to *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W as DeviceDetails defined
                 //    with identical fields, layout & alignment
-                &mut dd as *mut _ as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                devicedetailsptr as *mut SP_DEVICE_INTERFACE_DETAIL_DATA_W,
                 // The size of the DeviceInterfaceDetailData buffer. The buffer must be at least
                 // (offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA, DevicePath) + sizeof(TCHAR)) bytes,
                 // to contain the fixed part of the structure and a single NULL to terminate an
@@ -885,7 +885,7 @@ impl DeviceDetails {
 
         // SAFETY: TODO
         let mut boxed = unsafe { Box::from_raw(typed) };
-        boxed.cbSize = cbsize.strict_cast();
+        boxed.cbSize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 };
 
         Ok(boxed)
     }
