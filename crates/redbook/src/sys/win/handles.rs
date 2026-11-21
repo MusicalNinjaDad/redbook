@@ -837,8 +837,8 @@ impl DeviceDetails {
             }
         };
 
-        let opaque = rawu8.as_mut_ptr() as *mut ();
-        let raw = ptr::from_raw_parts_mut::<Self>(opaque, num_words);
+        let data_pointer = rawu8.cast::<()>().as_ptr();
+        let raw = ptr::from_raw_parts_mut::<Self>(data_pointer, num_words);
 
         // SAFETY:
         // **No double-free risk**
