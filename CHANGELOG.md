@@ -2,34 +2,101 @@
 
 ## [WIP]
 
-### New features
+This release overhauls the public API for future-proof extensibility, usability & type-safety —
+all changes below are breaking. They are grouped by theme; the bullets within each group list the
+concrete API deltas to aid migration.
 
-- structured error hierarchy (issues #165, #190, #192-#195, #197, #198): crate-root `redbook::Error` is a plain enum with a variant per domain level-2 error (`DeviceError`, `DriveError`, `TocError`, `DiscError`, `EncodingError`) plus `Other` (any other `Error + Send + Sync + 'static`, incl. `io::Error`, boxed) and `ThreadCancellation`; `redbook::Result` aliases it. Nested domain error types live in the per-module `error` submodules (`disc::error::{TaggingError, IoError, TocMismatch, UnknownMimeType}`, `drive::error::{DeviceError, InvalidBufferSize, OsError}`, `toc::error::{InvalidTrackNo, InvalidOrder}`, `track::error::FlacError`, `win::{WinError, CdaError}`) Domain enums carry the data which led to the error in their variants (e.g. `TocError::InvalidTrackEntry(RawTocEntry)`, `TocError::InvalidTrackNo(InvalidTrackNo)`, `DriveError::NotFound(TrackNo)`) - there is no stringly-typed `.context(...)` API; constructors capturing a wrapped value allow closure-free `.map_err(MyError::new)` and `From` conversions make `?` work directly. Leaf structs (`InvalidTrackNo`, `frame::InvalidFrame`, `frame::InvalidByteSize`) are "wide" in the values they accept, capturing the offending value without loss. All error types are hand-rolled, implement `std::error::Error` + `Send + Sync`, and error enums are not `#[non_exhaustive]`. `source()` returns the directly wrapped error (a wrapped error is not also rendered by `Display`; data-carrying variants are rendered by `Display` and return `None` from `source()`). All convert to `io::Error` preserving the status-quo `ErrorKind` (wrapped OS errors keep `raw_os_error` end-to-end; `ERROR_NOT_READY` gets a dedicated `DeviceError::NotReady`), and relevant cases convert to the glued crates' error types (`cdtoc`, `musicbrainz_rs`, `flacenc`, `metaflac`), mainly unwrapping
-- validating constructors now return `Result`: `TrackNo::new`, `Frame::new` & `ByteSize::new` return `Result<Self, InvalidTrackNo/InvalidFrame/InvalidByteSize>` (carrying the offending value); the const `Option`-returning variants are now `checked_new` (#195). `FromStr` for `ByteSize` removed - the old impl misreported semantic overflow as a parse error on >64-bit `usize` targets (#186); use the validating `ByteSize::new` -> `Result<_, InvalidByteSize>` instead
+### Validated, type-safe value types
 
-- type-safe time & size types: `Frame` arithmetic is now explicit via `strict_*` / `checked_*` / `saturating_*` methods (the operators are deliberately not implemented); add/sub accept `Frame` or `Msf`, mul/div/rem accept a scalar integer
-- new `frame::ByteSize` type for sizes in bytes: `Frame::SIZE_IN_BYTES` is a `ByteSize`, `Frame::size()` converts a frame count to bytes, and `ByteSize::frames_*` convert back
-- `Frame::new` is now generic over any integer type; `Frame::strict_new` (panicking), `Frame::checked_new` (const, `Option`) & `Frame::saturating_new` added alongside
-- `Msf` components are readable via `Msf::as_u8s()`; `From<Frame> for Msf` saturates each component so `Msf -> Frame -> Msf` always round-trips
-- `TocEntry` is now an enum (`Track` / `Leadout` / `TrackInfo` / `Unknown`) with the payload structs `TrackEntry`, `LeadoutEntry`, `InfoEntry` & `RawTocEntry` — all with private fields, validating constructors & getters. Classification from a `RawTocEntry` is via `Option<TocEntry>::from(raw)`: invalid track/leadout/info entries yield `None`, unrecognised points stay `Unknown`
-- `TrackNo` is now always a valid track number (1..=99): private `NonZeroU8` field (so 0 is unrepresentable and no `MIN` const is needed), `TrackNo::MAX`, and validating `new` (returning `Result<_, InvalidTrackNo>`) / const `checked_new` (`Option`) / panicking `strict_new` / `saturating_new` constructors plus `cast` / `checked_cast` / `saturating_cast` / `strict_cast` conversions \u2014 consistent with `Frame` & `ByteSize` (`Deref` & public field removed)
-- new `toc::Point` type for raw POINT field values: keeps the "lazy" API (public field, `Deref`/`DerefMut`, `From<u8>`) and adds `kind() -> PointKind` (`Normal` / `LeadIn` / `FirstTrackInfo` / `LastTrackInfo` / `Unknown`), `is_normal()`, `is_leadin()`, `is_info()` & `info_kind() -> Option<FirstLast>`
-- the `b0000` / `b0010` POINT constants (`LEADOUT_TRACK_ID`, `FIRST_TRACK_ID`, `LAST_TRACK_ID`) are now `Point`s, and `RawTocEntry::point` is a `Point`; classification uses `Point::kind()`
-- `TocEntryKind` variants renamed (`AudioTrack`, `DataLeadout`, `FirstAudioTrackInfo`, ...); `TocEntryKind::is_info` removed — use `TocEntry::infoentry()`
+`Frame`, `Msf`, `TrackNo` and the new `frame::ByteSize` are now validated newtypes rather than
+plain integers or structs with public fields: where the type system can enforce validity it does,
+and everything else goes through explicit fallible / checked / saturating constructors &
+arithmetic instead of panicking or wrapping silently.
 
-### Breaking changes
+- `TrackNo` is now always a valid track number (1..=99), backed by a private `NonZeroU8`, so `0`
+  is unrepresentable and no `MIN` const is needed. Construct via `new` (returns
+  `Result<_, InvalidTrackNo>`), const `checked_new` (`Option`), panicking `strict_new` or
+  `saturating_new`, and convert via `cast` / `checked_cast` / `saturating_cast` / `strict_cast` —
+  the same pattern as `Frame` & `ByteSize`. Removed: tuple construction `TrackNo(n)`, `From<u8>`,
+  `FromStr`, `Default`, `Deref`/`DerefMut`, `MIN_NORMAL` / `MAX_NORMAL`, `is_normal` /
+  `is_special` / `new_normal`; "special" POINT values are now `Point`s and cannot be `TrackNo`s.
+- `Frame::new` is now generic over any integer type and returns `Result<Frame, InvalidFrame>`
+  (alongside const `checked_new` -> `Option`, panicking `strict_new` & `saturating_new`);
+  `ByteSize::new` likewise returns `Result<_, InvalidByteSize>`. These leaf error types are
+  "wide": they capture the offending value without loss, and their constructors allow closure-free
+  `.map_err(InvalidFrame::new)`. The old const `Option`-returning constructors are now named
+  `checked_new` (#195). `FromStr` for `ByteSize` is removed — it misreported semantic overflow as
+  a parse error on >64-bit `usize` targets (#186); use the validating `ByteSize::new` instead.
+- Arithmetic on `Frame` & `Msf` is now explicit via `strict_*` (panicking) / `checked_*` (`Option`)
+  / `saturating_*` methods — add/sub accept `Frame` or `Msf`, mul/div/rem take a scalar integer —
+  the operators themselves are deliberately not implemented. `Msf` fields are private; read them
+  via `Msf::as_u8s()`. `From<Frame> for Msf` saturates each component, so `Msf -> Frame -> Msf`
+  always round-trips.
+- Sizes in bytes are first-class through the new `frame::ByteSize`: `Frame::SIZE_IN_BYTES` is a
+  `ByteSize` (replacing the `FRAME_SIZE: usize` const), `Frame::size()` converts a frame count to
+  bytes and `ByteSize::frames_*` convert back.
 
-- library signatures return `Result<_, DomainError>` (or `redbook::Result<_>` for cross-domain APIs like `AudioCd::open`/`rip`) instead of `io::Result<_>`; `RippedTrack::to_flac` is now fallible (`Result<MemSink<u8>, EncodingError>`) instead of panicking on encode failure
-- NOTE: read_cdda takes start as total offset on disc, read_chunk took track + offset
-- `Frame::new` returns `Result<Frame, InvalidFrame>` (fallible) instead of panicking; `FRAME_SIZE: usize` removed in favour of `Frame::SIZE_IN_BYTES: ByteSize`
-- `Device::Iter` yields `Result<_, DeviceError>` items and `CdDrives` yields `Result<_, Error>` items instead of silently ending iteration on errors (#50): `None` is reserved for the expected end-of-enumeration (`ERROR_NO_MORE_ITEMS`); no-disc (`ERROR_NOT_READY`) drives are still skipped
-- `Msf` fields are now private; `Frame::new`/`Msf` arithmetic operators removed in favour of the explicit `strict_*` / `checked_*` / `saturating_*` methods
-- `TocEntry` struct with public `track`/`start`/`control` fields replaced by the enum-first design described above; `TrackEntry::kind` field removed — use `TocEntry::kind()`
-- `TrackNo(n)` tuple construction, `From<u8>`, `FromStr`, `Default`, `Deref`/`DerefMut`, `MIN_NORMAL` / `MAX_NORMAL`, `is_normal` / `is_special` & `new_normal` removed — "special" POINT values are now `Point`s and cannot be `TrackNo`s at all; use `TrackNo::new` / `strict_new`
-- `TrackEntry::new`, `InfoEntry::new` & `Track::new` are now infallible (the track-number invariant is upheld by `TrackNo` itself); `Track::toc_entry` is a `TrackEntry` (private fields: use `trackno()` / `start()` getters)
-- `Disc::track`, `Disc::tag_for`, `AudioCd::rip` & `Drive::read_track` take a `TrackNo` instead of `usize`; `Disc::track` returns `None` instead of panicking on invalid track numbers
-- `RipProgress` fields `bytes_processed` / `total_bytes` replaced by `processed` / `total`, both `Frame` counts instead of byte counts
-- `win::cda::tracks` skips (with a warning) `.cda` files which do not describe a normal audio track; `Track` is now built via `TryFrom<CdaFile>`
+### Enum-first TOC model
+
+`TocEntry` is now an enum (`Track` / `Leadout` / `TrackInfo` / `Unknown`) backed by dedicated
+payload structs, replacing the old struct with public `track` / `start` / `control` fields.
+
+- The payload structs `TrackEntry`, `LeadoutEntry`, `InfoEntry` & `RawTocEntry` all have private
+  fields, validating constructors & getters. `TrackEntry::new`, `InfoEntry::new` & `Track::new`
+  are now infallible — the track-number invariant is upheld by `TrackNo` itself. `Track::toc_entry`
+  is a `TrackEntry`: use the `trackno()` / `start()` getters.
+- Classify a raw entry with `Option<TocEntry>::from(raw)`: invalid track / leadout / info entries
+  yield `None`; unrecognised points stay `Unknown`.
+- New `toc::Point` type for raw POINT field values keeps the "lazy" API (public field,
+  `Deref`/`DerefMut`, `From<u8>`) and adds classification: `kind() -> PointKind` (`Normal` /
+  `LeadIn` / `FirstTrackInfo` / `LastTrackInfo` / `Unknown`), `is_normal()`, `is_leadin()`,
+  `is_info()` & `info_kind() -> Option<FirstLast>`. The `LEADOUT_TRACK_ID` / `FIRST_TRACK_ID` /
+  `LAST_TRACK_ID` constants are now `Point`s and `RawTocEntry::point` is a `Point`; classification
+  uses `Point::kind()`.
+- `TocEntryKind` variants renamed (`AudioTrack`, `DataLeadout`, `FirstAudioTrackInfo`, ...);
+  `TocEntryKind::is_info` removed — use `TocEntry::infoentry()`; `TrackEntry::kind` removed — use
+  `TocEntry::kind()`.
+
+### Structured error hierarchy
+
+Errors are now a typed hierarchy instead of stringly-typed `io::Error`s (issues #165, #190,
+#192-#195, #197, #198): crate-root `redbook::Error` is a plain enum with a variant per domain
+level-2 error (`DeviceError`, `DriveError`, `TocError`, `DiscError`, `EncodingError`,
+`MetaDataError`) plus `Other` (any other `Error + Send + Sync + 'static`, incl. `io::Error`, boxed)
+and `ThreadCancellation`; `redbook::Result` aliases it.
+
+- Library signatures return `Result<_, DomainError>` (or `redbook::Result<_>` for cross-domain
+  APIs like `AudioCd::open` / `rip`) instead of `io::Result<_>`; `RippedTrack::to_flac` is now
+  fallible (`Result<MemSink<u8>, EncodingError>`) instead of panicking on encode failure.
+- Domain error types live in the per-module `error` submodules (`disc::error`, `drive::error`,
+  `toc::error`) and the crate-root `error` module (`EncodingError` / `FlacError`, `MetaDataError` /
+  `UnknownMimeType`); `.cda` parsing has its own `toc::error::CdaError`.
+- Variants carry the data which led to the error (e.g. `TocError::InvalidTrackEntry(RawTocEntry)`,
+  `TocError::InvalidTrackNo(InvalidTrackNo)`, `DriveError::NotFound(TrackNo)`) — there is no
+  stringly-typed `.context(...)` API. Constructors capturing a wrapped value allow closure-free
+  `.map_err(MyError::new)`, and `From` conversions make `?` work directly.
+- All error types are hand-rolled, implement `std::error::Error + Send + Sync`, and the enums are
+  not `#[non_exhaustive]`. `source()` returns the directly wrapped error (a wrapped error is not
+  also rendered by `Display`; data-carrying variants are rendered by `Display` and return `None`
+  from `source()`).
+- All convert to `io::Error` preserving the status-quo `ErrorKind` (wrapped OS errors keep
+  `raw_os_error` end-to-end; `ERROR_NOT_READY` gets a dedicated `DeviceError::NotReady`), and
+  relevant cases convert to the glued crates' error types (`cdtoc`, `musicbrainz_rs`, `flacenc`,
+  `metaflac`), mainly unwrapping.
+
+### Fallible, `TrackNo`-based reading APIs
+
+- `Disc::track`, `Disc::tag_for`, `AudioCd::rip` & `Drive::read_track` take a `TrackNo` instead of
+  `usize`; `Disc::track` returns `None` instead of panicking on invalid track numbers.
+- `Device::Iter` yields `Result<_, DeviceError>` items and `CdDrives` yields `Result<_, Error>`
+  items instead of silently ending iteration on errors (#50): `None` is reserved for the expected
+  end-of-enumeration (`ERROR_NO_MORE_ITEMS`); no-disc (`ERROR_NOT_READY`) drives are still skipped.
+- Note: `read_cdda` takes `start` as the total offset on the disc (absolute frame position,
+  including the lead-in) — the old `read_chunk` took track + offset.
+- `RipProgress` fields `bytes_processed` / `total_bytes` replaced by `processed` / `total`, both
+  `Frame` counts instead of byte counts.
+- `toc::cda::tracks` skips (with a warning) `.cda` files which do not describe a normal audio
+  track; `Track`s are built from validated `CdaFile`s.
 
 ## [0.4.0]
 
