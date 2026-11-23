@@ -707,7 +707,7 @@ pub unsafe fn SetupDiGetDeviceInterfaceDetailW(
             let path = album_path.as_words();
 
             let (_layout, path_offset, num_words) =
-                DeviceDetails::layout_for(deviceinterfacedetaildatasize.strict_cast())
+                DeviceDetails::layout(deviceinterfacedetaildatasize.strict_cast())
                     .expect("valid size");
 
             let data_pointer = deviceinterfacedetaildata as *mut ();
