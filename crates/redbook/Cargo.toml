@@ -21,6 +21,7 @@ bytes.workspace = true
 cdtoc.workspace = true
 clap.workspace = true
 crossbeam.workspace = true
+derive_dst.workspace = true
 derive_more = { workspace = true, features = ["display"] }
 errno.workspace = true
 exit_safely.workspace = true

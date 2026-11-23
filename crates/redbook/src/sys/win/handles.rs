@@ -6,6 +6,12 @@ use std::{
     ptr::{self, Pointee, null, null_mut},
 };
 
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+use derive_dst::DST;
 use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
@@ -798,7 +804,7 @@ impl DeviceInfoSet {
 ///
 /// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
 /// allocates memory for a for a given sized `DeviceDetails` and returns it boxed and ready to go.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, DST)]
 pub(crate) struct DeviceDetails {
     cbSize: u32,
     DevicePath: [u16],
