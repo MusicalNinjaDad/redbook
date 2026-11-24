@@ -8,6 +8,7 @@ use std::{
 use thread_safely::Context;
 
 pub use error::DriveError;
+use tracing::instrument;
 
 use crate::{Error, RipProgress, TocEntries, frame::ByteSize};
 
@@ -33,20 +34,17 @@ pub struct CdDrive<DEV: Device> {
 impl<DEV: Device> CdDrive<DEV> {
     /// Construct a new CdDrive from constituent parts. You will almost never want to call this directly
     /// unless implementing `From`/`TryFrom`. Use [`open`][Drive::open] instead.
-    pub fn new(
-        path: PathBuf,
-        device: DEV,
-        tocentries: TocEntries,
-        chunk_size: ByteSize,
-        cx: Context<RipProgress>,
-    ) -> Self {
-        Self {
+    #[instrument(level = "error", skip(device, cx))]
+    pub fn new(path: PathBuf, device: DEV, cx: Context<RipProgress>) -> Result<Self, DriveError> {
+        let tocentries = device.read_toc()?;
+        let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
+        Ok(Self {
             path,
             device,
             tocentries,
             chunk_size,
             cx,
-        }
+        })
     }
 }
 
@@ -64,16 +62,7 @@ impl<DEV: Device> Drive for CdDrive<DEV> {
 
         let device = DEV::open(&path)?;
         let path = PathBuf::from(path.as_ref());
-        let tocentries = device.read_toc()?;
-        let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
-
-        Ok(Self {
-            path,
-            device,
-            tocentries,
-            chunk_size,
-            cx,
-        })
+        Self::new(path, device, cx)
     }
 
     fn cx(&self) -> Context<RipProgress> {
@@ -125,15 +114,7 @@ impl<DEV: Device> Iterator for CdDrives<DEV> {
         let drive = try bikeshed Self::Item {
             let device = device?;
             let path = device.fs_path()?;
-            let tocentries = device.read_toc()?;
-            let chunk_size = device.raw_max_chunk().map(ByteSize::rounded_new)?;
-            CdDrive {
-                path,
-                device,
-                tocentries,
-                chunk_size,
-                cx,
-            }
+            CdDrive::new(path, device, cx)?
         };
 
         Some(drive)
