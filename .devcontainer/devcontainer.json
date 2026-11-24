@@ -10,7 +10,9 @@
         // only skills, hooks & AGENTS.md are committed to git
         "VIBE_HOME": "${containerWorkspaceFolder}/.vibe",
         // Vibe extension likes to fuck this up
-        "LD_LIBRARY_PATH": ""
+        "LD_LIBRARY_PATH": "",
+        // Allow miri to read asset files during tests
+        "MIRIFLAGS": "-Zmiri-disable-isolation"
     },
     "containerEnv": {
         // Vibe extension likes to fuck this up

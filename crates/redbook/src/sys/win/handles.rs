@@ -1,11 +1,19 @@
 use std::{
-    alloc::{Allocator, Global, Layout, handle_alloc_error},
     fmt::Display,
     io,
     path::{Path, PathBuf},
-    ptr::{self, Pointee, null, null_mut},
+    ptr::{null, null_mut},
 };
 
+#[cfg(any(test, doc, not(windows)))]
+use ::std::alloc::{Layout, LayoutError};
+
+#[cfg(any(
+    target_arch = "aarch64",
+    target_arch = "arm64ec",
+    target_arch = "x86_64"
+))]
+use derive_dst::DST;
 use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
@@ -798,7 +806,7 @@ impl DeviceInfoSet {
 ///
 /// As this is not `Sized` it can only be held in a `Box` etc. [`new`][Self::new]
 /// allocates memory for a for a given sized `DeviceDetails` and returns it boxed and ready to go.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, DST)]
 pub(crate) struct DeviceDetails {
     cbSize: u32,
     DevicePath: [u16],
@@ -824,93 +832,23 @@ impl DeviceDetails {
     pub fn new(size: usize) -> Result<Box<Self>, InvalidBufferSize> {
         tracing::debug!("new Device Details");
 
-        let (layout, offset, num_words) = Self::layout_for(size)?;
+        let (mut raw, (layout, offset, num_words)) = Self::new_uninit_for_size(size)?;
         tracing::Span::current().record("layout", format_args!("{layout:?}"));
         tracing::Span::current().record("offset", offset);
         tracing::Span::current().record("num_words", num_words);
+        tracing::debug!("allocated");
 
-        let rawu8 = match Global.allocate_zeroed(layout) {
-            Ok(pointer) => pointer,
-            Err(error) => {
-                tracing::error!(%error, "Allocation failure!");
-                handle_alloc_error(layout)
-            }
-        };
-
-        let data_pointer = rawu8.cast::<()>().as_ptr();
-        let raw = ptr::from_raw_parts_mut::<Self>(data_pointer, num_words);
+        raw.cbSize
+            .write(const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 });
 
         // SAFETY:
-        // **No double-free risk**
-        // - this pointer will not be added to a second box, or used in any other way after this
-        // **Memory layout**
-        // - Pointer was allocated in a single allocation above by Global
-        // - Memory is initialised via allocate_zeroed
-        // - Zero values are valid for both u32 & u16 (the only contents of this struct)
-        // - Layout is correct for a DeviceDetails (see DeviceDetils::layout_for)
-        // - Metadata is correct - numwords is count of elements in unsized tail [u16]. The value
-        //   used to generate the layout is provided by layout_for and used in from_raw_parts_mut
-        let mut boxed = unsafe { Box::from_raw(raw) };
-        boxed.cbSize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 };
-
-        Ok(boxed)
+        // - all fields (u32, u16) are valid when zeroed
+        Ok(unsafe { raw.assume_init() })
     }
 
-    #[instrument(
-        level = "error",
-        fields(
-            cbsize,
-            layout_cbsize,
-            num_words,
-            layout_devicepath,
-            layout_extended,
-            offset,
-            layout
-        )
-    )]
-    /// Calculates the (layout, offset for `DevicePath`, num_words in `DevicePath`) for a
-    /// [`DeviceDetails`] of the given size.
-    ///
-    /// # Errors
-    /// This will error if the required layout for `DevicePath: [u16]` is not valid or if the
-    /// requested size does not match the size of the correctly aligned and padded layout.
-    ///
-    /// # SAFETY
-    /// The correctness of this layout and the additional data is relied upon by unsafe code.
-    pub fn layout_for(
-        size: usize,
-    ) -> Result<(Layout, usize, <[u16] as Pointee>::Metadata), InvalidBufferSize> {
-        let cbsize = const { size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>().strict_cast::<u32>() };
-        tracing::Span::current().record("cbsize", cbsize);
-
-        let layout_cbsize = Layout::for_value(&cbsize);
-        tracing::Span::current().record("layout_cbsize", format_args!("{layout_cbsize:?}"));
-
-        let num_words = size
-            .strict_sub(layout_cbsize.size())
-            .strict_div(size_of::<u16>());
-        tracing::Span::current().record("num_words", num_words);
-
-        let layout_devicepath =
-            Layout::array::<u16>(num_words).or_error("invalid device path length")?;
-        tracing::Span::current().record("layout_devicepath", format_args!("{layout_devicepath:?}"));
-
-        let (layout_extended, offset) = layout_cbsize.extend(layout_devicepath)?;
-        tracing::Span::current().record("layout_extended", format_args!("{layout_extended:?}"));
-        tracing::Span::current().record("offset", offset);
-
-        let layout = layout_extended.pad_to_align();
-        tracing::Span::current().record("layout", format_args!("{layout:?}"));
-
-        (layout.size() == size)
-            .ok_or_else(|| InvalidBufferSize::InvalidSize {
-                requested: size,
-                valid: layout.size(),
-            })
-            .and_debug("layout calculated")
-            .or_warn("invalid size")?;
-
-        Ok((layout, offset, num_words))
+    #[cfg(any(test, doc, not(windows)))]
+    pub fn layout(size: usize) -> Result<(Layout, usize, usize), LayoutError> {
+        Self::layout_for_size(size)
     }
 
     /// This path is valid across reboots and valid to pass directly to [`CreateFile2`]
@@ -929,7 +867,7 @@ impl Display for DeviceDetails {
 
 #[cfg(test)]
 mod miri {
-    use std::mem::offset_of;
+    use std::{alloc::Layout, mem::offset_of};
 
     use super::*;
 
