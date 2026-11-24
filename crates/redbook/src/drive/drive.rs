@@ -122,6 +122,10 @@ pub trait Drive: Sized {
 
     /// The path for the drive. If you don't need an owned value then, unlike
     /// [`fs_path`][Device::fs_path], this will avoid a heap allocation and will never error.
+    ///
+    /// This may differ from the path provided by `self.device().fs_path()` as it will return the
+    /// path provided during construction, rather than the path reported by the device. See
+    /// [`fs_path`][Device::fs_path] for more details.
     fn path(&self) -> &Path;
 
     /// The Table of Contents. If you don't need an owned value then, unlike
