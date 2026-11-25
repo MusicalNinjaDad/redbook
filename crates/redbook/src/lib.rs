@@ -8,9 +8,22 @@
 //
 // All experimental features are only enabled when on a toolchain where they are still unstable and
 // behave as expected.
+#![cfg_attr(unstable_const_bool, feature(const_bool))]
+#![cfg_attr(unstable_const_cmp, feature(const_cmp))]
+#![cfg_attr(unstable_const_convert, feature(const_convert))]
+#![cfg_attr(unstable_const_destruct, feature(const_destruct))]
 #![cfg_attr(unstable_const_ops, feature(const_ops))]
+#![cfg_attr(unstable_const_option_ops, feature(const_option_ops))]
+#![cfg_attr(unstable_const_result_trait_fn, feature(const_result_trait_fn))]
 #![cfg_attr(unstable_const_trait_impl, feature(const_trait_impl))]
+#![cfg_attr(unstable_const_try, feature(const_try))]
 #![cfg_attr(unstable_default_field_values, feature(default_field_values))]
+#![cfg_attr(
+    unstable_error_generic_member_access,
+    feature(error_generic_member_access)
+)]
+#![cfg_attr(unstable_error_iter, feature(error_iter))]
+#![cfg_attr(unstable_error_reporter, feature(error_reporter))]
 #![cfg_attr(unstable_exact_div, feature(exact_div))]
 #![cfg_attr(unstable_exact_size_is_empty, feature(exact_size_is_empty))]
 #![cfg_attr(unstable_integer_casts, feature(integer_casts))]
@@ -18,26 +31,16 @@
 #![cfg_attr(unstable_iter_array_chunks, feature(iter_array_chunks))]
 #![cfg_attr(unstable_iter_map_windows, feature(iter_map_windows))]
 #![cfg_attr(unstable_iterator_try_collect, feature(iterator_try_collect))]
+#![cfg_attr(unstable_negative_impls, feature(negative_impls))]
 #![cfg_attr(unstable_os_str_split_at, feature(os_str_split_at))]
 #![cfg_attr(unstable_path_absolute_method, feature(path_absolute_method))]
+#![cfg_attr(unstable_ptr_metadata, feature(ptr_metadata))]
+#![cfg_attr(unstable_raw_os_error_ty, feature(raw_os_error_ty))]
+#![cfg_attr(unstable_structural_match, feature(structural_match))]
+#![cfg_attr(unstable_trait_alias, feature(trait_alias))]
 #![cfg_attr(unstable_try_blocks_heterogeneous, feature(try_blocks_heterogeneous))]
-#![feature(const_bool)]
-#![feature(const_cmp)]
-#![feature(const_convert)]
-#![feature(const_destruct)]
-#![feature(const_option_ops)]
-#![feature(const_result_trait_fn)]
-#![feature(const_try)]
-#![feature(error_generic_member_access)]
-#![feature(error_iter)]
-#![feature(error_reporter)]
-#![cfg_attr(test, feature(fn_traits))]
-#![feature(negative_impls)]
-#![cfg_attr(test, feature(offset_of_slice))]
-#![feature(ptr_metadata)]
-#![feature(raw_os_error_ty)]
-#![feature(structural_match)]
-#![feature(trait_alias)]
+#![cfg_attr(all(test, unstable_fn_traits), feature(fn_traits))]
+#![cfg_attr(all(test, unstable_offset_of_slice), feature(offset_of_slice))]
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
