@@ -12,10 +12,9 @@ use thread_safely::Context;
 use crate::{
     RipProgress,
     error::RedbookError,
-    frame::{InvalidByteSize, InvalidFrame},
     toc::{
         TocError, TrackNo,
-        error::{InvalidOrder, InvalidTrackNo},
+        error::{InvalidByteSize, InvalidFrame, InvalidOrder, InvalidTrackNo},
     },
 };
 

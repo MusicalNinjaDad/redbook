@@ -11,13 +11,15 @@ use cdtoc::Toc;
 use itertools::Itertools;
 use try_partialord::TrySort;
 
-use crate::{Frame, disc::Track, toc::error::InvalidOrder};
+use crate::disc::Track;
+
 use control::Ctrl;
+use error::InvalidOrder;
 use tocentry::{FirstLast, InfoEntry, LeadoutEntry, RawTocEntry, TrackEntry};
 
 pub use control::Control;
-pub use frame::{ByteSize, Frame, Msf};
 pub use error::{InvalidTrackNo, TocError, TocResult};
+pub use frame::{ByteSize, Frame, Msf};
 pub use tocentry::TocEntry;
 pub use trackno::{Point, PointKind, TrackNo};
 

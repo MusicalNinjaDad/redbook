@@ -5,7 +5,7 @@ use std::{cmp::Ordering, fmt::Display, num::NonZeroU8};
 use derive_more::Display;
 
 use super::{Control, Ctrl, Point, PointKind, TocError, TrackNo};
-use crate::{Frame, disc::Track, frame::Msf};
+use crate::{Frame, disc::Track, toc::Msf};
 
 /// A single, classified entry from a CD's Table of Contents (TOC).
 ///

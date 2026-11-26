@@ -10,8 +10,10 @@ use crate::{
         error::{DeviceError, InvalidBufferSize},
     },
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
-    frame::InvalidByteSize,
-    toc::{TocError, error::InvalidOrder},
+    toc::{
+        TocError,
+        error::{InvalidByteSize, InvalidOrder},
+    },
 };
 
 impl From<DeviceError> for Error {

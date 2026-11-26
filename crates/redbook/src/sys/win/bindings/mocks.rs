@@ -1,29 +1,28 @@
 //! Mock versions of hardware access functions. Allowing for compilation and unit testing
 //! on any host
 
-use std::alloc::Layout;
-use std::path::PathBuf;
-use std::{io, ptr, slice};
+use std::{alloc::Layout, io, path::PathBuf, ptr, slice};
 
-use crate::frame::ByteSize;
-use crate::sys::win::bindings::{
-    CDDA, IOCTL_CDROM_RAW_READ, IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, RAW_READ_INFO,
-    STORAGE_ADAPTER_DESCRIPTOR, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
+use crate::{
+    test_fixtures::albums::TestAlbum::{self, *},
+    toc::ByteSize,
 };
-use crate::sys::win::convert::Sector;
-use crate::sys::win::handles::DeviceDetails;
-use crate::test_fixtures::albums::TestAlbum::{self, *};
+
+use super::super::{
+    convert::{Guid, MAX_PATH_CHARS, Sector, WinString},
+    handles::DeviceDetails,
+};
 
 use super::{
-    BOOL, CDROM_READ_TOC_EX, CDROM_TOC, CREATEFILE2_EXTENDED_PARAMETERS, DUPLICATE_SAME_ACCESS,
-    ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE, FILE_DEVICE_CD_ROM,
-    FILE_FLAG_OVERLAPPED, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO, HWND,
-    INVALID_HANDLE_VALUE, IOCTL_CDROM_READ_TOC_EX, IOCTL_STORAGE_GET_DEVICE_NUMBER, OVERLAPPED,
-    PCWSTR, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
-    STORAGE_DEVICE_NUMBER,
+    BOOL, CDDA, CDROM_READ_TOC_EX, CDROM_TOC, CREATEFILE2_EXTENDED_PARAMETERS,
+    DUPLICATE_SAME_ACCESS, ERROR_INSUFFICIENT_BUFFER, ERROR_NO_MORE_ITEMS, FALSE,
+    FILE_DEVICE_CD_ROM, FILE_FLAG_OVERLAPPED, GUID, GUID_DEVINTERFACE_CDROM, HANDLE, HDEVINFO,
+    HWND, INVALID_HANDLE_VALUE, IOCTL_CDROM_RAW_READ, IOCTL_CDROM_READ_TOC_EX,
+    IOCTL_STORAGE_GET_DEVICE_NUMBER, IOCTL_STORAGE_QUERY_PROPERTY, OVERLAPPED, PCWSTR,
+    PropertyStandardQuery, RAW_READ_INFO, SP_DEVICE_INTERFACE_DATA,
+    SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA, STORAGE_ADAPTER_DESCRIPTOR,
+    STORAGE_DEVICE_NUMBER, STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
 };
-
-use super::super::convert::{Guid, MAX_PATH_CHARS, WinString};
 
 const DEFINITELY_MAYBE: HANDLE = 1 as _;
 const THE_WALL_1: HANDLE = 2 as _;

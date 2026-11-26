@@ -10,7 +10,7 @@ use thread_safely::Context;
 pub use error::DriveError;
 use tracing::instrument;
 
-use crate::{Error, RipProgress, TocEntries, frame::ByteSize};
+use crate::{Error, RipProgress, TocEntries, toc::ByteSize};
 
 #[doc(inline)]
 pub use device::Device;

@@ -8,10 +8,9 @@ use crate::{
     Frame, LEADIN, TocEntries,
     disc::Track,
     error::RedbookError,
-    frame::{ByteSize, Msf},
     tags::artwork::picture_from_jpeg,
     test_fixtures::track_descriptor::RawTocDescriptors,
-    toc::TrackNo,
+    toc::{ByteSize, Msf, TrackNo},
 };
 
 /// Test album identifier for parameterized tests

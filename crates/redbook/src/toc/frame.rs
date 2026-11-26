@@ -65,7 +65,7 @@ use crate::{LEADIN, error::RedbookError};
 /// `Frame`.
 ///
 /// ```
-/// # use redbook::{frame::ByteSize, Frame};
+/// # use redbook::{toc::ByteSize, Frame};
 /// let frames = Frame::new(1).unwrap();
 /// // how many bytes are needed?
 /// assert_eq!(frames.size(), ByteSize::strict_new(2352));
@@ -279,7 +279,7 @@ impl Frame {
     ///
     /// # Examples
     /// ```
-    /// use redbook::{Frame, frame::ByteSize};
+    /// use redbook::{Frame, toc::ByteSize};
     ///
     /// let one_second = Frame::ONE_SECOND;
     /// assert_eq!(one_second.size(), ByteSize::strict_new(75 * 2352));
@@ -624,7 +624,7 @@ impl Frame {
 /// ## Interconversion with Frame (preferred)
 ///
 /// ```
-/// use redbook::{Frame, frame::Msf};
+/// use redbook::{Frame, toc::Msf};
 ///
 /// let msf = Msf::new(1, 2, 3);
 /// let frames = Frame::from(msf);
@@ -642,7 +642,7 @@ impl Frame {
 /// ## Direct / alternative construction & usage
 ///
 /// ```
-/// use redbook::frame::Msf;
+/// use redbook::toc::Msf;
 ///
 /// // components are stored as-is; no validation or normalisation is performed
 /// let msf = Msf::new(0, 2, 0);
@@ -1115,7 +1115,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 /// See [`Frame`] for a further usage example
 ///
 /// ```
-/// use redbook::{Frame, frame::ByteSize};
+/// use redbook::{Frame, toc::ByteSize};
 ///
 /// let bytes = Frame::strict_new(100).size();
 /// assert_eq!(bytes, ByteSize::strict_new(235_200));

@@ -33,8 +33,8 @@ mod miri {
     use super::*;
     use crate::{
         Device, Frame,
-        frame::ByteSize,
         test_fixtures::albums::TestAlbum::{self, *},
+        toc::ByteSize,
     };
 
     #[rstest]

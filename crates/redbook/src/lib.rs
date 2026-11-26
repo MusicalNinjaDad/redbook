@@ -299,11 +299,9 @@ pub use error::{Error, Result};
 #[doc(inline)]
 pub use ripped_track::RippedTrack;
 #[doc(inline)]
-pub use toc::frame::Frame;
-#[doc(inline)]
-pub use toc::{LEADIN, Point, TocEntries, TrackNo};
+pub use toc::{Frame, LEADIN, Point, TocEntries, TrackNo};
 
-use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
+use crate::{sys::win::DriveHandle, toc::ByteSize};
 
 #[forbid(unsafe_code)]
 mod audiocd;
