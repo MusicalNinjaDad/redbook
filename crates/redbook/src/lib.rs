@@ -288,22 +288,12 @@
 //! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
 //! to avoid future lint errors for stable features
 
-#[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
-#[doc(inline)]
 pub use disc::Disc;
-#[doc(inline)]
 pub use drive::{Device, Drive};
-#[doc(inline)]
 pub use error::{Error, Result};
-#[doc(inline)]
 pub use ripped_track::RippedTrack;
-#[doc(inline)]
-pub use toc::frame::{self, Frame};
-#[doc(inline)]
-pub use toc::{LEADIN, Point, TocEntries, TrackNo};
-
-use crate::{sys::win::DriveHandle, toc::frame::ByteSize};
+pub use toc::{Frame, TocEntries, TrackNo};
 
 #[forbid(unsafe_code)]
 mod audiocd;
@@ -324,7 +314,7 @@ pub mod error;
 pub mod raw_data;
 
 #[forbid(unsafe_code)]
-pub mod ripped_track;
+mod ripped_track;
 
 pub mod sys;
 
@@ -341,9 +331,9 @@ pub mod toc;
 /// Platform specific default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
-pub type CdDrive = drive::CdDrive<DriveHandle>;
+pub type CdDrive = drive::CdDrive<sys::win::DriveHandle>;
 
 /// Platform specific iterator over the default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
-pub type CdDrives = drive::CdDrives<DriveHandle>;
+pub type CdDrives = drive::CdDrives<sys::win::DriveHandle>;

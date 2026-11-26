@@ -40,12 +40,10 @@ use std::{
 use crate::{
     disc::DiscError,
     drive::{DriveError, error::DeviceError},
-    toc::TocError,
+    toc::{TocError, error::CdaError},
 };
 
-#[doc(inline)]
 pub use encoding::{EncodingError, FlacError};
-#[doc(inline)]
 pub use metadata::{MetaDataError, UnknownMimeType};
 
 mod conversions;
@@ -76,6 +74,8 @@ pub enum Error {
     DriveError(DriveError),
     /// A [`toc`][crate::toc] domain error.
     TocError(TocError),
+    /// An error parsing a (windows) [`CdaFile`][crate::toc::cda::CdaFile]
+    CdaError(CdaError),
     /// A [`disc`][crate::disc] domain error.
     DiscError(DiscError),
     /// A track-encoding domain error.
@@ -104,6 +104,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::TocError(_) => write!(f, "TOC error"),
+            Error::CdaError(_) => write!(f, "CDA file error"),
             Error::DiscError(_) => write!(f, "disc error"),
             Error::EncodingError(_) => write!(f, "track encoding error"),
             Error::DriveError(_) => write!(f, "drive error"),
@@ -119,6 +120,7 @@ impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Error::TocError(error) => Some(error),
+            Error::CdaError(error) => Some(error),
             Error::DiscError(error) => Some(error),
             Error::EncodingError(error) => Some(error),
             Error::DriveError(error) => Some(error),

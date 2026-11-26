@@ -18,12 +18,13 @@ use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Frame, TocEntries,
+    Device, Frame, TocEntries,
     drive::error::{DeviceError, InvalidBufferSize, OsError},
     sys::win::bindings::{
         IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ADAPTER_DESCRIPTOR,
         STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
     },
+    toc::ByteSize,
 };
 
 use super::{
@@ -43,7 +44,6 @@ use super::{
 };
 
 pub use safety::DriveHandle;
-#[doc(inline)]
 use safety::IntoDriveHandle;
 
 #[cfg(test)]
@@ -74,7 +74,6 @@ mod safety {
         /// - copied
         /// - closed
         /// - shared between threads
-        #[expect(unsafe_code, reason = "handle must only used for passing to ffi")]
         pub(super) unsafe fn handle(&self) -> &HANDLE {
             &self.0
         }
@@ -130,16 +129,11 @@ mod safety {
 ///
 /// # TODO
 /// TODO: #118 can `DriveHandle` also be `Sync`?
-#[expect(
-    unsafe_code,
-    reason = "Want to be able to rip in one thread and encode in another"
-)]
 // SAFETY: See documentation comment
 unsafe impl Send for DriveHandle {}
 
 impl Drop for DriveHandle {
     fn drop(&mut self) {
-        #[expect(unsafe_code, reason = "ffi call")]
         #[expect(
             clippy::multiple_unsafe_ops_per_block,
             reason = "inline call to get handle"
@@ -208,7 +202,6 @@ impl DriveHandle {
         let mut device = STORAGE_DEVICE_NUMBER::default();
         let mut bytes_returned = 0;
 
-        #[expect(unsafe_code, reason = "ffi call to get device type")]
         #[expect(
             clippy::multiple_unsafe_ops_per_block,
             reason = "inline call to get handle"
@@ -263,7 +256,6 @@ impl DriveHandle {
         let mut toc: CDROM_TOC = CDROM_TOC::default();
         let mut bytes_read: u32 = 0;
 
-        #[expect(unsafe_code, reason = "ffi call to read toc")]
         #[expect(
             clippy::multiple_unsafe_ops_per_block,
             reason = "inline call to get handle"
@@ -306,7 +298,6 @@ impl Device for DriveHandle {
         let windrive = WinPath::from(path).into_dos_device_path();
         tracing::debug!(%windrive);
 
-        #[expect(unsafe_code, reason = "ffi call")]
         let handle = unsafe {
             // SAFETY:
             // - `path` is owned by this function and therefore valid for duration of this block
@@ -385,7 +376,6 @@ impl Device for DriveHandle {
 
         let mut bytes_read: u32 = 0;
 
-        #[expect(unsafe_code, reason = "ffi call to read raw cdda data")]
         #[expect(
             clippy::multiple_unsafe_ops_per_block,
             reason = "inline call to get handle"
@@ -518,7 +508,6 @@ impl TryFrom<&DriveHandle> for TestAlbum {
     type Error = io::Error;
 
     fn try_from(handle: &DriveHandle) -> Result<Self, Self::Error> {
-        #[expect(unsafe_code, reason = "mock handle")]
         // SAFETY: mock handle
         let h = unsafe { *handle.handle() };
         h.try_into()
@@ -541,7 +530,6 @@ impl Drop for DeviceInfoSet {
     /// Which requires that the caller of SetupDiGetClassDevs must delete the returned device
     /// information set when it is no longer needed by calling SetupDiDestroyDeviceInfoList.
     fn drop(&mut self) {
-        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: handle
         // - is of correct type, based on type-safe wrapper
         // - has not been closed (see safety sections for [as_handle_mut] & [as_handle])
@@ -558,7 +546,6 @@ impl DeviceInfoSet {
         let _tracing_span =
             tracing::error_span!("DeviceInfoSet::for_device_class", %class).entered();
 
-        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY:
         // 1. SetupDiGetClassDevsW returns a handle to a device information set that contains all
         //    installed devices that matched the supplied parameters.
@@ -632,7 +619,6 @@ impl DeviceInfoSet {
             ..Default::default()
         };
 
-        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: inline based on
         // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
         let get_data = unsafe {
@@ -686,7 +672,6 @@ impl DeviceInfoSet {
         let _span = tracing::error_span!("DeviceInfoSet::allocate_device_details").entered();
         let mut requiredsize: u32 = 0;
 
-        #[expect(unsafe_code, reason = "ffi call")]
         // SAFETY: https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
         //
         // 1. Get the required buffer size. Call SetupDiGetDeviceInterfaceDetail with a

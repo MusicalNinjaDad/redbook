@@ -5,12 +5,9 @@ use std::{fs, path::Path};
 use bytes::Buf;
 use tracing_result::Trace;
 
-use crate::{
-    Frame, LEADIN,
-    disc::Track,
-    frame::Msf,
-    toc::{TrackNo, error::CdaError},
-};
+use crate::disc::Track;
+
+use super::{Frame, LEADIN, Msf, TrackNo, error::CdaError};
 
 /// size of `.cda` files
 pub const CDA_LEN: usize = 0x2c;

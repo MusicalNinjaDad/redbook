@@ -1,7 +1,7 @@
 use crate::{
-    Frame, LEADIN, TocEntries,
-    frame::Msf,
-    toc::{Control, Point, TocEntry, TocError, control::Ctrl, tocentry::RawTocEntry},
+    Frame, TocEntries,
+    toc::LEADIN,
+    toc::{Msf, Point, TocEntry, TocError, control::Control, control::Ctrl, tocentry::RawTocEntry},
 };
 
 use super::bindings::{CDROM_TOC, TRACK_DATA};
@@ -189,6 +189,7 @@ mod tests {
     use rstest::rstest;
 
     use crate::test_fixtures::albums::TestAlbum::{self, *};
+    use crate::toc::Msf;
 
     impl CDROM_TOC {
         /// Only takes the claimed number of tracks, thus avoiding the leadouts.
@@ -212,8 +213,6 @@ mod tests {
     fn toc_basic_properties(#[case] album: TestAlbum) {
         let toc = CDROM_TOC::from(album);
         for track in toc.track_entries() {
-            use crate::frame::Msf;
-
             dbg!(track.TrackNumber);
             dbg!(track.Reserved);
             dbg!(track.Reserved1);

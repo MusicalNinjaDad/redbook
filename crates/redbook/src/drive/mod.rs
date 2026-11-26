@@ -10,11 +10,9 @@ use thread_safely::Context;
 pub use error::DriveError;
 use tracing::instrument;
 
-use crate::{Error, RipProgress, TocEntries, frame::ByteSize};
+use crate::{Error, RipProgress, TocEntries, toc::ByteSize};
 
-#[doc(inline)]
 pub use device::Device;
-#[doc(inline)]
 pub use drive::Drive;
 
 mod device;
@@ -127,10 +125,11 @@ mod miri {
     use rstest::rstest;
 
     use crate::{
-        ByteSize, Drive, Frame, TrackNo,
+        Drive, Frame, TrackNo,
         disc::Track,
         sys::win::DriveHandle,
         test_fixtures::albums::TestAlbum::{self, *},
+        toc::ByteSize,
     };
 
     use super::*;

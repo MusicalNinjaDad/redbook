@@ -7,8 +7,8 @@ use tracing_result::Trace;
 use crate::{
     Device, Frame, RipProgress, TocEntries, TrackNo,
     drive::{DriveError, error::DeviceError},
-    frame::ByteSize,
     raw_data::RawData,
+    toc::ByteSize,
 };
 
 /// High-level capabilities for CD-drives.

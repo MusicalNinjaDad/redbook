@@ -10,8 +10,10 @@ use crate::{
         error::{DeviceError, InvalidBufferSize},
     },
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
-    frame::InvalidByteSize,
-    toc::{TocError, error::InvalidOrder},
+    toc::{
+        TocError,
+        error::{CdaError, InvalidByteSize, InvalidOrder},
+    },
 };
 
 impl From<DeviceError> for Error {
@@ -59,6 +61,12 @@ impl From<cdtoc::TocError> for Error {
 impl From<InvalidOrder> for Error {
     fn from(error: InvalidOrder) -> Self {
         TocError::from(error).into()
+    }
+}
+
+impl From<CdaError> for Error {
+    fn from(error: CdaError) -> Self {
+        Self::CdaError(error)
     }
 }
 

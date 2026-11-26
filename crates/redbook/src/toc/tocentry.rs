@@ -4,15 +4,18 @@ use std::{cmp::Ordering, fmt::Display, num::NonZeroU8};
 
 use derive_more::Display;
 
-use super::{Control, Ctrl, Point, PointKind, TocError, TrackNo};
-use crate::{Frame, disc::Track, frame::Msf};
+use super::{
+    Point, PointKind, TocError, TrackNo,
+    control::{Control, Ctrl},
+};
+use crate::{Frame, disc::Track, toc::Msf};
 
 /// A single, classified entry from a CD's Table of Contents (TOC).
 ///
 /// Entries are classified from [`RawTocEntry`]s by their POINT field: a normal track number
-/// becomes a [`Track`][TocEntry::Track] entry, [`Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap()`] /
-/// [`Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap()`] become [`TrackInfo`][TocEntry::TrackInfo] entries, a lead-out point
-/// ([`Format::B0000.leadout()`] or [`Format::B0010(NonZeroUsize::MIN).leadout()`]) becomes a
+/// becomes a [`Track`][TocEntry::Track] entry, [`B0010(NonZeroUsize::MIN).first_track_info().unwrap()`] /
+/// [`B0010(NonZeroUsize::MIN).last_track_info().unwrap()`] become [`TrackInfo`][TocEntry::TrackInfo] entries, a lead-out point
+/// ([`B0000.leadout()`] or [`B0010(NonZeroUsize::MIN).leadout()`]) becomes a
 /// [`Leadout`][TocEntry::Leadout] entry, and anything else is kept as [`Unknown`][TocEntry::Unknown]
 /// raw data.
 ///
@@ -351,8 +354,8 @@ pub enum TocEntryKind {
 /// ```
 /// use std::num::NonZeroU8;
 ///
-/// use redbook::{Frame, LEADIN};
-/// use redbook::toc::{Control, tocentry::TrackEntry, TrackNo};
+/// use redbook::Frame;
+/// use redbook::toc::{control::Control, tocentry::TrackEntry, LEADIN, TrackNo};
 ///
 /// let entry = TrackEntry::new(
 ///     TrackNo::strict_new(1),
@@ -526,7 +529,7 @@ impl Ctrl for LeadoutEntry {
 /// Entry in a CD TOC (Table of Contents) holding session info: the first or last track number
 /// of a session.
 ///
-/// Encoded as POINT 0xA0 ([`Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap()`]) / 0xA1 ([`Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap()`]) in READ
+/// Encoded as POINT 0xA0 ([`B0010(NonZeroUsize::MIN).first_track_info().unwrap()`]) / 0xA1 ([`B0010(NonZeroUsize::MIN).last_track_info().unwrap()`]) in READ
 /// TOC format 0b0010, with the track number stored in the start minute (PMIN) of the entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InfoEntry {
@@ -580,9 +583,9 @@ impl Ctrl for InfoEntry {
 /// Whether an [`InfoEntry`] holds the first or the last track number of a session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FirstLast {
-    /// The first track number of the session (POINT [`Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap()`])
+    /// The first track number of the session (POINT [`B0010(NonZeroUsize::MIN).first_track_info().unwrap()`])
     First,
-    /// The last track number of the session (POINT [`Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap()`])
+    /// The last track number of the session (POINT [`B0010(NonZeroUsize::MIN).last_track_info().unwrap()`])
     Last,
 }
 
@@ -780,15 +783,13 @@ impl PartialOrd for RawTocEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::super::Format;
     use super::*;
 
-    use std::convert::CheckedCastFromInt;
-    use std::num::NonZeroUsize;
+    use std::{convert::CheckedCastFromInt, num::NonZeroUsize};
 
     use rstest::rstest;
 
-    use crate::LEADIN;
+    use crate::toc::{LEADIN, tocentries::Format::*};
 
     #[test]
     fn track_entry_new_stores_all_fields() {
@@ -915,7 +916,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),
@@ -927,7 +928,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(0xAA, 0, 0),
@@ -943,26 +944,26 @@ mod tests {
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::Track
     )]
-    #[case(Format::B0000.leadout(), Control::default(), TocEntryKind::Leadout)]
-    #[case(Format::B0010(NonZeroUsize::MIN).leadout(), Control::default(), TocEntryKind::Leadout)]
+    #[case(B0000.leadout(), Control::default(), TocEntryKind::Leadout)]
+    #[case(B0010(NonZeroUsize::MIN).leadout(), Control::default(), TocEntryKind::Leadout)]
     #[case(
-        Format::B0000.leadout(),
+        B0000.leadout(),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::Leadout
     )]
     #[case(
-        Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+        B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
         Control::default(),
         TocEntryKind::FirstTrackInfo
     )]
-    #[case(Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap(), Control::default(), TocEntryKind::LastTrackInfo)]
+    #[case(B0010(NonZeroUsize::MIN).last_track_info().unwrap(), Control::default(), TocEntryKind::LastTrackInfo)]
     #[case(
-        Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+        B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::FirstTrackInfo
     )]
     #[case(
-        Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap(),
+        B0010(NonZeroUsize::MIN).last_track_info().unwrap(),
         Control::from_bits_truncate(Control::DATA_TRACK.bits()),
         TocEntryKind::LastTrackInfo
     )]
@@ -998,16 +999,7 @@ mod tests {
     fn try_from_raw_for_track_entry_fails_for_non_track_points() {
         let msf = Msf::new(0, 2, 0);
         // leadout point
-        let raw = RawTocEntry::new(
-            None,
-            1,
-            Control::default(),
-            0,
-            Format::B0000.leadout(),
-            msf,
-            0,
-            msf,
-        );
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, B0000.leadout(), msf, 0, msf);
         assert!(TrackEntry::try_from(raw).is_err());
         // info point
         let raw = RawTocEntry::new(
@@ -1015,7 +1007,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),
@@ -1029,10 +1021,7 @@ mod tests {
     #[test]
     fn try_from_raw_for_leadout_entry_succeeds_for_leadout_points() {
         let msf = Msf::new(0, 2, 0);
-        for point in [
-            Format::B0000.leadout(),
-            Format::B0010(NonZeroUsize::MIN).leadout(),
-        ] {
+        for point in [B0000.leadout(), B0010(NonZeroUsize::MIN).leadout()] {
             let raw = RawTocEntry::new(None, 1, Control::default(), 0, point, msf, 0, msf);
             let entry = LeadoutEntry::try_from(raw).unwrap();
             assert_eq!(entry.start(), Frame::from(msf));
@@ -1046,16 +1035,7 @@ mod tests {
         let raw = RawTocEntry::new(None, 1, Control::default(), 0, Point(1), msf, 0, msf);
         assert!(LeadoutEntry::try_from(raw).is_err());
         // ADR != 1
-        let raw = RawTocEntry::new(
-            None,
-            0,
-            Control::default(),
-            0,
-            Format::B0000.leadout(),
-            msf,
-            0,
-            msf,
-        );
+        let raw = RawTocEntry::new(None, 0, Control::default(), 0, B0000.leadout(), msf, 0, msf);
         assert!(LeadoutEntry::try_from(raw).is_err());
     }
 
@@ -1068,7 +1048,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),
@@ -1084,7 +1064,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).last_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).last_track_info().unwrap(),
             msf,
             0,
             Msf::new(5, 0, 0),
@@ -1103,7 +1083,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),
@@ -1115,7 +1095,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(0xAA, 0, 0),
@@ -1138,16 +1118,7 @@ mod tests {
         ));
 
         // leadout (b0000)
-        let raw = RawTocEntry::new(
-            None,
-            1,
-            Control::default(),
-            0,
-            Format::B0000.leadout(),
-            msf,
-            0,
-            msf,
-        );
+        let raw = RawTocEntry::new(None, 1, Control::default(), 0, B0000.leadout(), msf, 0, msf);
         assert!(matches!(
             Option::<TocEntry>::from(raw),
             Some(TocEntry::Leadout(_))
@@ -1159,7 +1130,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),
@@ -1182,7 +1153,7 @@ mod tests {
             1,
             Control::default(),
             0,
-            Format::B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
+            B0010(NonZeroUsize::MIN).first_track_info().unwrap(),
             msf,
             0,
             Msf::new(1, 0, 0),

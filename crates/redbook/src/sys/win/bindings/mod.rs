@@ -34,7 +34,6 @@ pub(super) use bindgen::{
 #[expect(clippy::allow_attributes, reason = "no guarantees on ordering")]
 #[allow(clippy::arbitrary_source_item_ordering, reason = "generated code")]
 #[expect(
-    unsafe_code,
     clippy::undocumented_unsafe_blocks,
     nonstandard_style,
     clippy::upper_case_acronyms,
@@ -52,7 +51,6 @@ mod bindgen;
     reason = "consts ordered by value"
 )]
 #[expect(
-    unsafe_code,
     clippy::undocumented_unsafe_blocks, // TODO: remove this expectation
     nonstandard_style,
     clippy::too_many_arguments,
