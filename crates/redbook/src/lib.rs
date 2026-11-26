@@ -295,7 +295,7 @@ pub use drive::{Device, Drive};
 pub use error::{Error, Result};
 #[doc(inline)]
 pub use ripped_track::RippedTrack;
-pub use toc::{Frame, Point, TocEntries, TrackNo};
+pub use toc::{Frame, TocEntries, TrackNo};
 
 #[forbid(unsafe_code)]
 mod audiocd;
