@@ -43,9 +43,7 @@ use crate::{
     toc::TocError,
 };
 
-#[doc(inline)]
 pub use encoding::{EncodingError, FlacError};
-#[doc(inline)]
 pub use metadata::{MetaDataError, UnknownMimeType};
 
 mod conversions;

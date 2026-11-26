@@ -12,9 +12,7 @@ use tracing::instrument;
 
 use crate::{Error, RipProgress, TocEntries, toc::ByteSize};
 
-#[doc(inline)]
 pub use device::Device;
-#[doc(inline)]
 pub use drive::Drive;
 
 mod device;

@@ -44,7 +44,6 @@ use super::{
 };
 
 pub use safety::DriveHandle;
-#[doc(inline)]
 use safety::IntoDriveHandle;
 
 #[cfg(test)]

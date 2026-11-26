@@ -1,6 +1,5 @@
 //! Safe and sane wrappers around Windows APIs for CD drive access
 
-#[doc(inline)]
 pub use handles::DriveHandle;
 
 #[expect(unsafe_code, reason = "ffi bindings & mocks")]

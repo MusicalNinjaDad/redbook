@@ -6,11 +6,9 @@
 //! otherwise kept as [`TocEntry::Unknown`] raw data.
 
 pub use error::TocError;
-#[doc(inline)]
 pub use frame::{ByteSize, Frame, Msf};
 pub use tocentries::TocEntries;
 pub use tocentry::TocEntry;
-#[doc(inline)]
 pub use trackno::{Point, PointKind, TrackNo};
 
 pub mod cda;

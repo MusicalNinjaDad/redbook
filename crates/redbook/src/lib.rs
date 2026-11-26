@@ -288,12 +288,10 @@
 //! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
 //! to avoid future lint errors for stable features
 
-#[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
 pub use disc::Disc;
 pub use drive::{Device, Drive};
 pub use error::{Error, Result};
-#[doc(inline)]
 pub use ripped_track::RippedTrack;
 pub use toc::{Frame, TocEntries, TrackNo};
 

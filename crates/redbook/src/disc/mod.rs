@@ -4,10 +4,8 @@
 //!
 //! See [Disc], the main entry point, for examples
 
-#[doc(inline)]
 pub use disc::{Disc, Tracks};
 pub use error::DiscError;
-#[doc(inline)]
 pub use track::Track;
 
 mod disc;
