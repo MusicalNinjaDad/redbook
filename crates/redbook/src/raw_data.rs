@@ -10,7 +10,7 @@ use std::{
     slice,
 };
 
-use crate::{Frame, frame::ByteSize};
+use crate::{Frame, toc::frame::ByteSize};
 
 /// Raw data for CDDA audio.
 ///

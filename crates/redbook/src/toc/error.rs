@@ -19,11 +19,12 @@ use glob::GlobError;
 use crate::{
     Frame,
     error::RedbookError,
-    frame::{InvalidFrame, Msf},
-    toc::Format,
+    toc::{Format, Msf},
 };
 
 use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
+
+pub use super::frame::{InvalidByteSize, InvalidFrame};
 
 /// [`Result`] alias for [`toc`][crate::toc] APIs.
 pub type TocResult<T> = Result<T, TocError>;

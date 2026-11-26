@@ -299,7 +299,7 @@ pub use error::{Error, Result};
 #[doc(inline)]
 pub use ripped_track::RippedTrack;
 #[doc(inline)]
-pub use toc::frame::{self, Frame};
+pub use toc::frame::Frame;
 #[doc(inline)]
 pub use toc::{LEADIN, Point, TocEntries, TrackNo};
 

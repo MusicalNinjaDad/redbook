@@ -16,6 +16,7 @@ use control::Ctrl;
 use tocentry::{FirstLast, InfoEntry, LeadoutEntry, RawTocEntry, TrackEntry};
 
 pub use control::Control;
+pub use frame::{ByteSize, Frame, Msf};
 pub use error::{InvalidTrackNo, TocError, TocResult};
 pub use tocentry::TocEntry;
 pub use trackno::{Point, PointKind, TrackNo};
@@ -23,7 +24,7 @@ pub use trackno::{Point, PointKind, TrackNo};
 pub mod cda;
 pub mod control;
 pub mod error;
-pub mod frame;
+mod frame;
 pub mod tocentry;
 pub mod trackno;
 
