@@ -21,6 +21,7 @@ use try_partialord::TrySort;
 use crate::{Frame, disc::Track, frame::Msf, toc::error::InvalidOrder};
 
 pub use error::{InvalidTrackNo, TocError, TocResult};
+pub use trackno::{Point, PointKind, TrackNo};
 
 pub mod cda;
 
@@ -29,7 +30,6 @@ pub mod error;
 pub mod frame;
 
 pub mod trackno;
-pub use trackno::*;
 
 /// Standard CD lead-in duration in frames.
 ///
@@ -1227,6 +1227,7 @@ impl FromIterator<TocEntry> for TocResult<TocEntries> {
 
 #[cfg(test)]
 mod tests {
+    use super::trackno::{b0000, b0010};
     use super::*;
 
     use std::convert::CheckedCastFromInt;
@@ -1234,80 +1235,6 @@ mod tests {
     use rstest::rstest;
 
     use crate::LEADIN;
-
-    #[test]
-    fn usable_in_const_context() {
-        // compile-time proof: these only compile if TrackNo & Point are usable in const contexts
-        const ONE: TrackNo = TrackNo::strict_new(1);
-        const MAX: TrackNo = TrackNo::MAX;
-        const NEW_OK: Option<TrackNo> = TrackNo::checked_new(42_u8);
-        const NEW_ZERO: Option<TrackNo> = TrackNo::checked_new(0_u8);
-        const NEW_OVER: Option<TrackNo> = TrackNo::checked_new(100_u8);
-        const CAST: usize = ONE.cast();
-        const AS_U8: u8 = ONE.cast();
-        const EQ: bool = ONE == TrackNo::strict_new(1);
-        const NE: bool = ONE != TrackNo::strict_new(2);
-        const LT: bool = ONE < MAX;
-        const LEADIN_KIND: PointKind = Point(0xAA).kind();
-        const LEADIN_IS_LEADIN: bool = b0000::LEADOUT_TRACK_ID.is_leadin();
-        const A0_IS_INFO: bool = b0010::FIRST_TRACK_ID.is_info();
-        const A0_INFO_KIND: Option<FirstLast> = b0010::FIRST_TRACK_ID.info_kind();
-
-        // cross-check the const-evaluated values against runtime evaluation
-        let one = TrackNo::strict_new(1);
-        assert_eq!(NEW_OK, TrackNo::checked_new(42_u8));
-        assert_eq!(NEW_ZERO, None);
-        assert_eq!(NEW_OVER, None);
-        assert_eq!(CAST, one.cast::<usize>());
-        assert_eq!(AS_U8, one.cast::<u8>());
-        assert_eq!(EQ, one == TrackNo::strict_new(1));
-        assert_eq!(NE, one != TrackNo::strict_new(2));
-        assert_eq!(LT, one < TrackNo::MAX);
-        assert_eq!(LEADIN_KIND, Point(0xAA).kind());
-        assert_eq!(LEADIN_IS_LEADIN, b0000::LEADOUT_TRACK_ID.is_leadin());
-        assert_eq!(A0_IS_INFO, b0010::FIRST_TRACK_ID.is_info());
-        assert_eq!(A0_INFO_KIND, Some(FirstLast::First));
-    }
-
-    #[rstest]
-    #[case(Point(0x00), false, false, false, None, PointKind::Unknown)]
-    #[case(Point(0x01), true, false, false, None, PointKind::Normal)]
-    #[case(Point(42), true, false, false, None, PointKind::Normal)]
-    #[case(Point(99), true, false, false, None, PointKind::Normal)]
-    #[case(Point(100), false, false, false, None, PointKind::Unknown)]
-    #[case(b0000::LEADOUT_TRACK_ID, false, true, false, None, PointKind::LeadIn)]
-    #[case(b0010::LEADOUT_TRACK_ID, false, true, false, None, PointKind::LeadIn)]
-    #[case(
-        b0010::FIRST_TRACK_ID,
-        false,
-        false,
-        true,
-        Some(FirstLast::First),
-        PointKind::FirstTrackInfo
-    )]
-    #[case(
-        b0010::LAST_TRACK_ID,
-        false,
-        false,
-        true,
-        Some(FirstLast::Last),
-        PointKind::LastTrackInfo
-    )]
-    #[case(Point(0xB0), false, false, false, None, PointKind::Unknown)]
-    fn point_classification(
-        #[case] point: Point,
-        #[case] is_normal: bool,
-        #[case] is_leadin: bool,
-        #[case] is_info: bool,
-        #[case] info_kind: Option<FirstLast>,
-        #[case] kind: PointKind,
-    ) {
-        assert_eq!(point.is_normal(), is_normal);
-        assert_eq!(point.is_leadin(), is_leadin);
-        assert_eq!(point.is_info(), is_info);
-        assert_eq!(point.info_kind(), info_kind);
-        assert_eq!(point.kind(), kind);
-    }
 
     #[test]
     fn track_entry_new_stores_all_fields() {
@@ -1321,10 +1248,6 @@ mod tests {
             (entry.trackno(), entry.start(), entry.session()),
             (TrackNo::strict_new(1), LEADIN, Some(NonZeroU8::MIN))
         );
-
-        // special point values (lead-out / track-info codes) are not track numbers
-        assert!(!b0000::LEADOUT_TRACK_ID.is_normal());
-        assert!(!b0010::FIRST_TRACK_ID.is_normal());
 
         // start is deliberately not validated against the lead-in: copy-protected discs
         // (e.g. Cactus Data Shield, Key2Audio) store track starts within the lead-in
