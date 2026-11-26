@@ -290,15 +290,11 @@
 
 #[doc(inline)]
 pub use audiocd::{AudioCd, RipProgress};
-#[doc(inline)]
 pub use disc::Disc;
-#[doc(inline)]
 pub use drive::{Device, Drive};
-#[doc(inline)]
 pub use error::{Error, Result};
 #[doc(inline)]
 pub use ripped_track::RippedTrack;
-#[doc(inline)]
 pub use toc::{Frame, Point, TocEntries, TrackNo};
 
 #[forbid(unsafe_code)]
