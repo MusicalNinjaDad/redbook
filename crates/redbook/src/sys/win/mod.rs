@@ -3,6 +3,7 @@
 #[doc(inline)]
 pub use handles::DriveHandle;
 
+#[expect(unsafe_code, reason = "ffi bindings & mocks")]
 mod bindings;
 
 #[expect(
