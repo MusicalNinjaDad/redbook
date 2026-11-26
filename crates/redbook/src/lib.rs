@@ -301,8 +301,6 @@ pub use ripped_track::RippedTrack;
 #[doc(inline)]
 pub use toc::{Frame, LEADIN, Point, TocEntries, TrackNo};
 
-use crate::{sys::win::DriveHandle, toc::ByteSize};
-
 #[forbid(unsafe_code)]
 mod audiocd;
 
@@ -339,9 +337,9 @@ pub mod toc;
 /// Platform specific default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrive<DEV>`
-pub type CdDrive = drive::CdDrive<DriveHandle>;
+pub type CdDrive = drive::CdDrive<sys::win::DriveHandle>;
 
 /// Platform specific iterator over the default CdDrive type
 ///
 /// To define an individually parameterised alternative use `drive::CdDrives<DEV>`
-pub type CdDrives = drive::CdDrives<DriveHandle>;
+pub type CdDrives = drive::CdDrives<sys::win::DriveHandle>;

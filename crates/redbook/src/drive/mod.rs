@@ -127,10 +127,11 @@ mod miri {
     use rstest::rstest;
 
     use crate::{
-        ByteSize, Drive, Frame, TrackNo,
+        Drive, Frame, TrackNo,
         disc::Track,
         sys::win::DriveHandle,
         test_fixtures::albums::TestAlbum::{self, *},
+        toc::ByteSize,
     };
 
     use super::*;

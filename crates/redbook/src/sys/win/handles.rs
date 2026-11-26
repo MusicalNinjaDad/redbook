@@ -18,12 +18,13 @@ use tracing::{field::Empty, instrument};
 use tracing_result::Trace;
 
 use crate::{
-    ByteSize, Device, Frame, TocEntries,
+    Device, Frame, TocEntries,
     drive::error::{DeviceError, InvalidBufferSize, OsError},
     sys::win::bindings::{
         IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ADAPTER_DESCRIPTOR,
         STORAGE_PROPERTY_QUERY, StorageAdapterProperty,
     },
+    toc::ByteSize,
 };
 
 use super::{
