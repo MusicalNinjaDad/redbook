@@ -5,7 +5,7 @@ use std::fmt::Display;
 use crate::{
     Frame,
     frame::Msf,
-    toc::{TrackEntry, TrackNo},
+    toc::{TrackNo, tocentry::TrackEntry},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq)]

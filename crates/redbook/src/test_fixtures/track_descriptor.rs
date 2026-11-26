@@ -13,7 +13,7 @@ use crate::{
     TocEntries,
     error::RedbookError,
     frame::Msf,
-    toc::{Control, Point, RawTocEntry, TocEntry},
+    toc::{Control, Point, TocEntry, tocentry::RawTocEntry},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

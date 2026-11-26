@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[rstest]
-    #[case(crate::toc::b0000::LEADOUT_TRACK_ID.cast::<u16>())]
+    #[case(100)]
     #[case(0)]
     #[case(TrackNo::MAX.cast::<u16>() + 1)]
     fn new_rejects_special_track_numbers(#[case] track_number: u16) {
