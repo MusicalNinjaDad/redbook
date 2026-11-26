@@ -9,5 +9,8 @@ vibehistory
 .env
 .connector_bootstrap_cache.json.lock
 
+# noisy
+skills-registry-cache/**
+
 # project specific stuff
 !hooks.toml
