@@ -10,7 +10,7 @@ use try_partialord::TrySort;
 use crate::disc::Track;
 
 use super::{
-    Frame, TocError, TocResult, TrackNo,
+    Frame, TocError, TrackNo,
     control::{self, Ctrl},
     error::InvalidOrder,
     tocentry::{self, LeadoutEntry, TocEntry, TrackEntry},
@@ -211,7 +211,7 @@ impl TryFrom<&TocEntries> for Toc {
     }
 }
 
-impl FromIterator<TocEntry> for TocResult<TocEntries> {
+impl FromIterator<TocEntry> for Result<TocEntries, TocError> {
     fn from_iter<I: IntoIterator<Item = TocEntry>>(iter: I) -> Self {
         let _span = tracing::debug_span!("FromIterator<TocEntry> for Result<TocEntries, TocError>");
         use tocentry::FirstLast::*;

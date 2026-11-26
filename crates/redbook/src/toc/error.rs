@@ -27,9 +27,6 @@ use super::{
 pub use super::frame::{InvalidByteSize, InvalidFrame};
 pub use super::trackno::InvalidTrackNo;
 
-/// [`Result`] alias for [`toc`][crate::toc] APIs.
-pub type TocResult<T> = Result<T, TocError>;
-
 /// Error returned by [`toc`][crate::toc] APIs: TOC parsing & validation failures.
 #[derive(Debug)]
 pub enum TocError {

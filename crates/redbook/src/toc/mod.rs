@@ -5,7 +5,7 @@
 //! [`TrackEntry`], [`LeadoutEntry`] or [`InfoEntry`] where the POINT field is recognised, and
 //! otherwise kept as [`TocEntry::Unknown`] raw data.
 
-pub use error::{TocError, TocResult};
+pub use error::TocError;
 pub use frame::{ByteSize, Frame, Msf};
 pub use tocentries::TocEntries;
 pub use tocentry::TocEntry;
