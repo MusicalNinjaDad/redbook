@@ -11,7 +11,7 @@ use std::{
 
 use derive_more::Display;
 
-use crate::toc::{FirstLast, InvalidTrackNo};
+use crate::toc::{InvalidTrackNo, tocentry::FirstLast};
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub(in crate::toc) mod b0000 {

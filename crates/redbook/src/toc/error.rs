@@ -16,13 +16,13 @@ use std::{
 use bytes::TryGetError;
 use glob::GlobError;
 
-use crate::{
-    Frame,
-    error::RedbookError,
-    toc::{Format, Msf},
-};
+use crate::{Frame, error::RedbookError};
 
-use super::{InfoEntry, RawTocEntry, TocEntry, TrackNo};
+use super::{
+    Msf, TocEntry, TrackNo,
+    tocentries::Format,
+    tocentry::{InfoEntry, RawTocEntry},
+};
 
 pub use super::frame::{InvalidByteSize, InvalidFrame};
 
