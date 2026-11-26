@@ -354,8 +354,8 @@ pub enum TocEntryKind {
 /// ```
 /// use std::num::NonZeroU8;
 ///
-/// use redbook::{Frame, LEADIN};
-/// use redbook::toc::{control::Control, tocentry::TrackEntry, TrackNo};
+/// use redbook::Frame;
+/// use redbook::toc::{control::Control, tocentry::TrackEntry, LEADIN, TrackNo};
 ///
 /// let entry = TrackEntry::new(
 ///     TrackNo::strict_new(1),
@@ -790,7 +790,7 @@ mod tests {
 
     use rstest::rstest;
 
-    use crate::LEADIN;
+    use crate::toc::LEADIN;
 
     #[test]
     fn track_entry_new_stores_all_fields() {

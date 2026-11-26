@@ -299,7 +299,7 @@ pub use error::{Error, Result};
 #[doc(inline)]
 pub use ripped_track::RippedTrack;
 #[doc(inline)]
-pub use toc::{Frame, LEADIN, Point, TocEntries, TrackNo};
+pub use toc::{Frame, Point, TocEntries, TrackNo};
 
 #[forbid(unsafe_code)]
 mod audiocd;

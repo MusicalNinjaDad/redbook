@@ -10,7 +10,7 @@ use std::{
     ops::{Div, Rem},
 };
 
-use crate::{LEADIN, error::RedbookError};
+use crate::{error::RedbookError, toc::LEADIN};
 
 /// CD audio frame (1/75 sec). Basic unit of time for CD audio.
 ///
@@ -85,7 +85,7 @@ use crate::{LEADIN, error::RedbookError};
 /// there is no need to [`cast`][Frame::cast] to a primitive int first.
 ///
 /// ```
-/// use redbook::{Frame, LEADIN};
+/// use redbook::{Frame, toc::LEADIN};
 ///
 /// let frame = Frame::strict_new(150);
 /// let description = match frame {
@@ -100,7 +100,7 @@ use crate::{LEADIN, error::RedbookError};
 /// primitive int:
 ///
 /// ```
-/// use redbook::{Frame, LEADIN};
+/// use redbook::{Frame, toc::LEADIN};
 ///
 /// let frame = Frame::strict_new(100);
 /// let in_lead_in = match frame.cast::<u32>() {

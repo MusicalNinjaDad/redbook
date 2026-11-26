@@ -5,11 +5,12 @@ use std::{collections::HashMap, fmt::Display, fs, io, path::PathBuf};
 use metaflac::block::{Picture, PictureType};
 
 use crate::{
-    Frame, LEADIN, TocEntries,
+    Frame, TocEntries,
     disc::Track,
     error::RedbookError,
     tags::artwork::picture_from_jpeg,
     test_fixtures::track_descriptor::RawTocDescriptors,
+    toc::LEADIN,
     toc::{ByteSize, Msf, TrackNo},
 };
 

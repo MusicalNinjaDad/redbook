@@ -7,7 +7,7 @@ use std::{
 
 use crate::Frame;
 #[cfg(any(test, doc, not(target_family = "windows")))]
-use crate::LEADIN;
+use crate::toc::LEADIN;
 
 use super::bindings::{GUID, PCWSTR};
 
