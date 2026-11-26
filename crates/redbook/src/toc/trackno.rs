@@ -15,10 +15,10 @@ use derive_more::Display;
 use crate::{error::RedbookError, toc::tocentry::FirstLast};
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
-pub(in crate::toc) mod b0000 {
+mod b0000 {
     use super::Point;
     /// 0b0000 format POINT identifier for Leadout
-    pub(in crate::toc) const LEADOUT_TRACK_ID: Point = Point(0xAA);
+    pub(super) const LEADOUT_TRACK_ID: Point = Point(0xAA);
 }
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0010 (MMC-3, section 5.23.4)
@@ -45,14 +45,40 @@ pub(in crate::toc) mod b0000 {
 /// 4 or 6 | 5 | 00h | 01h–40h | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Ending time for the interval that should be skipped | Reserved | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback | Start time for interval that should be skipped on playback
 /// 4 or 6 | 5 | 00h | C0h | Optimum recording power | Reserved | Reserved | Reserved | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc | Start time of the first Lead-in Area of the disc
 /// 4 or 6 | 5 | 00h | C1h | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP | Copy of information from A1 point in ATIP
-pub(in crate::toc) mod b0010 {
+mod b0010 {
     use super::Point;
     /// 0b0010 format POINT identifier for the first track number of a session
-    pub(in crate::toc) const FIRST_TRACK_ID: Point = Point(0xA0);
+    pub(super) const FIRST_TRACK_ID: Point = Point(0xA0);
     /// 0b0010 format POINT identifier for the last track number of a session
-    pub(in crate::toc) const LAST_TRACK_ID: Point = Point(0xA1);
+    pub(super) const LAST_TRACK_ID: Point = Point(0xA1);
     /// 0b0010 format POINT identifier for Leadout
-    pub(in crate::toc) const LEADOUT_TRACK_ID: Point = Point(0xA2);
+    pub(super) const LEADOUT_TRACK_ID: Point = Point(0xA2);
+}
+
+impl super::tocentries::Format {
+    /// The marker [`Point`] for a leadout entry
+    pub fn leadout(&self) -> Point {
+        match self {
+            Self::B0000 => b0000::LEADOUT_TRACK_ID,
+            Self::B0010(_) => b0010::LEADOUT_TRACK_ID,
+        }
+    }
+
+    /// The marker [`Point`] for a first track info entry
+    pub fn first_track_info(&self) -> Option<Point> {
+        match self {
+            Self::B0000 => None,
+            Self::B0010(_) => Some(b0010::FIRST_TRACK_ID),
+        }
+    }
+
+    /// The marker [`Point`] for a last track info entry
+    pub fn last_track_info(&self) -> Option<Point> {
+        match self {
+            Self::B0000 => None,
+            Self::B0010(_) => Some(b0010::LAST_TRACK_ID),
+        }
+    }
 }
 
 /// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as read
