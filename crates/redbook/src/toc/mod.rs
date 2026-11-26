@@ -38,7 +38,17 @@ pub const LEADIN: Frame = Frame::strict_new(150);
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A collection of [`TocEntry`]s, neatly grouped and sorted.
 ///
+/// # Construction
+///
 /// Construction is available via `FromIterator<TocEntry> for Result<TocEntries, TocError>`
+///
+/// # Conversion & compatibility
+///
+/// Conversion is provided *to* [`cdtoc::Toc`] from both `TocEntries` (consuming) and `&TocEntries`
+/// (required data is copy). This is a lossy process.
+///
+/// No conversion is provided *from* [`cdtoc::Toc`] as data would be missing for [`Control`],
+/// session info and the [`InfoEntry`]s
 pub struct TocEntries {
     entries: Vec<TocEntry>,
     format: Format,

@@ -63,6 +63,11 @@ use crate::{
 /// ```
 pub struct Disc {
     /// The table of contents for the CD.
+    ///
+    /// # Note
+    /// This uses the simplest viable form [`cdtoc::Toc`], which only specifies the starting
+    /// offsets. `Disc` is a purely logical construction and has no guarantees that the full TOC
+    /// entry details are available from an actual CD.
     toc: Toc,
     /// The list of audio tracks on the CD.
     tracks: Vec<Track<'static>>,
