@@ -17,7 +17,7 @@ pub mod error;
 mod frame;
 pub mod tocentries;
 pub mod tocentry;
-pub mod trackno;
+mod trackno;
 
 /// Standard CD lead-in duration in frames.
 ///
