@@ -12,7 +12,7 @@ use crate::{
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
     toc::{
         TocError,
-        error::{InvalidByteSize, InvalidOrder},
+        error::{CdaError, InvalidByteSize, InvalidOrder},
     },
 };
 
@@ -61,6 +61,12 @@ impl From<cdtoc::TocError> for Error {
 impl From<InvalidOrder> for Error {
     fn from(error: InvalidOrder) -> Self {
         TocError::from(error).into()
+    }
+}
+
+impl From<CdaError> for Error {
+    fn from(error: CdaError) -> Self {
+        Self::CdaError(error)
     }
 }
 

@@ -1,4 +1,7 @@
-use crate::{TrackNo, toc::error::InvalidTrackNo};
+use crate::{
+    TrackNo,
+    toc::error::{CdaError, InvalidTrackNo},
+};
 
 use super::*;
 
@@ -19,6 +22,21 @@ fn underlying_messages() {
     assert_eq!(
         error.full_message().to_string(),
         "TOC error: invalid track number in TOC: invalid track number: 0x0064"
+    );
+}
+
+#[test]
+fn cda_error_is_a_top_level_variant() {
+    let error = Error::from(CdaError::MissingNullByte);
+    assert!(matches!(error, Error::CdaError(_)));
+    assert_eq!(error.to_string(), "CDA file error");
+
+    let cda_error = error.underlying::<CdaError>().unwrap();
+    assert_eq!(cda_error.to_string(), "missing null byte");
+
+    assert_eq!(
+        error.full_message().to_string(),
+        "CDA file error: missing null byte"
     );
 }
 
