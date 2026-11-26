@@ -314,7 +314,7 @@ pub mod error;
 pub mod raw_data;
 
 #[forbid(unsafe_code)]
-pub mod ripped_track;
+mod ripped_track;
 
 pub mod sys;
 
