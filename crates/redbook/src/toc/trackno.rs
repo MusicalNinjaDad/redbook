@@ -3,7 +3,8 @@
 
 use std::{
     convert::{BoundedCastFromInt, CheckedCastFromInt},
-    fmt::Display,
+    error::Error,
+    fmt::{self, Display},
     marker::StructuralPartialEq,
     num::NonZeroU8,
     ops::{Deref, DerefMut},
@@ -11,7 +12,7 @@ use std::{
 
 use derive_more::Display;
 
-use crate::toc::{InvalidTrackNo, tocentry::FirstLast};
+use crate::{error::RedbookError, toc::tocentry::FirstLast};
 
 /// POINT field identifiers used by READ TOC/PMA format 0b0000 (MMC-3, section 5.23.2)
 pub(in crate::toc) mod b0000 {
@@ -443,6 +444,32 @@ impl Display for TrackNo {
         write!(f, "track: {n}", n = self.0)
     }
 }
+
+/// A value which is not a valid track number (1..=99).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvalidTrackNo(i128);
+
+impl InvalidTrackNo {
+    /// Creates from the attempted value.
+    pub fn new<N>(attempt: N) -> Self
+    where
+        i128: From<N>,
+    {
+        Self(attempt.into())
+    }
+}
+
+impl Display for InvalidTrackNo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid track number: {:#06X}", self.0)
+    }
+}
+
+impl Error for InvalidTrackNo {
+    // Does not `provide` io::ErrorKind: context dependent InvalidData / InvalidInput
+}
+
+impl RedbookError for InvalidTrackNo {}
 
 #[cfg(test)]
 mod tests {

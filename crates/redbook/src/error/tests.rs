@@ -1,4 +1,4 @@
-use crate::{TrackNo, toc::InvalidTrackNo};
+use crate::{TrackNo, toc::error::InvalidTrackNo};
 
 use super::*;
 

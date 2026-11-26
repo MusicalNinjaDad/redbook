@@ -25,6 +25,7 @@ use super::{
 };
 
 pub use super::frame::{InvalidByteSize, InvalidFrame};
+pub use super::trackno::InvalidTrackNo;
 
 /// [`Result`] alias for [`toc`][crate::toc] APIs.
 pub type TocResult<T> = Result<T, TocError>;
@@ -150,36 +151,6 @@ impl From<InvalidTrackNo> for TocError {
         Self::InvalidTrackNo(error)
     }
 }
-
-/// Leaf error: a value which is not a valid track number (1..=99).
-///
-/// Error types are "wide" in the values they accept (where "normal" types are "narrow"), so the
-/// offending value is captured without loss: any integer type which fits in an `i128` can be
-/// stored, and [`InvalidTrackNo::new`] can be used directly in `.map_err(InvalidTrackNo::new)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InvalidTrackNo(i128);
-
-impl InvalidTrackNo {
-    /// Creates from the attempted value.
-    pub fn new<N>(attempt: N) -> Self
-    where
-        i128: From<N>,
-    {
-        Self(attempt.into())
-    }
-}
-
-impl Display for InvalidTrackNo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid track number: {:#06X}", self.0)
-    }
-}
-
-impl Error for InvalidTrackNo {
-    // Does not `provide` io::ErrorKind: context dependent InvalidData / InvalidInput
-}
-
-impl RedbookError for InvalidTrackNo {}
 
 /// An incorrectly ordered pair of [`TocEntry`]s, for a given [`Format`][super::Format]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
