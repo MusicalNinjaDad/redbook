@@ -352,7 +352,7 @@ pub enum TocEntryKind {
 /// use std::num::NonZeroU8;
 ///
 /// use redbook::{Frame, LEADIN};
-/// use redbook::toc::{Control, tocentry::TrackEntry, TrackNo};
+/// use redbook::toc::{control::Control, tocentry::TrackEntry, TrackNo};
 ///
 /// let entry = TrackEntry::new(
 ///     TrackNo::strict_new(1),

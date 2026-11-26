@@ -13,11 +13,10 @@ use try_partialord::TrySort;
 
 use crate::disc::Track;
 
-use control::Ctrl;
+use control::{Control, Ctrl};
 use error::InvalidOrder;
 use tocentry::{FirstLast, InfoEntry, LeadoutEntry, RawTocEntry, TrackEntry};
 
-pub use control::Control;
 pub use error::{InvalidTrackNo, TocError, TocResult};
 pub use frame::{ByteSize, Frame, Msf};
 pub use tocentry::TocEntry;

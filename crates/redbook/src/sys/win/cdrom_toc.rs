@@ -1,6 +1,6 @@
 use crate::{
     Frame, LEADIN, TocEntries,
-    toc::{Control, Msf, Point, TocEntry, TocError, control::Ctrl, tocentry::RawTocEntry},
+    toc::{Msf, Point, TocEntry, TocError, control::Control, control::Ctrl, tocentry::RawTocEntry},
 };
 
 use super::bindings::{CDROM_TOC, TRACK_DATA};

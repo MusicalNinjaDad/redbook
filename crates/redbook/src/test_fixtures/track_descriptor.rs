@@ -12,7 +12,7 @@ use tracing_result::Trace;
 use crate::{
     TocEntries,
     error::RedbookError,
-    toc::{Control, Msf, Point, TocEntry, tocentry::RawTocEntry},
+    toc::{Msf, Point, TocEntry, control::Control, tocentry::RawTocEntry},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
