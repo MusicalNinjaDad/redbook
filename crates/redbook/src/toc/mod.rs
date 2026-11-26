@@ -56,7 +56,7 @@ pub const LEADIN: Frame = Frame::strict_new(150);
 /// use std::num::NonZeroU8;
 ///
 /// use redbook::{Frame, LEADIN};
-/// use redbook::toc::{Control, Point, TrackEntry, TrackNo, b0010};
+/// use redbook::toc::{Control, TrackEntry, TrackNo};
 ///
 /// let entry = TrackEntry::new(
 ///     TrackNo::strict_new(1),
