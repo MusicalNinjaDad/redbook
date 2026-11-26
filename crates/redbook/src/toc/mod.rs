@@ -183,6 +183,32 @@ pub enum Format {
     B0010(NonZeroUsize),
 }
 
+impl Format {
+    /// The [`Point`] value representing "lead-out" for this format
+    pub fn leadout(&self) -> Point {
+        match self {
+            Format::B0000 => trackno::b0000::LEADOUT_TRACK_ID,
+            Format::B0010(_) => trackno::b0010::LEADOUT_TRACK_ID,
+        }
+    }
+
+    /// The [`Point`] value representing "first track number" for this format
+    pub fn first_track_info(&self) -> Option<Point> {
+        match self {
+            Format::B0000 => None,
+            Format::B0010(_) => Some(trackno::b0010::FIRST_TRACK_ID),
+        }
+    }
+
+    /// The [`Point`] value representing "last track number" for this format
+    pub fn last_track_info(&self) -> Option<Point> {
+        match self {
+            Format::B0000 => None,
+            Format::B0010(_) => Some(trackno::b0010::LAST_TRACK_ID),
+        }
+    }
+}
+
 impl<'entries> IntoIterator for &'entries TocEntries {
     type Item = &'entries TocEntry;
 
