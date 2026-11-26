@@ -1,7 +1,7 @@
 use crate::{
     Frame, LEADIN, TocEntries,
     frame::Msf,
-    toc::{Control, Point, RawTocEntry, TocEntry, TocError, control::Ctrl},
+    toc::{Control, Point, TocEntry, TocError, control::Ctrl, tocentry::RawTocEntry},
 };
 
 use super::bindings::{CDROM_TOC, TRACK_DATA};
