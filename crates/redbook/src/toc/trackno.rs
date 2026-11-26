@@ -54,26 +54,28 @@ pub(in crate::toc) mod b0010 {
     pub(in crate::toc) const LEADOUT_TRACK_ID: Point = Point(0xA2);
 }
 
-/// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as
-/// read from the disc.
+/// A raw POINT field value from a TOC track descriptor (Q sub-channel / READ TOC), exactly as read
+/// from the disc.
 ///
 /// Any `u8` is a valid `Point`: POINT values include "normal" track numbers (1..=99, see
 /// [`TrackNo`]) as well as "special" codes such as the lead-out ([`b0000::LEADOUT_TRACK_ID`],
 /// [`b0010::LEADOUT_TRACK_ID`]) or the first/last track info of a session
 /// ([`b0010::FIRST_TRACK_ID`], [`b0010::LAST_TRACK_ID`]). Use [`is_normal()`][Self::is_normal],
-/// [`is_leadin()`][Self::is_leadin], [`is_info()`][Self::is_info],
-/// [`info_kind()`][Self::info_kind] or [`kind()`][Self::kind] for classification.
+/// [`is_leadin()`][Self::is_leadin], [`is_info()`][Self::is_info], [`info_kind()`][Self::info_kind]
+/// or [`kind()`][Self::kind] for classification.
 ///
 /// # Notes
 /// - This is the "lazy" counterpart to the fully-encapsulated [`TrackNo`]: construction is via
-///   `Point(n)` / `From<u8>` for simplicity, the field is public and `Deref` & `DerefMut` with
-///   `Target = u8` are implemented, so a `Point` can be used interchangeably with a `u8`
-/// - Use [`cast()`][Self::cast] rather than `.0.into()` when converting to other integers
+///   `Point(n)` / `From<u8>` for simplicity, `Deref` & `DerefMut` are implemented with `Target =
+///   u8`, and `repr(transparent)` so a `Point` can be used interchangeably with a `u8` in both rust
+///   and ffi code.
+/// - Use [`cast()`][Self::cast] when converting to other integers
 /// - `PartialEq` & `PartialOrd` are deliberately not implemented between `Point` & `u8` to ensure
 ///   comparisons don't inadvertently compare a Point with something semantically different
 #[expect(clippy::derived_hash_with_manual_eq, reason = "manual const impl")]
 #[derive(Debug, Clone, Copy, Hash, Default)]
-pub struct Point(pub u8);
+#[repr(transparent)]
+pub struct Point(pub(crate) u8);
 
 impl Point {
     /// Whether this is a "normal" track number, i.e. convertible to a [`TrackNo`] (1..=99)
