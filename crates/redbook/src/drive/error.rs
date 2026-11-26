@@ -33,7 +33,7 @@ pub enum DriveError {
     /// The track has zero duration
     ZeroLengthTrack,
     /// Sending a progress update on the [`Context`][thread_safely::Context] channel failed.
-    Progress(RipProgress),
+    ProgressUpdateFailed(RipProgress),
     /// A thread cancellation request was received via the [`Context`]
     ThreadCancellation,
 }
@@ -48,7 +48,7 @@ impl Error for DriveError {
             DriveError::NotFound(_)
             | DriveError::NoDrivesFound
             | DriveError::ZeroLengthTrack
-            | DriveError::Progress(_)
+            | DriveError::ProgressUpdateFailed(_)
             | DriveError::ThreadCancellation => None,
         }
     }
@@ -70,7 +70,7 @@ impl Error for DriveError {
             DriveError::ZeroLengthTrack => {
                 request.provide_value(io::ErrorKind::UnexpectedEof);
             }
-            DriveError::Progress(_) => {
+            DriveError::ProgressUpdateFailed(_) => {
                 request.provide_value(io::ErrorKind::BrokenPipe);
             }
             DriveError::ThreadCancellation => {
@@ -88,7 +88,7 @@ impl Display for DriveError {
             }
             DriveError::NoDrivesFound => write!(f, "no drives found"),
             DriveError::ZeroLengthTrack => write!(f, "unexpected end of data"),
-            DriveError::Progress(RipProgress { track_number, .. }) => {
+            DriveError::ProgressUpdateFailed(RipProgress { track_number, .. }) => {
                 write!(f, "failed to update progress for {track_number}")
             }
             DriveError::DeviceError(_) => write!(f, "device error"),
@@ -148,7 +148,7 @@ impl From<InvalidFrame> for DriveError {
 
 impl From<crossbeam::channel::SendError<RipProgress>> for DriveError {
     fn from(error: crossbeam::channel::SendError<RipProgress>) -> Self {
-        Self::Progress(error.0)
+        Self::ProgressUpdateFailed(error.0)
     }
 }
 
