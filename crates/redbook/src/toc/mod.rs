@@ -1016,10 +1016,6 @@ impl TocEntries {
 }
 
 /// Whether only the final leadout is present, or leadouts are available for every session.
-///
-/// # Interpretation
-/// - `Final`: Sessions have not been identified, intra-session leadout positions are unknown
-/// - `PerSession(n)`: Sessions are identified, intra-session leadout positions must be available
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
     /// Summary form TOC
