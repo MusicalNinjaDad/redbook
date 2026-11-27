@@ -6,7 +6,6 @@ use std::{
     error::Error as StdError,
     fmt::{Debug, Display},
     marker::{Destruct, StructuralPartialEq},
-    num::TryFromIntError,
     ops::{Div, Rem},
 };
 
@@ -1057,17 +1056,21 @@ impl PartialEq<cdtoc::Duration> for Frame {
 
 /// This is the format returned by cdtoc for [Track::msf()][cdtoc::Track::msf]
 impl TryFrom<(u32, u8, u8)> for Msf {
-    type Error = TryFromIntError;
+    type Error = InvalidFrame;
 
     /// Converts a `(min, sec, frame)` tuple into an [`Msf`], failing if `min` does not fit in
     /// the `u8` used to store minutes on a disc.
     fn try_from(msf: (u32, u8, u8)) -> Result<Self, Self::Error> {
         let (min, sec, frame) = msf;
-        Ok(Self {
-            min: u8::try_from(min)?,
-            sec,
-            frame,
-        })
+        match u8::try_from(min) {
+            Ok(min) => Ok(Self { min, sec, frame }),
+            Err(_) => {
+                let min = i128::from(min).saturating_mul(Frame::ONE_MINUTE.cast());
+                let sec = i128::from(sec).saturating_mul(Frame::ONE_SECOND.cast());
+                let frames = i128::from(frame).saturating_add(sec).saturating_add(min);
+                Err(InvalidFrame(frames))
+            }
+        }
     }
 }
 
