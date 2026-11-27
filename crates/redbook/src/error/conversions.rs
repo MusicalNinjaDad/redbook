@@ -4,7 +4,7 @@ use thread_safely::Context;
 
 use crate::{
     Error, RipProgress,
-    disc::error::{DiscError, IoError, TocMismatch},
+    disc::error::{DiscError, InvalidToc, IoError, TocMismatch},
     drive::{
         DriveError,
         error::{DeviceError, InvalidBufferSize},
@@ -12,7 +12,7 @@ use crate::{
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
     toc::{
         TocError,
-        error::{CdaError, InvalidByteSize, InvalidOrder},
+        error::{CdaError, InvalidByteSize, InvalidFrame, InvalidOrder, InvalidTrackNo},
     },
 };
 
@@ -52,6 +52,18 @@ impl From<TocError> for Error {
     }
 }
 
+impl From<InvalidTrackNo> for Error {
+    fn from(error: InvalidTrackNo) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidFrame> for Error {
+    fn from(error: InvalidFrame) -> Self {
+        TocError::from(error).into()
+    }
+}
+
 impl From<cdtoc::TocError> for Error {
     fn from(error: cdtoc::TocError) -> Self {
         TocError::from(error).into()
@@ -78,6 +90,12 @@ impl From<DiscError> for Error {
 
 impl From<TocMismatch> for Error {
     fn from(error: TocMismatch) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<InvalidToc> for Error {
+    fn from(error: InvalidToc) -> Self {
         DiscError::from(error).into()
     }
 }

@@ -39,6 +39,8 @@ pub enum TocError {
     InvalidInfoEntry(RawTocEntry),
     /// A track-number value is outside the valid range 1..=99.
     InvalidTrackNo(InvalidTrackNo),
+    /// A frame outside the valid range (1..=[Frame::MAX])
+    InvalidFrame(InvalidFrame),
     /// The entries cannot be sorted: they appear to be from multiple discs.
     MultipleDiscs,
     /// An info entry (POINT 0xA0/0xA1) disagrees with the actual first/last track found.
@@ -80,6 +82,7 @@ impl Display for TocError {
                 write!(f, "entry not valid as an info entry: {raw:?}")
             }
             TocError::InvalidTrackNo(_) => write!(f, "invalid track number in TOC"),
+            TocError::InvalidFrame(_) => write!(f, "invalid Frame in TOC"),
             TocError::MultipleDiscs => write!(f, "TOC entries appear to be from multiple discs"),
             TocError::InfoMismatch { entry, found } => write!(
                 f,
@@ -104,6 +107,7 @@ impl Error for TocError {
         match self {
             TocError::CdToc(error) => Some(error),
             TocError::InvalidTrackNo(error) => Some(error),
+            TocError::InvalidFrame(error) => Some(error),
             TocError::InvalidOrder(error) => Some(error),
             TocError::InvalidTrackEntry(_)
             | TocError::InvalidLeadoutEntry(_)
@@ -129,6 +133,7 @@ impl Error for TocError {
             | TocError::InvalidOrder(_)
             | TocError::InvalidTrackEntry(_)
             | TocError::InvalidTrackNo(_)
+            | TocError::InvalidFrame(_)
             | TocError::LeadoutMismatch { .. }
             | TocError::MultipleDiscs => {
                 request.provide_value(io::ErrorKind::InvalidData);
@@ -146,6 +151,12 @@ impl From<cdtoc::TocError> for TocError {
 impl From<InvalidTrackNo> for TocError {
     fn from(error: InvalidTrackNo) -> Self {
         Self::InvalidTrackNo(error)
+    }
+}
+
+impl From<InvalidFrame> for TocError {
+    fn from(error: InvalidFrame) -> Self {
+        Self::InvalidFrame(error)
     }
 }
 
