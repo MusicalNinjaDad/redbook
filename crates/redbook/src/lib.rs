@@ -74,14 +74,15 @@
 //!        broken after changes to `portable_simd` earlier this year)
 //!
 //! # Examples & navigating the crate
-//! 
+//!
 //! ## Hardware access
-//! 
-//! [`CdDrive`] gives a platform-specific representation (currently windows with linux soon & mac
-//! later). [`CdDrives`] can safely enumerate all available drives on the system.
-//! 
+//!
+//! - [`CdDrive`] gives a platform-specific representation (currently windows only, with linux soon
+//!   & mac later).
+//! - [`CdDrives`] can safely enumerate all available drives on the system.
+//!
 //! ### List all available drives
-//! 
+//!
 //! ```
 //! # fn main() -> redbook::Result<()> {
 //! use redbook::{CdDrives, Drive, RedbookError};
@@ -98,20 +99,16 @@
 //! redbook::Result::Ok(())
 //! # }
 //! ```
-//! 
-//! The module [`drive`] contains the everything you need to implement your own access layer.
-//! [`sys`] contains specific low-level implementations for supported OSes (currently windows with
-//! linux soon & mac later)
-//! 
+//!
 //! ## A CD ripper in 20 lines
 //!
 //! Three top-level types wrap everything you need:
-//! 
+//!
 //! - [`AudioCd`] - A CD in a drive combining the physical and logical abstractions in one place
 //!   with functionality to read the disc contents, lookup details online, then rip a track
 //! - [`RippedTrack`] - The raw pcm data and accompanying meta data (name, artwork etc.)
 //! - [`RipProgress`] - To keep your user happy with a progress bar in the UI
-//! 
+//!
 //! A simple ripper can be constructed in a few steps. A more full-featured example is included in
 //! this crate as the binary `rip-cli` and an even more full-fetured one showing thread-cancellation
 //! is available in the separate crate `redbook-rip` in the same repo.
@@ -219,6 +216,10 @@
 //! - [win] - windows-specifics
 //!
 //! # Technical
+//!
+//! The module [`drive`] contains the everything you need to implement your own access layer.
+//! [`sys`] contains specific low-level implementations for supported OSes (currently windows with
+//! linux soon & mac later)
 //!
 //! ## Tracing
 //!
