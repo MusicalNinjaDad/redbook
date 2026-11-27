@@ -836,17 +836,20 @@ impl Disc {
     }
 }
 
-impl From<cdtoc::Toc> for Disc {
-    fn from(toc: cdtoc::Toc) -> Self {
-        Self {
+impl TryFrom<cdtoc::Toc> for Disc {
+    type Error = crate::toc::TocError;
+
+    fn try_from(toc: cdtoc::Toc) -> Result<Self, Self::Error> {
+        let tracks = toc.audio_tracks().map(Track::try_from).try_collect()?;
+        Ok(Self {
             toc,
-            tracks: Vec::new(),
+            tracks,
             musicbrainz: None,
             release_index: None,
             disc_index: None,
             coverart: None,
             thumbnails: HashMap::new(),
-        }
+        })
     }
 }
 
@@ -1064,7 +1067,7 @@ mod tests {
     #[case(TheBoyWhoKnewTooMuch)]
     fn disc_from_toc(#[case] album: TestAlbum) {
         let toc = album.expected_toc();
-        let disc = Disc::from(toc);
+        let disc = Disc::try_from(toc).unwrap();
         assert_eq!(
             disc.tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()
