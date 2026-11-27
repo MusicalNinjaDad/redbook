@@ -1057,7 +1057,7 @@ impl PartialEq<cdtoc::Duration> for Frame {
 impl TryFrom<cdtoc::Duration> for Frame {
     type Error = InvalidFrame;
 
-    fn try_from(duration: cdtoc::Duration) -> Result<Self, Self::Error> {
+    fn try_from(duration: cdtoc::Duration) -> Result<Self, InvalidFrame> {
         let (s, f) = duration.seconds_frames();
         Self::new(
             s.saturating_mul(Frame::ONE_SECOND.cast())
@@ -1072,7 +1072,7 @@ impl TryFrom<(u32, u8, u8)> for Msf {
 
     /// Converts a `(min, sec, frame)` tuple into an [`Msf`], failing if `min` does not fit in
     /// the `u8` used to store minutes on a disc.
-    fn try_from(msf: (u32, u8, u8)) -> Result<Self, Self::Error> {
+    fn try_from(msf: (u32, u8, u8)) -> Result<Self, InvalidFrame> {
         let (min, sec, frame) = msf;
         match u8::try_from(min) {
             Ok(min) => Ok(Self { min, sec, frame }),

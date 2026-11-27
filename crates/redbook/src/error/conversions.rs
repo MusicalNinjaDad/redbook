@@ -4,7 +4,7 @@ use thread_safely::Context;
 
 use crate::{
     Error, RipProgress,
-    disc::error::{DiscError, IoError, TocMismatch},
+    disc::error::{DiscError, InvalidToc, IoError, TocMismatch},
     drive::{
         DriveError,
         error::{DeviceError, InvalidBufferSize},
@@ -90,6 +90,12 @@ impl From<DiscError> for Error {
 
 impl From<TocMismatch> for Error {
     fn from(error: TocMismatch) -> Self {
+        DiscError::from(error).into()
+    }
+}
+
+impl From<InvalidToc> for Error {
+    fn from(error: InvalidToc) -> Self {
         DiscError::from(error).into()
     }
 }

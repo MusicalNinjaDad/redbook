@@ -89,6 +89,12 @@ impl From<TocMismatch> for DiscError {
     }
 }
 
+impl From<InvalidToc> for DiscError {
+    fn from(error: InvalidToc) -> Self {
+        Self::InvalidToc(error)
+    }
+}
+
 impl From<MetaDataError> for DiscError {
     fn from(error: MetaDataError) -> Self {
         Self::TaggingError(error)
@@ -187,6 +193,16 @@ pub enum InvalidToc {
 
 impl RedbookError for InvalidToc {}
 
+impl Display for InvalidToc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InvalidToc::InvalidTrackNo(_) => write!(f, "cdtoc encodes invalid track number"),
+            InvalidToc::InvalidStart(_) => write!(f, "cdtoc encodes invalid starting frame"),
+            InvalidToc::InvalidDuration(_) => write!(f, "cdtoc encodes invalid duration"),
+        }
+    }
+}
+
 impl Error for InvalidToc {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -197,13 +213,9 @@ impl Error for InvalidToc {
     }
 }
 
-impl Display for InvalidToc {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            InvalidToc::InvalidTrackNo(_) => write!(f, "cdtoc encodes invalid track number"),
-            InvalidToc::InvalidStart(_) => write!(f, "cdtoc encodes invalid starting frame"),
-            InvalidToc::InvalidDuration(_) => write!(f, "cdtoc encodes invalid duration"),
-        }
+impl From<InvalidTrackNo> for InvalidToc {
+    fn from(error: InvalidTrackNo) -> Self {
+        Self::InvalidTrackNo(error)
     }
 }
 

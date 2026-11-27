@@ -19,7 +19,11 @@ use tracing_result::Trace;
 
 use crate::{
     TrackNo,
-    disc::{DiscError, Track, error::TocMismatch, musicbrainz::ArtistCreditsExt},
+    disc::{
+        DiscError, Track,
+        error::{InvalidToc, TocMismatch},
+        musicbrainz::ArtistCreditsExt,
+    },
     tags::{artwork::picture_from_jpeg, vorbis::ExtendVorbisTag},
 };
 
@@ -837,9 +841,9 @@ impl Disc {
 }
 
 impl TryFrom<cdtoc::Toc> for Disc {
-    type Error = crate::toc::TocError;
+    type Error = InvalidToc;
 
-    fn try_from(toc: cdtoc::Toc) -> Result<Self, Self::Error> {
+    fn try_from(toc: cdtoc::Toc) -> Result<Self, InvalidToc> {
         let tracks = toc.audio_tracks().map(Track::try_from).try_collect()?;
         Ok(Self {
             toc,
