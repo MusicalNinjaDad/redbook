@@ -3,6 +3,7 @@ logs/**
 plans/**
 *.toml
 *.json
+*.lock
 vibehistory
 
 # API KEY!!!
