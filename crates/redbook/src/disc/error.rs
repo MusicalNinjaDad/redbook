@@ -95,6 +95,18 @@ impl From<InvalidToc> for DiscError {
     }
 }
 
+impl From<InvalidTrackNo> for DiscError {
+    fn from(error: InvalidTrackNo) -> Self {
+        InvalidToc::from(error).into()
+    }
+}
+
+impl From<cdtoc::TocError> for DiscError {
+    fn from(error: cdtoc::TocError) -> Self {
+        InvalidToc::from(error).into()
+    }
+}
+
 impl From<MetaDataError> for DiscError {
     fn from(error: MetaDataError) -> Self {
         Self::TaggingError(error)
@@ -189,6 +201,7 @@ pub enum InvalidToc {
     InvalidTrackNo(InvalidTrackNo),
     InvalidStart(InvalidFrame),
     InvalidDuration(InvalidFrame),
+    InvalidCdToc(cdtoc::TocError),
 }
 
 impl RedbookError for InvalidToc {}
@@ -199,6 +212,7 @@ impl Display for InvalidToc {
             InvalidToc::InvalidTrackNo(_) => write!(f, "cdtoc encodes invalid track number"),
             InvalidToc::InvalidStart(_) => write!(f, "cdtoc encodes invalid starting frame"),
             InvalidToc::InvalidDuration(_) => write!(f, "cdtoc encodes invalid duration"),
+            InvalidToc::InvalidCdToc(_) => write!(f, "unable to parse cdtoc"),
         }
     }
 }
@@ -206,9 +220,10 @@ impl Display for InvalidToc {
 impl Error for InvalidToc {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            InvalidToc::InvalidTrackNo(invalid_track_no) => Some(invalid_track_no),
-            InvalidToc::InvalidStart(invalid_frame) => Some(invalid_frame),
-            InvalidToc::InvalidDuration(invalid_frame) => Some(invalid_frame),
+            InvalidToc::InvalidTrackNo(error) => Some(error),
+            InvalidToc::InvalidStart(error) => Some(error),
+            InvalidToc::InvalidDuration(error) => Some(error),
+            InvalidToc::InvalidCdToc(error) => Some(error),
         }
     }
 }
@@ -216,6 +231,12 @@ impl Error for InvalidToc {
 impl From<InvalidTrackNo> for InvalidToc {
     fn from(error: InvalidTrackNo) -> Self {
         Self::InvalidTrackNo(error)
+    }
+}
+
+impl From<cdtoc::TocError> for InvalidToc {
+    fn from(error: cdtoc::TocError) -> Self {
+        Self::InvalidCdToc(error)
     }
 }
 

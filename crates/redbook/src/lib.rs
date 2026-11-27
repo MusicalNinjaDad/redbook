@@ -100,6 +100,28 @@
 //! # }
 //! ```
 //!
+//! ## Lookup a disc on musicbrainz and generate tags
+//!
+//! ```no_run
+//! use redbook::{Disc, disc::DiscError, TrackNo};
+//!
+//! use cdtoc::Toc;
+//! use metaflac::block::{Picture, VorbisComment};
+//!
+//! # fn main() -> Result<(), DiscError> {
+//! let toc = Toc::from_cdtoc("B+B7+5F69+B9CB+10AE5+159AD+1C81D+21B3D+266C7+2BB8B+2E82C+35B3B+393A3")?;
+//! let mut definitely_maybe = Disc::try_from(toc)?;
+//!
+//! definitely_maybe.update_musicbrainz()?;
+//! definitely_maybe.update_cover_art()?;
+//!
+//! let shakermaker: VorbisComment = definitely_maybe.tag_for(TrackNo::strict_new(2)).expect("data available after calling update_musicbrainz");
+//! let cover: Option<&Picture> = definitely_maybe.cover_art();
+//!
+//! Result::Ok(())
+//! # }
+//! ```
+//!
 //! ## A CD ripper in 20 lines
 //!
 //! Three top-level types wrap everything you need:
