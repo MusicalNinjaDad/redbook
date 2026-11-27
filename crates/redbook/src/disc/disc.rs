@@ -1041,4 +1041,19 @@ mod tests {
         assert_eq!(disc.release_index, Some(3));
         assert_eq!(disc.disc_index, Some(0));
     }
+
+    #[rstest]
+    #[case(DefinitelyMaybe)]
+    #[case(TheWallDisc1)]
+    #[case(TheWallDisc2)]
+    #[case(BatOutOfHellRevamped)]
+    #[case(TheBoyWhoKnewTooMuch)]
+    fn disc_from_toc(#[case] album: TestAlbum) {
+        let toc = album.expected_toc();
+        let disc = Disc::from(toc);
+        assert_eq!(
+            disc.tracks().collect(),
+            album.expected_audio_tracks_minimal()
+        )
+    }
 }
