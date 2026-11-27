@@ -232,19 +232,12 @@ impl Frame {
         self.saturating_sub(LEADIN)
     }
 
-    /// Returns the underlying `u32` representation.
-    ///
-    /// For clarity it is recommended to use [`Self::cast`] even when casting to `u32`.
-    const fn into_inner(self) -> u32 {
-        self.0
-    }
-
     /// Casts to any integer type which the inner representation allows without risk.
     pub const fn cast<N>(self) -> N
     where
         N: [const] From<u32>,
     {
-        N::from(self.into_inner())
+        N::from(self.0)
     }
 
     /// Casts to any integer type returning `None` on overflow.
@@ -252,7 +245,7 @@ impl Frame {
     where
         N: [const] CheckedCastFromInt<u32>,
     {
-        N::checked_cast_from(self.into_inner())
+        N::checked_cast_from(self.0)
     }
 
     /// Casts to any integer type saturating on overflow.
@@ -260,7 +253,7 @@ impl Frame {
     where
         N: [const] BoundedCastFromInt<u32>,
     {
-        N::saturating_cast_from(self.into_inner())
+        N::saturating_cast_from(self.0)
     }
 
     /// Casts to any integer type panicking on overflow.
@@ -268,7 +261,7 @@ impl Frame {
     where
         N: [const] CheckedCastFromInt<u32>,
     {
-        N::strict_cast_from(self.into_inner())
+        N::strict_cast_from(self.0)
     }
 
     /// The size of `self` in bytes: `self * `[`Self::SIZE_IN_BYTES`].
@@ -357,8 +350,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().strict_add(rhs);
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.strict_add(rhs);
         Self::strict_new::<u32>(v)
     }
 
@@ -370,8 +363,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().checked_add(rhs)?;
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.checked_add(rhs)?;
         Self::checked_new::<u32>(v)
     }
 
@@ -382,8 +375,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().saturating_add(rhs);
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.saturating_add(rhs);
         Self::saturating_new::<u32>(v)
     }
 
@@ -397,8 +390,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().strict_sub(rhs);
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.strict_sub(rhs);
         Self::strict_new::<u32>(v)
     }
 
@@ -409,8 +402,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().checked_sub(rhs)?;
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.checked_sub(rhs)?;
         Self::checked_new::<u32>(v)
     }
 
@@ -421,8 +414,8 @@ impl Frame {
     where
         Self: [const] From<R>,
     {
-        let rhs = Frame::from(rhs).into_inner();
-        let v = self.into_inner().saturating_sub(rhs);
+        let rhs = Frame::from(rhs).0;
+        let v = self.0.saturating_sub(rhs);
         Self::saturating_new::<u32>(v)
     }
 
@@ -457,7 +450,7 @@ impl Frame {
             Self::ZERO => Self::ZERO,
             _ => Self::strict_new(rhs),
         };
-        let v = self.into_inner().strict_mul(rhs.into_inner());
+        let v = self.0.strict_mul(rhs.0);
         Self::strict_new::<u32>(v)
     }
 
@@ -475,7 +468,7 @@ impl Frame {
             Self::ZERO => Self::ZERO,
             _ => Self::checked_new(rhs)?,
         };
-        let v = self.into_inner().checked_mul(rhs.into_inner())?;
+        let v = self.0.checked_mul(rhs.0)?;
         Self::checked_new::<u32>(v)
     }
 
@@ -492,7 +485,7 @@ impl Frame {
             Self::ZERO => Self::ZERO,
             _ => Self::saturating_new(rhs),
         };
-        let v = self.into_inner().saturating_mul(rhs.into_inner());
+        let v = self.0.saturating_mul(rhs.0);
         Self::saturating_new::<u32>(v)
     }
 
@@ -515,7 +508,7 @@ impl Frame {
         u32: [const] BoundedCastFromInt<N>,
     {
         let rhs = u32::saturating_cast_from(rhs);
-        let v = self.into_inner().div(rhs);
+        let v = self.0.div(rhs);
         Self::saturating_new::<u32>(v)
     }
 
@@ -532,7 +525,7 @@ impl Frame {
         u32: [const] BoundedCastFromInt<N>,
     {
         let rhs = u32::saturating_cast_from(rhs);
-        let v = self.into_inner().checked_div(rhs)?;
+        let v = self.0.checked_div(rhs)?;
         Self::checked_new::<u32>(v)
     }
 
@@ -551,7 +544,7 @@ impl Frame {
         u32: [const] BoundedCastFromInt<N>,
     {
         let rhs = u32::saturating_cast_from(rhs);
-        let v = self.into_inner().rem(rhs);
+        let v = self.0.rem(rhs);
         Self::saturating_new::<u32>(v)
     }
 
@@ -568,7 +561,7 @@ impl Frame {
         u32: [const] BoundedCastFromInt<N>,
     {
         let rhs = u32::saturating_cast_from(rhs);
-        let v = self.into_inner().checked_rem(rhs)?;
+        let v = self.0.checked_rem(rhs)?;
         Self::checked_new::<u32>(v)
     }
 
@@ -959,8 +952,8 @@ impl Display for Msf {
 
 const impl From<Msf> for Frame {
     fn from(msf: Msf) -> Self {
-        let mins = u32::from(msf.min).saturating_mul(Frame::ONE_MINUTE.into_inner());
-        let secs = u32::from(msf.sec).saturating_mul(Frame::ONE_SECOND.into_inner());
+        let mins = u32::from(msf.min).saturating_mul(Frame::ONE_MINUTE.cast());
+        let secs = u32::from(msf.sec).saturating_mul(Frame::ONE_SECOND.cast());
         let frames = u32::from(msf.frame);
         Self(mins.saturating_add(secs).saturating_add(frames))
     }
