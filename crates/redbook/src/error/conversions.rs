@@ -12,7 +12,7 @@ use crate::{
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
     toc::{
         TocError,
-        error::{CdaError, InvalidByteSize, InvalidOrder, InvalidTrackNo},
+        error::{CdaError, InvalidByteSize, InvalidFrame, InvalidOrder, InvalidTrackNo},
     },
 };
 
@@ -54,6 +54,12 @@ impl From<TocError> for Error {
 
 impl From<InvalidTrackNo> for Error {
     fn from(error: InvalidTrackNo) -> Self {
+        TocError::from(error).into()
+    }
+}
+
+impl From<InvalidFrame> for Error {
+    fn from(error: InvalidFrame) -> Self {
         TocError::from(error).into()
     }
 }
