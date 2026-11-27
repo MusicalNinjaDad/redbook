@@ -1054,6 +1054,18 @@ impl PartialEq<cdtoc::Duration> for Frame {
     }
 }
 
+impl TryFrom<cdtoc::Duration> for Frame {
+    type Error = InvalidFrame;
+
+    fn try_from(duration: cdtoc::Duration) -> Result<Self, Self::Error> {
+        let (s, f) = duration.seconds_frames();
+        Self::new(
+            s.saturating_mul(Frame::ONE_SECOND.cast())
+                .saturating_add(f.into()),
+        )
+    }
+}
+
 /// This is the format returned by cdtoc for [Track::msf()][cdtoc::Track::msf]
 impl TryFrom<(u32, u8, u8)> for Msf {
     type Error = InvalidFrame;
