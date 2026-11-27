@@ -100,7 +100,15 @@
 //! # }
 //! ```
 //!
-//! ## Lookup a disc on musicbrainz and generate tags
+//! ## Logical CDs
+//!
+//! - [`Disc`] represents a logical CD. This is the main starting point for all data and actions you
+//!   take on the CD itself and integrates:
+//!     - [`musicbrainz_rs`] for online data retrieval and extensive metadata information,
+//!     - [`cdtoc`] for a simple, portable representation of a specific disc
+//!     - [`metaflac`] for tags & images
+//!
+//! ### Lookup a disc on musicbrainz and generate tags
 //!
 //! ```no_run
 //! use redbook::{Disc, disc::DiscError, TrackNo};
