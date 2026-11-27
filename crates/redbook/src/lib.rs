@@ -44,8 +44,8 @@
 
 //! A load of glue for working with CDDA CD digital audio as per RedBook (IEC 60908:1999)
 //!
-//! Most of what this library provides is "glue", bringing together crates which cover different
-//! parts of the CD audio landscape into a single, coherent whole.
+//! This library provides "glue", bringing together direct hardware access and crates which cover
+//! different parts of the CD audio landscape into a single, coherent whole.
 //!
 //! # End-to-end functionality
 //!
@@ -58,21 +58,62 @@
 //! I wanted to create my own cd ripper and found two problems:
 //!
 //! 1. The only crate available to read data from a CD has lots of undocumented unsafe code and
-//!    doesn't make use of any specialised OS or driver functionality, just going straight to hardware.
-//!    Auditing was as much work as re-implementing, and re-implementing allowed me to leverage
-//!    OS-specific IO-Controls and thereby also make use of any OS and driver functionality.
-//! 2. There are a load of great crates out there for each of the other bits of the process, but glueing
-//!    them together into a coherent whole needed a lot of code. Those great crates are used here and
-//!    worth naming:
-//!      - [cdtoc](https://crates.io/crates/cdtoc) - for handling all the online & generic representations of a TOC
-//!      - [musicbrainz_rs](https://crates.io/crates/musicbrainz_rs) - for querying MusicBrainz and parsing the results
+//!    doesn't make use of any specialised OS or driver functionality, just going straight to
+//!    hardware. Auditing was as much work as re-implementing, and re-implementing allowed me to
+//!    leverage OS-specific IO-Controls and thereby also make use of any OS and driver
+//!    functionality.
+//! 2. There are a load of great crates out there for each of the other bits of the process, but
+//!    glueing them together into a coherent whole needed a lot of code. Those great crates are used
+//!    here and worth naming:
+//!      - [cdtoc](https://crates.io/crates/cdtoc) - for handling all the online & generic
+//!        representations of a TOC
+//!      - [musicbrainz_rs](https://crates.io/crates/musicbrainz_rs) - for querying MusicBrainz and
+//!        parsing the results
 //!      - [metaflac](https://crates.io/crates/metaflac) - for tagging FLAC files
-//!      - [flacenc](https://crates.io/crates/flacenc) - for encoding to FLAC (currently slightly broken after changes to `portable_simd` earlier this year)
+//!      - [flacenc](https://crates.io/crates/flacenc) - for encoding to FLAC (currently slightly
+//!        broken after changes to `portable_simd` earlier this year)
 //!
-//! # Example
+//! # Examples & navigating the crate
+//! 
+//! ## Hardware access
+//! 
+//! [`CdDrive`] gives a platform-specific representation (currently windows with linux soon & mac
+//! later). [`CdDrives`] can safely enumerate all available drives on the system.
+//! 
+//! ### List all available drives
+//! 
+//! ```
+//! # fn main() -> redbook::Result<()> {
+//! use redbook::{CdDrives, Drive, RedbookError};
+//! let cx = Default::default();
+//! for drive in CdDrives::all(cx)? {
+//!     match drive {
+//!         Ok(drive) => {
+//!             println!("found a drive with a disc loaded at: {p}", p = drive.path().display());
+//!             println!("{n} audio tracks on the CD", n = drive.toc().audio_tracks().count());
+//!         }
+//!         Err(error) => eprintln!("unable to open drive. {e}", e = error.full_message()),
+//!     }
+//! }
+//! redbook::Result::Ok(())
+//! # }
+//! ```
+//! 
+//! The module [`drive`] contains the everything you need to implement your own access layer.
+//! [`sys`] contains specific low-level implementations for supported OSes (currently windows with
+//! linux soon & mac later)
+//! 
+//! ## A CD ripper in 20 lines
 //!
-//! A simple ripper can be constructed in a few steps. A more full-featured example is included
-//! in this crate as the binary `rip-cli` and an even more full-fetured one showing thread-cancellation
+//! Three top-level types wrap everything you need:
+//! 
+//! - [`AudioCd`] - A CD in a drive combining the physical and logical abstractions in one place
+//!   with functionality to read the disc contents, lookup details online, then rip a track
+//! - [`RippedTrack`] - The raw pcm data and accompanying meta data (name, artwork etc.)
+//! - [`RipProgress`] - To keep your user happy with a progress bar in the UI
+//! 
+//! A simple ripper can be constructed in a few steps. A more full-featured example is included in
+//! this crate as the binary `rip-cli` and an even more full-fetured one showing thread-cancellation
 //! is available in the separate crate `redbook-rip` in the same repo.
 //!
 //! ```no_run
@@ -123,8 +164,8 @@
 //!
 //! ## Main entry point
 //!
-//! The main entry point is [AudioCd] which provides a single struct representing a CD loaded into
-//! a physical drive and allows for:
+//! The main entry point is [AudioCd] which provides a single struct representing a CD loaded into a
+//! physical drive and allows for:
 //!
 //! - reading data from the disc
 //! - looking up metadata online
@@ -140,8 +181,10 @@
 //! - [`CdDrives`]  - platform specific iterator over all available physical drives
 //! - [`CdDrive`]   - platform specific representation of a physical drive
 //! - [`Drive`]     - general trait providing high-level capabilities for a physical drive
-//! - [`drive::CdDrives<DEV>`] & [`drive::CdDrive<DEV>`] - general versions of [`CdDrives`] & [`CdDrive`]
-//! - [`Device`]    - general trait describing the low-level capabilities of a device able to read CDs
+//! - [`drive::CdDrives<DEV>`] & [`drive::CdDrive<DEV>`] - general versions of [`CdDrives`] &
+//!   [`CdDrive`]
+//! - [`Device`]    - general trait describing the low-level capabilities of a device able to read
+//!   CDs
 //!
 //! ## CD contents
 //!
@@ -152,16 +195,19 @@
 //! - [`Track`]         - a track on a physical CD. This struct cannot stand alone, as it requires
 //!   information on relevant [`Disc`] in order to be meaningful.
 //! - [`TrackNo`]       - a track number: always within the redbook range 1..=99
-//! - [`Point`][toc::Point] - a raw POINT field value from a TOC entry, incl. "special" codes (lead-out, first/last track info)
+//! - [`Point`][toc::Point] - a raw POINT field value from a TOC entry, incl. "special" codes
+//!   (lead-out, first/last track info)
 //! - [`TocEntries`]    - a CD's Table of Contents
 //! - [`TocEntry`][toc::TocEntry] - a single entry from a Table of Contents
-//! - [`TrackEntry`][toc::TrackEntry], [`LeadoutEntry`][toc::LeadoutEntry] & [`InfoEntry`][toc::InfoEntry] - the classified payloads of a [`TocEntry`][toc::TocEntry]
+//! - [`TrackEntry`][toc::TrackEntry], [`LeadoutEntry`][toc::LeadoutEntry] &
+//!   [`InfoEntry`][toc::InfoEntry] - the classified payloads of a [`TocEntry`][toc::TocEntry]
 //! - [`Control`][toc::Control] - technical control code associated with a TOC entry
 //! - [`Frame`]         - The primary measure of time. CD data is split into `Frames` each of which
 //!   represent 1/75s audio
-//! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on
-//!   a physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
-//! - [`ByteSize`][frame::ByteSize] - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or [`Frame::size`]
+//! - [`Msf`][`frame::Msf`] - Minutes, seconds, frames: time as stored in sub-code channels on a
+//!   physical disc. Prefer [`Frame`]s wherever possible as Msf cannot guarantee e.g sec < 60.
+//! - [`ByteSize`][frame::ByteSize] - a size in bytes, e.g. [`Frame::SIZE_IN_BYTES`] or
+//!   [`Frame::size`]
 //!
 //! ## Platform specifics
 //!
@@ -176,8 +222,8 @@
 //!
 //! ## Tracing
 //!
-//! Redbook leverages [tracing](https://crates.io/crates/tracing). Info, Warn & Error messages
-//! are designed to be directly usable as output from a CLI binary. Debug & Trace information is
+//! Redbook leverages [tracing](https://crates.io/crates/tracing). Info, Warn & Error messages are
+//! designed to be directly usable as output from a CLI binary. Debug & Trace information is
 //! designed to assist with log file analysis.
 //!
 //! ## Testing
@@ -185,13 +231,13 @@
 //! The [`test_fixtures`] module provides access to the suite of album data which is used for
 //! testing `redbook`.
 //!
-//! All low-level device access is fully mocked and uses the test data to provide meaningful
-//! return values.
+//! All low-level device access is fully mocked and uses the test data to provide meaningful return
+//! values.
 //!
 //! ## Cross-platform development
 //!
-//! The top-level struct [`AudioCd`] plus type aliases [`CdDrives`] & [`CdDrive`] are cfg-gated
-//! to provide easy access to the the relevant platform-specific implementations.
+//! The top-level struct [`AudioCd`] plus type aliases [`CdDrives`] & [`CdDrive`] are cfg-gated to
+//! provide easy access to the the relevant platform-specific implementations.
 //!
 //! Direct access to all platform-specific variants is available by naming the module path.
 //!
@@ -202,40 +248,39 @@
 //!
 //! ## Errors
 //!
-//! The library uses a structured error hierarchy (see [`error`] for the full conventions; a
-//! diagram of the full tree is in the `Errors` section of `README.md`):
+//! The library uses a structured error hierarchy (see [`error`] for the full conventions; a diagram
+//! of the full tree is in the `Errors` section of `README.md`):
 //!
 //! 1. [`Error`] - the crate-root enum, used by APIs which span multiple domains (e.g.
 //!    [`AudioCd::open`], [`AudioCd::rip`]); [`Result`] defaults to it.
 //! 2. Domain errors - `toc::TocError`, `disc::DiscError`, `drive::DriveError` &
 //!    `drive::error::DeviceError`, `track::EncodingError`, returned by most public signatures as
 //!    `Result<_, DomainError>`. (`disc::error` additionally holds the nested `TaggingError`,
-//!    `IoError`, `TocMismatch` & `UnknownMimeType`; `win::WinError` is the OS-coloured
-//!    `io::Error` wrapper consumed at the `Device` boundary, and `win::CdaError` covers `.cda`
-//!    parsing.)
+//!    `IoError`, `TocMismatch` & `UnknownMimeType`; `win::WinError` is the OS-coloured `io::Error`
+//!    wrapper consumed at the `Device` boundary, and `win::CdaError` covers `.cda` parsing.)
 //! 3. Leaf errors - variants of the domain enums, or dedicated leaf structs (e.g.
 //!    `toc::error::InvalidTrackNo`) which carry the offending value. Variants wrapping a foreign
 //!    error hold it in a single tuple field (e.g. `CdToc(cdtoc::TocError)`,
 //!    `MetaflacError(metaflac::Error)`).
 //!
-//! All error types are hand-rolled: they implement [`std::error::Error`] and are
-//! `Send + Sync + 'static`. Error enums are deliberately not `#[non_exhaustive]` (extending them
-//! is a semver-breaking change, preferred over forced `_ =>` arms downstream). Context is the
-//! data which led to the error, stored in the variant itself - there is no stringly-typed
-//! `.context(...)` API; constructors which capture a wrapped value allow closure-free
-//! `.map_err(MyError::new)`, and `From` conversions make `?` work directly.
+//! All error types are hand-rolled: they implement [`std::error::Error`] and are `Send + Sync +
+//! 'static`. Error enums are deliberately not `#[non_exhaustive]` (extending them is a
+//! semver-breaking change, preferred over forced `_ =>` arms downstream). Context is the data which
+//! led to the error, stored in the variant itself - there is no stringly-typed `.context(...)` API;
+//! constructors which capture a wrapped value allow closure-free `.map_err(MyError::new)`, and
+//! `From` conversions make `?` work directly.
 //!
-//! `source()` returns the directly wrapped error, so a wrapped OS error keeps its raw OS error
-//! code all the way down; a wrapped error is not also rendered by `Display`, while data-carrying
+//! `source()` returns the directly wrapped error, so a wrapped OS error keeps its raw OS error code
+//! all the way down; a wrapped error is not also rendered by `Display`, while data-carrying
 //! variants are rendered by `Display` and return `None` from `source()`.
 //!
 //! Every error type implements [`RedbookError`][error::RedbookError], which provides
 //! [`into_io_error`][error::RedbookError::into_io_error] for interop with IO-centric downstream
 //! code — but deliberately *not* `From<This> for io::Error`, so that each call site makes an
-//! explicit decision about the [`io::ErrorKind`], whether to wrap the error as a source, and how
-//! to handle an underlying `io::Error` further down the stack. Relevant cases also implement
-//! `From<This> for other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`,
-//! `flacenc`, `metaflac`), which mainly unwrap a wrapped foreign error.
+//! explicit decision about the [`io::ErrorKind`], whether to wrap the error as a source, and how to
+//! handle an underlying `io::Error` further down the stack. Relevant cases also implement
+//! `From<This> for other_crate::Error` for the glued crates (`cdtoc`, `musicbrainz_rs`, `flacenc`,
+//! `metaflac`), which mainly unwrap a wrapped foreign error.
 //!
 //! # Safety
 //!
@@ -264,14 +309,14 @@
 //! leaving the main thread available for UI updates etc.
 //!
 //! [`AudioCd`], [CdDrive] & [CdDrives] require a [`Context::<RipProgress>`][thread_safely::Context]
-//! from the [`thread_safely`] crate which provides a means for providing status updates / cancelling
-//! long-running IO (e.g. reading an entire track).
+//! from the [`thread_safely`] crate which provides a means for providing status updates /
+//! cancelling long-running IO (e.g. reading an entire track).
 //!
 //! Great care has been taken to ensure [`Send`] & [`Sync`] are sound, as such multi-threaded
 //! applications will need to wrap an [`AudioCd`] in an `Arc<Mutex<AudioCd>>`. This isn't a smell,
-//! it's a proper use of those wrappers. A [`Disc`] cannot be [`Sync`] as this would allow one thread
-//! to update the meta-data while another was in the process of reading the same meta-data for a given
-//! [`Track`].
+//! it's a proper use of those wrappers. A [`Disc`] cannot be [`Sync`] as this would allow one
+//! thread to update the meta-data while another was in the process of reading the same meta-data
+//! for a given [`Track`].
 //!
 //! Likewise, [`Clone`] is implemented in a sound manner for low-level [`Device`]s by generating an
 //! additional handle to the underlying device rather than simply re-using the existing one.
@@ -285,13 +330,13 @@
 //! - I find many of the ergonomic benefits worth the toolchain restriction.
 //! - I want to support development of the language and stabilisation of new features.
 //!
-//! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected and
-//! to avoid future lint errors for stable features
+//! The crate uses [`build_safely`] to ensure that every experimental feature behaves as expected
+//! and to avoid future lint errors for stable features
 
 pub use audiocd::{AudioCd, RipProgress};
 pub use disc::Disc;
 pub use drive::{Device, Drive};
-pub use error::{Error, Result};
+pub use error::{Error, RedbookError, Result};
 pub use ripped_track::RippedTrack;
 pub use toc::{Frame, TocEntries, TrackNo};
 
