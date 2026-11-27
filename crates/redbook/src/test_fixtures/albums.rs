@@ -452,8 +452,3 @@ impl TestAlbum {
         ByteSize::rounded_new(raw)
     }
 }
-
-#[test]
-fn dmtoc() {
-    panic!("{}", TestAlbum::DefinitelyMaybe.expected_toc())
-}
