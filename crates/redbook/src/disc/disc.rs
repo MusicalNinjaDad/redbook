@@ -836,6 +836,20 @@ impl Disc {
     }
 }
 
+impl From<cdtoc::Toc> for Disc {
+    fn from(toc: cdtoc::Toc) -> Self {
+        Self {
+            toc,
+            tracks: Vec::new(),
+            musicbrainz: None,
+            release_index: None,
+            disc_index: None,
+            coverart: None,
+            thumbnails: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 /// An iterator over the tracks of a [`Disc`].
 ///
@@ -1052,7 +1066,7 @@ mod tests {
         let toc = album.expected_toc();
         let disc = Disc::from(toc);
         assert_eq!(
-            disc.tracks().collect(),
+            disc.tracks().collect::<Vec<_>>(),
             album.expected_audio_tracks_minimal()
         )
     }
