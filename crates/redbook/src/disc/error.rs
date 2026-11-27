@@ -17,6 +17,7 @@ use thread_safely::Context;
 use crate::{
     disc::Track,
     error::{MetaDataError, RedbookError, UnknownMimeType},
+    toc::error::{InvalidFrame, InvalidTrackNo},
 };
 
 /// Error returned by [`Disc`][crate::Disc] APIs: metadata lookup, cover art & validation
@@ -25,6 +26,8 @@ use crate::{
 pub enum DiscError {
     /// The provided tracks do not match the TOC.
     TocMismatch(TocMismatch),
+    /// The provided cdtoc::Toc encodes invalid information
+    InvalidToc(InvalidToc),
     TaggingError(MetaDataError),
     /// No MusicBrainz release was found / selected.
     NoReleases,
@@ -39,6 +42,7 @@ impl Display for DiscError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DiscError::TocMismatch(_) => write!(f, "provided tracks do not match the TOC"),
+            DiscError::InvalidToc(_) => write!(f, "the provided cdtoc is invalid"),
             DiscError::TaggingError(_) => write!(f, "tagging error"),
             DiscError::IoError(_) => write!(f, "I/O error"),
             DiscError::NoReleases => write!(f, "no releases found"),
@@ -51,6 +55,7 @@ impl Error for DiscError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             DiscError::TocMismatch(error) => Some(error),
+            DiscError::InvalidToc(error) => Some(error),
             DiscError::TaggingError(error) => Some(error),
             DiscError::IoError(error) => Some(error),
             DiscError::NoReleases | DiscError::ThreadCancellation => None,
@@ -59,7 +64,7 @@ impl Error for DiscError {
 
     fn provide<'a>(&'a self, request: &mut std::error::Request<'a>) {
         match self {
-            DiscError::TocMismatch(_) => {
+            DiscError::TocMismatch(_) | DiscError::InvalidToc(_) => {
                 request.provide_value(io::ErrorKind::InvalidInput);
             }
             DiscError::TaggingError(_) => {
@@ -171,6 +176,35 @@ impl Display for TocMismatch {
 
 impl Error for TocMismatch {
     // no provide - could be InvalidData or InvalidInput
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InvalidToc {
+    InvalidTrackNo(InvalidTrackNo),
+    InvalidStart(InvalidFrame),
+    InvalidDuration(InvalidFrame),
+}
+
+impl RedbookError for InvalidToc {}
+
+impl Error for InvalidToc {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            InvalidToc::InvalidTrackNo(invalid_track_no) => Some(invalid_track_no),
+            InvalidToc::InvalidStart(invalid_frame) => Some(invalid_frame),
+            InvalidToc::InvalidDuration(invalid_frame) => Some(invalid_frame),
+        }
+    }
+}
+
+impl Display for InvalidToc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InvalidToc::InvalidTrackNo(_) => write!(f, "cdtoc encodes invalid track number"),
+            InvalidToc::InvalidStart(_) => write!(f, "cdtoc encodes invalid starting frame"),
+            InvalidToc::InvalidDuration(_) => write!(f, "cdtoc encodes invalid duration"),
+        }
+    }
 }
 
 #[derive(Debug)]
