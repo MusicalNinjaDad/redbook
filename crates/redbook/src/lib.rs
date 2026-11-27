@@ -130,6 +130,15 @@
 //! # }
 //! ```
 //!
+//! ## Parsing CD contents
+//!
+//! - [`TocEntries`] provides a fully typed and parsed view of the Table of Contents read from a CD.
+//! - [`CdaFile`][crate::toc::cda::CdaFile] handles windows .cda files
+//! - [`TrackNo`], [`Frame`], [`ByteSize`][crate::toc::ByteSize], [`Msf`][crate::toc::ByteSize]
+//!   provide type-safe, semantically valid units for working with audio CDs
+//! - modules [`tocentry`][crate::toc::tocentry] & [`control`][toc::control] provide the ability to
+//!   represent and parse the individual toc entries from both `b0000` & `b0010` formats.
+//!
 //! ## A CD ripper in 20 lines
 //!
 //! Three top-level types wrap everything you need:
