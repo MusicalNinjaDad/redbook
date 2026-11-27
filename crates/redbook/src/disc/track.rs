@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 use crate::{
     Frame,
-    toc::{Msf, TrackNo, tocentry::TrackEntry},
+    toc::{Msf, TocError, TrackNo, tocentry::TrackEntry},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -116,5 +116,21 @@ impl PartialEq<cdtoc::Track> for Track<'_> {
         (self.trackno.cast::<u8>() == toc_track.number())
             && (Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf))
             && (self.duration == toc_track.duration())
+    }
+}
+
+impl TryFrom<cdtoc::Track> for Track<'static> {
+    type Error = TocError;
+
+    fn try_from(cdtoc_track: cdtoc::Track) -> Result<Self, Self::Error> {
+        let trackno = TrackNo::new(cdtoc_track.number())?;
+        let start = Msf::try_from(cdtoc_track.msf())?.into();
+        let duration = Frame::try_from(cdtoc_track.duration())?;
+        Ok(Self {
+            trackno,
+            start,
+            duration,
+            meta: None,
+        })
     }
 }
