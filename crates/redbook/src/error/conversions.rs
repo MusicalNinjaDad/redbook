@@ -12,7 +12,7 @@ use crate::{
     error::{EncodingError, FlacError, MetaDataError, UnknownMimeType},
     toc::{
         TocError,
-        error::{CdaError, InvalidByteSize, InvalidOrder},
+        error::{CdaError, InvalidByteSize, InvalidOrder, InvalidTrackNo},
     },
 };
 
@@ -49,6 +49,12 @@ impl From<crossbeam::channel::SendError<RipProgress>> for Error {
 impl From<TocError> for Error {
     fn from(error: TocError) -> Self {
         Self::TocError(error)
+    }
+}
+
+impl From<InvalidTrackNo> for Error {
+    fn from(error: InvalidTrackNo) -> Self {
+        TocError::from(error).into()
     }
 }
 
