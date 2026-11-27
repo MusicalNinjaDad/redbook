@@ -114,9 +114,7 @@ impl PartialEq<TrackEntry> for Track<'_> {
 
 impl PartialEq<cdtoc::Track> for Track<'_> {
     fn eq(&self, toc_track: &cdtoc::Track) -> bool {
-        (self.trackno.cast::<u8>() == toc_track.number())
-            && (Msf::try_from(toc_track.msf()).is_ok_and(|msf| self.start == msf))
-            && (self.duration == toc_track.duration())
+        Track::<'static>::try_from(*toc_track).is_ok_and(move |rhs| self == &rhs)
     }
 }
 
