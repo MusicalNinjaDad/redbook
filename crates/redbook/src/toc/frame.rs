@@ -1049,8 +1049,7 @@ const impl PartialEq<Frame> for Msf {
 
 impl PartialEq<cdtoc::Duration> for Frame {
     fn eq(&self, duration: &cdtoc::Duration) -> bool {
-        let (s, f) = duration.seconds_frames();
-        self.cast::<u64>() == s.strict_mul(75).strict_add(f.into())
+        Self::try_from(*duration).is_ok_and(|rhs| self == &rhs)
     }
 }
 
